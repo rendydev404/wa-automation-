@@ -22,6 +22,7 @@ export interface NomorRingkas extends Nomor {
   jumlah_karakter: number;
   dibalas_hari_ini: number;
   masuk_hari_ini: number;
+  jumlah_percakapan: number;
 }
 
 export const tanggalWib = (): string => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
@@ -71,7 +72,7 @@ export async function nomorBySesi(sesi: string): Promise<Nomor | undefined> {
   return (await cache()).perSesi.get(sesi);
 }
 
-/** Daftar nomor + ringkasan knowledge & statistik hari ini, satu query (tanpa N+1). */
+/** Daftar nomor + ringkasan knowledge, percakapan & statistik hari ini, satu query (tanpa N+1). */
 export async function daftarNomor(): Promise<NomorRingkas[]> {
   const sql = await db();
   const baris = await sql<NomorRingkas[]>`
@@ -79,11 +80,14 @@ export async function daftarNomor(): Promise<NomorRingkas[]> {
            COALESCE(d.jumlah, 0)   AS jumlah_dokumen,
            COALESCE(d.karakter, 0) AS jumlah_karakter,
            COALESCE(s.dibalas, 0)  AS dibalas_hari_ini,
-           COALESCE(s.masuk, 0)    AS masuk_hari_ini
+           COALESCE(s.masuk, 0)    AS masuk_hari_ini,
+           COALESCE(p.jumlah, 0)   AS jumlah_percakapan
       FROM numbers n
       LEFT JOIN (SELECT number_id, COUNT(*) AS jumlah, SUM(jumlah_karakter) AS karakter
                    FROM documents GROUP BY number_id) d ON d.number_id = n.id
       LEFT JOIN stats s ON s.number_id = n.id AND s.tanggal = ${tanggalWib()}
+      LEFT JOIN (SELECT number_id, COUNT(*) AS jumlah
+                   FROM percakapan GROUP BY number_id) p ON p.number_id = n.id
      ORDER BY n.id`;
   return [...baris];
 }

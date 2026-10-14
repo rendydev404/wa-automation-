@@ -574,6 +574,27 @@ await cek("PN dan LID lawan bicara yang sama = satu percakapan; balasan ke alama
   await tunggu(() => sA.terkirim.at(-1)?.jid === LID2, 5000);
 });
 
+await cek("histori percakapan mencatat pesan pelanggan, balasan AI, dan balasan manusia dari HP", async () => {
+  await bridge.tulisTuntas();
+  const { daftarPercakapan, ambilPesanPercakapan, ringkasanPercakapan } = await lib("src/lib/percakapan.ts");
+  const ringkas = await ringkasanPercakapan(A.id);
+  assert.ok(ringkas.total_percakapan >= 6);
+  assert.ok(ringkas.total_masuk >= 10);
+  assert.ok(ringkas.total_bot >= 5);
+  assert.ok(ringkas.total_manusia >= 2);
+  const { daftar } = await daftarPercakapan(A.id, { batas: 50 });
+  const chatPnLid = daftar.find((p) => p.telepon === "6285700000009");
+  assert.ok(chatPnLid, "nomor telepon dari PN JID tercatat pada percakapan ber-LID");
+  assert.equal(chatPnLid.masuk_n, 1);
+  assert.equal(chatPnLid.bot_n, 1);
+  const chatManusia = daftar.find((p) => p.manusia_n > 0 && p.bot_n > 0);
+  assert.ok(chatManusia, "percakapan dengan serah-terima manusia <-> AI tercatat lengkap");
+  const rinci = await ambilPesanPercakapan(A.id, chatManusia.id);
+  assert.ok(rinci.pesan.some((m) => m.peran === 0));
+  assert.ok(rinci.pesan.some((m) => m.peran === 2 && m.teks === "Siap kak, saya bantu ya"));
+  assert.ok(rinci.pesan.some((m) => m.peran === 1));
+});
+
 // =====================================================================================
 bagian("E. Batas dan galat");
 

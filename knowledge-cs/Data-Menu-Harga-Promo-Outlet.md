@@ -76,13 +76,6 @@ Paket bundling Aqua adalah satu shawarma plus satu botol Aqua. Harga di outlet p
 Harga bundling Aqua di GoFood, GrabFood, dan ShopeeFood: Ayam Sedang Rp36.000, Ayam Besar Rp42.000, Ayam Jumbo Rp48.000, Sapi Sedang Rp40.000, Sapi Besar Rp46.000, Sapi Jumbo Rp58.000, Mix Besar Rp52.000, Mix Jumbo Rp64.000, Suka Chicken Rp42.000, Suka Beef Rp46.000, Suka Fried Chicken Rp43.000, Suka Samyang Rp43.000.
 Kata kunci: bundling, aqua, air mineral, paket air, plus aqua, sama air putih.
 
-[Menu dan Harga] Kenapa harga di GoFood, GrabFood, ShopeeFood lebih mahal dari outlet
-Harga di aplikasi pesan-antar (GoFood, GrabFood, ShopeeFood) memang lebih tinggi daripada harga beli langsung di outlet. Ini berlaku resmi, bukan kesalahan kasir atau aplikasi. Contoh per 14 Oktober 2026: Original Sapi Sedang Rp29.000 di outlet dan Rp36.000 di aplikasi; Original Ayam Besar Rp31.000 di outlet dan Rp38.000 di aplikasi.
-Yang harganya sama di outlet dan aplikasi: ukuran Reguler (Ayam Rp21.000, Sapi Rp23.000, Mix Rp25.000).
-Ongkos kirim dan biaya layanan di aplikasi ditentukan oleh aplikasinya masing-masing, bukan oleh Suka Shawarma. Promo dan voucher di aplikasi juga mengikuti ketentuan aplikasi itu.
-Kalau pelanggan ingin harga paling hemat, sarankan beli langsung di outlet terdekat.
-Kata kunci: kok beda harga, lebih mahal, mahal di aplikasi, selisih harga, harga online, harga offline, ongkir, biaya layanan, markup.
-
 [Menu dan Harga] Daftar harga lengkap di outlet (price list)
 Harga beli langsung di outlet Suka Shawarma per 14 Oktober 2026:
 - Original Ayam: Reguler Rp21.000, Sedang Rp26.000, Besar Rp31.000, Jumbo Rp36.000.
@@ -104,20 +97,6 @@ Harga Suka Shawarma di aplikasi pesan-antar GoFood, GrabFood, dan ShopeeFood per
 - Extra Keju Rp9.000. Extra Kentang Rp11.000.
 Harga yang tampil di aplikasi bisa berbeda dari daftar ini karena promo, voucher, atau potongan dari aplikasinya. Yang berlaku adalah harga yang tampil di aplikasi saat pelanggan memesan.
 Kata kunci: harga gofood, harga grabfood, harga shopeefood, harga online, harga aplikasi, harga delivery, gojek, grab, shopee.
-
-[Menu dan Harga] Menu favorit dan rekomendasi
-Menu yang ditandai Best Seller di situs resmi Suka Shawarma: Original Ayam Besar, Original Sapi Besar, dan Suka Chicken.
-Panduan memberi rekomendasi sesuai selera pelanggan:
-- Baru pertama kali coba: sarankan salah satu menu Best Seller, yaitu Original Ayam Besar, Original Sapi Besar, atau Suka Chicken.
-- Ingin dua rasa daging sekaligus: Original Mix.
-- Suka keju: Suka Beef atau Suka Chicken, atau tambah topping Extra Keju.
-- Suka yang crispy: Suka Fried Chicken.
-- Suka pedas: Suka Samyang, atau menu apa pun dengan level Pedas.
-- Tidak suka pedas atau untuk anak: menu Original dengan level Tidak Pedas.
-- Sedang lapar berat: ukuran Jumbo. Porsi lebih kecil: ukuran Sedang.
-- Ingin sekalian minum: Combo.
-Rekomendasikan paling banyak dua pilihan sekaligus, lalu biarkan pelanggan memilih. Jangan menyebut angka penjualan.
-Kata kunci: best seller, terlaris, paling laris, favorit, rekomendasi, recommended, enak yang mana, bingung pilih, saran menu, andalan.
 
 [Promo] Promo yang sedang berlaku
 Per 14 Oktober 2026 tidak ada promo outlet yang sedang berjalan. Kalau pelanggan bertanya promo hari ini, sampaikan dengan sopan bahwa saat ini belum ada promo yang berjalan di outlet.

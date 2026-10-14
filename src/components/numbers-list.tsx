@@ -18,6 +18,7 @@ export interface KartuNomor {
   jumlah_karakter: number;
   dibalas_hari_ini: number;
   masuk_hari_ini: number;
+  jumlah_percakapan: number;
 }
 
 export function NumbersList({ nomor }: { nomor: KartuNomor[] }) {
@@ -102,7 +103,7 @@ function Kartu({ n }: { n: KartuNomor }) {
         </span>
         <span className="flex items-center gap-1.5">
           <MessagesSquare className="size-3.5" aria-hidden />
-          {n.dibalas_hari_ini}/{n.masuk_hari_ini} dibalas hari ini
+          {n.dibalas_hari_ini}/{n.masuk_hari_ini} dibalas hari ini · {angka(n.jumlah_percakapan)} percakapan
         </span>
       </div>
       <div className="mt-auto flex items-center justify-between border-t border-line px-5 py-3">

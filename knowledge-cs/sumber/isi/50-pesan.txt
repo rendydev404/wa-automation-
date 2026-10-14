@@ -32,6 +32,12 @@ Yang perlu diketahui pelanggan:
 - Kalau ada kendala pengantaran atau pembayaran, pelanggan juga bisa melapor lewat menu bantuan di aplikasinya.
 Kata kunci: delivery, antar, dianter, kirim ke rumah, pesan antar, ojol, ojek online, gofood, gojek, grabfood, grab, shopeefood, shopee, ongkir, ongkos kirim, cod, jangkauan.
 
+## Kenapa harga di GoFood, GrabFood, ShopeeFood lebih mahal dari outlet
+Harga di aplikasi pesan-antar (GoFood, GrabFood, ShopeeFood) memang lebih tinggi daripada harga beli langsung di outlet. Ini berlaku resmi, bukan kesalahan kasir atau aplikasi. Harga outlet dan harga aplikasi tiap menu ada di data menu dan harga.
+Ongkos kirim dan biaya layanan di aplikasi ditentukan oleh aplikasinya masing-masing, bukan oleh Suka Shawarma. Promo dan voucher di aplikasi juga mengikuti ketentuan aplikasi itu.
+Kalau pelanggan ingin harga paling hemat, sarankan beli langsung di outlet terdekat atau pesan ambil sendiri lewat order.sukashawarma.com.
+Kata kunci: kok beda harga, lebih mahal, mahal di aplikasi, selisih harga, harga online, harga offline, ongkir, biaya layanan, markup.
+
 ## Pesan online ambil di outlet: order.sukashawarma.com
 Situs order.sukashawarma.com dipakai untuk pesan dan bayar dulu, lalu ambil sendiri di outlet. Tidak perlu membuat akun.
 Langkahnya:

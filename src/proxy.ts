@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 
-const PUBLIK = new Set(["/api/health"]);
+// /api/sinkron dipanggil database (bukan browser); keabsahannya dicek lewat tanda tangan HMAC di handler-nya.
+const PUBLIK = new Set(["/api/health", "/api/sinkron"]);
 
 function asalSama(req: NextRequest): boolean {
   const origin = req.headers.get("origin");

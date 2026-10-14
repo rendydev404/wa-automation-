@@ -329,6 +329,88 @@ await cek("penyusunan konteks AI tetap jauh di bawah 20 ms pada ukuran maksimal"
   assert.ok(uCache.p50 < 0.05);
 });
 
+// ---------------------------------------------------------------------------------------------
+console.log("\n== histori percakapan: paginasi kursor & rencana query (EXPLAIN ANALYZE) ==");
+const P = await lib("src/lib/percakapan.ts");
+// Isi data histori lintas 30 nomor (1.460 percakapan, ~14.000 pesan) + 40 percakapan lewat catatPesan pada nTengah.
+const barisPercakapan = [];
+for (const n of nomorBanyak) {
+  if (n.id === nTengah) continue;
+  for (let c = 0; c < 50; c++) {
+    barisPercakapan.push({
+      number_id: n.id,
+      kunci: `kunci-${n.id}-${c}`,
+      telepon: `62811${String(n.id).padStart(2, "0")}${String(c).padStart(4, "0")}`,
+      nama: `Pelanggan ${n.id}-${c}`,
+      cuplikan: `Cuplikan pesan terakhir nomor ${n.id} ke-${c}`,
+      pengirim_akhir: 1,
+      masuk_n: 5,
+      bot_n: 5,
+      manusia_n: 0,
+      terakhir_pada: kini + c,
+    });
+  }
+}
+for (let i = 0; i < barisPercakapan.length; i += 500) {
+  const ins = await sql`INSERT INTO percakapan ${sql(barisPercakapan.slice(i, i + 500), "number_id", "kunci", "telepon", "nama", "cuplikan", "pengirim_akhir", "masuk_n", "bot_n", "manusia_n", "terakhir_pada")} RETURNING id`;
+  const pesanMassal = [];
+  for (const { id: pid } of ins) {
+    for (let m = 0; m < 10; m++) {
+      pesanMassal.push({ percakapan_id: pid, peran: m % 2, teks: `Isi pesan percakapan ${pid} urutan ke-${m}`, waktu: kini + m });
+    }
+  }
+  for (let j = 0; j < pesanMassal.length; j += 1000) {
+    await sql`INSERT INTO pesan_chat ${sql(pesanMassal.slice(j, j + 1000), "percakapan_id", "peran", "teks", "waktu")}`;
+  }
+}
+for (let c = 0; c < 40; c++) {
+  const k = `kunci-${nTengah}-${c}`;
+  await P.catatPesan({ numberId: nTengah, kunci: k, peran: 0, teks: `Halo kak pesan ke-${c}`, waktu: kini + c * 10, telepon: `628120000${String(c).padStart(4, "0")}`, nama: `Pelanggan ${c}` });
+  await P.catatPesan({ numberId: nTengah, kunci: k, peran: c % 3 === 0 ? 2 : 1, teks: `Siap kak balasan ke-${c}`, waktu: kini + c * 10 + 2 });
+}
+const admin2 = postgres(pg.urlAdmin, { max: 1, onnotice() {} });
+await admin2.unsafe("ANALYZE percakapan, pesan_chat");
+await admin2.end();
+
+const halaman1 = await P.daftarPercakapan(nTengah, { batas: 15 });
+const halaman2 = await P.daftarPercakapan(nTengah, {
+  batas: 15,
+  sebelumWaktu: halaman1.daftar.at(-1).terakhir_pada,
+  sebelumId: halaman1.daftar.at(-1).id,
+});
+const rChatDaftar = await rencana(
+  "daftar percakapan (1 nomor)",
+  "SELECT p.id, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir, p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, COALESCE(cs.jeda_sampai, 0) AS jeda_sampai FROM percakapan p LEFT JOIN chat_state cs ON cs.kunci = p.kunci WHERE p.number_id = $1 ORDER BY p.terakhir_pada DESC, p.id DESC LIMIT 26",
+  [nTengah]
+);
+const rChatPesan = await rencana(
+  "isi pesan (1 percakapan)",
+  "SELECT id, peran, teks, waktu FROM pesan_chat WHERE percakapan_id = $1 ORDER BY id DESC LIMIT 51",
+  [halaman1.daftar[0].id]
+);
+
+await cek("histori percakapan: terstruktur per nomor, paginasi kursor akurat, dan lewat indeks komposit", async () => {
+  const ringkas = await P.ringkasanPercakapan(nTengah);
+  assert.deepEqual(ringkas, { total_percakapan: 40, total_masuk: 40, total_bot: 26, total_manusia: 14 });
+  assert.equal(halaman1.daftar.length, 15);
+  assert.equal(halaman1.adaLagi, true);
+  assert.equal(halaman1.daftar[0].nama, "Pelanggan 39");
+  assert.equal(halaman2.daftar.length, 15);
+  assert.equal(halaman2.daftar[0].nama, "Pelanggan 24");
+  const hanyaManusia = await P.daftarPercakapan(nTengah, { filter: "manusia", batas: 50 });
+  assert.equal(hanyaManusia.daftar.length, 14);
+  const hasilCari = await P.daftarPercakapan(nTengah, { cari: "Pelanggan 39" });
+  assert.equal(hasilCari.daftar.length, 1);
+  const detail = await P.ambilPesanPercakapan(nTengah, halaman1.daftar[0].id);
+  assert.equal(detail.pesan.length, 2);
+  assert.deepEqual(detail.pesan.map((m) => m.peran), [0, 2]);
+  assert.equal(await P.ambilPesanPercakapan(nomorBanyak[0].id, halaman1.daftar[0].id), null); // beda nomor ditolak
+  assert.doesNotMatch(rChatDaftar, /Seq Scan on percakapan/);
+  assert.doesNotMatch(rChatPesan, /Seq Scan on pesan_chat/);
+  assert.match(rChatDaftar, /percakapan_nomor_waktu_idx/);
+  assert.match(rChatPesan, /pesan_chat_percakapan_idx/);
+});
+
 console.log(`\nLOLOS ${lolos} pemeriksaan`);
 await sql.end({ timeout: 2 });
 await pg.berhenti();

@@ -7,6 +7,7 @@ import { authConfigured } from "@/lib/auth";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
 import { BATAS_JEDA_MENIT, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorById, semuaNomor, setBotAktif, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { verifyPassword } from "@/lib/password";
+import { konfigurasi as konfigurasiSinkron, setNomorSinkron, statusSinkron } from "@/lib/sinkron";
 import { akhiriSesi, findUserByEmail, mulaiSesi, requireUser } from "@/lib/session";
 import { WaError, hapusSesi, hubungkan, logout } from "@/lib/wa";
 
@@ -130,6 +131,17 @@ export async function setBotAktifAction(id: number, aktif: boolean): Promise<Has
   revalidatePath("/");
   revalidatePath(`/nomor/${id}`);
   return { ok: true };
+}
+
+export async function setSinkronAction(id: number, aktif: boolean): Promise<Hasil> {
+  await requireUser();
+  if (!(await nomorById(id))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  if (!konfigurasiSinkron()) return { ok: false, pesan: "Sinkron belum dikonfigurasi di server." };
+  await setNomorSinkron(id, aktif);
+  const s = await statusSinkron();
+  revalidatePath("/");
+  revalidatePath(`/nomor/${id}`);
+  return aktif && s.galat ? { ok: false, pesan: `Gagal mengambil data: ${s.galat}` } : { ok: true };
 }
 
 export async function hapusNomorAction(id: number): Promise<Hasil> {

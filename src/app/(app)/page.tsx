@@ -28,6 +28,7 @@ async function Daftar() {
     jumlah_karakter: n.jumlah_karakter,
     dibalas_hari_ini: n.dibalas_hari_ini,
     masuk_hari_ini: n.masuk_hari_ini,
+    jumlah_percakapan: n.jumlah_percakapan,
   }));
   return <NumbersList nomor={nomor} />;
 }

@@ -1,0 +1,606 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  Bot,
+  Check,
+  ChevronDown,
+  Clock,
+  Copy,
+  Loader2,
+  MessagesSquare,
+  RefreshCw,
+  Search,
+  Smartphone,
+  User,
+  X,
+} from "lucide-react";
+import { angka, formatNomor, jamWib, kunciHariWib, tanggal, waktuSingkatWib } from "@/lib/format";
+import type { FilterPercakapan, ItemPercakapan, ItemPesan, PeranPesan, RingkasanPercakapan } from "@/lib/percakapan";
+import { Pill } from "./ui";
+
+const DAFTAR_FILTER: { id: FilterPercakapan; label: string }[] = [
+  { id: "semua", label: "Semua" },
+  { id: "bot", label: "Dibalas AI" },
+  { id: "manusia", label: "Manusia" },
+];
+
+/** Render cetak tebal WhatsApp (*teks*) menjadi elemen <b>. */
+function TeksWa({ teks }: { teks: string }) {
+  return (
+    <>
+      {teks.split(/(\*[^*\n]+\*)/g).map((bagian, i) =>
+        bagian.length > 2 && bagian.startsWith("*") && bagian.endsWith("*") ? <b key={i}>{bagian.slice(1, -1)}</b> : <span key={i}>{bagian}</span>
+      )}
+    </>
+  );
+}
+
+function namaTampil(p: ItemPercakapan): string {
+  if (p.nama) return p.nama;
+  if (p.telepon) return formatNomor(p.telepon);
+  return `Pelanggan #${p.id}`;
+}
+
+function awalanCuplikan(peran: PeranPesan): string {
+  if (peran === 1) return "AI: ";
+  if (peran === 2) return "Admin: ";
+  return "";
+}
+
+export function HistoriPercakapan({
+  numberId,
+  ringkasanAwal,
+  daftarAwal,
+  adaLagiAwal,
+  pesanAwal,
+  adaSebelumnyaAwal,
+  kiniAwal,
+}: {
+  numberId: number;
+  ringkasanAwal: RingkasanPercakapan;
+  daftarAwal: ItemPercakapan[];
+  adaLagiAwal: boolean;
+  pesanAwal: ItemPesan[];
+  adaSebelumnyaAwal: boolean;
+  kiniAwal: number;
+}) {
+  const [ringkasan, setRingkasan] = useState<RingkasanPercakapan>(ringkasanAwal);
+  const [daftar, setDaftar] = useState<ItemPercakapan[]>(daftarAwal);
+  const [adaLagi, setAdaLagi] = useState<boolean>(adaLagiAwal);
+  const [filter, setFilter] = useState<FilterPercakapan>("semua");
+  const [inputCari, setInputCari] = useState("");
+  const [cariAktif, setCariAktif] = useState("");
+  const [memuatDaftar, setMemuatDaftar] = useState(false);
+  const [memuatLagi, setMemuatLagi] = useState(false);
+
+  const [aktifId, setAktifId] = useState<number | null>(daftarAwal[0]?.id ?? null);
+  const [detailMobile, setDetailMobile] = useState(false);
+  const [pesan, setPesan] = useState<ItemPesan[]>(pesanAwal);
+  const [adaSebelumnya, setAdaSebelumnya] = useState<boolean>(adaSebelumnyaAwal);
+  const [memuatPesan, setMemuatPesan] = useState(false);
+  const [memuatSebelumnya, setMemuatSebelumnya] = useState(false);
+  const [menyegarkan, setMenyegarkan] = useState(false);
+  const [tersalin, setTersalin] = useState(false);
+  const [kini, setKini] = useState(kiniAwal);
+
+  const wadahPesanRef = useRef<HTMLDivElement>(null);
+  const gulirKeBawahRef = useRef(true);
+
+  const percakapanAktif = daftar.find((p) => p.id === aktifId) ?? null;
+
+  const gulirBawah = useCallback(() => {
+    const el = wadahPesanRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, []);
+
+  useEffect(() => {
+    if (gulirKeBawahRef.current) {
+      gulirBawah();
+      gulirKeBawahRef.current = false;
+    }
+  }, [pesan, gulirBawah]);
+
+  const muatPesan = useCallback(
+    async (id: number) => {
+      setMemuatPesan(true);
+      try {
+        const res = await fetch(`/api/percakapan?number_id=${numberId}&percakapan_id=${id}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const d = (await res.json()) as { percakapan: ItemPercakapan; pesan: ItemPesan[]; adaSebelumnya: boolean };
+        gulirKeBawahRef.current = true;
+        setPesan(d.pesan);
+        setAdaSebelumnya(d.adaSebelumnya);
+        setDaftar((lama) => lama.map((item) => (item.id === d.percakapan.id ? d.percakapan : item)));
+      } finally {
+        setMemuatPesan(false);
+      }
+    },
+    [numberId]
+  );
+
+  const pilihPercakapan = useCallback(
+    (id: number) => {
+      setAktifId(id);
+      setDetailMobile(true);
+      void muatPesan(id);
+    },
+    [muatPesan]
+  );
+
+  // Debounce pencarian custom (250 ms) supaya tidak memicu query di tiap ketikan huruf.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setCariAktif(inputCari.trim());
+    }, 250);
+    return () => clearTimeout(t);
+  }, [inputCari]);
+
+  const muatUlangDaftar = useCallback(
+    async (f: FilterPercakapan, q: string, pilihPertama = false) => {
+      setMemuatDaftar(true);
+      try {
+        const params = new URLSearchParams({ number_id: String(numberId), filter: f, ringkasan: "1" });
+        if (q) params.set("cari", q);
+        const res = await fetch(`/api/percakapan?${params.toString()}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const d = (await res.json()) as { daftar: ItemPercakapan[]; adaLagi: boolean; ringkasan?: RingkasanPercakapan };
+        setDaftar(d.daftar);
+        setAdaLagi(d.adaLagi);
+        if (d.ringkasan) setRingkasan(d.ringkasan);
+        setKini(Math.floor(Date.now() / 1000));
+        if (pilihPertama) {
+          const idBaru = d.daftar[0]?.id ?? null;
+          setAktifId(idBaru);
+          if (idBaru !== null) void muatPesan(idBaru);
+          else {
+            setPesan([]);
+            setAdaSebelumnya(false);
+          }
+        }
+      } finally {
+        setMemuatDaftar(false);
+      }
+    },
+    [numberId, muatPesan]
+  );
+
+  // Jalankan query saat filter atau kata kunci pencarian berubah dari keadaan awal.
+  const pertamaRef = useRef(true);
+  useEffect(() => {
+    if (pertamaRef.current) {
+      pertamaRef.current = false;
+      return;
+    }
+    void muatUlangDaftar(filter, cariAktif, true);
+  }, [filter, cariAktif, muatUlangDaftar]);
+
+  async function muatLebihBanyakPercakapan() {
+    if (!adaLagi || memuatLagi || daftar.length === 0) return;
+    const terakhir = daftar[daftar.length - 1];
+    setMemuatLagi(true);
+    try {
+      const params = new URLSearchParams({
+        number_id: String(numberId),
+        filter,
+        sebelum_waktu: String(terakhir.terakhir_pada),
+        sebelum_id: String(terakhir.id),
+      });
+      if (cariAktif) params.set("cari", cariAktif);
+      const res = await fetch(`/api/percakapan?${params.toString()}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const d = (await res.json()) as { daftar: ItemPercakapan[]; adaLagi: boolean };
+      setDaftar((lama) => {
+        const ada = new Set(lama.map((x) => x.id));
+        return [...lama, ...d.daftar.filter((x) => !ada.has(x.id))];
+      });
+      setAdaLagi(d.adaLagi);
+    } finally {
+      setMemuatLagi(false);
+    }
+  }
+
+  async function muatPesanSebelumnya() {
+    if (!aktifId || !adaSebelumnya || memuatSebelumnya || pesan.length === 0) return;
+    const tertua = pesan[0];
+    const el = wadahPesanRef.current;
+    const tinggiSebelum = el?.scrollHeight ?? 0;
+    setMemuatSebelumnya(true);
+    try {
+      const res = await fetch(`/api/percakapan?number_id=${numberId}&percakapan_id=${aktifId}&sebelum_id=${tertua.id}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const d = (await res.json()) as { pesan: ItemPesan[]; adaSebelumnya: boolean };
+      gulirKeBawahRef.current = false;
+      setPesan((lama) => {
+        const ada = new Set(lama.map((x) => x.id));
+        return [...d.pesan.filter((x) => !ada.has(x.id)), ...lama];
+      });
+      setAdaSebelumnya(d.adaSebelumnya);
+      requestAnimationFrame(() => {
+        if (el) el.scrollTop = el.scrollHeight - tinggiSebelum;
+      });
+    } finally {
+      setMemuatSebelumnya(false);
+    }
+  }
+
+  const segarkan = useCallback(async () => {
+    if (menyegarkan) return;
+    setMenyegarkan(true);
+    try {
+      const params = new URLSearchParams({ number_id: String(numberId), filter, ringkasan: "1" });
+      if (cariAktif) params.set("cari", cariAktif);
+      const janjiDaftar = fetch(`/api/percakapan?${params.toString()}`, { cache: "no-store" });
+      const idTerakhir = pesan.length > 0 ? pesan[pesan.length - 1].id : 0;
+      const janjiPesan =
+        aktifId !== null
+          ? fetch(
+              `/api/percakapan?number_id=${numberId}&percakapan_id=${aktifId}${idTerakhir > 0 ? `&setelah_id=${idTerakhir}` : ""}`,
+              { cache: "no-store" }
+            )
+          : null;
+
+      const [resDaftar, resPesan] = await Promise.all([janjiDaftar, janjiPesan]);
+      if (resDaftar.ok) {
+        const d = (await resDaftar.json()) as { daftar: ItemPercakapan[]; adaLagi: boolean; ringkasan?: RingkasanPercakapan };
+        setDaftar(d.daftar);
+        setAdaLagi(d.adaLagi);
+        if (d.ringkasan) setRingkasan(d.ringkasan);
+        setKini(Math.floor(Date.now() / 1000));
+        if (aktifId === null && d.daftar[0]) {
+          setAktifId(d.daftar[0].id);
+          void muatPesan(d.daftar[0].id);
+        }
+      }
+      if (resPesan && resPesan.ok) {
+        const dp = (await resPesan.json()) as { percakapan: ItemPercakapan; pesan: ItemPesan[]; adaSebelumnya: boolean };
+        if (dp.pesan.length > 0) {
+          gulirKeBawahRef.current = true;
+          setPesan((lama) => {
+            if (idTerakhir === 0) return dp.pesan;
+            const ada = new Set(lama.map((x) => x.id));
+            return [...lama, ...dp.pesan.filter((x) => !ada.has(x.id))];
+          });
+        }
+      }
+    } finally {
+      setMenyegarkan(false);
+    }
+  }, [menyegarkan, numberId, filter, cariAktif, pesan, aktifId, muatPesan]);
+
+  // Penyegaran ringan otomatis tiap 15 detik HANYA bila tab browser sedang terbuka/terlihat.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        void segarkan();
+      }
+    }, 15_000);
+    return () => clearInterval(id);
+  }, [segarkan]);
+
+  async function salinNomor(telepon: string) {
+    try {
+      await navigator.clipboard.writeText(telepon);
+      setTersalin(true);
+      setTimeout(() => setTersalin(false), 1800);
+    } catch {
+      // Clipboard tidak diizinkan pada konteks ini.
+    }
+  }
+
+  return (
+    <section id="histori" className="card overflow-hidden">
+      {/* Header & Ringkasan Statistik */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
+            <MessagesSquare className="size-4" aria-hidden />
+          </span>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-[15px] font-bold tracking-tight">Histori percakapan</h2>
+              <Pill nada="abu">{angka(ringkasan.total_percakapan)} pelanggan</Pill>
+            </div>
+            <p className="hint mt-0.5">
+              {ringkasan.total_percakapan === 0
+                ? "Belum ada percakapan yang tercatat di nomor ini. Pesan pelanggan, balasan AI, dan balasan manusia dari HP akan muncul terstruktur di sini."
+                : `${angka(ringkasan.total_masuk)} pesan pelanggan · ${angka(ringkasan.total_bot)} balasan AI · ${angka(ringkasan.total_manusia)} balasan manusia`}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => void segarkan()}
+          disabled={menyegarkan}
+          className="btn btn-ghost h-8 px-3 text-xs"
+          aria-label="Segarkan histori percakapan"
+        >
+          <RefreshCw className={`size-3.5 ${menyegarkan ? "animate-spin" : ""}`} aria-hidden />
+          Segarkan
+        </button>
+      </div>
+
+      {/* Panel Utama: Daftar Percakapan (Kiri) + Rincian Gelembung Chat (Kanan) */}
+      <div className="grid min-h-[520px] lg:grid-cols-[340px_minmax(0,1fr)]">
+        {/* Kolom Kiri: Pencarian, Filter, dan Daftar Percakapan */}
+        <div className={`flex flex-col border-b border-line lg:border-r lg:border-b-0 ${detailMobile ? "hidden lg:flex" : "flex"}`}>
+          <div className="space-y-2.5 border-b border-line p-3.5">
+            {/* Custom Search Bar (tanpa native type="search") */}
+            <div role="search" className="relative flex items-center">
+              <Search className="pointer-events-none absolute left-3 size-4 text-faint" aria-hidden />
+              <input
+                type="text"
+                value={inputCari}
+                onChange={(e) => setInputCari(e.target.value)}
+                maxLength={80}
+                placeholder="Cari nama, nomor WA, atau isi pesan…"
+                aria-label="Cari percakapan"
+                className="field py-1.5 pr-8 pl-9 text-[13px]"
+              />
+              {inputCari && (
+                <button
+                  type="button"
+                  onClick={() => setInputCari("")}
+                  aria-label="Hapus pencarian"
+                  className="absolute right-2 rounded-md p-1 text-faint hover:bg-subtle hover:text-fg"
+                >
+                  <X className="size-3.5" aria-hidden />
+                </button>
+              )}
+            </div>
+
+            {/* Custom Segmented Filter Tabs */}
+            <div role="tablist" aria-label="Filter percakapan" className="grid grid-cols-3 rounded-xl bg-subtle p-1">
+              {DAFTAR_FILTER.map((t) => {
+                const terpilih = filter === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    role="tab"
+                    type="button"
+                    aria-selected={terpilih}
+                    onClick={() => setFilter(t.id)}
+                    className={`rounded-lg px-2 py-1 text-xs font-semibold transition-colors ${
+                      terpilih ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Daftar Percakapan */}
+          <div className="max-h-[460px] flex-1 overflow-y-auto">
+            {memuatDaftar ? (
+              <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-muted">
+                <Loader2 className="size-4 animate-spin" aria-hidden /> Memuat percakapan…
+              </div>
+            ) : daftar.length === 0 ? (
+              <div className="px-5 py-14 text-center">
+                <p className="text-[13.5px] font-semibold text-fg">
+                  {cariAktif || filter !== "semua" ? "Tidak ada percakapan yang cocok" : "Belum ada histori percakapan"}
+                </p>
+                <p className="hint mt-1">
+                  {cariAktif || filter !== "semua"
+                    ? "Coba ubah kata kunci pencarian atau pilih filter Semua."
+                    : "Saat pelanggan mengirim chat ke nomor WhatsApp ini, percakapannya langsung tampil di sini."}
+                </p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-line">
+                {daftar.map((item) => {
+                  const terpilih = item.id === aktifId;
+                  const dijeda = item.jeda_sampai > kini;
+                  return (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        onClick={() => pilihPercakapan(item.id)}
+                        className={`flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors ${
+                          terpilih ? "bg-accent-soft/55" : "hover:bg-subtle/60"
+                        }`}
+                      >
+                        <span
+                          className={`mt-0.5 grid size-9 shrink-0 place-items-center rounded-full text-xs font-bold ${
+                            terpilih ? "bg-accent text-on-accent" : "bg-subtle text-muted"
+                          }`}
+                        >
+                          <User className="size-4" aria-hidden />
+                        </span>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <p className="truncate text-[13.5px] font-semibold text-fg">{namaTampil(item)}</p>
+                            <span className="shrink-0 text-[11px] text-faint tabular-nums">{waktuSingkatWib(item.terakhir_pada, kini)}</span>
+                          </div>
+
+                          {item.nama && item.telepon && (
+                            <p className="truncate text-[11.5px] text-muted tabular-nums">{formatNomor(item.telepon)}</p>
+                          )}
+
+                          <p className="mt-0.5 truncate text-[12.5px] text-muted">
+                            <span className="font-medium text-fg">{awalanCuplikan(item.pengirim_akhir)}</span>
+                            {item.cuplikan || "—"}
+                          </p>
+
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+                            <span className="inline-flex items-center gap-1 rounded-md bg-accent-soft px-1.5 py-0.5 font-semibold text-accent tabular-nums">
+                              <Bot className="size-3" aria-hidden /> {item.bot_n}
+                            </span>
+                            {item.manusia_n > 0 && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-warning-soft px-1.5 py-0.5 font-semibold text-warning tabular-nums">
+                                <Smartphone className="size-3" aria-hidden /> {item.manusia_n}
+                              </span>
+                            )}
+                            {dijeda && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-subtle px-1.5 py-0.5 font-medium text-muted">
+                                <Clock className="size-3" aria-hidden /> Dijeda manusia
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            {adaLagi && (
+              <div className="border-t border-line p-3">
+                <button
+                  type="button"
+                  onClick={() => void muatLebihBanyakPercakapan()}
+                  disabled={memuatLagi}
+                  className="btn btn-ghost h-8 w-full text-xs"
+                >
+                  {memuatLagi ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <ChevronDown className="size-3.5" aria-hidden />}
+                  Muat percakapan lainnya
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Kolom Kanan: Rincian Gelembung Percakapan */}
+        <div className={`flex flex-col bg-subtle/35 ${detailMobile ? "flex" : "hidden lg:flex"}`}>
+          {!percakapanAktif ? (
+            <div className="m-auto px-6 py-16 text-center">
+              <span className="mx-auto mb-3 grid size-11 place-items-center rounded-2xl bg-subtle text-muted">
+                <MessagesSquare className="size-5" aria-hidden />
+              </span>
+              <p className="text-[14px] font-semibold text-fg">Pilih percakapan</p>
+              <p className="hint mt-1 max-w-xs">Klik salah satu pelanggan di sebelah kiri untuk melihat seluruh riwayat tanya-jawabnya.</p>
+            </div>
+          ) : (
+            <>
+              {/* Header Percakapan Terpilih */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3 sm:px-5">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setDetailMobile(false)}
+                    aria-label="Kembali ke daftar percakapan"
+                    className="rounded-lg p-1.5 text-muted hover:bg-subtle hover:text-fg lg:hidden"
+                  >
+                    <ArrowLeft className="size-4" aria-hidden />
+                  </button>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate text-[14px] font-bold text-fg">{namaTampil(percakapanAktif)}</p>
+                      {percakapanAktif.jeda_sampai > kini && <Pill nada="kuning">AI sedang jeda (ditangani manusia)</Pill>}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
+                      {percakapanAktif.telepon && (
+                        <button
+                          type="button"
+                          onClick={() => void salinNomor(percakapanAktif.telepon!)}
+                          title="Salin nomor WhatsApp"
+                          className="inline-flex items-center gap-1 font-medium text-muted tabular-nums hover:text-fg"
+                        >
+                          {formatNomor(percakapanAktif.telepon)}
+                          {tersalin ? <Check className="size-3 text-success" aria-hidden /> : <Copy className="size-3 text-faint" aria-hidden />}
+                        </button>
+                      )}
+                      <span>
+                        {angka(percakapanAktif.masuk_n)} masuk · {angka(percakapanAktif.bot_n)} AI · {angka(percakapanAktif.manusia_n)} manusia
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ruang Gelembung Pesan */}
+              <div ref={wadahPesanRef} className="flex max-h-[460px] flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-4 sm:px-5">
+                {adaSebelumnya && (
+                  <div className="mb-1 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => void muatPesanSebelumnya()}
+                      disabled={memuatSebelumnya}
+                      className="btn btn-ghost h-7 px-3 text-xs"
+                    >
+                      {memuatSebelumnya && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+                      Muat pesan sebelumnya
+                    </button>
+                  </div>
+                )}
+
+                {memuatPesan ? (
+                  <div className="m-auto flex items-center gap-2 py-12 text-[13px] text-muted">
+                    <Loader2 className="size-4 animate-spin" aria-hidden /> Memuat isi percakapan…
+                  </div>
+                ) : pesan.length === 0 ? (
+                  <p className="m-auto text-center text-[13px] text-faint">Belum ada pesan di percakapan ini.</p>
+                ) : (
+                  pesan.map((m, idx) => {
+                    const hariIni = kunciHariWib(m.waktu);
+                    const hariSebelum = idx > 0 ? kunciHariWib(pesan[idx - 1].waktu) : null;
+                    const tampilkanHari = hariIni !== hariSebelum;
+                    const dariPelanggan = m.peran === 0;
+                    const dariBot = m.peran === 1;
+
+                    return (
+                      <div key={m.id} className="flex flex-col gap-2">
+                        {tampilkanHari && (
+                          <div className="my-1 flex justify-center">
+                            <span className="rounded-full border border-line bg-surface px-3 py-0.5 text-[11px] font-semibold text-muted">
+                              {tanggal(m.waktu)}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className={`flex max-w-[86%] flex-col ${dariPelanggan ? "self-start" : "self-end"}`}>
+                          <div
+                            className={`rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-relaxed whitespace-pre-wrap ${
+                              dariPelanggan
+                                ? "rounded-bl-md border border-line bg-surface text-fg"
+                                : dariBot
+                                  ? "rounded-br-md bg-accent text-on-accent"
+                                  : "rounded-br-md border border-line-strong bg-warning-soft text-fg"
+                            }`}
+                          >
+                            <div
+                              className={`mb-1 flex items-center justify-between gap-3 text-[11px] font-semibold ${
+                                dariPelanggan ? "text-muted" : dariBot ? "text-on-accent/85" : "text-warning"
+                              }`}
+                            >
+                              <span className="inline-flex items-center gap-1">
+                                {dariPelanggan ? (
+                                  <>
+                                    <User className="size-3" aria-hidden /> Pelanggan
+                                  </>
+                                ) : dariBot ? (
+                                  <>
+                                    <Bot className="size-3" aria-hidden /> Balasan AI
+                                  </>
+                                ) : (
+                                  <>
+                                    <Smartphone className="size-3" aria-hidden /> Balasan Manusia (HP)
+                                  </>
+                                )}
+                              </span>
+                              <span className="font-normal tabular-nums">{jamWib(m.waktu)} WIB</span>
+                            </div>
+
+                            <div>
+                              <TeksWa teks={m.teks} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}

@@ -3,13 +3,23 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { ConnectionCard } from "@/components/connection-card";
+import { HistoriPercakapan } from "@/components/conversation-history";
 import { KnowledgePanel } from "@/components/knowledge-panel";
-import { HapusNomor, LencanaTerhubung, NumberSettings, SaklarBot } from "@/components/number-settings";
+import { HapusNomor, LencanaTerhubung, NumberSettings, SaklarBot, SaklarSinkron } from "@/components/number-settings";
 import { TestChat } from "@/components/test-chat";
+import { sekarang } from "@/lib/db";
 import { formatNomor, tanggal } from "@/lib/format";
 import { BATAS_UTUH, daftarDokumen } from "@/lib/knowledge";
 import { nomorById } from "@/lib/numbers";
+import { ambilPesanPercakapan, daftarPercakapan, ringkasanPercakapan } from "@/lib/percakapan";
 import { requireUser } from "@/lib/session";
+import { konfigurasi as konfigurasiSinkron, nomorSinkron, statusSinkron, type Status } from "@/lib/sinkron";
+
+function teksStatusSinkron(s: Status): string {
+  if (s.galat) return `Tarikan terakhir gagal: ${s.galat}`;
+  if (!s.waktu) return "Belum pernah menarik data.";
+  return `Terakhir diperbarui ${tanggal(s.waktu)} (${s.karakter.toLocaleString("id-ID")} karakter).`;
+}
 
 export default function HalamanNomor(props: PageProps<"/nomor/[id]">) {
   return (
@@ -30,7 +40,14 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   const nomor = Number.isInteger(id) ? await nomorById(id) : undefined;
   if (!nomor) notFound();
 
-  const dokumen = await daftarDokumen(id);
+  const [dokumen, sinkronIds, statusSs, ringkasanChat, daftarChat] = await Promise.all([
+    daftarDokumen(id),
+    nomorSinkron(),
+    statusSinkron(),
+    ringkasanPercakapan(id),
+    daftarPercakapan(id),
+  ]);
+  const chatPertama = daftarChat.daftar[0] ? await ambilPesanPercakapan(id, daftarChat.daftar[0].id) : null;
   const total = dokumen.reduce((n, d) => n + d.jumlah_karakter, 0);
 
   return (
@@ -48,6 +65,16 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
 
       <ConnectionCard id={nomor.id} />
 
+      <HistoriPercakapan
+        numberId={nomor.id}
+        ringkasanAwal={ringkasanChat}
+        daftarAwal={daftarChat.daftar}
+        adaLagiAwal={daftarChat.adaLagi}
+        pesanAwal={chatPertama?.pesan ?? []}
+        adaSebelumnyaAwal={chatPertama?.adaSebelumnya ?? false}
+        kiniAwal={sekarang()}
+      />
+
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <KnowledgePanel
           numberId={nomor.id}
@@ -64,6 +91,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
         />
         <div className="space-y-6">
           <TestChat numberId={nomor.id} />
+          <SaklarSinkron id={nomor.id} aktif={sinkronIds.includes(nomor.id)} siap={!!konfigurasiSinkron()} keterangan={teksStatusSinkron(statusSs)} />
           <NumberSettings id={nomor.id} label={nomor.label} instruksi={nomor.instruksi} tungguDetik={nomor.tunggu_detik} tungguBacaDetik={nomor.tunggu_baca_detik} jedaMenit={nomor.jeda_menit} />
         </div>
       </div>

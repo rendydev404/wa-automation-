@@ -4,7 +4,8 @@ import { db, sekarang, setSetting } from "./db";
 import { tanyaHermes } from "./hermes";
 import { susunSistem } from "./knowledge";
 import { type Nomor, catatStat, catatTerhubung, nomorBySesi } from "./numbers";
-import { type EventWa, kirimTeks, mengetik, padaEvent, tandaiDibaca } from "./wa";
+import { catatPesan } from "./percakapan";
+import { type EventWa, digitWa, kirimTeks, mengetik, padaEvent, tandaiDibaca } from "./wa";
 
 /**
  * Jembatan WhatsApp (src/lib/wa.ts) -> Hermes -> WhatsApp.
@@ -254,6 +255,7 @@ async function proses(kunci: string): Promise<void> {
       // Id pesan dicatat sebelum pesan berangkat, jadi tidak mungkin dikira balasan manusia.
       await kirimTeks(a.sesi, a.alamat, jawaban, (id) => ingat(st.terkirim, id, 500));
       statistik(a.numberId, "dibalas");
+      tulisLatar(() => catatPesan({ numberId: a.numberId, kunci, peran: 1, teks: jawaban, waktu: sekarang() }));
     } catch (e) {
       galat(a, e);
     }
@@ -325,6 +327,18 @@ function chatDibukaManusia(kunci: string): void {
   }
 }
 
+function teleponDariEvent(ev: Extract<EventWa, { jenis: "pesan" }>): string | null {
+  if (ev.telepon) return ev.telepon;
+  if (ev.alamat.endsWith("@s.whatsapp.net")) return digitWa(ev.alamat) || null;
+  if (ev.chat.endsWith("@s.whatsapp.net")) return digitWa(ev.chat) || null;
+  return null;
+}
+
+function teksLogPesan(ev: Extract<EventWa, { jenis: "pesan" }>): string {
+  const t = ev.teks.trim();
+  return ev.lampiran ? (t ? `${t}\n[Lampiran media]` : "[Lampiran media]") : t;
+}
+
 /**
  * Menangani satu event WhatsApp. Gerbang memanggilnya berurutan per nomor dan menunggunya selesai;
  * balasan AI sendiri diproses di latar (timer), tidak di sini.
@@ -354,11 +368,15 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   // Pesan lama (menumpuk selagi offline) tidak dijawab, dan balasan lama manusia tidak menjeda chat.
   if (ev.waktu && sekarang() - ev.waktu > UMUR_PESAN_MAKS_DTK) return;
 
+  const telepon = teleponDariEvent(ev);
+  const teksLog = teksLogPesan(ev);
+
   if (ev.dariSaya) {
     // Pesan keluar yang bukan kiriman bot berarti manusia membalas dari HP (atau perangkat tertaut lain).
     const dariBot = st.terkirim.has(ev.id);
     console.info(`[bridge] pesan keluar sesi=${sesi} -> ${dariBot ? "bot" : "manusia"}`);
     if (dariBot) return;
+    if (teksLog) tulisLatar(() => catatPesan({ numberId: nomor.id, kunci, peran: 2, teks: teksLog, waktu: ev.waktu || sekarang(), telepon }));
     // Manusia mengambil alih: batalkan jawaban AI yang sedang menunggu/disiapkan, lalu AI mundur.
     const a = await antreanUntuk(kunci, nomor.id, sesi, ev.alamat);
     if (nomor.jeda_menit > 0) jedaChat(kunci, a, nomor.jeda_menit);
@@ -378,6 +396,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   }
 
   statistik(nomor.id, "masuk");
+  if (teksLog) tulisLatar(() => catatPesan({ numberId: nomor.id, kunci, peran: 0, teks: teksLog, waktu: ev.waktu || sekarang(), telepon, nama: ev.namaPengirim ?? null }));
   if (!nomor.bot_aktif) return;
 
   let teks = ev.teks.trim();

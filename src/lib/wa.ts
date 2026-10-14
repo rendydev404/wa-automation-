@@ -36,6 +36,10 @@ export type EventWa =
       lampiran: boolean;
       /** Detik epoch. */
       waktu: number;
+      /** Digit nomor WA lawan bicara bila diketahui (dari PN JID / remoteJidAlt). */
+      telepon?: string | null;
+      /** Nama profil WA lawan bicara (pushName pesan masuk). */
+      namaPengirim?: string | null;
     }
   /** Pesan masuk di chat ini terbaca dari perangkat lain milik nomor (HP pemilik). */
   | { jenis: "dibaca"; sesi: string; chat: string };
@@ -231,16 +235,20 @@ async function pesanTiba(B: Baileys, s: Sesi, sock: WASocket, m: WAMessage): Pro
   if (B.areJidsSameUser(jid, sock.user?.id) || B.areJidsSameUser(jid, sock.user?.lid)) return;
   const isi = isiPesan(B, m);
   if (!isi) return;
+  const alt = m.key.remoteJidAlt;
+  const pn = B.isPnUser(jid) ? jid : alt && B.isPnUser(alt) ? alt : null;
   await kabari({
     jenis: "pesan",
     sesi: s.nama,
     id,
-    chat: await kanonik(B, sock, jid, m.key.remoteJidAlt),
+    chat: await kanonik(B, sock, jid, alt),
     alamat: B.jidNormalizedUser(jid),
     dariSaya: !!m.key.fromMe,
     teks: isi.teks,
     lampiran: isi.lampiran,
     waktu: B.toNumber(m.messageTimestamp),
+    telepon: pn ? digitWa(pn) || null : null,
+    namaPengirim: !m.key.fromMe && m.pushName ? m.pushName.trim().slice(0, 80) || null : null,
   });
 }
 

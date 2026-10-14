@@ -7,6 +7,9 @@ export async function register() {
     const { mulaiGerbang } = await import("@/lib/wa");
     // Tidak ditunggu: database dan koneksi ke WhatsApp disiapkan di latar, tidak menahan start server.
     void mulaiGerbang();
+    // Sinkron data Suka Shawarma: satu tarikan awal + pemeriksaan pengaman berkala (hanya bila dikonfigurasi).
+    const { mulaiSinkron } = await import("@/lib/sinkron");
+    mulaiSinkron();
   } catch (e) {
     console.error("[wa] gagal memulai gerbang WhatsApp:", e);
   }

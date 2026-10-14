@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useOptimistic, useTransition } from "react";
+import { useActionState, useOptimistic, useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
-import { hapusNomorAction, setBotAktifAction, ubahNomorAction } from "@/app/actions";
+import { hapusNomorAction, setBotAktifAction, setSinkronAction, ubahNomorAction } from "@/app/actions";
 import { LencanaSesi } from "./connection-card";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "./ui";
 import { useSesiNomor } from "./wa-status";
@@ -28,6 +28,36 @@ export function SaklarBot({ id, aktif: awal, label }: { id: number; aktif: boole
         }
       />
     </label>
+  );
+}
+
+export function SaklarSinkron({ id, aktif: awal, siap, keterangan }: { id: number; aktif: boolean; siap: boolean; keterangan: string }) {
+  const [aktif, setAktif] = useOptimistic(awal);
+  const [galat, setGalat] = useState<string | null>(null);
+  const [menunggu, mulai] = useTransition();
+  return (
+    <section className="card px-5 py-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-[15px] font-bold tracking-tight">Data Suka Shawarma otomatis</h2>
+          <p className="hint mt-0.5">Menu, harga, promo &amp; outlet dari database kasir. Diperbarui sendiri setiap kali ada perubahan.</p>
+        </div>
+        <Saklar
+          aktif={aktif}
+          disabled={!siap || menunggu}
+          label="Data Suka Shawarma otomatis"
+          onUbah={(v) =>
+            mulai(async () => {
+              setAktif(v);
+              setGalat(null);
+              const h = await setSinkronAction(id, v);
+              if (!h.ok) setGalat(h.pesan ?? "Gagal.");
+            })
+          }
+        />
+      </div>
+      <p className="hint mt-2">{!siap ? "Belum dikonfigurasi di server (SINKRON_SS_*)." : menunggu ? "Mengambil data…" : (galat ?? keterangan)}</p>
+    </section>
   );
 }
 

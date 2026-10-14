@@ -1,0 +1,845 @@
+{
+  "menu": [
+    {
+      "isi": [
+        "1x Aqua",
+        "1x Original Ayam Besar"
+      ],
+      "nama": "AYAM BESAR + AQUA",
+      "harga": 34000,
+      "gofood": "42000",
+      "grabfood": "42000",
+      "kategori": "Promo Bundling Aqua",
+      "deskripsi": "Original Ayam Besar + Aqua",
+      "shopeefood": "42000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Aqua",
+        "1x Original Ayam Jumbo"
+      ],
+      "nama": "AYAM JUMBO + AQUA",
+      "harga": 39000,
+      "gofood": "48000",
+      "grabfood": "48000",
+      "kategori": "Promo Bundling Aqua",
+      "deskripsi": "Original Ayam Jumbo + Aqua",
+      "shopeefood": "48000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Aqua",
+        "1x Original Ayam Sedang"
+      ],
+      "nama": "AYAM SEDANG + AQUA",
+      "harga": 29000,
+      "gofood": "36000",
+      "grabfood": "36000",
+      "kategori": "Promo Bundling Aqua",
+      "deskripsi": "Original Ayam Sedang + Aqua",
+      "shopeefood": "36000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Aqua",
+        "1x Original Mix Besar"
+      ],
+      "nama": "MIX BESAR + AQUA",
+      "harga": 42000,
+      "gofood": "52000",
+      "grabfood": "52000",
+      "kategori": "Promo Bundling Aqua",
+      "deskripsi": "Original Mix Besar + Aqua",
+      "shopeefood": "52000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Aqua",
+        "1x Original Mix Jumbo"
+      ],
+      "nama": "MIX JUMBO + AQUA",
+      "harga": 52000,
+      "gofood": "64000",
+      "grabfood": "64000",
+      "kategori": "Promo Bundling Aqua",
+      "deskripsi": "Original Mix Jumbo + Aqua",
+      "shopeefood": "64000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Aqua",
+        "1x Original Sapi Besar"
+      ],
+      "nama": "SAPI BESAR + AQUA",
+      "harga": 37000,
+      "gofood": "46000",
+      "grabfood": "46000",
+      "kategori": "Promo Bundling Aqua",
+      "deskripsi": "Original Sapi Besar + Aqua",
+      "shopeefood": "46000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Aqua",
+        "1x Original Sapi Jumbo"
+      ],
+      "nama": "SAPI JUMBO + AQUA",
+      "harga": 47000,
+      "gofood": "58000",
+      "grabfood": "58000",
+      "kategori": "Promo Bundling Aqua",
+      "deskripsi": "Original Sapi Jumbo + Aqua",
+      "shopeefood": "58000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Aqua",
+        "1x Original Sapi Sedang"
+      ],
+      "nama": "SAPI SEDANG + AQUA",
+      "harga": 32000,
+      "gofood": "40000",
+      "grabfood": "40000",
+      "kategori": "Promo Bundling Aqua",
+      "deskripsi": "Original Sapi Sedang + Aqua",
+      "shopeefood": "40000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Aqua",
+        "1x Suka Beef"
+      ],
+      "nama": "SUKA BEEF + AQUA",
+      "harga": 37000,
+      "gofood": "46000",
+      "grabfood": "46000",
+      "kategori": "Promo Bundling Aqua",
+      "deskripsi": "Suka Beef + Aqua",
+      "shopeefood": "46000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Aqua",
+        "1x Suka Chicken"
+      ],
+      "nama": "SUKA CHICKEN + AQUA",
+      "harga": 34000,
+      "gofood": "42000",
+      "grabfood": "42000",
+      "kategori": "Promo Bundling Aqua",
+      "deskripsi": "Suka Chicken + Aqua",
+      "shopeefood": "42000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Aqua",
+        "1x Suka Fried Chicken"
+      ],
+      "nama": "SUKA FRIED CHICKEN + AQUA",
+      "harga": 35000,
+      "gofood": "43000",
+      "grabfood": "43000",
+      "kategori": "Promo Bundling Aqua",
+      "deskripsi": "Suka Fried Chicken + Aqua",
+      "shopeefood": "43000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Aqua",
+        "1x Suka Samyang"
+      ],
+      "nama": "SUKA SAMYANG + AQUA",
+      "harga": 35000,
+      "gofood": "43000",
+      "grabfood": "43000",
+      "kategori": "Promo Bundling Aqua",
+      "deskripsi": "Suka Samyang + Aqua",
+      "shopeefood": "43000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Original Ayam Besar",
+      "harga": 31000,
+      "gofood": "38000",
+      "grabfood": "38000",
+      "kategori": "Original Shawarma Ayam",
+      "deskripsi": "Shawarma ayam ukuran besar — lebih banyak lebih puas",
+      "shopeefood": "38000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Original Ayam Jumbo",
+      "harga": 36000,
+      "gofood": "44000",
+      "grabfood": "44000",
+      "kategori": "Original Shawarma Ayam",
+      "deskripsi": "Shawarma ayam ukuran jumbo untuk porsi ekstra",
+      "shopeefood": "44000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Original Ayam Reguler",
+      "harga": 21000,
+      "gofood": "21000",
+      "grabfood": "21000",
+      "kategori": "Original Shawarma Ayam",
+      "deskripsi": "Shawarma ayam ukuran reguler",
+      "shopeefood": "21000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Original Ayam Sedang",
+      "harga": 26000,
+      "gofood": "32000",
+      "grabfood": "32000",
+      "kategori": "Original Shawarma Ayam",
+      "deskripsi": "Shawarma ayam ukuran sedang dengan bumbu rempah khas SUKA",
+      "shopeefood": "32000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Original Sapi Besar",
+      "harga": 34000,
+      "gofood": "42000",
+      "grabfood": "42000",
+      "kategori": "Original Shawarma Sapi",
+      "deskripsi": "Shawarma daging sapi pilihan ukuran besar",
+      "shopeefood": "42000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Original Sapi Jumbo",
+      "harga": 44000,
+      "gofood": "54000",
+      "grabfood": "54000",
+      "kategori": "Original Shawarma Sapi",
+      "deskripsi": "Shawarma daging sapi pilihan ukuran jumbo",
+      "shopeefood": "54000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Original Sapi Reguler",
+      "harga": 23000,
+      "gofood": "23000",
+      "grabfood": "23000",
+      "kategori": "Original Shawarma Sapi",
+      "deskripsi": "Shawarma sapi ukuran reguler",
+      "shopeefood": "23000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Original Sapi Sedang",
+      "harga": 29000,
+      "gofood": "36000",
+      "grabfood": "36000",
+      "kategori": "Original Shawarma Sapi",
+      "deskripsi": "Shawarma daging sapi pilihan ukuran sedang",
+      "shopeefood": "36000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Original Mix Besar",
+      "harga": 39000,
+      "gofood": "48000",
+      "grabfood": "48000",
+      "kategori": "Original Shawarma Mix",
+      "deskripsi": "Perpaduan ayam dan sapi dalam satu wrap ukuran besar",
+      "shopeefood": "48000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Original Mix Jumbo",
+      "harga": 49000,
+      "gofood": "60000",
+      "grabfood": "60000",
+      "kategori": "Original Shawarma Mix",
+      "deskripsi": "Perpaduan ayam dan sapi dalam satu wrap ukuran jumbo",
+      "shopeefood": "60000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Original Mix Reguler",
+      "harga": 25000,
+      "gofood": "25000",
+      "grabfood": "25000",
+      "kategori": "Original Shawarma Mix",
+      "deskripsi": "Shawarma mix ayam & sapi ukuran reguler",
+      "shopeefood": "25000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Suka Beef",
+      "harga": 34000,
+      "gofood": "42000",
+      "grabfood": "42000",
+      "kategori": "Suka Suka",
+      "deskripsi": "Shawarma sapi spesial dengan saus SUKA signature",
+      "shopeefood": "42000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Suka Chicken",
+      "harga": 31000,
+      "gofood": "38000",
+      "grabfood": "38000",
+      "kategori": "Suka Suka",
+      "deskripsi": "Shawarma ayam spesial dengan saus SUKA signature",
+      "shopeefood": "38000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Suka Fried Chicken",
+      "harga": 32000,
+      "gofood": "39000",
+      "grabfood": "39000",
+      "kategori": "Suka Suka",
+      "deskripsi": "Shawarma ayam goreng crispy dengan saus SUKA signature",
+      "shopeefood": "39000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Suka Samyang",
+      "harga": 32000,
+      "gofood": "39000",
+      "grabfood": "39000",
+      "kategori": "Suka Suka",
+      "deskripsi": "Shawarma pedas level Samyang — buat yang suka tantangan",
+      "shopeefood": "39000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Extra Keju",
+      "harga": 7000,
+      "gofood": "9000",
+      "grabfood": "9000",
+      "kategori": "Topping",
+      "deskripsi": "Tambahan keju leleh",
+      "shopeefood": "9000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Extra Kentang",
+      "harga": 9000,
+      "gofood": "11000",
+      "grabfood": "11000",
+      "kategori": "Topping",
+      "deskripsi": "Tambahan kentang goreng",
+      "shopeefood": "11000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Ice Tea",
+      "harga": 8000,
+      "gofood": null,
+      "grabfood": null,
+      "kategori": "Suka Drink",
+      "deskripsi": null,
+      "shopeefood": null,
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": null,
+      "nama": "Orange Juice",
+      "harga": 8000,
+      "gofood": null,
+      "grabfood": null,
+      "kategori": "Suka Drink",
+      "deskripsi": null,
+      "shopeefood": null,
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Ice Tea atau Orange Juice",
+        "1x Original Sapi Sedang"
+      ],
+      "nama": "Combo #1",
+      "harga": 34000,
+      "gofood": "34000",
+      "grabfood": "34000",
+      "kategori": "Combo",
+      "deskripsi": "Original Sapi Sedang + Ice tea / Orange Juice (pilih salah satu)",
+      "shopeefood": "34000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Ice Tea atau Orange Juice",
+        "1x Original Sapi Besar"
+      ],
+      "nama": "Combo #1 UP SIZE BESAR",
+      "harga": 38000,
+      "gofood": "38000",
+      "grabfood": "38000",
+      "kategori": "Combo",
+      "deskripsi": "Original Sapi Besar (Up Size) + Ice tea / Orange Juice (pilih salah satu)",
+      "shopeefood": "38000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Ice Tea atau Orange Juice",
+        "1x Original Sapi Jumbo"
+      ],
+      "nama": "Combo #1 UP SIZE JUMBO",
+      "harga": 47000,
+      "gofood": "47000",
+      "grabfood": "47000",
+      "kategori": "Combo",
+      "deskripsi": "Original Sapi JUMBO + Ice tea / Orange Juice (pilih salah satu)",
+      "shopeefood": "47000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Ice Tea atau Orange Juice",
+        "1x Original Ayam Sedang"
+      ],
+      "nama": "Combo #2",
+      "harga": 31000,
+      "gofood": "31000",
+      "grabfood": "31000",
+      "kategori": "Combo",
+      "deskripsi": "Original Ayam Sedang + Ice tea / Orange Juice (pilih salah satu)",
+      "shopeefood": "31000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Ice Tea atau Orange Juice",
+        "1x Original Ayam Besar"
+      ],
+      "nama": "Combo #2 UP SIZE BESAR",
+      "harga": 36000,
+      "gofood": "36000",
+      "grabfood": "36000",
+      "kategori": "Combo",
+      "deskripsi": "Original Ayam BESAR + Ice tea / Orange Juice (pilih salah satu)",
+      "shopeefood": "36000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Ice Tea atau Orange Juice",
+        "1x Original Ayam Jumbo"
+      ],
+      "nama": "Combo #2 UP SIZE JUMBO",
+      "harga": 40000,
+      "gofood": "40000",
+      "grabfood": "40000",
+      "kategori": "Combo",
+      "deskripsi": "Original Ayam JUMBO + Ice tea / Orange Juice (pilih salah satu)",
+      "shopeefood": "40000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Ice Tea atau Orange Juice",
+        "1x Original Mix Besar"
+      ],
+      "nama": "Combo #3",
+      "harga": 43000,
+      "gofood": "43000",
+      "grabfood": "43000",
+      "kategori": "Combo",
+      "deskripsi": "Original MIX BESAR + Ice tea / Orange Juice (pilih salah satu)",
+      "shopeefood": "43000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "1x Ice Tea atau Orange Juice",
+        "1x Original Mix Jumbo"
+      ],
+      "nama": "Combo #3 UP SIZE JUMBO",
+      "harga": 52000,
+      "gofood": "52000",
+      "grabfood": "52000",
+      "kategori": "Combo",
+      "deskripsi": "Original MIX JUMBO + Ice tea / Orange Juice (pilih salah satu)",
+      "shopeefood": "52000",
+      "harga_khusus_outlet": null
+    },
+    {
+      "isi": [
+        "2x Ice Tea atau Orange Juice",
+        "1x Suka Fried Chicken",
+        "1x Suka Samyang"
+      ],
+      "nama": "Combo 4",
+      "harga": 72000,
+      "gofood": "72000",
+      "grabfood": "72000",
+      "kategori": "Combo",
+      "deskripsi": "1 Pcs - SUKA SAMYANG\n1 Pcs - SUKA FRIED CHICKEN\n2 Pcs - SUKA DRINK",
+      "shopeefood": "72000",
+      "harga_khusus_outlet": null
+    }
+  ],
+  "promo": [],
+  "versi": 1,
+  "dibuat": "2026-10-14T11:39:19.534831+07:00",
+  "outlet": [
+    {
+      "lat": -6.2691389,
+      "lng": 106.9801668,
+      "buka": "14.00",
+      "nama": "MITRA PEKAYON",
+      "tutup": "22.00",
+      "alamat": "Jl. Pulo Ribung No.1, Pekayon Jaya, Kec. Bekasi Sel., Kota Bks, Jawa Barat 17147",
+      "wilayah": "BEKASI",
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.2761613,
+      "lng": 106.9130065,
+      "buka": "14.00",
+      "nama": "SUKA SHAWARMA JATIWARINGIN",
+      "tutup": "22.00",
+      "alamat": "Jl. Raya Jatiwaringin No.51, Jatiwaringin, Kec. Pd. Gede, Kota Bks, Jawa Barat 17411",
+      "wilayah": "BEKASI",
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.4805417,
+      "lng": 106.8178322,
+      "buka": "14.00",
+      "nama": "MITRA CIBINONG",
+      "tutup": "22.00",
+      "alamat": "Jl. Raya Sukahati No.35, Sukahati, Kec. Cibinong, Kabupaten Bogor, Jawa Barat 16913",
+      "wilayah": "BOGOR",
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.3656095,
+      "lng": 106.9575285,
+      "buka": "14.00",
+      "nama": "MITRA CIBUBUR",
+      "tutup": "22.00",
+      "alamat": "Blok FMR 5, Ruko Fresh Market, Jl. Boulevard Kota Wisata No.11, Ciangsana, Kec. Gn. Putri, Kabupaten Bogor, Jawa Barat 16968",
+      "wilayah": "BOGOR",
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.4409167,
+      "lng": 106.6964505,
+      "buka": "14.00",
+      "nama": "MITRA CISEENG",
+      "tutup": "22.00",
+      "alamat": "Jl. H. Mawi No.17, Parigi Mekar, Kec. Ciseeng, Kabupaten Bogor, Jawa Barat 16120",
+      "wilayah": "BOGOR",
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.6290369,
+      "lng": 106.7979449,
+      "buka": "14.00",
+      "nama": "SUKA SHAWARMA BNR",
+      "tutup": "22.00",
+      "alamat": "Jalan Bukit Nirwana Raya 3, Bogor Selatan, Jawa Barat, 16135",
+      "wilayah": "BOGOR",
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.5541076,
+      "lng": 106.7826057,
+      "buka": "14.00",
+      "nama": "SUKA SHAWARMA CIMANGGU",
+      "tutup": "22.00",
+      "alamat": "Jl. Ruko Bukit Cimanggu City, Jl. Bukit Cimanggu City Raya No.3A, Cibadak, Kec. Tanah Sereal, Kota Bogor, Jawa Barat 16165",
+      "wilayah": "BOGOR",
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.5728375,
+      "lng": 106.7448281,
+      "buka": "14.00",
+      "nama": "SUKA SHAWARMA DRAMAGA",
+      "tutup": "22.00",
+      "alamat": "Jl. Raya Dramaga No.15, RT.03/RW.03, Margajaya, Kec. Bogor Bar., Kota Bogor, Jawa Barat 16116",
+      "wilayah": "BOGOR",
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.6079492,
+      "lng": 106.7953519,
+      "buka": "14.00",
+      "nama": "SUKA SHAWARMA EMPANG",
+      "tutup": "22.00",
+      "alamat": "Jl. Pahlawan No.10A, Empang, Kec. Bogor Sel., Kota Bogor, Jawa Barat 16132",
+      "wilayah": "BOGOR",
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.6181115,
+      "lng": 106.8154405,
+      "buka": "14.00",
+      "nama": "SUKA SHAWARMA PAJAJARAN",
+      "tutup": "22.00",
+      "alamat": "Jl. Raya Pajajaran No.21, RT.03/RW.06, Sukasari, Kec. Bogor Tim., Kota Bogor, Jawa Barat 16142",
+      "wilayah": "BOGOR",
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.3945632,
+      "lng": 106.7940041,
+      "buka": "14.00",
+      "nama": "MITRA SAWANGAN DTC",
+      "tutup": "22.00",
+      "alamat": "Jl. Raya Sawangan, Mampang, Pancoran Mas, Depok City, West Java 16435",
+      "wilayah": "DEPOK",
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.3764416,
+      "lng": 106.813757,
+      "buka": "14.00",
+      "nama": "SUKA SHAWARMA BEJI",
+      "tutup": "22.00",
+      "alamat": "Jl. H. Asmawi No.44, Beji, Kecamatan Beji, Kota Depok, Jawa Barat 16421",
+      "wilayah": "DEPOK",
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.3827429,
+      "lng": 106.8415503,
+      "buka": "14.00",
+      "nama": "SUKA SHAWARMA DEPOK SUKMAJAYA",
+      "tutup": "22.00",
+      "alamat": "Jl. K.H.M. Yusuf Raya, Mekar Jaya, Kec. Sukmajaya, Kota Depok, Jawa Barat 16411",
+      "wilayah": "DEPOK",
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.3359964,
+      "lng": 106.8540049,
+      "buka": "14.00",
+      "nama": "MITRA KALISARI",
+      "tutup": "22.00",
+      "alamat": "Jl. Kalisari No.13, RT.6/RW.2, Kalisari, Kec. Ps. Rebo, Kota Jakarta Timur, Daerah Khusus Ibukota Jakarta 13790",
+      "wilayah": "JAKARTA",
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.330686,
+      "lng": 106.8280426,
+      "buka": "14.00",
+      "nama": "SUKA SHAWARMA JAGAKARSA",
+      "tutup": "22.00",
+      "alamat": "Jl. Raya Jagakarsa No.159, RT.13/RW.1, Jagakarsa, Kec. Jagakarsa, Kota Jakarta Selatan, DKI. Jakarta 12620",
+      "wilayah": "JAKARTA",
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.3210676,
+      "lng": 106.7683419,
+      "buka": "14.00",
+      "nama": "SUKA SHAWARMA CIRENDEU",
+      "tutup": "22.00",
+      "alamat": "Jl. Raya Cirendeu No.Raya, Pisangan, Kec. Ciputat Tim., Kota Tangerang Selatan, Banten 1541",
+      "wilayah": "TANGERANG",
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.783306,
+      "lng": 106.781924,
+      "buka": "14.00",
+      "nama": "MITRA CICURUG",
+      "tutup": "22.00",
+      "alamat": "Jl. Siliwangi, Cicurug, Kec. Cicurug, Kabupaten Sukabumi, Jawa Barat 43359",
+      "wilayah": null,
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.2121779,
+      "lng": 106.71225,
+      "buka": "14.00",
+      "nama": "MITRA CILEUDUG",
+      "tutup": "22.00",
+      "alamat": "Jl. Raden Saleh, RT.002/RW.015, Karang Tengah, Kec. Karang Tengah, Kota Tangerang, Banten 15157",
+      "wilayah": null,
+      "aplikasi": [],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.3899039,
+      "lng": 106.9867841,
+      "buka": "14.00",
+      "nama": "MITRA CILEUNGSI",
+      "tutup": "22.00",
+      "alamat": "CILEUNGSI",
+      "wilayah": null,
+      "aplikasi": [
+        "gofood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.3468928,
+      "lng": 106.7351637,
+      "buka": "14.00",
+      "nama": "MITRA PAMULANG",
+      "tutup": "22.00",
+      "alamat": "Jl. Suryakencana No.54, Pamulang Bar., Kec. Pamulang, Kota Tangerang Selatan, Banten 15411",
+      "wilayah": null,
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    },
+    {
+      "lat": -6.562316,
+      "lng": 106.86102,
+      "buka": "14.00",
+      "nama": "MITRA SENTUL",
+      "tutup": "22.00",
+      "alamat": "Dekat Rajo balado, Jl. Raya Babakan Madang, Babakan Madang, Jl. Raya Babakan Madang, Citaringgul, Kec. Babakan Madang, Kadumangu, Jawa Barat, Kabupaten Bogor, Jawa Barat ",
+      "wilayah": null,
+      "aplikasi": [
+        "gofood",
+        "grabfood",
+        "shopeefood"
+      ],
+      "alasan_tutup": null,
+      "tutup_sementara_sampai": null
+    }
+  ],
+  "berikutnya": null
+}
