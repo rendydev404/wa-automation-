@@ -1,0 +1,82 @@
+# Push ke main -> lint, build, seluruh uji -> deploy ke VPS.
+# Deploy hanya terjadi bila semua langkah sebelumnya lolos. Di VPS, paketnya diterima oleh
+# deploy/terima-deploy.sh, yang mengembalikan versi sebelumnya bila versi baru tidak sehat.
+#
+# Secrets repo yang dipakai: VPS_HOST, VPS_SSH_KEY (kunci khusus deploy), VPS_KNOWN_HOSTS.
+name: Uji & deploy
+
+on:
+  push:
+    branches: [main]
+    # Perubahan dokumen/knowledge saja tidak perlu membangun ulang dan me-restart app.
+    paths-ignore:
+      - "**.md"
+      - "knowledge-cs/**"
+      - "hermes/**"
+  workflow_dispatch:
+
+# Satu deploy pada satu waktu; push berikutnya menunggu, tidak membatalkan deploy yang sedang jalan.
+concurrency:
+  group: deploy-produksi
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  uji-dan-deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npx eslint
+
+      - name: Build (termasuk pemeriksaan tipe)
+        run: npm run build
+
+      - name: Uji (PostgreSQL sementara di runner)
+        run: npm run uji
+
+      - name: Uji server hasil build
+        run: node --no-warnings --import ./uji/loader.mjs uji/uji-next.mjs
+        env:
+          TANPA_WHATSAPP: "1" # runner tidak perlu membuka koneksi ke WhatsApp
+
+      - name: Susun paket
+        run: |
+          mkdir -p paket/standalone/.next
+          cp -r .next/standalone/. paket/standalone/
+          cp -r .next/static paket/standalone/.next/static
+          cp -r public paket/standalone/public
+          rm -rf paket/standalone/data paket/standalone/.env*
+          echo "$GITHUB_SHA" > paket/standalone/VERSI # dicocokkan penerima deploy dengan isi container yang berjalan
+          cp deploy/Dockerfile deploy/docker-compose.yml paket/
+          tar czf paket.tgz -C paket .
+          ls -lh paket.tgz
+
+      - name: Deploy ke VPS
+        if: github.ref == 'refs/heads/main'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # Kunci ini hanya bisa menjalankan penerima deploy di server; paket dikirim lewat stdin.
+          ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=20 "root@$VPS_HOST" < paket.tgz
+          rm -f ~/.ssh/deploy

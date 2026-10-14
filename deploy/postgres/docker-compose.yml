@@ -1,0 +1,46 @@
+# PostgreSQL kecil untuk proyek ini. Dijalankan di VPS dari /opt/wa-postgres (lihat pasang.sh);
+# proyek compose-nya terpisah dari app, jadi deploy app tidak menyentuhnya.
+#
+# Image sengaja SAMA dengan yang sudah ada di VPS (postgres:15-alpine = 15.19, dikunci ke digest):
+# tidak ada unduhan dan tidak ada tambahan ruang disk, dan berkas programnya berbagi cache memori
+# dengan container lain yang memakai image itu. PostgreSQL 15 didukung sampai November 2027.
+#
+# Jaringan host + listen 127.0.0.1:5433 saja: tidak ada port yang terbuka ke luar dan tidak ada
+# proses docker-proxy. App (juga jaringan host) menyambung ke 127.0.0.1:5433.
+name: wa-postgres
+
+services:
+  db:
+    image: postgres@sha256:f7d23353e1b15400d22ebe31189f4d314b87a4c129cc400c8c2d8d4ca127bf81
+    restart: unless-stopped
+    network_mode: host
+    env_file: .env
+    environment:
+      # --locale=C: urutan teks per byte, paling cepat, tidak terpengaruh ganti versi pustaka sistem.
+      # --auth-host=scram-sha-256 WAJIB: bawaan initdb mempercayai 127.0.0.1 tanpa kata sandi, dan
+      # di jaringan host SEMUA koneksi datang dari 127.0.0.1 (terbukti saat uji: kata sandi salah
+      # diterima). Dengan ini setiap koneksi TCP harus memakai kata sandi.
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C --data-checksums --auth-host=scram-sha-256
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./init:/docker-entrypoint-initdb.d:ro
+    # Batas atas, bukan jatah: saat diam pemakaiannya puluhan MB. memswap = mem supaya database
+    # tidak ikut terdorong ke swap host yang sudah penuh.
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 1.0
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-h", "127.0.0.1", "-p", "5433", "-U", "postgres"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+
+volumes:
+  pgdata:

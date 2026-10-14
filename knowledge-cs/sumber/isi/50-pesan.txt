@@ -1,0 +1,77 @@
+# Cara Pesan dan Pembayaran
+
+## Semua cara pesan Suka Shawarma
+Pelanggan bisa membeli Suka Shawarma lewat lima jalur:
+- *Datang langsung ke outlet*: pesan dan bayar di kasir, harga paling hemat.
+- *Pesan antar*: lewat GoFood, GrabFood, atau ShopeeFood. Ini satu-satunya jalur antar ke rumah untuk pesanan biasa.
+- *Pesan online, ambil di outlet*: lewat situs order.sukashawarma.com, bayar online, lalu ambil sendiri di outlet pada jam yang dipilih.
+- *Voucher TikTok GO*: beli voucher paket di TikTok, lalu tukarkan di outlet.
+- *Kiriman luar kota*: produk kiriman lewat toko online Suka Shawarma di Shopee dan TikTok Shop.
+Untuk acara dengan jumlah banyak ada layanan Big Order.
+Kamu sebagai CS di WhatsApp tidak bisa membuatkan pesanan, menerima pembayaran, atau mengecek status pesanan. Bantu pelanggan memilih jalur yang cocok dan jelaskan caranya.
+Kata kunci: cara pesan, cara order, cara beli, pesen gimana, order lewat mana, bisa pesan lewat wa, pesan di sini, mau order, mau pesan, beli dimana, online.
+
+## Beli langsung di outlet
+Cara beli di outlet Suka Shawarma:
+- Datang ke outlet pada jam buka, lalu pesan di kasir. Di sebagian outlet ada layar pesan mandiri (kiosk).
+- Sebutkan menu, ukuran, level pedas (Tidak Pedas, Sedang, atau Pedas), dan permintaan khusus kalau ada.
+- Bayar di kasir, lalu pelanggan mendapat nomor antrian dan pesanannya dibuat.
+- Pesanan bisa dibungkus untuk dibawa pulang. Tidak ada beda harga antara makan di tempat dan dibungkus.
+Pembayaran di outlet: tunai dan QRIS (bisa dari m-banking atau e-wallet apa pun). Kartu debit tidak tersedia di semua outlet, jadi pastikan ke kasir.
+Harga outlet tidak dikenai pajak atau biaya layanan tambahan.
+Tempat duduk berbeda di tiap outlet dan datanya belum ada padamu. Kalau pelanggan bertanya soal tempat duduk, parkir, musala, atau wifi di outlet tertentu, katakan kamu belum punya infonya.
+Kata kunci: beli langsung, datang ke outlet, makan di tempat, dine in, take away, bungkus, antri, antrian, nomor antrian, kasir, kiosk, tempat duduk, parkir, bayar di tempat, pajak, ppn.
+
+## Pesan antar lewat GoFood, GrabFood, dan ShopeeFood
+Outlet Suka Shawarma tidak punya kurir sendiri untuk pesanan biasa. Pesan antar dilakukan lewat aplikasi GoFood (Gojek), GrabFood (Grab), atau ShopeeFood (Shopee).
+Caranya: buka aplikasinya, cari "Suka Shawarma", pilih outlet yang paling dekat dengan alamat pelanggan, pilih menu, lalu bayar di aplikasi. Level pedas dan permintaan khusus ditulis di kolom catatan.
+Yang perlu diketahui pelanggan:
+- Harga di aplikasi lebih tinggi daripada harga beli langsung di outlet.
+- Ongkos kirim, biaya layanan, jangkauan antar, promo, dan voucher di aplikasi ditentukan oleh aplikasinya, bukan oleh Suka Shawarma.
+- Tidak semua outlet ada di semua aplikasi. Lihat data outlet untuk aplikasi yang tersedia di tiap outlet.
+- Kalau ada kendala pengantaran atau pembayaran, pelanggan juga bisa melapor lewat menu bantuan di aplikasinya.
+Kata kunci: delivery, antar, dianter, kirim ke rumah, pesan antar, ojol, ojek online, gofood, gojek, grabfood, grab, shopeefood, shopee, ongkir, ongkos kirim, cod, jangkauan.
+
+## Pesan online ambil di outlet: order.sukashawarma.com
+Situs order.sukashawarma.com dipakai untuk pesan dan bayar dulu, lalu ambil sendiri di outlet. Tidak perlu membuat akun.
+Langkahnya:
+- 1. Pilih outlet. Buka situsnya, lalu pilih outlet Suka Shawarma tempat pesanan akan diambil.
+- 2. Pilih menu. Masukkan menu ke keranjang, lalu tekan Pesan Sekarang.
+- 3. Isi data: nama pemesan, nomor WhatsApp, waktu ambil, dan catatan tambahan kalau ada (misalnya level pedas).
+- 4. Bayar secara online dengan QRIS atau Virtual Account.
+- 5. Ambil pesanan di outlet pada waktu ambil yang dipilih, dengan menunjukkan nomor pesanan ke kasir.
+Layanan ini khusus ambil sendiri (pickup) untuk hari yang sama. Tidak ada pengantaran dan tidak bisa bayar tunai di kasir. Pilihan waktu ambil tersedia selama jam buka outlet.
+Setelah pembayaran berhasil, pelanggan menerima pesan WhatsApp otomatis berisi nomor pesanan, outlet, dan waktu ambil.
+Kata kunci: pesan online, order online, website, situs, web order, pickup, ambil sendiri, ambil di outlet, pre order, pesan dulu, link order, form order, jam ambil.
+
+## Pembayaran dan status pesanan di order.sukashawarma.com
+Metode bayar di situs pesan online: QRIS (bisa dibayar dari m-banking atau e-wallet seperti GoPay, OVO, DANA) dan Virtual Account bank BNI, BRI, Mandiri, BJB, dan BSI. Ada biaya admin pembayaran yang nominalnya tertera di halaman checkout sebelum membayar.
+Tiap tagihan punya batas waktu bayar yang terlihat di halaman pembayaran. Kalau terlewat, pesanan kedaluwarsa otomatis dan pelanggan perlu memesan ulang. Transfer Virtual Account harus sama persis dengan nominal tagihan.
+Urutan status di halaman pesanan: Menunggu pembayaran, Pembayaran Dikonfirmasi, Sedang Disiapkan, Pesanan Siap Diambil, lalu Selesai.
+Kalau pelanggan sudah membayar tetapi statusnya belum berubah, sarankan menekan tombol cek status di halaman pesanan. Kalau tetap belum berubah, minta nomor pesanan, nama outlet, dan bukti bayar, lalu serahkan ke tim. Kamu tidak bisa mengecek status pesanan.
+Kata kunci: qris, virtual account, transfer, bni, bri, mandiri, bjb, bsi, bca, gopay, ovo, dana, biaya admin, sudah bayar, sudah transfer, status pesanan, kedaluwarsa, expired.
+
+## Voucher TikTok GO: beli di TikTok, tukar di outlet
+Suka Shawarma menjual voucher paket di TikTok (TikTok GO). Pelanggan membeli voucher di aplikasi TikTok, lalu menukarkannya di outlet Suka Shawarma untuk mendapat menu sesuai voucher.
+- Isi paket dan harga voucher mengikuti yang tampil di TikTok saat pelanggan membeli. Harga voucher bisa berbeda dari harga menu di outlet dan bisa berubah kapan saja.
+- Voucher ditukar langsung di kasir outlet dengan menunjukkan voucher dari aplikasi TikTok. Voucher tidak bisa ditukar lewat chat WhatsApp ini.
+- Syarat lain seperti masa berlaku, outlet yang menerima, dan pengembalian dana voucher mengikuti ketentuan yang tertulis di halaman voucher TikTok.
+Kalau voucher ditolak di outlet atau menunya habis saat mau ditukar, minta maaf, lalu tanyakan nama outlet, tanggal dan jam datang, serta nama paket vouchernya. Serahkan ke tim, jangan menjanjikan penggantian.
+Kata kunci: voucher, vocer, tiktok, tiktok go, deal, kupon, tukar voucher, redeem, cara pakai voucher, voucher ditolak, voucher tidak bisa, promo tiktok, live tiktok.
+
+## Kiriman luar kota: toko online di Shopee dan TikTok Shop
+Untuk pelanggan di luar jangkauan outlet, Suka Shawarma punya toko online bernama Suka Shawarma Online yang mengirim ke seluruh Indonesia:
+- Shopee: shopee.co.id/sukashawarmaonline
+- TikTok Shop: tautannya ada di halaman info.sukashawarma.com, tombol TikTok Order.
+Tautan toko Shopee juga ada di halaman yang sama.
+Produk di toko online adalah versi khusus kiriman, jadi tidak sama persis dengan shawarma yang dibuat langsung di outlet. Pilihan produk, isi, berat, harga, ongkos kirim, dan estimasi sampai mengikuti halaman produk di Shopee atau TikTok Shop.
+Pemesanan, pembayaran, pelacakan paket, dan komplain produk kiriman dilakukan lewat aplikasi Shopee atau TikTok Shop, termasuk lewat fitur chat toko di sana. Kamu tidak bisa mengecek pesanan marketplace.
+Cara simpan dan cara memanaskan mengikuti petunjuk di kemasan atau deskripsi produk.
+Kata kunci: luar kota, luar pulau, kirim paket, ekspedisi, frozen, beku, shopee, tiktok shop, tokopedia, marketplace, toko online, kirim ke surabaya, bandung, seluruh indonesia, resi.
+
+## Waktu tunggu dan jam ramai
+Shawarma dibuat setelah dipesan. Perkiraan waktu penyiapan sekitar 15 sampai 20 menit. Saat outlet ramai atau pesanan menumpuk, waktunya bisa lebih lama. Jangan menjanjikan jumlah menit yang pasti.
+Outlet biasanya lebih ramai pada malam hari dan akhir pekan. Pelanggan yang ingin lebih cepat bisa disarankan datang lebih awal di sore hari.
+Supaya tidak menunggu di outlet, pelanggan bisa pesan lebih dulu lewat order.sukashawarma.com dan memilih jam ambil.
+Menjelang jam tutup, beberapa menu bisa sudah habis. Stok per outlet tidak bisa kamu cek. Kalau pelanggan bertanya apakah menu tertentu masih ada saat ini, katakan terus terang kamu tidak bisa mengecek stok outlet.
+Kata kunci: nunggu berapa lama, lama ga, antri lama, ramai, sepi, jam ramai, jam sibuk, cepat, estimasi, berapa menit, stok, masih ada, habis, sold out, kehabisan.

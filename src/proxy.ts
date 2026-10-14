@@ -1,0 +1,41 @@
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
+
+const PUBLIK = new Set(["/api/health"]);
+
+function asalSama(req: NextRequest): boolean {
+  const origin = req.headers.get("origin");
+  if (!origin) return true; // klien non-browser tidak membawa cookie sesi secara otomatis
+  try {
+    const host = (req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "").split(",")[0].trim().toLowerCase();
+    return new URL(origin).host.toLowerCase() === host;
+  } catch {
+    return false;
+  }
+}
+
+/** Pemeriksaan optimistis (tanda tangan + masa berlaku). Otorisasi penuh ada di tiap aksi/handler. */
+export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  if (PUBLIK.has(pathname)) return NextResponse.next();
+
+  const sesi = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
+  const isApi = pathname.startsWith("/api/");
+
+  // /login selalu diteruskan: cookie yang sah tanda tangannya belum tentu masih berlaku di database
+  // (mis. password diganti), dan mengalihkannya dari sini akan memutar tanpa henti.
+  if (pathname === "/login") return NextResponse.next();
+  if (!sesi) {
+    if (isApi) return NextResponse.json({ error: "Sesi berakhir. Silakan login kembali." }, { status: 401, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+  if (isApi && request.method !== "GET" && request.method !== "HEAD" && !asalSama(request)) {
+    return NextResponse.json({ error: "Permintaan tidak valid." }, { status: 403 });
+  }
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+};

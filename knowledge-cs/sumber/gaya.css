@@ -1,0 +1,24 @@
+@page { size: 148mm 210mm; margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { font-variant-ligatures: none; font-feature-settings: 'calt' 0, 'case' 0, 'liga' 0; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 10.4pt; line-height: 1.55; color: #400a07; }
+.page {
+  width: 148mm; height: 210mm; padding: 17mm 14mm 17mm; position: relative; overflow: hidden;
+  page-break-after: always; break-after: page; background: #fffaf3;
+}
+.page::before { content: ""; position: absolute; left: 0; top: 0; right: 0; height: 5mm; background: #f29744; }
+.page::after { content: ""; position: absolute; left: 0; top: 5mm; width: 46mm; height: 1.4mm; background: #701604; }
+.sec { font-size: 8pt; font-weight: 800; color: #c9661a; }
+h1 { font-family: 'Lilita One', 'Plus Jakarta Sans', sans-serif; font-weight: 400; font-size: 18pt; line-height: 1.16; color: #701604; margin: 1.5mm 0 5mm; }
+.isi p { margin-bottom: 2.6mm; }
+.isi ul { list-style: disc; margin: 0 0 2.6mm 4.6mm; }
+.isi li { padding-left: 0.6mm; margin-bottom: 1.5mm; }
+.isi li::marker { color: #f29744; font-size: 1.15em; }
+b { font-weight: 700; color: #701604; }
+.foot { position: absolute; left: 14mm; right: 14mm; bottom: 8mm; font-size: 7pt; font-weight: 600; color: #a58577; display: flex; justify-content: space-between; border-top: 0.25mm solid #f2d9c2; padding-top: 2mm; }
+.sampul .logo { display: block; width: 40mm; height: 40mm; object-fit: contain; margin: -4mm auto 4mm; background: #fff; border: 0.5mm solid #f6c79a; border-radius: 7mm; padding: 2mm; }
+.sampul .sec, .sampul h1 { text-align: center; }
+.sampul h1 { font-size: 20pt; margin-bottom: 4mm; }
+
+.utuh { white-space: nowrap; }
+.isi p.kunci { margin-top: 4mm; padding-top: 2.4mm; border-top: 0.25mm dashed #e8c9ab; font-size: 8.2pt; line-height: 1.45; color: #9a7566; }

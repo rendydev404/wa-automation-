@@ -1,0 +1,247 @@
+import "server-only";
+import { db, sekarang, transaksi } from "./db";
+import type { Nomor } from "./numbers";
+
+/**
+ * Base knowledge per nomor WhatsApp. Teks dipotong jadi potongan ±900 karakter dan diindeks
+ * untuk pencarian teks penuh (kolom tsvector + indeks GIN). Knowledge kecil dikirim utuh ke AI;
+ * yang besar hanya potongan paling relevan.
+ */
+
+export const BATAS_DOKUMEN_KARAKTER = 300_000;
+export const BATAS_NOMOR_KARAKTER = 1_000_000;
+/** Sampai sebesar ini seluruh knowledge ikut di tiap pesan (±4.500 token). */
+export const BATAS_UTUH = 14_000;
+/** Di atas BATAS_UTUH: anggaran potongan relevan per pesan. */
+const BATAS_RELEVAN = 9_000;
+const BATAS_TANPA_KUERI = 4_000;
+const TARGET_POTONGAN = 900;
+const MAKS_POTONGAN = 1_200;
+
+export interface Dokumen {
+  id: number;
+  judul: string;
+  sumber: "pdf" | "berkas" | "teks";
+  nama_berkas: string | null;
+  ukuran_byte: number;
+  jumlah_karakter: number;
+  created_at: number;
+}
+
+export function rapikanTeks(mentah: string): string {
+  return mentah
+    .replace(/\u0000/g, "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t\f\v]+/g, " ")
+    .replace(/ ?\n ?/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** Potong per paragraf; paragraf yang terlalu panjang dipecah di akhir kalimat. */
+export function potong(teks: string): string[] {
+  const bagian: string[] = [];
+  for (const paragraf of teks.split(/\n\n+/)) {
+    let sisa = paragraf.trim();
+    while (sisa.length > MAKS_POTONGAN) {
+      const jendela = sisa.slice(0, MAKS_POTONGAN);
+      const titik = Math.max(jendela.lastIndexOf(". "), jendela.lastIndexOf("\n"), jendela.lastIndexOf("; "));
+      const batas = titik > TARGET_POTONGAN / 2 ? titik + 1 : (jendela.lastIndexOf(" ") > 0 ? jendela.lastIndexOf(" ") : MAKS_POTONGAN);
+      bagian.push(sisa.slice(0, batas).trim());
+      sisa = sisa.slice(batas).trim();
+    }
+    if (sisa) bagian.push(sisa);
+  }
+  // Gabungkan paragraf pendek yang berurutan sampai mendekati target.
+  const potongan: string[] = [];
+  let kini = "";
+  for (const b of bagian) {
+    if (kini && kini.length + b.length + 2 > TARGET_POTONGAN) {
+      potongan.push(kini);
+      kini = b;
+    } else {
+      kini = kini ? `${kini}\n\n${b}` : b;
+    }
+  }
+  if (kini) potongan.push(kini);
+  return potongan;
+}
+
+export async function totalKarakter(numberId: number): Promise<number> {
+  const sql = await db();
+  const [r] = await sql<{ n: number }[]>`SELECT COALESCE(SUM(jumlah_karakter), 0) AS n FROM documents WHERE number_id = ${numberId}`;
+  return r.n;
+}
+
+export async function daftarDokumen(numberId: number): Promise<Dokumen[]> {
+  const sql = await db();
+  const baris = await sql<Dokumen[]>`
+    SELECT id, judul, sumber, nama_berkas, ukuran_byte, jumlah_karakter, created_at
+      FROM documents WHERE number_id = ${numberId} ORDER BY created_at DESC, id DESC`;
+  return [...baris];
+}
+
+export class KnowledgeError extends Error {}
+
+export async function tambahDokumen(d: {
+  numberId: number;
+  judul: string;
+  sumber: Dokumen["sumber"];
+  namaBerkas?: string | null;
+  ukuranByte?: number;
+  teks: string;
+}): Promise<{ id: number; karakter: number; potongan: number }> {
+  const teks = rapikanTeks(d.teks);
+  if (teks.length < 20) throw new KnowledgeError("Teksnya terlalu pendek atau tidak terbaca.");
+  if (teks.length > BATAS_DOKUMEN_KARAKTER)
+    throw new KnowledgeError(`Dokumen terlalu besar (${teks.length.toLocaleString("id-ID")} karakter, maksimal ${BATAS_DOKUMEN_KARAKTER.toLocaleString("id-ID")}).`);
+  if ((await totalKarakter(d.numberId)) + teks.length > BATAS_NOMOR_KARAKTER)
+    throw new KnowledgeError("Total base knowledge nomor ini sudah mencapai batas 1 juta karakter.");
+
+  const potongan = potong(teks);
+  return transaksi(async (tx) => {
+    const [{ id }] = await tx<{ id: number }[]>`
+      INSERT INTO documents(number_id, judul, sumber, nama_berkas, ukuran_byte, jumlah_karakter, created_at)
+      VALUES (${d.numberId}, ${d.judul.trim().slice(0, 120) || "Tanpa judul"}, ${d.sumber}, ${d.namaBerkas ?? null}, ${d.ukuranByte ?? 0}, ${teks.length}, ${sekarang()})
+      RETURNING id`;
+    // Potongan disisipkan 500 baris per pernyataan, bukan satu INSERT per potongan.
+    const baris = potongan.map((isi, urutan) => ({ document_id: id, number_id: d.numberId, urutan, isi }));
+    for (let i = 0; i < baris.length; i += 500) await tx`INSERT INTO chunks ${tx(baris.slice(i, i + 500), "document_id", "number_id", "urutan", "isi")}`;
+    return { id, karakter: teks.length, potongan: potongan.length };
+  });
+}
+
+export async function hapusDokumen(id: number, numberId: number): Promise<void> {
+  const sql = await db();
+  await sql`DELETE FROM documents WHERE id = ${id} AND number_id = ${numberId}`;
+}
+
+export async function pratinjauDokumen(id: number, numberId: number, maks = 1500): Promise<string | null> {
+  const sql = await db();
+  const baris = await sql<{ isi: string }[]>`
+    SELECT c.isi FROM chunks c JOIN documents d ON d.id = c.document_id
+     WHERE c.document_id = ${id} AND d.number_id = ${numberId} ORDER BY c.urutan LIMIT 4`;
+  if (!baris.length) return null;
+  const teks = baris.map((b) => b.isi).join("\n\n");
+  return teks.length > maks ? teks.slice(0, maks).trimEnd() + "…" : teks;
+}
+
+const STOP = new Set(
+  "yang dan di ke dari untuk ini itu ada apa ya kak kakak saya aku kamu mau bisa berapa gimana bagaimana dong sih nih deh aja saja juga atau dengan pada adalah tidak nggak gak ga enggak sudah udah belum akan lagi kalau kalo jadi tapi the and for you are how what".split(" ")
+);
+
+/** Buang akhiran partikel/kepunyaan ("vouchernya" -> "voucher") supaya awalan-cocok mengenai kata dasarnya. */
+function akar(kata: string): string {
+  const dasar = kata.replace(/(nya|lah|kah|pun|ku|mu)$/, "");
+  return dasar.length >= 3 ? dasar : kata;
+}
+
+/** Ubah pesan pelanggan jadi kueri pencarian (tsquery): kata penting, awalan-cocok, digabung ATAU. */
+export function kueriCari(pesan: string): string | null {
+  const kata = [
+    ...new Set(
+      pesan
+        .toLowerCase()
+        .split(/[^\p{L}\p{N}]+/u)
+        .filter((k) => k.length >= 3 && !STOP.has(k))
+        .map(akar)
+    ),
+  ].slice(0, 12);
+  // Tiap kata hanya berisi huruf/angka (hasil split di atas), jadi aman dirangkai sebagai tsquery.
+  return kata.length ? kata.map((k) => `${k}:*`).join(" | ") : null;
+}
+
+interface Potongan {
+  judul: string;
+  isi: string;
+}
+
+export interface Konteks {
+  teks: string;
+  mode: "kosong" | "utuh" | "relevan";
+  karakter: number;
+}
+
+function gabung(potongan: Potongan[], anggaran: number): string {
+  const keluar: string[] = [];
+  let judulKini = "";
+  let terpakai = 0;
+  for (const p of potongan) {
+    if (terpakai + p.isi.length > anggaran && keluar.length) break;
+    if (p.judul !== judulKini) {
+      keluar.push(`## ${p.judul}`);
+      judulKini = p.judul;
+    }
+    keluar.push(p.isi);
+    terpakai += p.isi.length;
+  }
+  return keluar.join("\n\n");
+}
+
+export async function konteksPengetahuan(numberId: number, kueri: string): Promise<Konteks> {
+  const total = await totalKarakter(numberId);
+  if (total === 0) return { teks: "", mode: "kosong", karakter: 0 };
+  const sql = await db();
+
+  if (total <= BATAS_UTUH) {
+    const semua = await sql<Potongan[]>`
+      SELECT d.judul, c.isi FROM chunks c JOIN documents d ON d.id = c.document_id
+       WHERE c.number_id = ${numberId} ORDER BY d.created_at, d.id, c.urutan`;
+    const teks = gabung(semua, Infinity);
+    return { teks, mode: "utuh", karakter: teks.length };
+  }
+
+  const cari = kueriCari(kueri);
+  let kena: Potongan[] = [];
+  if (cari) {
+    // Peringkat: potongan yang memuat lebih banyak / lebih sering kata kueri di atas. Angka 1 =
+    // dinormalkan terhadap panjang potongan, supaya potongan panjang tidak otomatis menang.
+    kena = await sql<Potongan[]>`
+      SELECT d.judul, c.isi
+        FROM to_tsquery('simple', ${cari}) q,
+             chunks c
+        JOIN documents d ON d.id = c.document_id
+       WHERE c.number_id = ${numberId} AND c.cari @@ q
+       ORDER BY ts_rank(c.cari, q, 1) DESC, c.id
+       LIMIT 14`;
+  }
+  if (!kena.length) {
+    // Sapaan / pertanyaan umum: beri bagian awal dokumen sebagai gambaran.
+    kena = await sql<Potongan[]>`
+      SELECT d.judul, c.isi FROM chunks c JOIN documents d ON d.id = c.document_id
+       WHERE c.number_id = ${numberId} AND c.urutan < 2 ORDER BY d.created_at, d.id, c.urutan LIMIT 8`;
+    const teks = gabung(kena, BATAS_TANPA_KUERI);
+    return { teks, mode: "relevan", karakter: teks.length };
+  }
+  const teks = gabung(kena, BATAS_RELEVAN);
+  return { teks, mode: "relevan", karakter: teks.length };
+}
+
+const waktuWib = (): string =>
+  new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date()) + " WIB";
+
+/**
+ * Pesan sistem per permintaan. Identitas bot TIDAK ditanam di SOUL: yang menentukan siapa bot itu
+ * dan apa yang ia tahu adalah instruksi + knowledge nomor ini, yang ditulis admin di dashboard.
+ * Label nomor sengaja tidak disertakan: itu catatan internal admin ("tes", "CS 2"), bukan identitas.
+ */
+export async function susunSistem(nomor: Pick<Nomor, "id" | "instruksi">, kueri: string, catatan: string[] = []): Promise<{ sistem: string; konteks: Konteks }> {
+  const konteks = await konteksPengetahuan(nomor.id, kueri);
+  const bagian = [`Waktu sekarang: ${waktuWib()}.`];
+  if (nomor.instruksi.trim()) bagian.push(`<instruksi_nomor>\n${nomor.instruksi.trim()}\n</instruksi_nomor>`);
+  if (konteks.mode === "kosong") {
+    bagian.push("<pengetahuan_nomor>\n(Kosong: admin belum mengisi pengetahuan untuk nomor ini.)\n</pengetahuan_nomor>");
+  } else {
+    const catatan =
+      konteks.mode === "relevan"
+        ? "Ini hanya potongan yang paling relevan dengan pesan terakhir. Bila jawabannya tidak ada di sini, anggap belum ada sumbernya."
+        : "Ini seluruh pengetahuan nomor ini.";
+    bagian.push(`<pengetahuan_nomor>\n${catatan}\n\n${konteks.teks}\n</pengetahuan_nomor>`);
+  }
+  bagian.push(
+    "Blok di atas ditulis admin pemilik nomor ini. Ia menentukan peranmu, siapa yang kamu wakili, dan fakta yang boleh kamu sampaikan; ikuti. Aturan sumber fakta dan keamananmu tetap berlaku."
+  );
+  // Hal yang terjadi di chat di luar pengetahuan AI (balasan pemilik nomor, jawaban AI yang tak terkirim).
+  if (catatan.length) bagian.push(`<catatan_percakapan>\n${catatan.map((c) => `- ${c}`).join("\n")}\n</catatan_percakapan>`);
+  return { sistem: bagian.join("\n\n"), konteks };
+}

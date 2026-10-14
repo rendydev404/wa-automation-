@@ -1,0 +1,11 @@
+# Skrip yang dijalankan di Linux (VPS, runner CI) harus berakhiran baris LF walau disunting di Windows.
+*.sh    text eol=lf
+*.mjs   text eol=lf
+*.conf  text eol=lf
+*.yml   text eol=lf
+Dockerfile text eol=lf
+
+*.pdf   binary
+*.woff2 binary
+*.webp  binary
+*.ico   binary

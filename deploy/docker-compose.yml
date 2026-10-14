@@ -1,0 +1,40 @@
+# Dijalankan di VPS dari /opt/wa-automation (lihat deploy/deploy.sh). Rahasia ada di .env di folder itu.
+#
+# Satu container saja. WhatsApp (Baileys) berjalan di dalam proses app: tiap nomor = satu koneksi
+# WebSocket keluar ke server WhatsApp, jadi tidak ada port tambahan yang perlu dibuka atau dijaga.
+# Jaringan host dipakai supaya app menjangkau Hermes dan PostgreSQL di loopback tanpa mengubah firewall:
+#   app         127.0.0.1:3200  <- Caddy (wa.sukapost.tech)
+#   PostgreSQL  127.0.0.1:5433  (proyek compose terpisah: /opt/wa-postgres, lihat deploy/postgres/)
+#   Hermes      127.0.0.1:8644  (user suka-automation)
+# DATABASE_URL ada di .env (= WA_DATABASE_URL di /opt/wa-postgres/.env).
+name: wa-automation
+
+services:
+  app:
+    build: .
+    image: wa-automation-app:local
+    restart: unless-stopped
+    network_mode: host
+    env_file: .env
+    environment:
+      HOSTNAME: 127.0.0.1
+      PORT: "3200"
+      DATA_DIR: /data
+      HERMES_API_URL: http://127.0.0.1:8644
+      HERMES_PROFILE: cs
+      # Heap V8 dibatasi di bawah mem_limit supaya GC bekerja sebelum container dibunuh kernel.
+      NODE_OPTIONS: --max-old-space-size=320
+    volumes:
+      # Semua data kini di PostgreSQL. Volume ini hanya memuat wa.db lama (SQLite): isinya
+      # diimpor otomatis sekali saat pertama kali menyambung ke PostgreSQL yang masih kosong,
+      # lalu dibiarkan sebagai cadangan.
+      - wa_data:/data
+    # Terukur: app ±72 MB + pustaka Baileys ±40 MB, lalu beberapa MB per nomor terhubung.
+    # Naikkan bersama NODE_OPTIONS bila `docker stats` menunjukkan pemakaian mendekati batas.
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  wa_data:
