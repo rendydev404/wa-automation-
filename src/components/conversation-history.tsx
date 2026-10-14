@@ -86,6 +86,7 @@ export function HistoriPercakapan({
   const [kini, setKini] = useState(kiniAwal);
 
   const wadahPesanRef = useRef<HTMLDivElement>(null);
+  const bagianRef = useRef<HTMLElement>(null);
   const gulirKeBawahRef = useRef(true);
 
   const percakapanAktif = daftar.find((p) => p.id === aktifId) ?? null;
@@ -125,6 +126,9 @@ export function HistoriPercakapan({
       setAktifId(id);
       setDetailMobile(true);
       void muatPesan(id);
+      // HP: daftar berganti jadi isi chat; pastikan kepala panel terlihat, bukan tengah halaman.
+      const el = bagianRef.current;
+      if (el && window.matchMedia("(max-width: 767px)").matches && el.getBoundingClientRect().top < 0) el.scrollIntoView({ block: "start" });
     },
     [muatPesan]
   );
@@ -290,7 +294,7 @@ export function HistoriPercakapan({
   }
 
   return (
-    <section id="histori" className="card overflow-hidden">
+    <section ref={bagianRef} id="histori" className="card overflow-hidden">
       {/* Header & Ringkasan Statistik */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
         <div className="flex items-start gap-3">
@@ -323,9 +327,9 @@ export function HistoriPercakapan({
       </div>
 
       {/* Panel Utama: Daftar Percakapan (Kiri) + Rincian Gelembung Chat (Kanan) */}
-      <div className="grid min-h-[520px] lg:grid-cols-[340px_minmax(0,1fr)]">
+      <div className="grid md:h-[620px] md:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
         {/* Kolom Kiri: Pencarian, Filter, dan Daftar Percakapan */}
-        <div className={`flex flex-col border-b border-line lg:border-r lg:border-b-0 ${detailMobile ? "hidden lg:flex" : "flex"}`}>
+        <div className={`min-h-0 flex-col md:border-r md:border-line ${detailMobile ? "hidden md:flex" : "flex"}`}>
           <div className="space-y-2.5 border-b border-line p-3.5">
             {/* Custom Search Bar (tanpa native type="search") */}
             <div role="search" className="relative flex items-center">
@@ -337,14 +341,14 @@ export function HistoriPercakapan({
                 maxLength={80}
                 placeholder="Cari nama, nomor WA, atau isi pesan…"
                 aria-label="Cari percakapan"
-                className="field py-1.5 pr-8 pl-9 text-[13px]"
+                className="field py-2 pr-9 pl-9 sm:py-1.5 sm:text-[13px]"
               />
               {inputCari && (
                 <button
                   type="button"
                   onClick={() => setInputCari("")}
                   aria-label="Hapus pencarian"
-                  className="absolute right-2 rounded-md p-1 text-faint hover:bg-subtle hover:text-fg"
+                  className="absolute right-1.5 grid size-7 place-items-center rounded-md text-faint hover:bg-subtle hover:text-fg"
                 >
                   <X className="size-3.5" aria-hidden />
                 </button>
@@ -362,7 +366,7 @@ export function HistoriPercakapan({
                     type="button"
                     aria-selected={terpilih}
                     onClick={() => setFilter(t.id)}
-                    className={`rounded-lg px-2 py-1 text-xs font-semibold transition-colors ${
+                    className={`rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors ${
                       terpilih ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"
                     }`}
                   >
@@ -374,7 +378,7 @@ export function HistoriPercakapan({
           </div>
 
           {/* Daftar Percakapan */}
-          <div className="max-h-[460px] flex-1 overflow-y-auto">
+          <div className="max-h-[65svh] min-h-0 flex-1 overflow-y-auto overscroll-contain md:max-h-none">
             {memuatDaftar ? (
               <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-muted">
                 <Loader2 className="size-4 animate-spin" aria-hidden /> Memuat percakapan…
@@ -467,7 +471,7 @@ export function HistoriPercakapan({
         </div>
 
         {/* Kolom Kanan: Rincian Gelembung Percakapan */}
-        <div className={`flex flex-col bg-subtle/35 ${detailMobile ? "flex" : "hidden lg:flex"}`}>
+        <div className={`min-h-0 min-w-0 flex-col bg-subtle/35 ${detailMobile ? "flex" : "hidden md:flex"}`}>
           {!percakapanAktif ? (
             <div className="m-auto px-6 py-16 text-center">
               <span className="mx-auto mb-3 grid size-11 place-items-center rounded-2xl bg-subtle text-muted">
@@ -485,7 +489,7 @@ export function HistoriPercakapan({
                     type="button"
                     onClick={() => setDetailMobile(false)}
                     aria-label="Kembali ke daftar percakapan"
-                    className="rounded-lg p-1.5 text-muted hover:bg-subtle hover:text-fg lg:hidden"
+                    className="-ml-1 grid size-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-subtle hover:text-fg md:hidden"
                   >
                     <ArrowLeft className="size-4" aria-hidden />
                   </button>
@@ -515,7 +519,10 @@ export function HistoriPercakapan({
               </div>
 
               {/* Ruang Gelembung Pesan */}
-              <div ref={wadahPesanRef} className="flex max-h-[460px] flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-4 sm:px-5">
+              <div
+                ref={wadahPesanRef}
+                className="flex h-[62svh] min-h-80 flex-col gap-2.5 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5 md:h-auto md:min-h-0 md:flex-1"
+              >
                 {adaSebelumnya && (
                   <div className="mb-1 flex justify-center">
                     <button
@@ -554,9 +561,9 @@ export function HistoriPercakapan({
                           </div>
                         )}
 
-                        <div className={`flex max-w-[86%] flex-col ${dariPelanggan ? "self-start" : "self-end"}`}>
+                        <div className={`flex max-w-[88%] min-w-0 flex-col sm:max-w-[80%] ${dariPelanggan ? "self-start" : "self-end"}`}>
                           <div
-                            className={`rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-relaxed whitespace-pre-wrap ${
+                            className={`rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere] ${
                               dariPelanggan
                                 ? "rounded-bl-md border border-line bg-surface text-fg"
                                 : dariBot

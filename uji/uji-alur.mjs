@@ -172,7 +172,7 @@ const dibaca = (s, jid, o = {}) => s.pancar("messages.update", [{ key: { remoteJ
 async function nomorCepat(label) {
   const n = await tambahNomor(label);
   // 1 detik: di bawah batas dashboard (2 dtk), hanya supaya uji tidak lama
-  await sql`UPDATE numbers SET tunggu_detik = 1, tunggu_baca_detik = 3, jeda_menit = 30 WHERE id = ${n.id}`;
+  await sql`UPDATE numbers SET tunggu_detik = 1, tunggu_baca_detik = 3, jeda_detik = 1800 WHERE id = ${n.id}`;
   cacheNomorBasi();
   return n;
 }

@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SESSION_COOKIE, SESSION_MAX_AGE, createSessionToken, passwordFingerprint, verifySessionToken } from "./auth";
@@ -39,15 +40,18 @@ export function findUserByEmail(email: string): Promise<UserRow | undefined> {
   });
 }
 
-/** Pengguna dari cookie sesi, atau null. Sesi batal bila password sudah diganti. */
-export async function getUser(): Promise<User | null> {
+/**
+ * Pengguna dari cookie sesi, atau null. Sesi batal bila password sudah diganti.
+ * Di-memo per permintaan: layout (sidebar) dan halaman memeriksanya bersamaan dengan satu query.
+ */
+export const getUser = cache(async (): Promise<User | null> => {
   const payload = await verifySessionToken((await cookies()).get(SESSION_COOKIE)?.value);
   if (!payload) return null;
   const sql = await db();
   const [row] = await sql<UserRow[]>`SELECT id, email, password_hash FROM users WHERE id = ${payload.uid}`;
   if (!row || (await passwordFingerprint(row.password_hash)) !== payload.pv) return null;
   return { id: row.id, email: row.email };
-}
+});
 
 export async function requireUser(): Promise<User> {
   const user = await getUser();

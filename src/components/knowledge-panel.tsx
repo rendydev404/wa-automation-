@@ -129,7 +129,10 @@ function Unggah({ numberId }: { numberId: number }) {
         }`}
       >
         <UploadCloud className="mb-2 size-7 text-accent" aria-hidden />
-        <span className="text-[14px] font-semibold">Seret berkas ke sini atau klik untuk memilih</span>
+        <span className="text-[14px] font-semibold">
+          <span className="sm:hidden">Ketuk untuk memilih berkas</span>
+          <span className="max-sm:hidden">Seret berkas ke sini atau klik untuk memilih</span>
+        </span>
         <span className="hint mt-1">PDF atau teks (.txt, .md, .csv) · maks 10 MB per berkas</span>
       </button>
       <input
@@ -208,7 +211,7 @@ function Baris({ d, numberId }: { d: ItemDokumen; numberId: number }) {
 
   return (
     <li>
-      <div className="flex items-center gap-3 px-3.5 py-3">
+      <div className="flex items-center gap-2 px-3 py-3 sm:gap-3 sm:px-3.5">
         <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-subtle text-muted">
           <Ikon className="size-4" aria-hidden />
         </span>
@@ -231,10 +234,10 @@ function Baris({ d, numberId }: { d: ItemDokumen; numberId: number }) {
           </div>
         ) : (
           <>
-            <button type="button" onClick={togglePratinjau} aria-label="Lihat isi" className="rounded-lg p-2 text-faint hover:bg-subtle hover:text-fg">
+            <button type="button" onClick={togglePratinjau} aria-label="Lihat isi" className="grid size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-subtle hover:text-fg">
               <ChevronDown className={`size-4 transition-transform ${buka ? "rotate-180" : ""}`} aria-hidden />
             </button>
-            <button type="button" onClick={() => setTanya(true)} aria-label={`Hapus ${d.judul}`} className="rounded-lg p-2 text-faint hover:bg-danger-soft hover:text-danger">
+            <button type="button" onClick={() => setTanya(true)} aria-label={`Hapus ${d.judul}`} className="grid size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-danger-soft hover:text-danger">
               <Trash2 className="size-4" aria-hidden />
             </button>
           </>
@@ -245,7 +248,7 @@ function Baris({ d, numberId }: { d: ItemDokumen; numberId: number }) {
           {isi === null ? (
             <Loader2 className="size-4 animate-spin text-faint" aria-hidden />
           ) : (
-            <p className="max-h-64 overflow-y-auto text-[13px] leading-relaxed whitespace-pre-wrap text-muted">{isi || "(kosong)"}</p>
+            <p className="max-h-64 overflow-y-auto text-[13px] leading-relaxed whitespace-pre-wrap text-muted [overflow-wrap:anywhere]">{isi || "(kosong)"}</p>
           )}
         </div>
       )}

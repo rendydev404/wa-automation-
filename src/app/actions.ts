@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { authConfigured } from "@/lib/auth";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
-import { BATAS_JEDA_MENIT, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorById, semuaNomor, setBotAktif, tambahNomor, ubahNomor } from "@/lib/numbers";
+import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorById, semuaNomor, setBotAktif, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { verifyPassword } from "@/lib/password";
 import { konfigurasi as konfigurasiSinkron, setNomorSinkron, statusSinkron } from "@/lib/sinkron";
 import { akhiriSesi, findUserByEmail, mulaiSesi, requireUser } from "@/lib/session";
@@ -98,7 +98,8 @@ export async function tambahNomorAction(_lalu: Hasil | null, form: FormData): Pr
   const nomor = await tambahNomor(label);
   // Gagal menyalakan sesi tidak membatalkan pembuatan: tombol "Hubungkan" di halamannya bisa mengulang.
   await hubungkan(nomor.sesi).catch(() => {});
-  revalidatePath("/");
+  // "layout": daftar nomor di sidebar ikut diperbarui, bukan hanya halamannya.
+  revalidatePath("/", "layout");
   redirect(`/nomor/${nomor.id}`);
 }
 
@@ -111,16 +112,17 @@ export async function ubahNomorAction(_lalu: Hasil | null, form: FormData): Prom
   if (!label) return { ok: false, pesan: "Nama nomor wajib diisi." };
   const tungguDetik = Math.round(Number(form.get("tunggu_detik")));
   const tungguBacaDetik = Math.round(Number(form.get("tunggu_baca_detik")));
-  const jedaMenit = Math.round(Number(form.get("jeda_menit")));
+  // Lama AI diam diisi dengan satuan pilihan (detik/menit), disimpan dalam detik.
+  const jedaNilai = Math.round(Number(form.get("jeda_nilai")));
+  const jedaDetik = form.get("jeda_satuan") === "detik" ? jedaNilai : jedaNilai * 60;
   if (!(tungguDetik >= BATAS_TUNGGU_DETIK.min && tungguDetik <= BATAS_TUNGGU_DETIK.maks))
     return { ok: false, pesan: `Waktu tunggu harus ${BATAS_TUNGGU_DETIK.min}–${BATAS_TUNGGU_DETIK.maks} detik.` };
   if (!(tungguBacaDetik >= BATAS_TUNGGU_BACA_DETIK.min && tungguBacaDetik <= BATAS_TUNGGU_BACA_DETIK.maks))
     return { ok: false, pesan: `Waktu setelah chat dibuka harus ${BATAS_TUNGGU_BACA_DETIK.min}–${BATAS_TUNGGU_BACA_DETIK.maks} detik.` };
-  if (!(jedaMenit >= BATAS_JEDA_MENIT.min && jedaMenit <= BATAS_JEDA_MENIT.maks))
-    return { ok: false, pesan: `Lama AI diam harus ${BATAS_JEDA_MENIT.min}–${BATAS_JEDA_MENIT.maks} menit.` };
-  await ubahNomor(id, { label, instruksi, tungguDetik, tungguBacaDetik, jedaMenit });
-  revalidatePath("/");
-  revalidatePath(`/nomor/${id}`);
+  if (!(jedaDetik >= BATAS_JEDA_DETIK.min && jedaDetik <= BATAS_JEDA_DETIK.maks))
+    return { ok: false, pesan: "Lama AI diam harus 0 sampai 24 jam (1.440 menit atau 86.400 detik)." };
+  await ubahNomor(id, { label, instruksi, tungguDetik, tungguBacaDetik, jedaDetik });
+  revalidatePath("/", "layout"); // nama nomor juga tampil di sidebar
   return { ok: true, pesan: "Tersimpan." };
 }
 
@@ -156,7 +158,7 @@ export async function hapusNomorAction(id: number): Promise<Hasil> {
     return { ok: false, pesan: pesanGalat(e) };
   }
   await hapusNomor(id);
-  revalidatePath("/");
+  revalidatePath("/", "layout");
   redirect("/");
 }
 

@@ -72,7 +72,7 @@ export function TestChat({ numberId }: { numberId: number }) {
           type="button"
           aria-label="Mulai percakapan baru"
           title="Mulai percakapan baru"
-          className="rounded-lg p-2 text-faint hover:bg-subtle hover:text-fg"
+          className="grid size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-subtle hover:text-fg"
           onClick={() => {
             sesi.current = sesiBaru();
             lalu.current = "";
@@ -83,12 +83,12 @@ export function TestChat({ numberId }: { numberId: number }) {
         </button>
       </div>
 
-      <div className="flex h-80 flex-col gap-2 overflow-y-auto bg-subtle/40 px-4 py-4" aria-live="polite">
+      <div className="flex h-80 flex-col gap-2 overflow-y-auto overscroll-contain bg-subtle/40 px-4 py-4 xl:h-96" aria-live="polite">
         {pesan.length === 0 && !tunggu && <p className="m-auto max-w-56 text-center text-[13px] text-faint">Coba tanyakan sesuatu yang ada di base knowledge, lalu yang tidak ada.</p>}
         {pesan.map((g, i) => (
           <div key={i} className={`max-w-[85%] animate-masuk ${g.dari === "saya" ? "self-end" : "self-start"}`}>
             <div
-              className={`rounded-2xl px-3.5 py-2 text-[13.5px] leading-relaxed whitespace-pre-wrap ${
+              className={`rounded-2xl px-3.5 py-2 text-[13.5px] leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere] ${
                 g.dari === "saya" ? "rounded-br-md bg-accent text-on-accent" : g.dari === "bot" ? "rounded-bl-md border border-line bg-surface" : "bg-danger-soft text-danger"
               }`}
             >
@@ -107,7 +107,7 @@ export function TestChat({ numberId }: { numberId: number }) {
 
       <form onSubmit={kirim} className="flex gap-2 border-t border-line p-3">
         <input value={teks} onChange={(e) => setTeks(e.target.value)} maxLength={2000} placeholder="Tulis pesan seperti orang yang chat ke nomor ini…" aria-label="Pesan uji" className="field" />
-        <button type="submit" disabled={tunggu || !teks.trim()} aria-label="Kirim" className="btn btn-primary w-10 shrink-0 px-0">
+        <button type="submit" disabled={tunggu || !teks.trim()} aria-label="Kirim" className="btn btn-primary h-auto w-11 shrink-0 px-0">
           <Send className="size-4" aria-hidden />
         </button>
       </form>

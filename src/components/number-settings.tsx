@@ -15,8 +15,11 @@ export function SaklarBot({ id, aktif: awal, label }: { id: number; aktif: boole
   const [aktif, setAktif] = useOptimistic(awal);
   const [, mulai] = useTransition();
   return (
-    <label className="flex items-center gap-3">
-      <span className="text-[13px] font-medium text-muted">Balasan otomatis</span>
+    <label className="flex w-full items-center justify-between gap-4">
+      <span className="text-[13px] leading-tight">
+        <span className="block font-semibold text-fg">Balasan otomatis</span>
+        <span className="block text-xs text-muted">{aktif ? "AI membalas chat masuk" : "AI tidak membalas"}</span>
+      </span>
       <Saklar
         aktif={aktif}
         label={`Balasan otomatis ${label}`}
@@ -37,7 +40,7 @@ export function SaklarSinkron({ id, aktif: awal, siap, keterangan }: { id: numbe
   const [menunggu, mulai] = useTransition();
   return (
     <section className="card px-5 py-4">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-[15px] font-bold tracking-tight">Data Suka Shawarma otomatis</h2>
           <p className="hint mt-0.5">Menu, harga, promo &amp; outlet dari database kasir. Diperbarui sendiri setiap kali ada perubahan.</p>
@@ -67,16 +70,19 @@ export function NumberSettings({
   instruksi,
   tungguDetik,
   tungguBacaDetik,
-  jedaMenit,
+  jedaDetik,
 }: {
   id: number;
   label: string;
   instruksi: string;
   tungguDetik: number;
   tungguBacaDetik: number;
-  jedaMenit: number;
+  jedaDetik: number;
 }) {
   const [hasil, aksi] = useActionState(ubahNomorAction, null);
+  // Tampilkan dalam menit bila pas kelipatan 60 (mis. 1800 -> 30 menit), selain itu dalam detik.
+  const [satuanJeda, setSatuanJeda] = useState<"detik" | "menit">(jedaDetik % 60 === 0 ? "menit" : "detik");
+  const jedaAwal = jedaDetik % 60 === 0 ? jedaDetik / 60 : jedaDetik;
   return (
     <section className="card">
       <div className="border-b border-line px-5 py-4">
@@ -91,18 +97,18 @@ export function NumberSettings({
           <input id="label" name="label" required maxLength={60} defaultValue={label} className="field" />
         </div>
 
-        <fieldset className="space-y-3 rounded-xl bg-subtle/70 p-4">
+        <fieldset className="space-y-4 rounded-xl bg-subtle/70 p-4 sm:space-y-3">
           <legend className="float-left mb-1 w-full text-[13px] font-bold">Serah-terima manusia ↔ AI</legend>
-          <div className="clear-both flex items-center justify-between gap-3">
+          <div className="clear-both flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <label htmlFor="tunggu_detik" className="text-[13px] text-fg">
               AI menjawab bila pesan belum dibuka manusia dalam
             </label>
             <span className="flex shrink-0 items-center gap-1.5 text-[13px] text-muted">
-              <input id="tunggu_detik" name="tunggu_detik" type="number" required min={2} max={120} step={1} defaultValue={tungguDetik} className="field w-[4.5rem] px-2 py-1.5 text-center tabular-nums" />
+              <input id="tunggu_detik" name="tunggu_detik" type="number" required min={2} max={120} step={1} defaultValue={tungguDetik} className="field w-20 px-2 py-1.5 text-center tabular-nums" />
               detik
             </span>
           </div>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <label htmlFor="tunggu_baca_detik" className="text-[13px] text-fg">
               Chat sudah dibuka di HP tapi tidak dibalas: AI ambil alih setelah
             </label>
@@ -116,24 +122,43 @@ export function NumberSettings({
                 max={600}
                 step={1}
                 defaultValue={tungguBacaDetik}
-                className="field w-[4.5rem] px-2 py-1.5 text-center tabular-nums"
+                className="field w-20 px-2 py-1.5 text-center tabular-nums"
               />
               detik
             </span>
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <label htmlFor="jeda_menit" className="text-[13px] text-fg">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <label htmlFor="jeda_nilai" className="text-[13px] text-fg">
               Setelah manusia membalas, AI diam di chat itu selama
             </label>
-            <span className="flex shrink-0 items-center gap-1.5 text-[13px] text-muted">
-              <input id="jeda_menit" name="jeda_menit" type="number" required min={0} max={1440} step={1} defaultValue={jedaMenit} className="field w-[4.5rem] px-2 py-1.5 text-center tabular-nums" />
-              menit
+            <span className="flex shrink-0 items-center gap-1.5">
+              <input
+                id="jeda_nilai"
+                name="jeda_nilai"
+                type="number"
+                required
+                min={0}
+                max={satuanJeda === "detik" ? 86_400 : 1440}
+                step={1}
+                defaultValue={jedaAwal}
+                className="field w-20 px-2 py-1.5 text-center tabular-nums"
+              />
+              <select
+                name="jeda_satuan"
+                aria-label="Satuan lama AI diam"
+                value={satuanJeda}
+                onChange={(e) => setSatuanJeda(e.target.value as "detik" | "menit")}
+                className="field w-auto cursor-pointer py-1.5 pr-2 pl-2.5"
+              >
+                <option value="detik">detik</option>
+                <option value="menit">menit</option>
+              </select>
             </span>
           </div>
           <p className="hint">
             Begitu chat dibuka di HP, AI langsung menahan diri; tidak jadi dibalas, AI mengambil alih. WhatsApp tidak memberi tahu saat Anda
-            mengetik, jadi tandanya adalah pesan terbaca di HP — &quot;Laporan dibaca&quot; di WhatsApp nomor ini harus aktif. Isi 0 menit bila
-            AI hanya perlu mundur untuk pesan itu saja.
+            mengetik, jadi tandanya adalah pesan terbaca di HP — &quot;Laporan dibaca&quot; di WhatsApp nomor ini harus aktif. Lama AI diam bisa
+            diisi dalam detik atau menit (maks 24 jam); isi 0 bila AI hanya perlu mundur untuk pesan itu saja.
           </p>
         </fieldset>
 

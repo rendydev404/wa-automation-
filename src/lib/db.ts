@@ -136,6 +136,13 @@ const MIGRASI: string[] = [
   );
   CREATE INDEX pesan_chat_percakapan_idx ON pesan_chat (percakapan_id, id DESC);
   `,
+  // v3: lama AI diam setelah manusia membalas disimpan dalam detik (bisa di bawah satu menit).
+  // Rename di tempat (tanpa menulis ulang tabel); nilai lama dikonversi menit -> detik.
+  `
+  ALTER TABLE numbers RENAME COLUMN jeda_menit TO jeda_detik;
+  UPDATE numbers SET jeda_detik = jeda_detik * 60;
+  ALTER TABLE numbers ALTER COLUMN jeda_detik SET DEFAULT 1800;
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

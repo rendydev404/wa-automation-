@@ -39,7 +39,8 @@ app ini**: tidak ada container WhatsApp terpisah, tidak ada webhook, tidak ada p
   - Chat dibuka di HP (pesan terbaca) sebelum jawaban AI terkirim → AI menahan diri selama
     `tunggu_baca_detik` (default 45); jawaban yang sudah disusun disimpan, bukan dibuang.
   - Manusia membalas dari HP → jawaban AI dibatalkan (termasuk bila AI sedang menyusun jawaban),
-    dan AI diam di chat itu selama `jeda_menit` (default 30; 0 = hanya untuk pesan itu).
+    dan AI diam di chat itu selama `jeda_detik` (default 1.800 = 30 menit; diisi dalam detik atau menit;
+    0 = hanya untuk pesan itu).
   - Nomor tetap berstatus offline supaya HP pemilik terus menerima notifikasi; nomor hanya dibuat
     "online" selama AI mengetik balasan, lalu dikembalikan.
 - **Aturan anti-blokir** (`src/lib/bridge.ts`): hanya membalas chat pribadi yang masuk, ada

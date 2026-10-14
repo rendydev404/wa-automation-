@@ -10,14 +10,14 @@ import { type EventWa, digitWa, kirimTeks, mengetik, padaEvent, tandaiDibaca } f
 /**
  * Jembatan WhatsApp (src/lib/wa.ts) -> Hermes -> WhatsApp.
  *
- * Serah-terima manusia <-> AI (per nomor; lihat numbers.tunggu_detik / tunggu_baca_detik / jeda_menit):
+ * Serah-terima manusia <-> AI (per nomor; lihat numbers.tunggu_detik / tunggu_baca_detik / jeda_detik):
  *   1. Pesan pelanggan masuk -> AI menunggu `tunggu_detik`, dihitung dari pesan TERAKHIR pelanggan
  *      (pesan beruntun tergabung). Selama menunggu AI tidak menandai dibaca dan tidak "mengetik".
  *   2. Chat itu dibuka manusia di HP (pesan terbaca) sebelum jawaban AI terkirim -> AI langsung
  *      menahan diri selama `tunggu_baca_detik`. Jawaban yang sudah telanjur disusun disimpan.
  *      WhatsApp tidak memberi tahu perangkat tertaut bahwa pemilik sedang mengetik; "chat dibuka"
  *      adalah satu-satunya tanda yang tersedia bahwa manusia sedang menangani.
- *   3. Manusia mengirim balasan -> jawaban AI dibatalkan dan AI diam di chat itu selama `jeda_menit`
+ *   3. Manusia mengirim balasan -> jawaban AI dibatalkan dan AI diam di chat itu selama `jeda_detik`
  *      (0 = hanya untuk pesan itu).
  *   4. Masa tunggu di (2) habis tanpa balasan manusia (tidak jadi membalas) -> AI mengambil alih.
  * Aturan anti-blokir: hanya membalas chat pribadi yang masuk, ada "mengetik", dibatasi per chat.
@@ -126,9 +126,9 @@ function simpanChat(kunci: string, c: BarisChat): void {
 
 const sedangDijeda = (a: Antrean): boolean => (a.chat?.jeda_sampai ?? 0) > sekarang();
 
-function jedaChat(kunci: string, a: Antrean, menit: number): void {
+function jedaChat(kunci: string, a: Antrean, detik: number): void {
   const t = sekarang();
-  a.chat = a.chat ? { ...a.chat, jeda_sampai: t + menit * 60 } : { sesi_ke: 1, last_at: t, jeda_sampai: t + menit * 60, jendela_awal: 0, jendela_n: 0 };
+  a.chat = a.chat ? { ...a.chat, jeda_sampai: t + detik } : { sesi_ke: 1, last_at: t, jeda_sampai: t + detik, jendela_awal: 0, jendela_n: 0 };
   simpanChat(kunci, a.chat);
 }
 
@@ -379,7 +379,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
     if (teksLog) tulisLatar(() => catatPesan({ numberId: nomor.id, kunci, peran: 2, teks: teksLog, waktu: ev.waktu || sekarang(), telepon }));
     // Manusia mengambil alih: batalkan jawaban AI yang sedang menunggu/disiapkan, lalu AI mundur.
     const a = await antreanUntuk(kunci, nomor.id, sesi, ev.alamat);
-    if (nomor.jeda_menit > 0) jedaChat(kunci, a, nomor.jeda_menit);
+    if (nomor.jeda_detik > 0) jedaChat(kunci, a, nomor.jeda_detik);
     a.generasi += 1;
     a.batalKarena = "dibalas";
     if (a.timer) clearTimeout(a.timer);
@@ -388,7 +388,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
     a.belumDibaca.length = 0;
     a.siap = null;
     a.dibukaManusia = false;
-    a.aktifSampai = Date.now() + Math.max(600_000, nomor.jeda_menit * 60_000);
+    a.aktifSampai = Date.now() + Math.max(600_000, nomor.jeda_detik * 1000);
     // Supaya AI nyambung saat nanti melanjutkan percakapan ini.
     const isi = ev.teks.trim().slice(0, 300);
     catat(a, isi ? `Pemilik nomor membalas sendiri ke lawan bicara: "${isi}"` : "Pemilik nomor mengirim media/lampiran sendiri ke lawan bicara.");

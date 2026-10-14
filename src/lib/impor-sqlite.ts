@@ -50,9 +50,9 @@ export async function imporDariSqlite(sql: Sql): Promise<void> {
       await sisip("users", users, ["id", "email", "password_hash", "created_at"]);
 
       const numbers = semua(
-        "SELECT id, sesi, wa_id, label, nama_wa, bot_aktif, instruksi, tunggu_detik, tunggu_baca_detik, jeda_menit, created_at, last_connected_at FROM numbers"
+        "SELECT id, sesi, wa_id, label, nama_wa, bot_aktif, instruksi, tunggu_detik, tunggu_baca_detik, jeda_menit * 60 AS jeda_detik, created_at, last_connected_at FROM numbers"
       ).map((r) => ({ ...r, bot_aktif: !!r.bot_aktif }));
-      await sisip("numbers", numbers, ["id", "sesi", "wa_id", "label", "nama_wa", "bot_aktif", "instruksi", "tunggu_detik", "tunggu_baca_detik", "jeda_menit", "created_at", "last_connected_at"]);
+      await sisip("numbers", numbers, ["id", "sesi", "wa_id", "label", "nama_wa", "bot_aktif", "instruksi", "tunggu_detik", "tunggu_baca_detik", "jeda_detik", "created_at", "last_connected_at"]);
 
       const documents = semua("SELECT id, number_id, judul, sumber, nama_berkas, ukuran_byte, jumlah_karakter, created_at FROM documents");
       await sisip("documents", documents, ["id", "number_id", "judul", "sumber", "nama_berkas", "ukuran_byte", "jumlah_karakter", "created_at"]);
