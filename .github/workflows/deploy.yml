@@ -58,7 +58,7 @@ jobs:
           mkdir -p paket/standalone/.next
           cp -r .next/standalone/. paket/standalone/
           cp -r .next/static paket/standalone/.next/static
-          cp -r public paket/standalone/public
+          if [ -d public ]; then cp -r public paket/standalone/public; fi # folder kosong tidak ikut ke git
           rm -rf paket/standalone/data paket/standalone/.env*
           echo "$GITHUB_SHA" > paket/standalone/VERSI # dicocokkan penerima deploy dengan isi container yang berjalan
           cp deploy/Dockerfile deploy/docker-compose.yml paket/

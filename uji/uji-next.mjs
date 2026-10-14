@@ -31,7 +31,8 @@ assert.ok(existsSync(path.join(akar, ".next/standalone/server.js")), "jalankan `
 if (!ulang) {
   cpSync(path.join(akar, ".next/standalone"), app, { recursive: true });
   cpSync(path.join(akar, ".next/static"), path.join(app, ".next/static"), { recursive: true });
-  cpSync(path.join(akar, "public"), path.join(app, "public"), { recursive: true });
+  // public/ boleh tidak ada (folder kosong tidak ikut ke git)
+  if (existsSync(path.join(akar, "public"))) cpSync(path.join(akar, "public"), path.join(app, "public"), { recursive: true });
 }
 rmSync(path.join(app, "node_modules/@img"), { recursive: true, force: true }); // seperti deploy.sh
 for (const f of [".env", ".env.local", ".env.production"]) rmSync(path.join(app, f), { force: true });
