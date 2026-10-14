@@ -7,6 +7,7 @@ import { authConfigured } from "@/lib/auth";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
 import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorById, semuaNomor, setBotAktif, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { verifyPassword } from "@/lib/password";
+import { hapusPercakapan } from "@/lib/percakapan";
 import { konfigurasi as konfigurasiSinkron, setNomorSinkron, statusSinkron } from "@/lib/sinkron";
 import { akhiriSesi, findUserByEmail, mulaiSesi, requireUser } from "@/lib/session";
 import { WaError, hapusSesi, hubungkan, logout } from "@/lib/wa";
@@ -186,6 +187,19 @@ export async function hapusDokumenAction(id: number, numberId: number): Promise<
   revalidatePath("/");
   revalidatePath(`/nomor/${numberId}`);
   return { ok: true };
+}
+
+// ---------- Histori percakapan ----------
+
+/** Hapus satu percakapan (`percakapanId`) atau seluruh histori percakapan sebuah nomor. */
+export async function hapusPercakapanAction(numberId: number, percakapanId?: number): Promise<Hasil> {
+  await requireUser();
+  if (!(await nomorById(numberId))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  if (percakapanId !== undefined && !Number.isInteger(percakapanId)) return { ok: false, pesan: "Percakapan tidak valid." };
+  const n = await hapusPercakapan(numberId, percakapanId);
+  revalidatePath("/");
+  revalidatePath(`/nomor/${numberId}`);
+  return { ok: true, pesan: `${n} percakapan dihapus.` };
 }
 
 export async function pratinjauAction(id: number, numberId: number): Promise<string | null> {

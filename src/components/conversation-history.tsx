@@ -13,12 +13,14 @@ import {
   RefreshCw,
   Search,
   Smartphone,
+  Trash2,
   User,
   X,
 } from "lucide-react";
+import { hapusPercakapanAction } from "@/app/actions";
 import { angka, formatNomor, jamWib, kunciHariWib, tanggal, waktuSingkatWib } from "@/lib/format";
 import type { FilterPercakapan, ItemPercakapan, ItemPesan, PeranPesan, RingkasanPercakapan } from "@/lib/percakapan";
-import { Pill } from "./ui";
+import { Pill, TombolKonfirmasi } from "./ui";
 
 const DAFTAR_FILTER: { id: FilterPercakapan; label: string }[] = [
   { id: "semua", label: "Semua" },
@@ -293,6 +295,30 @@ export function HistoriPercakapan({
     }
   }
 
+  async function hapusSatu() {
+    if (aktifId === null) return { ok: false, pesan: "Pilih percakapan dulu." };
+    const h = await hapusPercakapanAction(numberId, aktifId);
+    if (h.ok) {
+      setDetailMobile(false);
+      await muatUlangDaftar(filter, cariAktif, true); // daftar + ringkasan terbaru, pilih yang teratas
+    }
+    return h;
+  }
+
+  async function hapusSemua() {
+    const h = await hapusPercakapanAction(numberId);
+    if (h.ok) {
+      setDaftar([]);
+      setAdaLagi(false);
+      setAktifId(null);
+      setPesan([]);
+      setAdaSebelumnya(false);
+      setDetailMobile(false);
+      setRingkasan({ total_percakapan: 0, total_masuk: 0, total_bot: 0, total_manusia: 0 });
+    }
+    return h;
+  }
+
   return (
     <section ref={bagianRef} id="histori" className="card overflow-hidden">
       {/* Header & Ringkasan Statistik */}
@@ -314,16 +340,28 @@ export function HistoriPercakapan({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void segarkan()}
-          disabled={menyegarkan}
-          className="btn btn-ghost h-8 px-3 text-xs"
-          aria-label="Segarkan histori percakapan"
-        >
-          <RefreshCw className={`size-3.5 ${menyegarkan ? "animate-spin" : ""}`} aria-hidden />
-          Segarkan
-        </button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {ringkasan.total_percakapan > 0 && (
+            <TombolKonfirmasi
+              label="Hapus semua"
+              tanya={`Hapus ${angka(ringkasan.total_percakapan)} percakapan beserta isinya? Tidak bisa dikembalikan.`}
+              ya="Ya, hapus semua"
+              aksi={hapusSemua}
+              className="btn btn-danger h-8 px-3 text-xs"
+              ikon={<Trash2 className="size-3.5" aria-hidden />}
+            />
+          )}
+          <button
+            type="button"
+            onClick={() => void segarkan()}
+            disabled={menyegarkan}
+            className="btn btn-ghost h-8 px-3 text-xs"
+            aria-label="Segarkan histori percakapan"
+          >
+            <RefreshCw className={`size-3.5 ${menyegarkan ? "animate-spin" : ""}`} aria-hidden />
+            Segarkan
+          </button>
+        </div>
       </div>
 
       {/* Panel Utama: Daftar Percakapan (Kiri) + Rincian Gelembung Chat (Kanan) */}
@@ -516,6 +554,16 @@ export function HistoriPercakapan({
                     </div>
                   </div>
                 </div>
+                {/* key: konfirmasi yang sedang terbuka tertutup lagi saat pindah percakapan. */}
+                <TombolKonfirmasi
+                  key={percakapanAktif.id}
+                  label="Hapus"
+                  tanya="Hapus percakapan ini beserta isinya?"
+                  ya="Ya, hapus"
+                  aksi={hapusSatu}
+                  className="btn btn-danger h-8 px-2.5 text-xs"
+                  ikon={<Trash2 className="size-3.5" aria-hidden />}
+                />
               </div>
 
               {/* Ruang Gelembung Pesan */}

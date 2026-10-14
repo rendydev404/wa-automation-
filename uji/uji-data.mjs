@@ -411,6 +411,23 @@ await cek("histori percakapan: terstruktur per nomor, paginasi kursor akurat, da
   assert.match(rChatPesan, /pesan_chat_percakapan_idx/);
 });
 
+await cek("hapus histori: satu percakapan atau semua milik satu nomor; isi pesan ikut, nomor lain utuh", async () => {
+  const lain = nomorBanyak.find((n) => n.id !== nTengah).id;
+  const hitung = async (nid) =>
+    ({ ...(await sql`SELECT count(*)::int AS p, (SELECT count(*)::int FROM pesan_chat m JOIN percakapan q ON q.id = m.percakapan_id WHERE q.number_id = ${nid}) AS m FROM percakapan WHERE number_id = ${nid}`)[0] });
+  const lainSebelum = await hitung(lain);
+  assert.deepEqual(lainSebelum, { p: 50, m: 500 });
+  const target = halaman1.daftar[0].id;
+  assert.equal(await P.hapusPercakapan(lain, target), 0); // percakapan nomor lain tidak bisa dihapus lewat nomor yang salah
+  assert.equal(await P.hapusPercakapan(nTengah, target), 1);
+  assert.equal(await P.ambilPesanPercakapan(nTengah, target), null);
+  assert.equal((await sql`SELECT count(*)::int AS n FROM pesan_chat WHERE percakapan_id = ${target}`)[0].n, 0);
+  assert.equal(await P.hapusPercakapan(nTengah), 39);
+  assert.deepEqual(await P.ringkasanPercakapan(nTengah), { total_percakapan: 0, total_masuk: 0, total_bot: 0, total_manusia: 0 });
+  assert.deepEqual(await hitung(nTengah), { p: 0, m: 0 });
+  assert.deepEqual(await hitung(lain), lainSebelum);
+});
+
 console.log(`\nLOLOS ${lolos} pemeriksaan`);
 await sql.end({ timeout: 2 });
 await pg.berhenti();

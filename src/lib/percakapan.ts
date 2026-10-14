@@ -229,3 +229,18 @@ export async function ambilPesanPercakapan(
   potong.reverse();
   return { percakapan, pesan: potong, adaSebelumnya };
 }
+
+/**
+ * Hapus histori percakapan milik `numberId`: satu percakapan (`percakapanId`) atau semuanya.
+ * Isi pesan ikut terhapus lewat ON DELETE CASCADE (memakai indeks pesan_chat_percakapan_idx).
+ * Keadaan chat (jeda AI, nomor sesi Hermes) di chat_state sengaja tidak disentuh.
+ * Mengembalikan jumlah percakapan yang terhapus.
+ */
+export async function hapusPercakapan(numberId: number, percakapanId?: number): Promise<number> {
+  const sql = await db();
+  const hasil =
+    percakapanId === undefined
+      ? await sql`DELETE FROM percakapan WHERE number_id = ${numberId}`
+      : await sql`DELETE FROM percakapan WHERE id = ${percakapanId} AND number_id = ${numberId}`;
+  return hasil.count;
+}
