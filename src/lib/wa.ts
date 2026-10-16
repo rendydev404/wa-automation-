@@ -75,6 +75,7 @@ interface Keadaan {
   lib?: Promise<Baileys>;
   versi?: [number, number, number];
   versiPada: number;
+  versiJanji?: Promise<void>;
   penangan: ((ev: EventWa) => void | Promise<void>) | null;
   dimulai: boolean;
 }
@@ -128,11 +129,21 @@ function pencatat(nama: string): SocketConfig["logger"] {
     warn: diam,
     error(obj: unknown, msg?: string) {
       const o = (typeof obj === "object" && obj ? obj : {}) as Record<string, unknown>;
-      const rinci = [o.err, o.error, o.trace].map((v) => (v instanceof Error ? v.message : typeof v === "string" ? v.split("\n")[0] : "")).find(Boolean);
+      const rinci = [o.err, o.error, o.trace].map((v) => (v instanceof Error ? v.message : typeof v === "string" ? v.split("\n")[0] : "")).find(Boolean) || ringkasNode(o.fullErrorNode);
       console.error(`[wa ${nama}] ${[msg ?? (typeof obj === "string" ? obj : ""), rinci].filter(Boolean).join(": ").slice(0, 300)}`);
     },
   };
   return l;
+}
+
+/** Isi `stream:error` dari WhatsApp (mis. `stream:error{"code":"401"} > conflict{"type":"device_removed"}`): satu-satunya petunjuk alasan diputus. */
+function ringkasNode(n: unknown): string {
+  type Node = { tag?: string; attrs?: Record<string, string>; content?: unknown };
+  const node = n as Node | null;
+  if (!node?.tag) return "";
+  const satu = (x: Node) => `${x.tag}${x.attrs && Object.keys(x.attrs).length ? JSON.stringify(x.attrs) : ""}`;
+  const anak = Array.isArray(node.content) ? (node.content as Node[]).filter((c) => c?.tag).map(satu) : [];
+  return [satu(node), ...anak].join(" > ");
 }
 
 function sesiAtauBaru(nama: string): Sesi {
@@ -170,15 +181,26 @@ function antre(s: Sesi, kerja: () => Promise<void> | void): void {
   s.rantai = s.rantai.then(kerja).catch((e) => console.error(`[wa ${s.nama}] gagal memproses event:`, e));
 }
 
-/** WhatsApp menolak versi klien yang sudah terlalu lama: ambil nomor versi WhatsApp Web terkini. */
-async function perbaruiVersi(B: Baileys): Promise<void> {
-  if (Date.now() - st.versiPada < 3_600_000) return;
+/**
+ * Versi WhatsApp Web terkini, dipakai untuk SETIAP soket. Versi bawaan pustaka cepat usang, dan
+ * WhatsApp tidak selalu menolaknya saat menyambung (405): perangkat bisa diterima dulu lalu dicabut
+ * beberapa detik/menit setelah tertaut (stream:error 401, "dikeluarkan").
+ * Dicek paling sering sejam sekali (satu permintaan untuk semua nomor); bila gagal, dicoba lagi
+ * 5 menit kemudian dan sementara itu dipakai versi terakhir yang diketahui.
+ */
+function perbaruiVersi(B: Baileys, paksa = false): Promise<void> {
+  if (!paksa && st.versiJanji && Date.now() - st.versiPada < 3_600_000) return st.versiJanji;
   st.versiPada = Date.now();
-  const h = await B.fetchLatestWaWebVersion({ signal: AbortSignal.timeout(8_000) });
-  if (h.isLatest) {
-    st.versi = h.version;
-    console.info(`[wa] memakai versi WhatsApp Web ${h.version.join(".")}`);
-  }
+  return (st.versiJanji = B.fetchLatestWaWebVersion({ signal: AbortSignal.timeout(8_000) })
+    .then((h) => {
+      if (!h.isLatest) throw new Error("versi terbaru tidak bisa diambil");
+      if (h.version.join(".") !== st.versi?.join(".")) console.info(`[wa] memakai versi WhatsApp Web ${h.version.join(".")}`);
+      st.versi = h.version;
+    })
+    .catch((e) => {
+      st.versiPada = Date.now() - 3_300_000;
+      console.warn(`[wa] gagal mengambil versi WhatsApp Web (${e instanceof Error ? e.message : String(e)}); memakai ${st.versi ? "versi terakhir" : "versi bawaan pustaka"}`);
+    }));
 }
 
 /**
@@ -264,6 +286,7 @@ async function sambung(s: Sesi): Promise<void> {
   let sock: WASocket;
   try {
     B = await baileys();
+    await perbaruiVersi(B);
     if (s.gen !== gen) return;
     auth = await bukaAuth(B, s.nama);
     if (s.gen !== gen) return;
@@ -372,9 +395,7 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
   if (kode === KODE.versiDitolak && s.gagal < 2) {
     s.gagal += 1;
     s.status = "STARTING";
-    void perbaruiVersi(B)
-      .catch(() => {})
-      .then(() => {
+    void perbaruiVersi(B, true).then(() => {
         if (s.gen === gen) void sambung(s);
       });
     return;

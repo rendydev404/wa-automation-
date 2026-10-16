@@ -220,7 +220,7 @@ await cek("hubungkan() membuat soket hemat: tanpa riwayat, tetap offline, grup/s
   assert.equal(c.shouldIgnoreJid("120363111111111111@newsletter"), true);
   assert.equal(c.shouldIgnoreJid("6281234567890@s.whatsapp.net"), false);
   assert.equal(c.shouldIgnoreJid("555000111@lid"), false);
-  assert.equal(c.version, undefined); // versi bawaan pustaka
+  assert.deepEqual(c.version, [2, 3000, 999]); // selalu versi WhatsApp Web terkini, bukan bawaan pustaka
   const t = Date.now();
   s.pancar("connection.update", { qr: "2@REFSATU,noise,identity,adv,1" });
   await p;
@@ -684,9 +684,10 @@ await cek("putus berulang: jeda sambung ulang makin panjang (1 dtk, 2 dtk, ...)"
 
 await cek("versi klien ditolak WhatsApp (405): ambil versi terbaru lalu sambung lagi", async () => {
   const awal = soket.length;
+  const diminta = versiDiminta;
   sA.tutup(405);
   const s = await tunggu(() => soket[awal], 3000);
-  assert.equal(versiDiminta, 1);
+  assert.equal(versiDiminta, diminta + 1); // dipaksa ambil ulang walau masih dalam cache sejam
   assert.deepEqual(s.config.version, [2, 3000, 999]);
   s.pancar("connection.update", { connection: "open" });
   sA = s;

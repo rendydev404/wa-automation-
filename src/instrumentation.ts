@@ -2,6 +2,9 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs" || process.env.NEXT_PHASE === "phase-production-build") return;
   try {
+    // Sebelum Baileys dimuat: libsignal mencetak objek sesi berisi kunci privat ke console.
+    const { pasangLogAman } = await import("@/lib/log-aman");
+    pasangLogAman();
     // Jembatan mendaftarkan diri sebagai penerima event WhatsApp saat dimuat.
     await import("@/lib/bridge");
     const { mulaiGerbang } = await import("@/lib/wa");
