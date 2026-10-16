@@ -416,7 +416,7 @@ export function HistoriPercakapan({
           </div>
 
           {/* Daftar Percakapan */}
-          <div className="max-h-[65svh] min-h-0 flex-1 overflow-y-auto overscroll-contain md:max-h-none">
+          <div className="max-h-[65svh] min-h-0 flex-1 overflow-y-auto md:max-h-none">
             {memuatDaftar ? (
               <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-muted">
                 <Loader2 className="size-4 animate-spin" aria-hidden /> Memuat percakapan…
@@ -569,7 +569,7 @@ export function HistoriPercakapan({
               {/* Ruang Gelembung Pesan */}
               <div
                 ref={wadahPesanRef}
-                className="flex h-[62svh] min-h-80 flex-col gap-2.5 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5 md:h-auto md:min-h-0 md:flex-1"
+                className="flex h-[62svh] min-h-80 flex-col gap-2.5 overflow-y-auto px-3 py-4 sm:px-5 md:h-auto md:min-h-0 md:flex-1"
               >
                 {adaSebelumnya && (
                   <div className="mb-1 flex justify-center">

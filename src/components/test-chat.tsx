@@ -83,7 +83,7 @@ export function TestChat({ numberId }: { numberId: number }) {
         </button>
       </div>
 
-      <div className="flex h-80 flex-col gap-2 overflow-y-auto overscroll-contain bg-subtle/40 px-4 py-4 xl:h-96" aria-live="polite">
+      <div className="flex h-80 flex-col gap-2 overflow-y-auto bg-subtle/40 px-4 py-4 xl:h-96" aria-live="polite">
         {pesan.length === 0 && !tunggu && <p className="m-auto max-w-56 text-center text-[13px] text-faint">Coba tanyakan sesuatu yang ada di base knowledge, lalu yang tidak ada.</p>}
         {pesan.map((g, i) => (
           <div key={i} className={`max-w-[85%] animate-masuk ${g.dari === "saya" ? "self-end" : "self-start"}`}>
