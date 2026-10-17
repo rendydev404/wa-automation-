@@ -7,6 +7,7 @@ import { type Nomor, catatStat, catatTerhubung, nomorBySesi } from "./numbers";
 import { catatPesan, riwayatUntukAi } from "./percakapan";
 import { pelajariBalasan } from "./pelajaran";
 import { CATATAN_KODE_DIBLOKIR, TOLAK_KODE, adaKode } from "./penjaga";
+import type { Foto } from "./types";
 import { type EventWa, digitWa, kirimTeks, mengetik, padaEvent, tandaiDibaca } from "./wa";
 
 /**
@@ -38,6 +39,7 @@ const SESI_BARU_SETELAH_DTK = 12 * 3600; // percakapan baru bila pelanggan diam 
 const MAKS_PESAN_KARAKTER = 2_000;
 const MAKS_CATATAN = 6;
 const MAKS_BELUM_DIBACA = 30;
+const MAKS_FOTO_GILIRAN = 3;
 
 interface BarisChat {
   sesi_ke: number;
@@ -56,6 +58,8 @@ interface Antrean {
   chat: BarisChat | null;
   /** Pesan pelanggan yang belum dijawab. */
   teks: string[];
+  /** Pengunduh foto pelanggan yang belum dijawab (paling banyak MAKS_FOTO_GILIRAN, yang terbaru). */
+  foto: (() => Promise<Foto | null>)[];
   /** Id pesan pelanggan yang belum ditandai dibaca oleh bot. */
   belumDibaca: string[];
   timer: ReturnType<typeof setTimeout> | null;
@@ -206,6 +210,7 @@ async function proses(kunci: string): Promise<void> {
     if (a.generasi !== generasi || (!a.teks.length && !a.siap)) return;
     if (sedangDijeda(a) || !nomor || !nomor.bot_aktif) {
       a.teks.length = 0;
+      a.foto.length = 0;
       a.siap = null;
       return;
     }
@@ -223,6 +228,7 @@ async function proses(kunci: string): Promise<void> {
       const tertunda = a.teks.length;
       const sesiLalu = a.chat?.sesi_ke ?? 0;
       const pesan = a.teks.splice(0).join("\n").slice(0, MAKS_PESAN_KARAKTER);
+      const pemuatFoto: (() => Promise<Foto | null>)[] = a.foto.splice(0);
       const sesi = ambilGiliran(kunci, a);
       if (sesi === null) {
         void mengetik(a.sesi, a.alamat, false);
@@ -235,8 +241,12 @@ async function proses(kunci: string): Promise<void> {
         // Isi chat yang tidak dilihat AI (balasan manusia, pesan selagi AI diam) dibaca dari histori,
         // bersamaan dengan knowledge. Tulis histori yang masih antre ditunggu dulu supaya ikut terbaca.
         const riwayat = st.tulis.then(() => riwayatUntukAi(kunci, { sesiBaru: sesi !== sesiLalu, tertunda }));
-        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat });
-        const mentah = (await tanyaHermes({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan })).teks;
+        // Foto baru diunduh sekarang (AI memang akan menjawab), bersamaan, langsung ke memori.
+        const gambar = (await Promise.all(pemuatFoto.map((ambil) => ambil().catch(() => null)))).filter((f: Foto | null): f is Foto => !!f);
+        const gagalFoto = pemuatFoto.length - gambar.length;
+        const isiPesan = gagalFoto ? `${pesan}\n[${gagalFoto} foto gagal dimuat sehingga tidak bisa kamu lihat; minta pelanggan mengirim ulang bila perlu]` : pesan;
+        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0 });
+        const mentah = (await tanyaHermes({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar })).teks;
         if (adaKode(mentah)) {
           // Pengaman terakhir: kode program tidak pernah sampai ke WhatsApp, apa pun isi pesannya.
           console.warn(`[bridge] jawaban AI berisi kode, diganti penolakan sesi=${a.sesi}`);
@@ -304,6 +314,7 @@ async function antreanUntuk(kunci: string, numberId: number, sesi: string, alama
     chat: chat ? { ...chat } : null,
     teks: [],
     belumDibaca: [],
+    foto: [],
     timer: null,
     sedangProses: false,
     tungguMs: 5000,
@@ -349,7 +360,8 @@ function teleponDariEvent(ev: Extract<EventWa, { jenis: "pesan" }>): string | nu
 
 function teksLogPesan(ev: Extract<EventWa, { jenis: "pesan" }>): string {
   const t = ev.teks.trim();
-  return ev.lampiran ? (t ? `${t}\n[Lampiran media]` : "[Lampiran media]") : t;
+  const label = ev.foto ? "[Foto]" : "[Lampiran media]";
+  return ev.lampiran ? (t ? `${t}\n${label}` : label) : t;
 }
 
 /**
@@ -401,6 +413,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
     if (a.timer) clearTimeout(a.timer);
     a.timer = null;
     a.teks.length = 0;
+    a.foto.length = 0;
     a.belumDibaca.length = 0;
     a.siap = null;
     a.dibukaManusia = false;
@@ -414,7 +427,8 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   if (!nomor.bot_aktif) return;
 
   let teks = ev.teks.trim();
-  if (ev.lampiran) teks = teks ? `${teks}\n[Pelanggan juga melampirkan media yang tidak bisa kamu lihat]` : "[Pelanggan mengirim gambar/suara/berkas tanpa teks, yang tidak bisa kamu lihat]";
+  if (ev.foto) teks = teks ? `${teks}\n[Pelanggan melampirkan foto]` : "[Pelanggan mengirim foto]";
+  else if (ev.lampiran) teks = teks ? `${teks}\n[Pelanggan juga melampirkan media yang tidak bisa kamu lihat]` : "[Pelanggan mengirim suara/berkas/stiker tanpa teks, yang tidak bisa kamu lihat]";
   if (!teks) return;
 
   const a = await antreanUntuk(kunci, nomor.id, sesi, ev.alamat);
@@ -428,6 +442,10 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
     catat(a, "Jawaban yang kamu susun untuk pesan sebelumnya BELUM terkirim ke lawan bicara; jawab juga hal itu sekarang.");
   }
   a.teks.push(teks);
+  if (ev.foto) {
+    a.foto.push(ev.foto);
+    if (a.foto.length > MAKS_FOTO_GILIRAN) a.foto.shift();
+  }
   a.belumDibaca.push(ev.id);
   if (a.belumDibaca.length > MAKS_BELUM_DIBACA) a.belumDibaca.shift();
   // Pesan baru: manusia diberi kesempatan dari awal. Bila chat masih terbuka di HP, tanda-baca untuk

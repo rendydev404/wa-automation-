@@ -295,7 +295,7 @@ export async function pertanyaanTerakhir(kunci: string, waktuBalasan: number): P
       continue;
     }
     if (waktuBalasan - m.waktu > 6 * 3600) break;
-    const t = m.teks.replace(/\[Lampiran media\]/g, "").trim();
+    const t = m.teks.replace(/\[(Lampiran media|Foto)\]/g, "").trim();
     if (t) ambil.push(t);
     if (ambil.length === 3) break;
   }

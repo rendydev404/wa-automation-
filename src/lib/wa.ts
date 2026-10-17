@@ -1,8 +1,8 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import type { ConnectionState, SocketConfig, WAMessage, WASocket } from "baileys";
+import type { ConnectionState, SocketConfig, WAMessage, WASocket, proto } from "baileys";
 import { type BitQr, kemasQr } from "./qr";
-import type { SesiNomor } from "./types";
+import { type Foto, MAKS_FOTO_BYTE, MIME_FOTO, type SesiNomor } from "./types";
 import { type AuthSesi, bukaAuth, hapusAuth, rapikanAuthYatim, sesiTerpasang } from "./wa-auth";
 
 /**
@@ -34,6 +34,11 @@ export type EventWa =
       dariSaya: boolean;
       teks: string;
       lampiran: boolean;
+      /**
+       * Pesan masuk berisi foto: pengunduhnya. Foto baru diunduh bila AI memang akan menjawab
+       * (tidak saat AI diam / dimatikan), dan tidak pernah disimpan. null bila gagal / terlalu besar.
+       */
+      foto?: (() => Promise<Foto | null>) | null;
       /** Detik epoch. */
       waktu: number;
       /** Digit nomor WA lawan bicara bila diketahui (dari PN JID / remoteJidAlt). */
@@ -249,6 +254,26 @@ function isiPesan(B: Baileys, m: WAMessage): { teks: string; lampiran: boolean }
   return teks || lampiran ? { teks, lampiran } : null;
 }
 
+/**
+ * Unduh satu foto pelanggan langsung ke memori (tanpa berkas), dibatasi ukuran & waktu. Ukuran dicek
+ * dari metadata pesan sebelum mengunduh. URL media yang kedaluwarsa diminta ulang ke HP lewat soket.
+ */
+async function unduhFoto(B: Baileys, s: Sesi, sock: WASocket, m: WAMessage, img: proto.Message.IImageMessage): Promise<Foto | null> {
+  const mime = (img.mimetype ?? "image/jpeg").split(";")[0].trim().toLowerCase() as Foto["mime"];
+  if (!MIME_FOTO.includes(mime) || B.toNumber(img.fileLength ?? 0) > MAKS_FOTO_BYTE) return null;
+  try {
+    const buf = await denganBatas(
+      B.downloadMediaMessage(m, "buffer", {}, { logger: pencatat(s.nama)!, reuploadRequest: (x) => sock.updateMediaMessage(x) }),
+      20_000,
+      "mengunduh foto"
+    );
+    return buf.length && buf.length <= MAKS_FOTO_BYTE ? { mime, data: buf.toString("base64") } : null;
+  } catch (e) {
+    console.error(`[wa ${s.nama}] foto gagal diunduh:`, e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 async function pesanTiba(B: Baileys, s: Sesi, sock: WASocket, m: WAMessage): Promise<void> {
   const jid = m.key.remoteJid;
   const id = m.key.id;
@@ -259,6 +284,7 @@ async function pesanTiba(B: Baileys, s: Sesi, sock: WASocket, m: WAMessage): Pro
   if (!isi) return;
   const alt = m.key.remoteJidAlt;
   const pn = B.isPnUser(jid) ? jid : alt && B.isPnUser(alt) ? alt : null;
+  const gambar = m.key.fromMe ? null : B.normalizeMessageContent(m.message)?.imageMessage;
   await kabari({
     jenis: "pesan",
     sesi: s.nama,
@@ -268,6 +294,7 @@ async function pesanTiba(B: Baileys, s: Sesi, sock: WASocket, m: WAMessage): Pro
     dariSaya: !!m.key.fromMe,
     teks: isi.teks,
     lampiran: isi.lampiran,
+    foto: gambar ? () => unduhFoto(B, s, sock, m, gambar) : null,
     waktu: B.toNumber(m.messageTimestamp),
     telepon: pn ? digitWa(pn) || null : null,
     namaPengirim: !m.key.fromMe && m.pushName ? m.pushName.trim().slice(0, 80) || null : null,

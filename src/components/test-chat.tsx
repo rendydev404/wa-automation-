@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, RotateCcw, Send } from "lucide-react";
+import { ImagePlus, Loader2, RotateCcw, Send, X } from "lucide-react";
 
 interface Gelembung {
   dari: "saya" | "bot" | "galat";
   teks: string;
   meta?: string;
+  foto?: string;
 }
 
 const sesiBaru = () => Math.random().toString(36).slice(2, 14).padEnd(8, "0");
@@ -24,10 +25,24 @@ function TeksWa({ teks }: { teks: string }) {
   );
 }
 
+/** Perkecil foto di browser (sisi terpanjang 1568 px, JPEG) supaya unggahan kecil; model tidak memakai resolusi di atas itu. */
+async function perkecil(berkas: File): Promise<string> {
+  const bmp = await createImageBitmap(berkas);
+  const skala = Math.min(1, 1568 / Math.max(bmp.width, bmp.height));
+  const kanvas = document.createElement("canvas");
+  kanvas.width = Math.max(1, Math.round(bmp.width * skala));
+  kanvas.height = Math.max(1, Math.round(bmp.height * skala));
+  kanvas.getContext("2d")!.drawImage(bmp, 0, 0, kanvas.width, kanvas.height);
+  bmp.close();
+  return kanvas.toDataURL("image/jpeg", 0.85);
+}
+
 export function TestChat({ numberId }: { numberId: number }) {
   const [pesan, setPesan] = useState<Gelembung[]>([]);
   const [teks, setTeks] = useState("");
   const [tunggu, setTunggu] = useState(false);
+  const [foto, setFoto] = useState<string | null>(null);
+  const inputFoto = useRef<HTMLInputElement>(null);
   const sesi = useRef(sesiBaru());
   const lalu = useRef("");
   const bawah = useRef<HTMLDivElement>(null);
@@ -39,15 +54,17 @@ export function TestChat({ numberId }: { numberId: number }) {
   async function kirim(e: React.FormEvent) {
     e.preventDefault();
     const isi = teks.trim();
-    if (!isi || tunggu) return;
+    const lampiran = foto;
+    if ((!isi && !lampiran) || tunggu) return;
     setTeks("");
-    setPesan((p) => [...p, { dari: "saya", teks: isi }]);
+    setFoto(null);
+    setPesan((p) => [...p, { dari: "saya", teks: isi, foto: lampiran ?? undefined }]);
     setTunggu(true);
     try {
       const res = await fetch("/api/uji", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ numberId, pesan: isi, sesi: sesi.current, kueriLalu: lalu.current }),
+        body: JSON.stringify({ numberId, pesan: isi, sesi: sesi.current, kueriLalu: lalu.current, ...(lampiran ? { foto: lampiran } : {}) }),
       });
       const d = (await res.json().catch(() => ({}))) as { teks?: string; ms?: number; mode?: keyof typeof MODE; pelajaran?: number; diblokir?: boolean; error?: string };
       if (res.ok && d.teks) {
@@ -93,6 +110,10 @@ export function TestChat({ numberId }: { numberId: number }) {
                 g.dari === "saya" ? "rounded-br-md bg-accent text-on-accent" : g.dari === "bot" ? "rounded-bl-md border border-line bg-surface" : "bg-danger-soft text-danger"
               }`}
             >
+              {g.foto && (
+                // eslint-disable-next-line @next/next/no-img-element -- data URL lokal, bukan aset yang perlu dioptimasi
+                <img src={g.foto} alt="Foto uji" className={`max-h-48 rounded-lg object-cover ${g.teks ? "mb-1.5" : ""}`} />
+              )}
               {g.dari === "bot" ? <TeksWa teks={g.teks} /> : g.teks}
             </div>
             {g.meta && <p className="mt-1 pl-1 text-[11px] text-faint">{g.meta}</p>}
@@ -106,11 +127,48 @@ export function TestChat({ numberId }: { numberId: number }) {
         <div ref={bawah} />
       </div>
 
-      <form onSubmit={kirim} className="flex gap-2 border-t border-line p-3">
-        <input value={teks} onChange={(e) => setTeks(e.target.value)} maxLength={2000} placeholder="Tulis pesan seperti orang yang chat ke nomor ini…" aria-label="Pesan uji" className="field" />
-        <button type="submit" disabled={tunggu || !teks.trim()} aria-label="Kirim" className="btn btn-primary h-auto w-11 shrink-0 px-0">
-          <Send className="size-4" aria-hidden />
-        </button>
+      <form onSubmit={kirim} className="border-t border-line p-3">
+        {foto && (
+          <div className="mb-2 flex items-center gap-2">
+            {/* eslint-disable-next-line @next/next/no-img-element -- pratinjau data URL lokal */}
+            <img src={foto} alt="Foto yang akan dikirim" className="size-14 rounded-lg object-cover" />
+            <button type="button" onClick={() => setFoto(null)} aria-label="Batalkan foto" className="grid size-8 place-items-center rounded-lg text-faint hover:bg-subtle hover:text-fg">
+              <X className="size-4" aria-hidden />
+            </button>
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => inputFoto.current?.click()}
+            disabled={tunggu}
+            aria-label="Lampirkan foto"
+            title="Lampirkan foto"
+            className="btn btn-ghost h-auto w-11 shrink-0 px-0"
+          >
+            <ImagePlus className="size-4" aria-hidden />
+          </button>
+          <input
+            ref={inputFoto}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="sr-only"
+            onChange={async (e) => {
+              const berkas = e.target.files?.[0];
+              e.target.value = "";
+              if (!berkas) return;
+              try {
+                setFoto(await perkecil(berkas));
+              } catch {
+                setPesan((p) => [...p, { dari: "galat", teks: "Foto tidak bisa dibaca." }]);
+              }
+            }}
+          />
+          <input value={teks} onChange={(e) => setTeks(e.target.value)} maxLength={2000} placeholder={foto ? "Keterangan foto (opsional)…" : "Tulis pesan seperti orang yang chat ke nomor ini…"} aria-label="Pesan uji" className="field" />
+          <button type="submit" disabled={tunggu || (!teks.trim() && !foto)} aria-label="Kirim" className="btn btn-primary h-auto w-11 shrink-0 px-0">
+            <Send className="size-4" aria-hidden />
+          </button>
+        </div>
       </form>
     </section>
   );

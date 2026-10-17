@@ -1,4 +1,5 @@
 import "server-only";
+import type { Foto } from "./types";
 
 /**
  * Klien Hermes (profil `cs`). Riwayat percakapan disimpan Hermes sendiri per `sessionId`
@@ -20,7 +21,11 @@ export interface JawabanHermes {
   tokenMasuk: number | null;
 }
 
-export async function tanyaHermes(opsi: { sessionId: string; sistem: string; pesan: string; timeoutMs?: number }): Promise<JawabanHermes> {
+/**
+ * `gambar`: foto pelanggan, dikirim sebagai bagian image_url (data URL) bersama teks pesan. Hermes
+ * meneruskannya ke model yang bisa melihat; di riwayat sesi foto tidak dikirim ulang ke giliran berikutnya.
+ */
+export async function tanyaHermes(opsi: { sessionId: string; sistem: string; pesan: string; gambar?: Foto[]; timeoutMs?: number }): Promise<JawabanHermes> {
   if (!hermesTerkonfigurasi()) throw new Error("Hermes belum dikonfigurasi (HERMES_API_URL / HERMES_API_KEY).");
   const mulai = performance.now();
   const res = await fetch(`${basis()}/chat/completions`, {
@@ -35,10 +40,15 @@ export async function tanyaHermes(opsi: { sessionId: string; sistem: string; pes
       stream: false,
       messages: [
         { role: "system", content: opsi.sistem },
-        { role: "user", content: opsi.pesan },
+        {
+          role: "user",
+          content: opsi.gambar?.length
+            ? [{ type: "text", text: opsi.pesan }, ...opsi.gambar.map((g) => ({ type: "image_url", image_url: { url: `data:${g.mime};base64,${g.data}` } }))]
+            : opsi.pesan,
+        },
       ],
     }),
-    signal: AbortSignal.timeout(opsi.timeoutMs ?? 75_000),
+    signal: AbortSignal.timeout(opsi.timeoutMs ?? (opsi.gambar?.length ? 110_000 : 75_000)),
     cache: "no-store",
   });
   if (!res.ok) throw new Error(`Hermes membalas HTTP ${res.status}`);

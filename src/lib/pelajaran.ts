@@ -40,7 +40,7 @@ const normal = (t: string): string => t.toLowerCase().replace(/\s+/g, " ").trim(
 
 /** Balasan pendek ("ok kak", "siap", "sama-sama") tidak membawa pengetahuan apa pun. */
 export function layakDipelajari(teks: string): boolean {
-  const t = teks.replace(/\[Lampiran media\]/g, "").trim();
+  const t = teks.replace(/\[(Lampiran media|Foto)\]/g, "").trim();
   return t.length >= MIN_KARAKTER && t.split(/\s+/).length >= MIN_KATA;
 }
 

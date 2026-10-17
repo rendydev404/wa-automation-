@@ -10,6 +10,17 @@ export interface SesiNomor {
   alasan: string | null;
 }
 
+/** Foto dari pelanggan, siap dikirim ke AI (base64 tanpa awalan data:). */
+export interface Foto {
+  mime: "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+  data: string;
+}
+
+/** Batas ukuran satu foto mentah; base64-nya (×4/3) tetap di bawah batas 5 MB per gambar model. */
+export const MAKS_FOTO_BYTE = 3_700_000;
+
+export const MIME_FOTO: readonly Foto["mime"][] = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
 export interface StatusWa {
   hermes: boolean;
   galatAi: { at: number; pesan: string } | null;

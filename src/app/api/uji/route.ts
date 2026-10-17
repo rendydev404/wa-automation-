@@ -4,6 +4,7 @@ import { tanyaHermes } from "@/lib/hermes";
 import { susunSistem } from "@/lib/knowledge";
 import { nomorById } from "@/lib/numbers";
 import { TOLAK_KODE, adaKode } from "@/lib/penjaga";
+import { type Foto, MAKS_FOTO_BYTE } from "@/lib/types";
 import { getUser } from "@/lib/session";
 
 /** Uji bot dari dashboard: jalur yang sama dengan WhatsApp (knowledge nomor + Hermes), tanpa mengirim WA. */
@@ -11,17 +12,25 @@ export async function POST(req: Request) {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Sesi berakhir. Silakan login kembali." }, { status: 401 });
 
-  const b = (await req.json().catch(() => null)) as { numberId?: number; pesan?: string; sesi?: string; kueriLalu?: string } | null;
-  const pesan = b?.pesan?.trim() ?? "";
+  const b = (await req.json().catch(() => null)) as { numberId?: number; pesan?: string; sesi?: string; kueriLalu?: string; foto?: string } | null;
+  const teksPesan = b?.pesan?.trim() ?? "";
   const sesi = b?.sesi ?? "";
   const nomor = await nomorById(Number(b?.numberId));
   if (!nomor) return NextResponse.json({ error: "Nomor tidak ditemukan." }, { status: 404 });
-  if (!pesan || pesan.length > 2000) return NextResponse.json({ error: "Pesan kosong atau terlalu panjang." }, { status: 400 });
+  // Foto uji (opsional): data URL gambar yang sudah diperkecil di browser, diperlakukan sama dengan foto dari WhatsApp.
+  let gambar: Foto[] = [];
+  if (b?.foto) {
+    const m = /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/]+={0,2})$/.exec(b.foto);
+    if (!m || (m[2].length * 3) / 4 > MAKS_FOTO_BYTE) return NextResponse.json({ error: "Foto tidak valid atau lebih dari 3,7 MB." }, { status: 400 });
+    gambar = [{ mime: m[1] as Foto["mime"], data: m[2] }];
+  }
+  if ((!teksPesan && !gambar.length) || teksPesan.length > 2000) return NextResponse.json({ error: "Pesan kosong atau terlalu panjang." }, { status: 400 });
   if (!/^[a-z0-9]{8,24}$/.test(sesi)) return NextResponse.json({ error: "Sesi uji tidak valid." }, { status: 400 });
+  const pesan = gambar.length ? (teksPesan ? `${teksPesan}\n[Pelanggan melampirkan foto]` : "[Pelanggan mengirim foto]") : teksPesan;
 
-  const { sistem, konteks, pelajaran } = await susunSistem(nomor, `${(b?.kueriLalu ?? "").slice(0, 2000)}\n${pesan}`);
+  const { sistem, konteks, pelajaran } = await susunSistem(nomor, `${(b?.kueriLalu ?? "").slice(0, 2000)}\n${teksPesan}`, { adaFoto: gambar.length > 0 });
   try {
-    const j = await tanyaHermes({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan });
+    const j = await tanyaHermes({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar });
     // Penjaga yang sama dengan WhatsApp, supaya hasil uji mencerminkan yang benar-benar terkirim.
     const diblokir = adaKode(j.teks);
     const teks = diblokir ? TOLAK_KODE : formatWa(j.teks);

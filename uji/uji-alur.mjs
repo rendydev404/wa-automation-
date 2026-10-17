@@ -35,13 +35,21 @@ async function tunggu(fn, ms = 4000, apa = "") {
 
 // ---------- Hermes tiruan ----------
 const hermes = { panggilan: [], jedaMs: 40, gagal: false };
+const unduhan = []; // id pesan yang fotonya diunduh (Baileys tiruan)
 const server = http.createServer((req, res) => {
   let b = "";
   req.on("data", (c) => (b += c));
   req.on("end", () => {
     if (req.url.endsWith("/models")) return res.end("{}");
     const j = JSON.parse(b);
-    const p = { sesi: req.headers["x-hermes-session-id"], sistem: j.messages[0].content, pesan: j.messages[1].content, at: Date.now() };
+    const isi = j.messages[1].content;
+    const p = {
+      sesi: req.headers["x-hermes-session-id"],
+      sistem: j.messages[0].content,
+      pesan: Array.isArray(isi) ? isi.find((x) => x.type === "text").text : isi,
+      gambar: Array.isArray(isi) ? isi.filter((x) => x.type === "image_url").map((x) => x.image_url.url) : [],
+      at: Date.now(),
+    };
     hermes.panggilan.push(p);
     setTimeout(() => {
       if (hermes.gagal) {
@@ -123,6 +131,12 @@ function buatSoket(config) {
 globalThis.__waGerbang.lib = Promise.resolve({
   ...B,
   makeWASocket: buatSoket,
+  // Unduh media tiruan: isi foto = "FOTO-<id pesan>"; keterangan berisi GAGAL = jaringan putus.
+  downloadMediaMessage: async (m) => {
+    unduhan.push(m.key.id);
+    if (/GAGAL/.test(m.message?.imageMessage?.caption ?? "")) throw new Error("unduh gagal");
+    return Buffer.from(`FOTO-${m.key.id}`);
+  },
   fetchLatestWaWebVersion: async () => {
     versiDiminta += 1;
     return { version: [2, 3000, 999], isLatest: true };
@@ -375,9 +389,9 @@ await cek("jenis pesan: teks panjang, pesan sementara, gambar dengan/ tanpa kete
   await tunggu(() => hermes.panggilan.length === n0 + 5, 5000);
   const isi = hermes.panggilan.slice(n0).map((p) => p.pesan).sort();
   assert.deepEqual(isi, [
-    "[Pelanggan mengirim gambar/suara/berkas tanpa teks, yang tidak bisa kamu lihat]",
-    "[Pelanggan mengirim gambar/suara/berkas tanpa teks, yang tidak bisa kamu lihat]",
-    "ini fotonya\n[Pelanggan juga melampirkan media yang tidak bisa kamu lihat]",
+    "[Pelanggan mengirim suara/berkas/stiker tanpa teks, yang tidak bisa kamu lihat]",
+    "[Pelanggan mengirim suara/berkas/stiker tanpa teks, yang tidak bisa kamu lihat]",
+    "ini fotonya\n[Pelanggan melampirkan foto]",
     "pesan sementara",
     "teks diperluas",
   ]);
@@ -813,6 +827,76 @@ await cek("WhatsApp: jawaban AI berisi kode tidak terkirim (diganti penolakan); 
   await tunggu(() => hermes.panggilan.length === n0 + 2, 4000);
   assert.match(hermes.panggilan.at(-1).sistem, /<catatan_percakapan>[\s\S]*berisi kode program sehingga TIDAK dikirim/);
   await tunggu(() => sA.terkirim.at(-1)?.jid === P && sA.terkirim.at(-1).isi.text.includes("jam buka"), 4000);
+});
+
+// =====================================================================================
+bagian("D4. Foto dari pelanggan");
+const fotoUrl = (id) => `data:image/jpeg;base64,${Buffer.from(`FOTO-${id}`).toString("base64")}`;
+
+await cek("foto pelanggan diunduh saat AI menjawab dan ikut dikirim ke AI; histori mencatat [Foto]", async () => {
+  const P = "555000440@lid";
+  const n0 = hermes.panggilan.length;
+  const id = idBaru();
+  tiba(sA, pesan(P, { imageMessage: { mimetype: "image/jpeg", fileLength: 120_000 } }, { id }));
+  await tidur(300);
+  assert.ok(!unduhan.includes(id), "belum diunduh selama masa tunggu manusia");
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
+  const h = hermes.panggilan.at(-1);
+  assert.equal(h.pesan, "[Pelanggan mengirim foto]");
+  assert.deepEqual(h.gambar, [fotoUrl(id)]);
+  assert.match(h.sistem, /<foto_pelanggan>[\s\S]*Jangan bilang pembayaran sudah diterima[\s\S]*<\/foto_pelanggan>/);
+  assert.ok(h.sistem.trimEnd().endsWith("</batasan_topik>"));
+  await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
+  await bridge.tulisTuntas();
+  const log = await sql`SELECT m.peran, m.teks FROM pesan_chat m JOIN percakapan p ON p.id = m.percakapan_id WHERE p.kunci = ${kunciChat(A.sesi, P)} ORDER BY m.id`;
+  assert.equal(log[0].teks, "[Foto]");
+});
+
+await cek("foto + keterangan; beberapa foto beruntun = satu giliran (paling banyak 3, yang terbaru)", async () => {
+  const P = "555000441@lid";
+  const n0 = hermes.panggilan.length;
+  const ids = [idBaru(), idBaru(), idBaru(), idBaru()];
+  tiba(sA, pesan(P, { imageMessage: { mimetype: "image/jpeg", caption: "ini bukti transfernya kak" } }, { id: ids[0] }));
+  for (const id of ids.slice(1)) tiba(sA, pesan(P, { imageMessage: { mimetype: "image/png" } }, { id }));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
+  const h = hermes.panggilan.at(-1);
+  assert.match(h.pesan, /^ini bukti transfernya kak\n\[Pelanggan melampirkan foto\]\n\[Pelanggan mengirim foto\]/);
+  assert.equal(h.gambar.length, 3);
+  assert.deepEqual(h.gambar, ids.slice(1).map((id) => fotoUrl(id).replace("image/jpeg", "image/png")));
+  assert.ok(!unduhan.includes(ids[0]), "foto ke-4 dari belakang tidak diunduh sama sekali");
+  await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
+});
+
+await cek("foto gagal diunduh / terlalu besar / format tak didukung: AI diberi tahu, tanpa gambar", async () => {
+  const P = "555000442@lid";
+  const n0 = hermes.panggilan.length;
+  const u0 = unduhan.length;
+  const besar = idBaru();
+  const heic = idBaru();
+  tiba(sA, pesan(P, { imageMessage: { mimetype: "image/jpeg", caption: "GAGAL" } }));
+  tiba(sA, pesan(P, { imageMessage: { mimetype: "image/jpeg", fileLength: 9_000_000 } }, { id: besar }));
+  tiba(sA, pesan(P, { imageMessage: { mimetype: "image/heic" } }, { id: heic }));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
+  const h = hermes.panggilan.at(-1);
+  assert.deepEqual(h.gambar, []);
+  assert.match(h.pesan, /\[3 foto gagal dimuat sehingga tidak bisa kamu lihat/);
+  assert.doesNotMatch(h.sistem, /<foto_pelanggan>/);
+  assert.equal(unduhan.length, u0 + 1, "yang terlalu besar dan format tak didukung tidak diunduh");
+  await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
+});
+
+await cek("manusia sedang memegang chat: foto pelanggan tidak diunduh sama sekali", async () => {
+  const P = "555000443@lid";
+  tiba(sA, pesan(P, "kak mau tanya"));
+  await tidur(200);
+  tiba(sA, pesan(P, "Iya kak silakan, ada yang bisa dibantu?", { dariSaya: true }));
+  await tidur(200);
+  const id = idBaru();
+  const n0 = hermes.panggilan.length;
+  tiba(sA, pesan(P, { imageMessage: { mimetype: "image/jpeg" } }, { id }));
+  await tidur(2000);
+  assert.equal(hermes.panggilan.length, n0);
+  assert.ok(!unduhan.includes(id));
 });
 
 // =====================================================================================
