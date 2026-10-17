@@ -5,8 +5,9 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { authConfigured } from "@/lib/auth";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
-import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorById, semuaNomor, setBotAktif, tambahNomor, ubahNomor } from "@/lib/numbers";
+import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorById, semuaNomor, setBelajar, setBotAktif, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { verifyPassword } from "@/lib/password";
+import { type ItemPelajaran, daftarPelajaran, hapusPelajaran } from "@/lib/pelajaran";
 import { hapusPercakapan } from "@/lib/percakapan";
 import { konfigurasi as konfigurasiSinkron, setNomorSinkron, statusSinkron } from "@/lib/sinkron";
 import { akhiriSesi, findUserByEmail, mulaiSesi, requireUser } from "@/lib/session";
@@ -200,6 +201,33 @@ export async function hapusPercakapanAction(numberId: number, percakapanId?: num
   revalidatePath("/");
   revalidatePath(`/nomor/${numberId}`);
   return { ok: true, pesan: `${n} percakapan dihapus.` };
+}
+
+// ---------- Belajar dari balasan manusia ----------
+
+export async function setBelajarAction(id: number, aktif: boolean): Promise<Hasil> {
+  await requireUser();
+  if (!(await nomorById(id))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  await setBelajar(id, aktif);
+  revalidatePath(`/nomor/${id}`);
+  return { ok: true };
+}
+
+/** Halaman berikutnya daftar pelajaran (kursor dari baris terakhir yang sudah tampil). */
+export async function muatPelajaranAction(numberId: number, waktu: number, id: number): Promise<{ daftar: ItemPelajaran[]; adaLagi: boolean }> {
+  await requireUser();
+  if (!(await nomorById(numberId)) || !Number.isInteger(waktu) || !Number.isInteger(id)) return { daftar: [], adaLagi: false };
+  return daftarPelajaran(numberId, { waktu, id });
+}
+
+/** Hapus satu pelajaran (`id`) atau semua pelajaran sebuah nomor. */
+export async function hapusPelajaranAction(numberId: number, id?: number): Promise<Hasil> {
+  await requireUser();
+  if (!(await nomorById(numberId))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  if (id !== undefined && !Number.isInteger(id)) return { ok: false, pesan: "Data tidak valid." };
+  const n = await hapusPelajaran(numberId, id);
+  revalidatePath(`/nomor/${numberId}`);
+  return { ok: true, pesan: `${n} pelajaran dihapus.` };
 }
 
 export async function pratinjauAction(id: number, numberId: number): Promise<string | null> {

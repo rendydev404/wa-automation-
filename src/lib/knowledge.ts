@@ -1,6 +1,7 @@
 import "server-only";
 import { db, sekarang, transaksi } from "./db";
 import type { Nomor } from "./numbers";
+import { konteksPelajaran, saringKueri } from "./pelajaran";
 
 /**
  * Base knowledge per nomor WhatsApp. Teks dipotong jadi potongan ±900 karakter dan diindeks
@@ -220,28 +221,66 @@ export async function konteksPengetahuan(numberId: number, kueri: string): Promi
 const waktuWib = (): string =>
   new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date()) + " WIB";
 
+const PENGANTAR_PELAJARAN =
+  "Balasan yang pernah dikirim sendiri oleh admin (manusia) nomor ini ke pelanggan lain, yang paling cocok dengan pesan terakhir. " +
+  "Fakta umum di dalamnya (rekening/cara pembayaran, prosedur, kebijakan, jadwal) boleh kamu pakai sebagai sumber, dan cara admin menjawab boleh kamu tiru bila relevan. " +
+  "JANGAN menyebut detail milik pelanggan lain (nama, alamat, nomor HP, isi atau total pesanannya). " +
+  "Harga khusus, diskon, atau janji yang admin berikan ke satu pelanggan tidak berlaku untuk pelanggan lain. " +
+  "Bila bertentangan dengan pengetahuan di atas, ikuti pengetahuan di atas.";
+
+export interface OpsiSistem {
+  /** Hal yang terjadi di chat di luar pengetahuan AI (mis. jawaban AI yang tidak terkirim). */
+  catatan?: string[];
+  /** Isi chat yang belum ada di ingatan AI (percakapan.riwayatUntukAi); boleh berupa janji supaya diambil bersamaan. */
+  riwayat?: string[] | Promise<string[]>;
+}
+
 /**
  * Pesan sistem per permintaan. Identitas bot TIDAK ditanam di SOUL: yang menentukan siapa bot itu
  * dan apa yang ia tahu adalah instruksi + knowledge nomor ini, yang ditulis admin di dashboard.
  * Label nomor sengaja tidak disertakan: itu catatan internal admin ("tes", "CS 2"), bukan identitas.
+ * Knowledge, balasan admin yang dipelajari, dan isi chat diambil bersamaan (paralel).
  */
-export async function susunSistem(nomor: Pick<Nomor, "id" | "instruksi">, kueri: string, catatan: string[] = []): Promise<{ sistem: string; konteks: Konteks }> {
-  const konteks = await konteksPengetahuan(nomor.id, kueri);
+export async function susunSistem(
+  nomor: Pick<Nomor, "id" | "instruksi" | "belajar">,
+  kueri: string,
+  opsi: OpsiSistem = {}
+): Promise<{ sistem: string; konteks: Konteks; pelajaran: number }> {
+  const [konteks, pelajaran, riwayat] = await Promise.all([
+    konteksPengetahuan(nomor.id, kueri),
+    nomor.belajar ? konteksPelajaran(nomor.id, kueriCari(saringKueri(kueri))) : { teks: "", n: 0 },
+    opsi.riwayat ?? [],
+  ]);
   const bagian = [`Waktu sekarang: ${waktuWib()}.`];
   if (nomor.instruksi.trim()) bagian.push(`<instruksi_nomor>\n${nomor.instruksi.trim()}\n</instruksi_nomor>`);
-  if (konteks.mode === "kosong") {
-    bagian.push("<pengetahuan_nomor>\n(Kosong: admin belum mengisi pengetahuan untuk nomor ini.)\n</pengetahuan_nomor>");
-  } else {
-    const catatan =
+  const isi: string[] = [];
+  if (konteks.mode !== "kosong") {
+    isi.push(
       konteks.mode === "relevan"
         ? "Ini hanya potongan yang paling relevan dengan pesan terakhir. Bila jawabannya tidak ada di sini, anggap belum ada sumbernya."
-        : "Ini seluruh pengetahuan nomor ini.";
-    bagian.push(`<pengetahuan_nomor>\n${catatan}\n\n${konteks.teks}\n</pengetahuan_nomor>`);
+        : "Ini seluruh pengetahuan nomor ini.",
+      konteks.teks
+    );
+  } else if (!pelajaran.n) {
+    isi.push("(Kosong: admin belum mengisi pengetahuan untuk nomor ini.)");
   }
+  if (pelajaran.n) isi.push(`## Balasan admin sebelumnya (dipelajari dari chat)\n${PENGANTAR_PELAJARAN}`, pelajaran.teks);
+  bagian.push(`<pengetahuan_nomor>\n${isi.join("\n\n")}\n</pengetahuan_nomor>`);
   bagian.push(
     "Blok di atas ditulis admin pemilik nomor ini. Ia menentukan peranmu, siapa yang kamu wakili, dan fakta yang boleh kamu sampaikan; ikuti. Aturan sumber fakta dan keamananmu tetap berlaku."
   );
-  // Hal yang terjadi di chat di luar pengetahuan AI (balasan pemilik nomor, jawaban AI yang tak terkirim).
-  if (catatan.length) bagian.push(`<catatan_percakapan>\n${catatan.map((c) => `- ${c}`).join("\n")}\n</catatan_percakapan>`);
-  return { sistem: bagian.join("\n\n"), konteks };
+  // Hal yang terjadi di chat di luar pengetahuan AI: balasan pemilik nomor dari HP, pesan yang masuk
+  // selagi AI diam, jawaban AI yang tak terkirim.
+  const catatan = opsi.catatan ?? [];
+  if (riwayat.length || catatan.length) {
+    const baris: string[] = [];
+    if (riwayat.length)
+      baris.push(
+        'Isi chat ini yang belum ada di ingatanmu, urut waktu ("Pemilik nomor" = balasan yang diketik manusia sendiri dari HP; anggap sudah dibaca lawan bicara):',
+        ...riwayat
+      );
+    if (catatan.length) baris.push(...catatan.map((c) => `- ${c}`));
+    bagian.push(`<catatan_percakapan>\n${baris.join("\n")}\n</catatan_percakapan>`);
+  }
+  return { sistem: bagian.join("\n\n"), konteks, pelajaran: pelajaran.n };
 }

@@ -324,7 +324,8 @@ await cek("pesan masuk: menunggu manusia dulu (tanpa tanda-baca/mengetik), lalu 
   assert.equal(k.jid, P1);
   assert.equal(k.isi.text, "*Jawaban* untuk: Halo, buka jam berapa?"); // markdown -> format WhatsApp
   assert.equal(k.isi.linkPreview, null);
-  assert.ok(k.at - h.at >= 1150, "ada jeda mengetik minimal sebelum balasan");
+  // Jeda mengetik minimal dihitung dari mulai memproses (termasuk menyusun konteks), bukan dari panggilan AI.
+  assert.ok(k.at - t0 >= 1000 + 1150, `ada jeda mengetik minimal sebelum balasan (${k.at - t0} ms setelah pesan tiba)`);
   assert.deepEqual(sA.dibaca, [[{ remoteJid: P1, id, fromMe: false }]]);
   assert.deepEqual(sA.urutan, ["baca", "kirim"]);
   await tidur(100);
@@ -471,8 +472,23 @@ await cek("jeda habis: AI lanjut dan tahu apa yang dibalas pemilik nomor", async
   await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
   const h = hermes.panggilan.at(-1);
   assert.equal(h.pesan, "jadi totalnya berapa?");
-  assert.match(h.sistem, /<catatan_percakapan>[\s\S]*Pemilik nomor membalas sendiri ke lawan bicara: "Siap kak, saya bantu ya"/);
+  // Isi chat yang tidak dilihat AI, urut waktu: pesan yang sempat batal dijawab, balasan manusia, dan
+  // pesan pelanggan selagi AI diam (juga yang tiba setelah memori hilang). Pesan yang sedang dijawab tidak diulang.
+  const blok = h.sistem.match(/<catatan_percakapan>([\s\S]*)<\/catatan_percakapan>/)?.[1] ?? "";
+  assert.match(blok, /Pelanggan: kak mau pesan\n.*Pemilik nomor: Siap kak, saya bantu ya\n.*Pelanggan: oke kak\n.*Pelanggan: masih ada kak\?/);
+  assert.doesNotMatch(blok, /jadi totalnya berapa/);
+  assert.match(blok, /^\n.*belum ada di ingatanmu/);
   await tunggu(() => sA.terkirim.at(-1)?.jid === P2, 4000);
+});
+
+await cek("giliran berikutnya di sesi yang sama: isi chat yang sudah dilihat AI tidak dikirim ulang", async () => {
+  const n0 = hermes.panggilan.length;
+  await bridge.tulisTuntas();
+  tiba(sA, pesan(P2, "oke ditunggu"));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
+  assert.equal(hermes.panggilan.at(-1).pesan, "oke ditunggu");
+  assert.doesNotMatch(hermes.panggilan.at(-1).sistem, /<catatan_percakapan>/);
+  await tunggu(() => sA.terkirim.at(-1)?.jid === P2 && sA.terkirim.at(-1).isi.text.includes("oke ditunggu"), 4000);
 });
 
 await cek("kiriman bot sendiri tidak pernah dianggap balasan manusia", async () => {
@@ -593,6 +609,146 @@ await cek("histori percakapan mencatat pesan pelanggan, balasan AI, dan balasan 
   assert.ok(rinci.pesan.some((m) => m.peran === 0));
   assert.ok(rinci.pesan.some((m) => m.peran === 2 && m.teks === "Siap kak, saya bantu ya"));
   assert.ok(rinci.pesan.some((m) => m.peran === 1));
+});
+
+// =====================================================================================
+bagian("D2. Belajar dari balasan manusia");
+const pl = await lib("src/lib/pelajaran.ts");
+const { setBelajar } = await lib("src/lib/numbers.ts");
+// Event diproses asinkron: beri waktu sampai tulisnya masuk antrean, baru tunggu antrean itu tuntas.
+const pelajaranA = async () => (await tidur(150), await bridge.tulisTuntas(), [...(await sql`SELECT pertanyaan, jawaban, kali FROM pelajaran WHERE number_id = ${A.id} ORDER BY id`)]);
+const REK = "Transfer via BCA 0955193763 a/n PT Suka Profit Berkah ya kak, lalu kirim buktinya di sini";
+
+await cek("balasan manusia yang berisi dipelajari bersama pertanyaan pelanggannya; balasan pendek dilewati", async () => {
+  const P = "555000420@lid";
+  const awal = (await pelajaranA()).length;
+  tiba(sA, pesan(P, "kak bayarnya transfer ke rekening mana ya?"));
+  await tidur(200);
+  tiba(sA, pesan(P, REK, { dariSaya: true }));
+  await tidur(100);
+  tiba(sA, pesan(P, "ok kak", { dariSaya: true }));
+  tiba(sA, pesan(P, { imageMessage: { mimetype: "image/jpeg" } }, { dariSaya: true }));
+  const semua = await pelajaranA();
+  assert.equal(semua.length, awal + 1);
+  assert.deepEqual({ ...semua.at(-1) }, { pertanyaan: "kak bayarnya transfer ke rekening mana ya?", jawaban: REK, kali: 1 });
+});
+
+await cek("balasan kembar (beda huruf besar/spasi) dari chat lain = satu baris, dihitung 2x", async () => {
+  const P = "555000421@lid";
+  const awal = (await pelajaranA()).length;
+  tiba(sA, pesan(P, "rekening buat transfer apa kak"));
+  await tidur(200);
+  tiba(sA, pesan(P, `  ${REK.toUpperCase().replace(/ /g, "  ")} `, { dariSaya: true }));
+  const semua = await pelajaranA();
+  assert.equal(semua.length, awal);
+  const r = semua.find((x) => x.jawaban.includes("0955193763"));
+  assert.equal(r.kali, 2);
+  assert.equal(r.pertanyaan, "rekening buat transfer apa kak"); // pertanyaan terbaru
+});
+
+await cek("pelanggan lain bertanya hal serupa: balasan admin ikut jadi pengetahuan AI", async () => {
+  const P = "555000422@lid";
+  const n0 = hermes.panggilan.length;
+  tiba(sA, pesan(P, "Halo min, mau transfer, nomor rekeningnya berapa?"));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
+  const s = hermes.panggilan.at(-1).sistem;
+  const pengetahuan = s.match(/<pengetahuan_nomor>([\s\S]*)<\/pengetahuan_nomor>/)[1];
+  assert.match(pengetahuan, /KODEUNIK-A/); // base knowledge tetap ada
+  assert.match(pengetahuan, /## Balasan admin sebelumnya[\s\S]*JANGAN menyebut detail milik pelanggan lain[\s\S]*Pelanggan: rekening buat transfer apa kak\nAdmin: .*0955193763/);
+  assert.doesNotMatch(s, /<catatan_percakapan>/, "chat baru tanpa riwayat: tidak ada blok isi chat");
+  await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
+});
+
+await cek("pertanyaan yang tidak berhubungan / hanya sapaan: tidak ada balasan admin yang disisipkan", async () => {
+  const P = "555000423@lid";
+  const n0 = hermes.panggilan.length;
+  tiba(sA, pesan(P, "selamat pagi min"));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
+  assert.doesNotMatch(hermes.panggilan.at(-1).sistem, /Balasan admin sebelumnya/);
+  await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
+  assert.equal((await pl.konteksPelajaran(A.id, "jam:* | buka:*")).n, 0);
+});
+
+await cek("belajar dimatikan: balasan baru tidak disimpan dan yang tersimpan tidak dipakai", async () => {
+  await setBelajar(A.id, false);
+  try {
+    const P = "555000424@lid";
+    const awal = (await pelajaranA()).length;
+    tiba(sA, pesan(P, "kalau pesan untuk acara kantor bisa?"));
+    await tidur(200);
+    tiba(sA, pesan(P, "Bisa kak, untuk acara kantor minimal pesan 20 porsi ya", { dariSaya: true }));
+    assert.equal((await pelajaranA()).length, awal);
+    const P2b = "555000425@lid";
+    const n0 = hermes.panggilan.length;
+    tiba(sA, pesan(P2b, "nomor rekening transfer berapa?"));
+    await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
+    assert.doesNotMatch(hermes.panggilan.at(-1).sistem, /Balasan admin sebelumnya|0955193763/);
+    await tunggu(() => sA.terkirim.at(-1)?.jid === P2b, 4000);
+  } finally {
+    await setBelajar(A.id, true);
+  }
+});
+
+await cek("dashboard: daftar berkursor, hapus satu & semua hanya untuk nomor itu; batas baris per nomor", async () => {
+  const lain = await nomorCepat("Toko Lain");
+  await sql`INSERT INTO pelajaran (number_id, sidik, jawaban, terakhir_pada) VALUES (${lain.id}, 'x1', 'jawaban toko lain yang cukup panjang', ${kini()})`;
+  const kosong = await pl.konteksPelajaran(lain.id, "rekening:* | transfer:*");
+  assert.equal(kosong.n, 0, "pelajaran Toko A tidak bocor ke nomor lain");
+  // isi 45 baris tambahan ke Toko A lalu baca berhalaman 20 + 20 + sisa
+  const kini0 = kini();
+  await sql`INSERT INTO pelajaran ${sql(Array.from({ length: 45 }, (_, i) => ({ number_id: A.id, sidik: `isi${i}`, pertanyaan: `tanya ${i}`, jawaban: `jawaban nomor ${i} yang cukup panjang`, terakhir_pada: kini0 - 1000 - (i % 5) })))}`;
+  const total = await pl.jumlahPelajaran(A.id);
+  const h1 = await pl.daftarPelajaran(A.id);
+  const a1 = h1.daftar.at(-1);
+  const h2 = await pl.daftarPelajaran(A.id, { waktu: a1.terakhir_pada, id: a1.id });
+  const a2 = h2.daftar.at(-1);
+  const h3 = await pl.daftarPelajaran(A.id, { waktu: a2.terakhir_pada, id: a2.id });
+  assert.equal(h1.daftar.length, 20);
+  assert.ok(h1.adaLagi && h2.adaLagi && !h3.adaLagi);
+  const ids = [...h1.daftar, ...h2.daftar, ...h3.daftar].map((x) => x.id);
+  assert.equal(new Set(ids).size, total, "tiap baris muncul tepat sekali");
+  assert.equal(await pl.hapusPelajaran(lain.id, h1.daftar[0].id), 0, "tidak bisa menghapus milik nomor lain");
+  assert.equal(await pl.hapusPelajaran(A.id, h1.daftar[0].id), 1);
+  // batas per nomor: setiap 50 tulis, kelebihan di atas BATAS_PELAJARAN (yang paling lama) dibuang
+  await sql`INSERT INTO pelajaran ${sql(Array.from({ length: pl.BATAS_PELAJARAN }, (_, i) => ({ number_id: lain.id, sidik: `b${i}`, jawaban: `isi ${i}`, terakhir_pada: kini0 - 5000 + i })))}`;
+  globalThis.__waPelajaran.tulis = 49;
+  await pl.pelajariBalasan({ numberId: lain.id, kunci: "tidak-ada", jawaban: "Balasan baru yang cukup panjang untuk dipelajari", waktu: kini0 });
+  assert.equal(await pl.jumlahPelajaran(lain.id), pl.BATAS_PELAJARAN);
+  assert.equal((await sql`SELECT COUNT(*)::int AS n FROM pelajaran WHERE number_id = ${lain.id} AND sidik IN ('b0', 'b1')`)[0].n, 0, "yang paling lama dibuang");
+  assert.equal((await sql`SELECT COUNT(*)::int AS n FROM pelajaran WHERE number_id = ${lain.id} AND sidik IN ('x1', 'b2')`)[0].n, 2);
+  assert.equal(await pl.hapusPelajaran(lain.id), pl.BATAS_PELAJARAN);
+  assert.ok((await pl.jumlahPelajaran(A.id)) > 0);
+});
+
+await cek("ukuran: pencarian pelajaran & isi chat untuk AI tetap cepat (30 nomor x 500 pelajaran)", async () => {
+  // 29 nomor tiruan (langsung lewat SQL, dihapus lagi di akhir) + Toko A
+  const tiruan = (await sql`INSERT INTO numbers (sesi, label, created_at) SELECT 'ukur' || g, 'ukur', 0 FROM generate_series(1, 29) g RETURNING id`).map((r) => r.id);
+  const baris = [];
+  for (const id of [A.id, ...tiruan])
+    for (let i = 0; i < 500; i++) baris.push({ number_id: id, sidik: `ukur${i}`, pertanyaan: `pertanyaan pelanggan ${i} soal menu porsi harga ongkir`, jawaban: `jawaban admin ${i} tentang pengiriman, pembayaran, dan jam buka outlet`, terakhir_pada: kini() - i });
+  for (let i = 0; i < baris.length; i += 2000) await sql`INSERT INTO pelajaran ${sql(baris.slice(i, i + 2000))} ON CONFLICT DO NOTHING`;
+  await sql`ANALYZE pelajaran`;
+  const { kueriCari } = await lib("src/lib/knowledge.ts");
+  const q = kueriCari(pl.saringKueri("min ongkir ke bekasi berapa ya, bayarnya transfer bisa?"));
+  const rencana = (await sql.unsafe(
+    `EXPLAIN (ANALYZE, BUFFERS) SELECT p.pertanyaan, p.jawaban FROM to_tsquery('simple', $1) q, pelajaran p
+      WHERE p.number_id = $2 AND p.cari @@ q ORDER BY ts_rank(p.cari, q, 1) DESC, p.kali DESC, p.terakhir_pada DESC LIMIT 3`,
+    [q, A.id]
+  )).map((r) => r["QUERY PLAN"]);
+  const ms = Number(rencana.at(-1).match(/([\d.]+) ms/)[1]);
+  assert.match(rencana.join("\n"), /Index Scan|Bitmap Index Scan/, "memakai indeks number_id, bukan memindai semua nomor");
+  assert.ok(ms < 20, `pencarian ${ms} ms`);
+  const t = performance.now();
+  for (let i = 0; i < 20; i++) await pl.konteksPelajaran(A.id, q);
+  const rata = (performance.now() - t) / 20;
+  const { riwayatUntukAi } = await lib("src/lib/percakapan.ts");
+  const t2 = performance.now();
+  for (let i = 0; i < 20; i++) await riwayatUntukAi(kunciChat(A.sesi, P2), { sesiBaru: true, tertunda: 0 });
+  const rata2 = (performance.now() - t2) / 20;
+  console.log(`        (${baris.length} baris: rencana ${ms} ms; konteksPelajaran ${rata.toFixed(2)} ms; riwayatUntukAi ${rata2.toFixed(2)} ms per panggilan)`);
+  console.log(`        ${rencana.filter((r) => /Scan|Execution/.test(r)).map((r) => r.trim()).join("\n        ")}`);
+  await sql`DELETE FROM pelajaran WHERE sidik LIKE 'ukur%'`;
+  await sql`DELETE FROM numbers WHERE id IN ${sql(tiruan)}`;
 });
 
 // =====================================================================================

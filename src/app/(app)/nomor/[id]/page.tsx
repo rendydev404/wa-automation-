@@ -6,6 +6,7 @@ import { ConnectionCard } from "@/components/connection-card";
 import { HistoriPercakapan } from "@/components/conversation-history";
 import { KnowledgePanel } from "@/components/knowledge-panel";
 import { NavBagian } from "@/components/nav-bagian";
+import { PanelPelajaran } from "@/components/panel-pelajaran";
 import { HapusNomor, LencanaTerhubung, NumberSettings, SaklarBot, SaklarSinkron } from "@/components/number-settings";
 import { KartuStat, Meter, Sparkline } from "@/components/stat";
 import { TestChat } from "@/components/test-chat";
@@ -13,6 +14,7 @@ import { sekarang } from "@/lib/db";
 import { angka, formatNomor, tanggal } from "@/lib/format";
 import { BATAS_UTUH, daftarDokumen } from "@/lib/knowledge";
 import { nomorById, statHarian, tanggalWib } from "@/lib/numbers";
+import { daftarPelajaran, jumlahPelajaran } from "@/lib/pelajaran";
 import { ambilPesanPercakapan, daftarPercakapan, ringkasanPercakapan } from "@/lib/percakapan";
 import { requireUser } from "@/lib/session";
 import { konfigurasi as konfigurasiSinkron, nomorSinkron, statusSinkron, type Status } from "@/lib/sinkron";
@@ -56,13 +58,15 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   if (!nomor) notFound();
 
   const hari = hariTerakhir(tanggalWib(), 7);
-  const [dokumen, sinkronIds, statusSs, ringkasanChat, daftarChat, stat] = await Promise.all([
+  const [dokumen, sinkronIds, statusSs, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran] = await Promise.all([
     daftarDokumen(id),
     nomorSinkron(),
     statusSinkron(),
     ringkasanPercakapan(id),
     daftarPercakapan(id),
     statHarian(hari[0], id),
+    jumlahPelajaran(id),
+    daftarPelajaran(id),
   ]);
   const chatPertama = daftarChat.daftar[0] ? await ambilPesanPercakapan(id, daftarChat.daftar[0].id) : null;
   const total = dokumen.reduce((n, d) => n + d.jumlah_karakter, 0);
@@ -139,7 +143,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
       />
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
-        <div id="knowledge" className="min-w-0">
+        <div id="knowledge" className="min-w-0 space-y-6">
           <KnowledgePanel
             numberId={nomor.id}
             total={total}
@@ -152,6 +156,15 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               jumlah_karakter: d.jumlah_karakter,
               tanggal: tanggal(d.created_at),
             }))}
+          />
+          <PanelPelajaran
+            key={`${totalPelajaran}-${pelajaran.daftar[0]?.id ?? 0}-${nomor.belajar}`}
+            numberId={nomor.id}
+            aktif={nomor.belajar}
+            total={totalPelajaran}
+            daftarAwal={pelajaran.daftar}
+            adaLagiAwal={pelajaran.adaLagi}
+            kini={sekarang()}
           />
         </div>
         <div className="min-w-0 space-y-6">

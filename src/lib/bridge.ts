@@ -4,7 +4,8 @@ import { db, sekarang, setSetting } from "./db";
 import { tanyaHermes } from "./hermes";
 import { susunSistem } from "./knowledge";
 import { type Nomor, catatStat, catatTerhubung, nomorBySesi } from "./numbers";
-import { catatPesan } from "./percakapan";
+import { catatPesan, riwayatUntukAi } from "./percakapan";
+import { pelajariBalasan } from "./pelajaran";
 import { type EventWa, digitWa, kirimTeks, mengetik, padaEvent, tandaiDibaca } from "./wa";
 
 /**
@@ -218,6 +219,8 @@ async function proses(kunci: string): Promise<void> {
       a.siap = null;
     } else {
       a.siap = null;
+      const tertunda = a.teks.length;
+      const sesiLalu = a.chat?.sesi_ke ?? 0;
       const pesan = a.teks.splice(0).join("\n").slice(0, MAKS_PESAN_KARAKTER);
       const sesi = ambilGiliran(kunci, a);
       if (sesi === null) {
@@ -228,7 +231,10 @@ async function proses(kunci: string): Promise<void> {
       const kueri = `${a.kueriLalu}\n${pesan}`;
       a.kueriLalu = pesan;
       try {
-        const { sistem } = await susunSistem(nomor, kueri, catatan);
+        // Isi chat yang tidak dilihat AI (balasan manusia, pesan selagi AI diam) dibaca dari histori,
+        // bersamaan dengan knowledge. Tulis histori yang masih antre ditunggu dulu supaya ikut terbaca.
+        const riwayat = st.tulis.then(() => riwayatUntukAi(kunci, { sesiBaru: sesi !== sesiLalu, tertunda }));
+        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat });
         jawaban = formatWa((await tanyaHermes({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan })).teks);
       } catch (e) {
         galat(a, e);
@@ -376,7 +382,10 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
     const dariBot = st.terkirim.has(ev.id);
     console.info(`[bridge] pesan keluar sesi=${sesi} -> ${dariBot ? "bot" : "manusia"}`);
     if (dariBot) return;
-    if (teksLog) tulisLatar(() => catatPesan({ numberId: nomor.id, kunci, peran: 2, teks: teksLog, waktu: ev.waktu || sekarang(), telepon }));
+    const waktu = ev.waktu || sekarang();
+    if (teksLog) tulisLatar(() => catatPesan({ numberId: nomor.id, kunci, peran: 2, teks: teksLog, waktu, telepon }));
+    // AI belajar dari balasan manusia; sesudah balasan itu tercatat, supaya pertanyaannya bisa dirunut.
+    if (nomor.belajar && ev.teks.trim()) tulisLatar(() => pelajariBalasan({ numberId: nomor.id, kunci, jawaban: ev.teks, waktu }));
     // Manusia mengambil alih: batalkan jawaban AI yang sedang menunggu/disiapkan, lalu AI mundur.
     const a = await antreanUntuk(kunci, nomor.id, sesi, ev.alamat);
     if (nomor.jeda_detik > 0) jedaChat(kunci, a, nomor.jeda_detik);
@@ -389,9 +398,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
     a.siap = null;
     a.dibukaManusia = false;
     a.aktifSampai = Date.now() + Math.max(600_000, nomor.jeda_detik * 1000);
-    // Supaya AI nyambung saat nanti melanjutkan percakapan ini.
-    const isi = ev.teks.trim().slice(0, 300);
-    catat(a, isi ? `Pemilik nomor membalas sendiri ke lawan bicara: "${isi}"` : "Pemilik nomor mengirim media/lampiran sendiri ke lawan bicara.");
+    // AI tetap nyambung saat nanti melanjutkan: balasan ini tercatat di histori dan ikut dibaca (riwayatUntukAi).
     return;
   }
 

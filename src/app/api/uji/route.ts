@@ -18,10 +18,10 @@ export async function POST(req: Request) {
   if (!pesan || pesan.length > 2000) return NextResponse.json({ error: "Pesan kosong atau terlalu panjang." }, { status: 400 });
   if (!/^[a-z0-9]{8,24}$/.test(sesi)) return NextResponse.json({ error: "Sesi uji tidak valid." }, { status: 400 });
 
-  const { sistem, konteks } = await susunSistem(nomor, `${(b?.kueriLalu ?? "").slice(0, 2000)}\n${pesan}`);
+  const { sistem, konteks, pelajaran } = await susunSistem(nomor, `${(b?.kueriLalu ?? "").slice(0, 2000)}\n${pesan}`);
   try {
     const j = await tanyaHermes({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan });
-    return NextResponse.json({ teks: formatWa(j.teks), ms: j.ms, mode: konteks.mode, karakterKonteks: konteks.karakter });
+    return NextResponse.json({ teks: formatWa(j.teks), ms: j.ms, mode: konteks.mode, karakterKonteks: konteks.karakter, pelajaran });
   } catch (e) {
     return NextResponse.json({ error: `AI tidak menjawab: ${e instanceof Error ? e.message : "galat"}` }, { status: 502 });
   }

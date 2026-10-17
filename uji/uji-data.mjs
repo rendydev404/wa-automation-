@@ -104,7 +104,7 @@ await cek("semua tabel terimpor dengan jumlah yang benar; sisa yatim tidak ikut"
 await cek("isi dan tipe kolom utuh: id, boolean, pengaturan per nomor, tanda kutip, tanggal statistik", async () => {
   const n = await semuaNomor();
   assert.deepEqual(n.map((x) => x.id), [2, 5, 9]);
-  assert.deepEqual({ ...n[0] }, { id: 2, sesi: "n2xdcae0179", wa_id: "6281234500001", label: "tes", nama_wa: "Toko Lama", bot_aktif: true, instruksi: "Jawab singkat.", tunggu_detik: 7, tunggu_baca_detik: 60, jeda_detik: 900, created_at: kini - 8000, last_connected_at: kini - 50 });
+  assert.deepEqual({ ...n[0] }, { id: 2, sesi: "n2xdcae0179", wa_id: "6281234500001", label: "tes", nama_wa: "Toko Lama", bot_aktif: true, instruksi: "Jawab singkat.", tunggu_detik: 7, tunggu_baca_detik: 60, jeda_detik: 900, belajar: true, created_at: kini - 8000, last_connected_at: kini - 50 });
   assert.equal(n[1].bot_aktif, false);
   assert.equal(n[1].wa_id, null);
   assert.equal(n[2].label, "Outlet 'B'");

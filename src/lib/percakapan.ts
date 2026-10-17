@@ -230,6 +230,78 @@ export async function ambilPesanPercakapan(
   return { percakapan, pesan: potong, adaSebelumnya };
 }
 
+const RIWAYAT_BARIS = 20;
+const RIWAYAT_SESI_BARU = 10;
+const RIWAYAT_TEKS_MAKS = 500;
+const RIWAYAT_TOTAL_MAKS = 4_000;
+const LABEL_PERAN: Record<PeranPesan, string> = { 0: "Pelanggan", 1: "Kamu (AI)", 2: "Pemilik nomor" };
+const jamWib = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+/**
+ * Isi chat yang belum ada di ingatan AI (riwayat Hermes per sesi), untuk disertakan di giliran AI berikutnya:
+ * balasan manusia dari HP dan pesan pelanggan yang masuk selagi AI diam. Dengan begitu AI melanjutkan dari
+ * apa yang sebenarnya terjadi di chat, bukan hanya dari yang pernah ia jawab.
+ *   - Sesi Hermes yang sama: pesan SETELAH balasan AI terakhir (sebelumnya sudah ada di riwayat Hermes).
+ *   - Sesi Hermes baru (pertama kali, atau setelah lama diam): `RIWAYAT_SESI_BARU` pesan terakhir sebagai latar.
+ *   - `tertunda` pesan pelanggan paling akhir sedang dijawab (dikirim sebagai pesan biasa): tidak diulang.
+ * Satu Index Scan pada pesan_chat_percakapan_idx (paling banyak RIWAYAT_BARIS baris).
+ */
+export async function riwayatUntukAi(kunci: string, opsi: { sesiBaru: boolean; tertunda: number }): Promise<string[]> {
+  const sql = await db();
+  const baris = await sql<{ peran: PeranPesan; teks: string; waktu: number }[]>`
+    SELECT peran, teks, waktu
+      FROM pesan_chat
+     WHERE percakapan_id = (SELECT id FROM percakapan WHERE kunci = ${kunci})
+     ORDER BY id DESC
+     LIMIT ${RIWAYAT_BARIS}`;
+  const urut = [...baris].reverse(); // lama -> baru
+  let akhir = urut.length;
+  for (let n = opsi.tertunda; n > 0 && akhir > 0 && urut[akhir - 1].peran === 0; n--) akhir--;
+  let awal = 0;
+  if (opsi.sesiBaru) awal = Math.max(0, akhir - RIWAYAT_SESI_BARU);
+  else for (let i = akhir - 1; i >= 0; i--) if (urut[i].peran === 1) { awal = i + 1; break; }
+
+  // Anggaran dihitung dari yang terbaru: bila terlalu panjang, yang paling lama dibuang.
+  const keluar: string[] = [];
+  let terpakai = 0;
+  for (let i = akhir - 1; i >= awal; i--) {
+    const m = urut[i];
+    const isi = m.teks.replace(/\s*\n\s*/g, " / ").slice(0, RIWAYAT_TEKS_MAKS);
+    const baris = `[${jamWib.format(m.waktu * 1000)}] ${LABEL_PERAN[m.peran]}: ${isi}`;
+    if (terpakai + baris.length > RIWAYAT_TOTAL_MAKS && keluar.length) break;
+    keluar.push(baris);
+    terpakai += baris.length;
+  }
+  return keluar.reverse();
+}
+
+/**
+ * Pesan pelanggan yang baru saja dijawab manusia di percakapan `kunci` (dipakai pelajaran.ts):
+ * rangkaian pesan pelanggan terakhir sebelum balasan itu, paling banyak 3 dan tidak lebih lama dari 6 jam.
+ * Balasan manusia/AI di antaranya dilewati, jadi admin yang membetulkan jawaban AI tetap terpasang ke pertanyaannya.
+ */
+export async function pertanyaanTerakhir(kunci: string, waktuBalasan: number): Promise<string> {
+  const sql = await db();
+  const baris = await sql<{ peran: PeranPesan; teks: string; waktu: number }[]>`
+    SELECT peran, teks, waktu
+      FROM pesan_chat
+     WHERE percakapan_id = (SELECT id FROM percakapan WHERE kunci = ${kunci})
+     ORDER BY id DESC
+     LIMIT 12`;
+  const ambil: string[] = [];
+  for (const m of baris) {
+    if (m.peran !== 0) {
+      if (ambil.length) break;
+      continue;
+    }
+    if (waktuBalasan - m.waktu > 6 * 3600) break;
+    const t = m.teks.replace(/\[Lampiran media\]/g, "").trim();
+    if (t) ambil.push(t);
+    if (ambil.length === 3) break;
+  }
+  return ambil.reverse().join("\n");
+}
+
 /**
  * Hapus histori percakapan milik `numberId`: satu percakapan (`percakapanId`) atau semuanya.
  * Isi pesan ikut terhapus lewat ON DELETE CASCADE (memakai indeks pesan_chat_percakapan_idx).

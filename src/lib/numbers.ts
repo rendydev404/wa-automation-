@@ -13,6 +13,7 @@ export interface Nomor {
   tunggu_detik: number; // AI menunggu balasan manusia selama ini sebelum menjawab
   tunggu_baca_detik: number; // chat sudah dibuka manusia di HP tapi tidak dibalas: AI mengambil alih setelah ini
   jeda_detik: number; // setelah manusia membalas, AI diam di chat itu selama ini (0 = hanya pesan itu)
+  belajar: boolean; // AI belajar dari balasan manusia di nomor ini (lihat pelajaran.ts)
   created_at: number;
   last_connected_at: number | null;
 }
@@ -44,7 +45,7 @@ const st = (g.__waNomor ??= { janji: null });
 async function muat(): Promise<Cache> {
   const sql = await db();
   const semua = await sql<Nomor[]>`
-    SELECT id, sesi, wa_id, label, nama_wa, bot_aktif, instruksi, tunggu_detik, tunggu_baca_detik, jeda_detik, created_at, last_connected_at
+    SELECT id, sesi, wa_id, label, nama_wa, bot_aktif, instruksi, tunggu_detik, tunggu_baca_detik, jeda_detik, belajar, created_at, last_connected_at
       FROM numbers ORDER BY id`;
   return { semua: [...semua], perId: new Map(semua.map((n) => [n.id, n])), perSesi: new Map(semua.map((n) => [n.sesi, n])) };
 }
@@ -76,7 +77,7 @@ export async function nomorBySesi(sesi: string): Promise<Nomor | undefined> {
 export async function daftarNomor(): Promise<NomorRingkas[]> {
   const sql = await db();
   const baris = await sql<NomorRingkas[]>`
-    SELECT n.id, n.sesi, n.wa_id, n.label, n.nama_wa, n.bot_aktif, n.instruksi, n.tunggu_detik, n.tunggu_baca_detik, n.jeda_detik, n.created_at, n.last_connected_at,
+    SELECT n.id, n.sesi, n.wa_id, n.label, n.nama_wa, n.bot_aktif, n.instruksi, n.tunggu_detik, n.tunggu_baca_detik, n.jeda_detik, n.belajar, n.created_at, n.last_connected_at,
            COALESCE(d.jumlah, 0)   AS jumlah_dokumen,
            COALESCE(d.karakter, 0) AS jumlah_karakter,
            COALESCE(s.dibalas, 0)  AS dibalas_hari_ini,
@@ -129,7 +130,7 @@ export async function tambahNomor(label: string): Promise<Nomor> {
     WITH baru AS (SELECT nextval(pg_get_serial_sequence('numbers', 'id'))::integer AS id)
     INSERT INTO numbers(id, sesi, label, created_at)
     SELECT id, 'n' || id || 'x' || ${randomBytes(4).toString("hex")}, ${label}, ${sekarang()} FROM baru
-    RETURNING id, sesi, wa_id, label, nama_wa, bot_aktif, instruksi, tunggu_detik, tunggu_baca_detik, jeda_detik, created_at, last_connected_at`;
+    RETURNING id, sesi, wa_id, label, nama_wa, bot_aktif, instruksi, tunggu_detik, tunggu_baca_detik, jeda_detik, belajar, created_at, last_connected_at`;
   basi();
   return n;
 }
@@ -160,6 +161,12 @@ export async function ubahNomor(id: number, data: { label: string; instruksi: st
 export async function setBotAktif(id: number, aktif: boolean): Promise<void> {
   const sql = await db();
   await sql`UPDATE numbers SET bot_aktif = ${aktif} WHERE id = ${id}`;
+  basi();
+}
+
+export async function setBelajar(id: number, aktif: boolean): Promise<void> {
+  const sql = await db();
+  await sql`UPDATE numbers SET belajar = ${aktif} WHERE id = ${id}`;
   basi();
 }
 
