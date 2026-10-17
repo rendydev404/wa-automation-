@@ -49,10 +49,10 @@ export function TestChat({ numberId }: { numberId: number }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ numberId, pesan: isi, sesi: sesi.current, kueriLalu: lalu.current }),
       });
-      const d = (await res.json().catch(() => ({}))) as { teks?: string; ms?: number; mode?: keyof typeof MODE; pelajaran?: number; error?: string };
+      const d = (await res.json().catch(() => ({}))) as { teks?: string; ms?: number; mode?: keyof typeof MODE; pelajaran?: number; diblokir?: boolean; error?: string };
       if (res.ok && d.teks) {
         lalu.current = isi;
-        const meta = `${((d.ms ?? 0) / 1000).toFixed(1).replace(".", ",")} dtk · ${MODE[d.mode ?? "kosong"]}${d.pelajaran ? ` · ${d.pelajaran} balasan admin` : ""}`;
+        const meta = `${((d.ms ?? 0) / 1000).toFixed(1).replace(".", ",")} dtk · ${MODE[d.mode ?? "kosong"]}${d.pelajaran ? ` · ${d.pelajaran} balasan admin` : ""}${d.diblokir ? " · kode diblokir" : ""}`;
         setPesan((p) => [...p, { dari: "bot", teks: d.teks!, meta }]);
       } else setPesan((p) => [...p, { dari: "galat", teks: d.error ?? `Gagal (HTTP ${res.status}).` }]);
     } catch {

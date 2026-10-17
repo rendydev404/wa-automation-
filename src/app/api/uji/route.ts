@@ -3,6 +3,7 @@ import { formatWa } from "@/lib/bridge";
 import { tanyaHermes } from "@/lib/hermes";
 import { susunSistem } from "@/lib/knowledge";
 import { nomorById } from "@/lib/numbers";
+import { TOLAK_KODE, adaKode } from "@/lib/penjaga";
 import { getUser } from "@/lib/session";
 
 /** Uji bot dari dashboard: jalur yang sama dengan WhatsApp (knowledge nomor + Hermes), tanpa mengirim WA. */
@@ -21,7 +22,10 @@ export async function POST(req: Request) {
   const { sistem, konteks, pelajaran } = await susunSistem(nomor, `${(b?.kueriLalu ?? "").slice(0, 2000)}\n${pesan}`);
   try {
     const j = await tanyaHermes({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan });
-    return NextResponse.json({ teks: formatWa(j.teks), ms: j.ms, mode: konteks.mode, karakterKonteks: konteks.karakter, pelajaran });
+    // Penjaga yang sama dengan WhatsApp, supaya hasil uji mencerminkan yang benar-benar terkirim.
+    const diblokir = adaKode(j.teks);
+    const teks = diblokir ? TOLAK_KODE : formatWa(j.teks);
+    return NextResponse.json({ teks, ms: j.ms, mode: konteks.mode, karakterKonteks: konteks.karakter, pelajaran, diblokir });
   } catch (e) {
     return NextResponse.json({ error: `AI tidak menjawab: ${e instanceof Error ? e.message : "galat"}` }, { status: 502 });
   }

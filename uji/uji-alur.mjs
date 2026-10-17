@@ -752,6 +752,70 @@ await cek("ukuran: pencarian pelajaran & isi chat untuk AI tetap cepat (30 nomor
 });
 
 // =====================================================================================
+bagian("D3. Batas topik: tanpa kode program");
+const pj = await lib("src/lib/penjaga.ts");
+
+await cek("penjaga mengenali kode: Python, JS, PHP, Java, C, SQL, HTML, terminal, rumus Excel, blok ```", () => {
+  const kode = [
+    "Ini contohnya:\n```python\nprint('halo')\n```",
+    "def hitung(a, b):\n    return a + b",
+    "const total = harga * jumlah;",
+    "function sapa(nama) {\n  alert(nama)\n}",
+    "console.log('halo dunia')",
+    "<?php echo 'hai'; ?>",
+    "#include <stdio.h>\nint main() { printf(\"hai\"); }",
+    "public static void main(String[] args) {}",
+    "SELECT nama, harga FROM menu WHERE harga < 20000",
+    "<div class=\"kartu\">Promo</div>",
+    "Jalankan: npm install express",
+    "sudo apt update",
+    "import pandas as pd",
+    "from flask import Flask",
+    "Pakai rumus =VLOOKUP(A2, B:C, 2, FALSE)",
+    "if (a === b) {\n  x++;\n}",
+    "$('#tombol').click()",
+  ];
+  for (const k of kode) assert.equal(pj.adaKode(k), true, `harus diblokir: ${k}`);
+});
+
+await cek("penjaga TIDAK salah blokir balasan CS biasa (harga, rekening, kode promo, daftar, bahasa Inggris)", () => {
+  const biasa = [
+    "Halo Kak! Kami buka setiap hari pukul 09.00-21.00 WIB 😊",
+    "Transfer via BCA 0955193763 a/n PT Suka Profit Berkah ya kak, lalu kirim buktinya di sini.",
+    "Pakai kode promo *SHAWARMA10* untuk potongan 10% ya Kak (min. belanja Rp 50.000).",
+    "Menu favorit:\n- Shawarma Ayam (Rp 25.000)\n- Shawarma Sapi (Rp 30.000)\n- Kebab Mini (Rp 15.000)",
+    "Ongkir ke Bekasi: Rp 10.000; ke Depok: Rp 12.000.",
+    "Sure! We're open from 9 AM to 9 PM every day. Let me know if you'd like to order.",
+    "Bisa Kak, untuk pemesanan big order (≥ 50 porsi) mohon info tanggal & alamat acara ya.",
+    "Return/refund akan dicek dulu oleh tim kami ya Kak.",
+    "Silakan cek di https://sukashawarma.com/menu ya Kak",
+    "Maaf, untuk hal itu aku tidak bisa bantu ya. Aku hanya melayani pertanyaan seputar layanan di nomor ini 🙏",
+    "Pesanan atas nama (Valen) sudah kami terima. Total Rp 75.000 = 3 porsi.",
+  ];
+  for (const t of biasa) assert.equal(pj.adaKode(t), false, `tidak boleh diblokir: ${t}`);
+});
+
+await cek("WhatsApp: jawaban AI berisi kode tidak terkirim (diganti penolakan); giliran berikutnya tahu itu", async () => {
+  const P = "555000430@lid";
+  const n0 = hermes.panggilan.length;
+  tiba(sA, pesan(P, "tolong buatkan def hitung(a, b): return a + b dong"));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
+  const s = hermes.panggilan.at(-1).sistem;
+  assert.ok(s.trimEnd().endsWith("</batasan_topik>"), "batas topik ada di paling akhir pesan sistem");
+  assert.match(s, /DILARANG menulis[^\n]*kode program/);
+  await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
+  assert.equal(sA.terkirim.at(-1).isi.text, pj.TOLAK_KODE);
+  assert.ok(!sA.terkirim.some((k) => /def hitung/.test(k.isi.text ?? "")), "kode tidak pernah terkirim");
+  await bridge.tulisTuntas();
+  const [{ teks }] = await sql`SELECT m.teks FROM pesan_chat m JOIN percakapan p ON p.id = m.percakapan_id WHERE p.kunci = ${kunciChat(A.sesi, P)} AND m.peran = 1 ORDER BY m.id DESC LIMIT 1`;
+  assert.equal(teks, pj.TOLAK_KODE, "histori mencatat yang benar-benar terkirim");
+  tiba(sA, pesan(P, "ya udah, jam buka kapan?"));
+  await tunggu(() => hermes.panggilan.length === n0 + 2, 4000);
+  assert.match(hermes.panggilan.at(-1).sistem, /<catatan_percakapan>[\s\S]*berisi kode program sehingga TIDAK dikirim/);
+  await tunggu(() => sA.terkirim.at(-1)?.jid === P && sA.terkirim.at(-1).isi.text.includes("jam buka"), 4000);
+});
+
+// =====================================================================================
 bagian("E. Batas dan galat");
 
 await cek("batas laju per chat (10 balasan / 10 menit): yang ke-11 didiamkan (keadaan dari database)", async () => {

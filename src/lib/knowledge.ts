@@ -2,6 +2,7 @@ import "server-only";
 import { db, sekarang, transaksi } from "./db";
 import type { Nomor } from "./numbers";
 import { konteksPelajaran, saringKueri } from "./pelajaran";
+import { ATURAN_TOPIK } from "./penjaga";
 
 /**
  * Base knowledge per nomor WhatsApp. Teks dipotong jadi potongan ±900 karakter dan diindeks
@@ -282,5 +283,7 @@ export async function susunSistem(
     if (catatan.length) baris.push(...catatan.map((c) => `- ${c}`));
     bagian.push(`<catatan_percakapan>\n${baris.join("\n")}\n</catatan_percakapan>`);
   }
+  // Paling akhir dan di luar blok admin: batas topik berlaku untuk semua nomor dan tidak bisa ditimpa knowledge.
+  bagian.push(ATURAN_TOPIK);
   return { sistem: bagian.join("\n\n"), konteks, pelajaran: pelajaran.n };
 }

@@ -6,6 +6,7 @@ import { susunSistem } from "./knowledge";
 import { type Nomor, catatStat, catatTerhubung, nomorBySesi } from "./numbers";
 import { catatPesan, riwayatUntukAi } from "./percakapan";
 import { pelajariBalasan } from "./pelajaran";
+import { CATATAN_KODE_DIBLOKIR, TOLAK_KODE, adaKode } from "./penjaga";
 import { type EventWa, digitWa, kirimTeks, mengetik, padaEvent, tandaiDibaca } from "./wa";
 
 /**
@@ -235,7 +236,13 @@ async function proses(kunci: string): Promise<void> {
         // bersamaan dengan knowledge. Tulis histori yang masih antre ditunggu dulu supaya ikut terbaca.
         const riwayat = st.tulis.then(() => riwayatUntukAi(kunci, { sesiBaru: sesi !== sesiLalu, tertunda }));
         const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat });
-        jawaban = formatWa((await tanyaHermes({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan })).teks);
+        const mentah = (await tanyaHermes({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan })).teks;
+        if (adaKode(mentah)) {
+          // Pengaman terakhir: kode program tidak pernah sampai ke WhatsApp, apa pun isi pesannya.
+          console.warn(`[bridge] jawaban AI berisi kode, diganti penolakan sesi=${a.sesi}`);
+          jawaban = TOLAK_KODE;
+          catat(a, CATATAN_KODE_DIBLOKIR);
+        } else jawaban = formatWa(mentah);
       } catch (e) {
         galat(a, e);
         void mengetik(a.sesi, a.alamat, false);
