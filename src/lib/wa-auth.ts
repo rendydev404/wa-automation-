@@ -170,6 +170,22 @@ export async function tungguTulis(sesi: string): Promise<void> {
 }
 
 /**
+ * Menunggu sampai antrean tulis SEMUA sesi kosong dan tetap kosong sejenak. Baileys menulis kunci
+ * lewat beberapa lapis promise (mutex, cache), jadi tulisan yang sedang berjalan bisa baru masuk
+ * antrean sesaat setelah dicek; yang ditunggu adalah antrean yang benar-benar tenang.
+ */
+export async function tungguSemuaTulis(): Promise<void> {
+  let tenang = 0;
+  while (tenang < 2) {
+    await new Promise((r) => setTimeout(r, 50));
+    if (antre.size) {
+      tenang = 0;
+      await Promise.all([...antre.values()].map((p) => p.catch(() => {})));
+    } else tenang += 1;
+  }
+}
+
+/**
  * Sesi yang sudah dipasangkan dengan sebuah nomor (kredensialnya punya identitas `me`).
  * Dipanggil sekali saat server mulai. Isi kredensial diperiksa di sini, bukan dengan fungsi JSON
  * di SQL: teksnya tidak dijamin bisa diubah ke jsonb (mis. nama profil dengan karakter aneh).

@@ -1140,6 +1140,31 @@ await cek("server mulai ulang: hanya nomor terpasang yang disambungkan, bergilir
   console.log(`        (12 nomor tersambung ulang dalam ${lama} ms)`);
 });
 
+await cek("proses dimatikan (SIGTERM): soket ditutup tanpa logout, tulisan kunci yang masih antre tuntas dulu", async () => {
+  const r = banyak[0];
+  const sok = soket.filter((x) => x.config.auth.creds.me?.id === r.s.user.id).at(-1);
+  const ditutup0 = sok.ditutup;
+  const keluar0 = sok.keluar;
+  const sebelum = await auth(r.n.sesi);
+  // Seperti tepat setelah QR dipindai: ratusan pre-key + kredensial baru ditulis, tidak ditunggu.
+  const kunci = {};
+  for (let i = 0; i < 1500; i++) kunci[`${90000 + i}`] = { public: Buffer.alloc(32, i % 256), private: Buffer.alloc(32, (i + 1) % 256) };
+  void sok.config.auth.keys.set({ "pre-key": kunci });
+  sok.pancar("creds.update", { nextPreKeyId: 91500, firstUnuploadedPreKeyId: 91500 });
+  await wa.matikanGerbang();
+  const [{ n }] = await sql`SELECT COUNT(*)::int AS n FROM wa_auth WHERE sesi = ${r.n.sesi}`;
+  assert.equal(n, sebelum + 1500, "semua pre-key sudah tertulis saat matikanGerbang selesai");
+  const [c] = await sql`SELECT teks FROM wa_auth WHERE sesi = ${r.n.sesi} AND kunci = 'creds'`;
+  assert.equal(JSON.parse(c.teks).nextPreKeyId, 91500, "kredensial terbaru tertulis");
+  assert.equal(sok.ditutup, ditutup0 + 1, "soket ditutup");
+  assert.equal(sok.keluar, keluar0, "tanpa logout (perangkat tetap tertaut)");
+  assert.equal(banyak.every((x) => wa.infoSesi(x.n.sesi).status === "STOPPED"), true);
+  const jumlah = soket.length;
+  sok.tutup(428); // event dari soket lama tidak memicu sambung ulang
+  await tidur(1500);
+  assert.equal(soket.length, jumlah);
+});
+
 await cek("database sempat tidak terjangkau saat server mulai: gerbang mencoba lagi sendiri", async () => {
   const st = globalThis.__waGerbang;
   for (const s of st.sesi.values()) if (s.timer) clearTimeout(s.timer);

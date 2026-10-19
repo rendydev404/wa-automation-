@@ -14,6 +14,8 @@ services:
     build: .
     image: wa-automation-app:local
     restart: unless-stopped
+    # Waktu untuk mati dengan rapi (menutup koneksi WhatsApp + menuntaskan tulisan kunci, maks ±10 dtk).
+    stop_grace_period: 20s
     network_mode: host
     env_file: .env
     environment:

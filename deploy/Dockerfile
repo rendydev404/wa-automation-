@@ -5,7 +5,10 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
     HOSTNAME=0.0.0.0 \
-    DATA_DIR=/data
+    DATA_DIR=/data \
+    NEXT_MANUAL_SIG_HANDLE=1
+# NEXT_MANUAL_SIG_HANDLE: Next.js tidak langsung exit saat SIGTERM; src/instrumentation.ts menutup
+# koneksi WhatsApp dan menuntaskan tulisan kunci dulu (kunci yang hilang = perangkat dicabut WhatsApp).
 WORKDIR /app
 
 RUN groupadd --system --gid 1001 nodejs \

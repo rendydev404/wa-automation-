@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import type { ConnectionState, SocketConfig, WAMessage, WASocket, proto } from "baileys";
 import { type BitQr, kemasQr } from "./qr";
 import { type Foto, MAKS_FOTO_BYTE, MIME_FOTO, type SesiNomor } from "./types";
-import { type AuthSesi, bukaAuth, hapusAuth, rapikanAuthYatim, sesiTerpasang } from "./wa-auth";
+import { type AuthSesi, bukaAuth, hapusAuth, rapikanAuthYatim, sesiTerpasang, tungguSemuaTulis } from "./wa-auth";
 
 /**
  * Gerbang WhatsApp: Baileys berjalan di dalam proses app ini, satu soket WebSocket per nomor
@@ -530,6 +530,34 @@ async function putus(s: Sesi, keluar: boolean): Promise<void> {
   } catch {
     void sock.end(undefined).catch(() => {});
   }
+}
+
+/**
+ * Dipanggil saat proses dimatikan (SIGTERM dari Docker tiap deploy): tutup semua soket tanpa logout,
+ * lalu tunggu kunci Signal & kredensial yang masih antre sampai tertulis. Tanpa ini proses keluar
+ * di tengah tulis; kunci yang hilang membuat WhatsApp mencabut perangkat setelah tersambung lagi
+ * (stream:error 401 device_removed), paling rawan tepat setelah QR dipindai.
+ */
+export async function matikanGerbang(batasMs = 8_000): Promise<void> {
+  const semua = [...st.sesi.values()];
+  for (const s of semua) {
+    s.gen += 1; // event dari soket yang ditutup tidak lagi diproses
+    if (s.timer) clearTimeout(s.timer);
+    if (s.timerOffline) clearTimeout(s.timerOffline);
+    s.timer = s.timerOffline = null;
+    const sock = s.sock;
+    s.sock = null;
+    s.status = "STOPPED";
+    lepasTunggu(s);
+    if (sock) {
+      try {
+        await sock.end(undefined);
+      } catch {
+        // soket sudah tertutup
+      }
+    }
+  }
+  await Promise.race([tungguSemuaTulis(), tidur(batasMs)]);
 }
 
 /** Keluarkan nomor dari sesi (unlink perangkat) dan buang kredensialnya. */

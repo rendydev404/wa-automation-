@@ -10,6 +10,9 @@ export async function register() {
     const { mulaiGerbang } = await import("@/lib/wa");
     // Tidak ditunggu: database dan koneksi ke WhatsApp disiapkan di latar, tidak menahan start server.
     void mulaiGerbang();
+    // SIGTERM saat deploy: tutup koneksi WhatsApp & tuntaskan tulisan kunci sebelum keluar.
+    const { pasangPenanganMati } = await import("@/lib/mati");
+    pasangPenanganMati();
     // Sinkron data Suka Shawarma: satu tarikan awal + pemeriksaan pengaman berkala (hanya bila dikonfigurasi).
     const { mulaiSinkron } = await import("@/lib/sinkron");
     mulaiSinkron();
