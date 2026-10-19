@@ -73,6 +73,25 @@ function berurutan<T>(sesi: string, kerja: () => Promise<T>): Promise<T> {
   return kini;
 }
 
+/**
+ * Tulisan kunci/kredensial tidak boleh hilang: bila memori dan database berbeda, setelah restart
+ * WhatsApp bisa mencabut perangkat. Gangguan database sesaat (restart, koneksi putus) dicoba lagi
+ * dengan jeda makin panjang (±30 dtk total); antrean sesi itu ikut menunggu supaya urutan tetap.
+ */
+const JEDA_ULANG_TULIS_MS = [250, 500, 1_000, 2_000, 4_000, 8_000, 15_000];
+
+async function tulisPasti(sesi: string, kerja: () => Promise<void>): Promise<void> {
+  for (let i = 0; ; i++) {
+    try {
+      return await kerja();
+    } catch (e) {
+      if (i >= JEDA_ULANG_TULIS_MS.length) throw e;
+      console.warn(`[wa ${sesi}] tulis kunci gagal (${e instanceof Error ? e.message : String(e)}), dicoba lagi`);
+      await new Promise((r) => setTimeout(r, JEDA_ULANG_TULIS_MS[i]));
+    }
+  }
+}
+
 export interface AuthSesi {
   creds: AuthenticationCreds;
   keys: SignalKeyStore;
@@ -118,7 +137,7 @@ export async function bukaAuth(B: Baileys, sesi: string): Promise<AuthSesi> {
           else simpan.push({ sesi, kunci, biner: null, teks: JSON.stringify(v, B.BufferJSON.replacer) });
         }
       }
-      return berurutan(sesi, async () => {
+      return berurutan(sesi, () => tulisPasti(sesi, async () => {
         const sql = await db();
         const tulis = async (q: typeof sql): Promise<void> => {
           // 4 parameter per baris; dipecah supaya jauh di bawah batas 65.535 parameter per pernyataan.
@@ -131,7 +150,7 @@ export async function bukaAuth(B: Baileys, sesi: string): Promise<AuthSesi> {
         // Satu pernyataan sudah atomik; transaksi hanya bila ada lebih dari satu.
         if ((simpan.length > 0 ? Math.ceil(simpan.length / 2000) : 0) + (hapus.length ? 1 : 0) > 1) await sql.begin((tx) => tulis(tx as unknown as typeof sql));
         else await tulis(sql);
-      });
+      }));
     },
     clear() {
       return berurutan(sesi, async () => {
@@ -147,11 +166,11 @@ export async function bukaAuth(B: Baileys, sesi: string): Promise<AuthSesi> {
     simpanCreds() {
       // Isi kredensial dibekukan SEKARANG; yang ditulis nanti adalah keadaan saat fungsi ini dipanggil.
       const teks = JSON.stringify(creds, B.BufferJSON.replacer);
-      void berurutan(sesi, async () => {
+      void berurutan(sesi, () => tulisPasti(sesi, async () => {
         const sql = await db();
         await sql`INSERT INTO wa_auth(sesi, kunci, teks) VALUES (${sesi}, 'creds', ${teks})
                   ON CONFLICT (sesi, kunci) DO UPDATE SET teks = EXCLUDED.teks, biner = NULL`;
-      }).catch((e) => console.error(`[wa ${sesi}] gagal menyimpan kredensial:`, e instanceof Error ? e.message : e));
+      })).catch((e) => console.error(`[wa ${sesi}] gagal menyimpan kredensial:`, e instanceof Error ? e.message : e));
     },
   };
 }

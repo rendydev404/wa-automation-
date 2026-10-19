@@ -14,8 +14,9 @@ services:
     build: .
     image: wa-automation-app:local
     restart: unless-stopped
-    # Waktu untuk mati dengan rapi (menutup koneksi WhatsApp + menuntaskan tulisan kunci, maks ±10 dtk).
-    stop_grace_period: 20s
+    # Waktu untuk mati dengan rapi: menutup koneksi WhatsApp + menuntaskan tulisan kunci (biasanya
+    # < 1 dtk; paling lama ±22 dtk bila database sedang tersendat dan tulisan dicoba ulang).
+    stop_grace_period: 30s
     network_mode: host
     env_file: .env
     environment:
@@ -34,9 +35,11 @@ services:
     # Terukur: app ±72 MB + pustaka Baileys ±40 MB, lalu beberapa MB per nomor terhubung.
     # Naikkan bersama NODE_OPTIONS bila `docker stats` menunjukkan pemakaian mendekati batas.
     mem_limit: 512m
+    # journald: log tetap ada setelah container dibuat ulang saat deploy (json-file ikut terhapus),
+    # supaya penyebab nomor terputus selalu bisa dilacak: journalctl -t wa-automation --since "1 hour ago"
     logging:
-      driver: json-file
-      options: { max-size: "10m", max-file: "3" }
+      driver: journald
+      options: { tag: wa-automation }
 
 volumes:
   wa_data:

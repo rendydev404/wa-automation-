@@ -81,7 +81,12 @@ const sql = await db();
 const soket = [];
 const petaLid = new Map(); // PN -> LID yang "sudah dikenal" penyimpanan Baileys
 let versiDiminta = 0;
+let gagalBuat = 0; // >0: pembuatan soket berikutnya gagal sebanyak itu (mis. jaringan/database tak terjangkau)
 function buatSoket(config) {
+  if (gagalBuat > 0) {
+    gagalBuat -= 1;
+    throw new Error("tidak terjangkau (uji)");
+  }
   const ev = new EventEmitter();
   const s = {
     config,
@@ -1030,6 +1035,21 @@ await cek("sesi digantikan koneksi lain (440): tidak berebut; hubungkan() memaks
   sA = s;
 });
 
+await cek("440 berulang kali: nomor tertaut tidak pernah berhenti menyambung (hanya pemilik yang boleh memutus)", async () => {
+  const s = globalThis.__waGerbang.sesi.get(A.sesi);
+  s.gagal = 10;
+  const awal = soket.length;
+  sA.tutup(440);
+  assert.equal(wa.infoSesi(A.sesi).status, "STARTING", "bukan FAILED");
+  assert.ok(s.timer, "sambung ulang terjadwal");
+  const p = wa.hubungkan(A.sesi);
+  const baru = await tunggu(() => soket[awal], 1000);
+  baru.pancar("connection.update", { connection: "open" });
+  await p;
+  assert.equal(wa.infoSesi(A.sesi).status, "WORKING");
+  sA = baru;
+});
+
 await cek("logout dari dashboard: perangkat dicabut, kredensial dibuang, tidak menyambung ulang", async () => {
   const awal = soket.length;
   await wa.logout(A.sesi);
@@ -1163,6 +1183,42 @@ await cek("proses dimatikan (SIGTERM): soket ditutup tanpa logout, tulisan kunci
   sok.tutup(428); // event dari soket lama tidak memicu sambung ulang
   await tidur(1500);
   assert.equal(soket.length, jumlah);
+});
+
+await cek("database mati sesaat ketika kunci ditulis: tulisan dicoba ulang, tidak hilang", async () => {
+  const r = banyak[1];
+  const sok = soket.filter((x) => x.config.auth.creds.me?.id === r.s.user.id).at(-1);
+  const sebelum = await auth(r.n.sesi);
+  const peringatan = console.warn;
+  const catatan = [];
+  console.warn = (...a) => catatan.push(a.join(" "));
+  try {
+    await pg.berhentiSementara();
+    void sok.config.auth.keys.set({ "pre-key": { 77777: { public: Buffer.alloc(32, 7), private: Buffer.alloc(32, 8) } } });
+    await tidur(1500);
+    await pg.lanjut();
+    await tungguTulis(r.n.sesi);
+  } finally {
+    console.warn = peringatan;
+  }
+  assert.match(catatan.join("\n"), /tulis kunci gagal/);
+  assert.equal(await auth(r.n.sesi), sebelum + 1, "kunci tertulis setelah database kembali");
+});
+
+await cek("nomor tertaut gagal dibuat koneksinya berkali-kali: tetap dijadwalkan ulang, tidak pernah FAILED", async () => {
+  const st = globalThis.__waGerbang;
+  for (const x of st.sesi.values()) if (x.timer) clearTimeout(x.timer);
+  st.sesi.clear();
+  st.dimulai = false;
+  await wa.mulaiGerbang();
+  const s = st.sesi.get(banyak[0].n.sesi); // giliran pertama (±0-200 ms)
+  s.gagal = 10; // dulu: menyerah setelah 5 kali
+  gagalBuat = 1;
+  await tunggu(() => s.gagal === 11, 3000, "percobaan gagal");
+  assert.equal(wa.infoSesi(banyak[0].n.sesi).status, "STARTING", "bukan FAILED");
+  assert.ok(s.timer, "dijadwalkan lagi");
+  assert.match(s.alasan, /menyambung ulang/);
+  for (const x of st.sesi.values()) if (x.timer) clearTimeout(x.timer);
 });
 
 await cek("database sempat tidak terjangkau saat server mulai: gerbang mencoba lagi sendiri", async () => {

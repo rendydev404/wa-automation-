@@ -63,6 +63,8 @@ interface Sesi {
   /** Naik tiap soket dibuat atau sengaja diputus; event dari soket sebelumnya diabaikan. */
   gen: number;
   gagal: number;
+  /** Nomor sudah tertaut (punya kredensial `me`): sambung ulang tanpa pernah menyerah. */
+  terpasang: boolean;
   timer: ReturnType<typeof setTimeout> | null;
   /** Event satu sesi diproses berurutan. */
   rantai: Promise<void>;
@@ -90,6 +92,7 @@ const st: Keadaan = (g.__waGerbang ??= { sesi: new Map(), versiPada: 0, penangan
 
 const JEDA_MULAI_MS = 700; // jarak antar-nomor saat menyambungkan semuanya di awal
 const JEDA_ULANG_MAKS_MS = 60_000;
+const JEDA_DIGANTIKAN_MAKS_MS = 300_000;
 const KODE = { keluar: 401, ditolak: 403, versiDitolak: 405, waktuHabis: 408, tidakCocok: 411, digantikan: 440, mulaiUlang: 515 } as const;
 
 /** Pustaka dimuat saat pertama dibutuhkan, bukan saat server mulai atau saat build. */
@@ -165,6 +168,7 @@ function sesiAtauBaru(nama: string): Sesi {
       qrBit: null,
       gen: 0,
       gagal: 0,
+      terpasang: false,
       timer: null,
       rantai: Promise.resolve(),
       tunggu: [],
@@ -317,6 +321,7 @@ async function sambung(s: Sesi): Promise<void> {
     if (s.gen !== gen) return;
     auth = await bukaAuth(B, s.nama);
     if (s.gen !== gen) return;
+    if (auth.creds.me?.id) s.terpasang = true;
     const log = pencatat(s.nama);
     sock = B.makeWASocket({
       auth: { creds: auth.creds, keys: auth.keys },
@@ -336,9 +341,11 @@ async function sambung(s: Sesi): Promise<void> {
   } catch (e) {
     console.error(`[wa ${s.nama}] gagal membuat koneksi:`, e instanceof Error ? e.message : e);
     if (s.gen !== gen) return;
-    // Biasanya database sedang tidak terjangkau: coba lagi beberapa kali sebelum menyerah.
+    // Biasanya database sedang tidak terjangkau. Nomor yang sudah tertaut tidak pernah menyerah (hanya
+    // pemiliknya yang boleh memutus); yang belum tertaut berhenti setelah beberapa kali.
     s.gagal += 1;
-    if (s.gagal <= 5) {
+    if (s.terpasang || s.gagal <= 5) {
+      if (s.terpasang) s.alasan = "Sedang menyambung ulang (database atau WhatsApp belum terjangkau).";
       s.timer = setTimeout(() => void sambung(s), Math.min(JEDA_ULANG_MAKS_MS, 2_000 * 2 ** (s.gagal - 1)));
     } else {
       s.status = "FAILED";
@@ -389,6 +396,7 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
 
   if (u.connection === "open") {
     s.status = "WORKING";
+    s.terpasang = true;
     s.qr = s.qrBit = null;
     s.gagal = 0;
     s.alasan = null;
@@ -430,6 +438,7 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
   if (kode === KODE.keluar || !terpasang) {
     // Dikeluarkan dari HP, atau QR tidak jadi dipindai: kunci yang tersisa tidak berguna lagi, dan
     // tidak ada gunanya terus membuat QR baru tanpa ada yang memindai.
+    s.terpasang = false;
     void hapusAuth(s.nama).catch((e) => console.error(`[wa ${s.nama}] gagal membuang kredensial:`, e));
     s.status = terpasang ? "STOPPED" : "FAILED";
     s.alasan = terpasang
@@ -441,17 +450,24 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
     lepasTunggu(s);
     return;
   }
-  if (kode === KODE.ditolak || kode === KODE.tidakCocok || (kode === KODE.digantikan && s.gagal >= 5)) {
+  if (kode === KODE.ditolak || kode === KODE.tidakCocok) {
     s.status = "FAILED";
-    s.alasan = kode === KODE.digantikan ? "Sesi ini dipakai koneksi lain. Coba hubungkan ulang." : "WhatsApp menolak koneksi nomor ini (kemungkinan dibatasi atau diblokir).";
+    s.alasan = "WhatsApp menolak koneksi nomor ini (kemungkinan dibatasi atau diblokir).";
     console.warn(`[wa ${s.nama}] berhenti (kode ${kode})`);
     lepasTunggu(s);
     return;
   }
 
-  // Putus biasa (jaringan, server WhatsApp, dsb.): sambung ulang dengan jeda yang makin panjang.
+  // Putus biasa (jaringan, server WhatsApp, dsb.): sambung ulang dengan jeda yang makin panjang, tanpa
+  // pernah menyerah. 440 (sesi digantikan koneksi lain) juga: jedanya panjang supaya tidak saling
+  // rebut bila memang ada koneksi lain, lalu 5 menit setelah 5 kali berturut-turut.
   s.gagal += 1;
-  const dasar = kode === KODE.digantikan ? JEDA_ULANG_MAKS_MS : Math.min(JEDA_ULANG_MAKS_MS, 1_000 * 2 ** Math.min(s.gagal - 1, 6));
+  const dasar =
+    kode === KODE.digantikan
+      ? s.gagal > 5
+        ? JEDA_DIGANTIKAN_MAKS_MS
+        : JEDA_ULANG_MAKS_MS
+      : Math.min(JEDA_ULANG_MAKS_MS, 1_000 * 2 ** Math.min(s.gagal - 1, 6));
   const jeda = dasar + Math.floor(Math.random() * 1_000);
   s.status = "STARTING";
   console.warn(`[wa ${s.nama}] terputus (kode ${kode}), menyambung ulang dalam ${Math.round(jeda / 1000)} dtk`);
@@ -478,6 +494,7 @@ export async function mulaiGerbang(): Promise<void> {
   }
   daftar.forEach((nama, i) => {
     const s = sesiAtauBaru(nama);
+    s.terpasang = true;
     if (s.sock || s.timer) return; // sudah dijalankan lewat dashboard selagi menunggu database
     s.status = "STARTING";
     s.timer = setTimeout(() => void sambung(s), i * JEDA_MULAI_MS + Math.floor(Math.random() * 200));
@@ -516,6 +533,7 @@ async function putus(s: Sesi, keluar: boolean): Promise<void> {
   const terhubung = s.status === "WORKING";
   s.sock = null;
   s.status = "STOPPED";
+  if (keluar) s.terpasang = false;
   s.alasan = null;
   s.qr = s.qrBit = null;
   s.waId = null;
@@ -538,7 +556,7 @@ async function putus(s: Sesi, keluar: boolean): Promise<void> {
  * di tengah tulis; kunci yang hilang membuat WhatsApp mencabut perangkat setelah tersambung lagi
  * (stream:error 401 device_removed), paling rawan tepat setelah QR dipindai.
  */
-export async function matikanGerbang(batasMs = 8_000): Promise<void> {
+export async function matikanGerbang(batasMs = 20_000): Promise<void> {
   const semua = [...st.sesi.values()];
   for (const s of semua) {
     s.gen += 1; // event dari soket yang ditutup tidak lagi diproses
