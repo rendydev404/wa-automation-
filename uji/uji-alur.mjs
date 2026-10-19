@@ -20,6 +20,7 @@ mkdirSync(tmp, { recursive: true });
 const pg = await mulaiPg({ dir: path.join(tmp, "pg"), sementara: true });
 process.env.DATABASE_URL = pg.url;
 process.env.DATA_DIR = path.join(tmp, "data-kosong");
+process.env.AI_JEDA_ULANG_MS = "300,600";
 const lib = (f) => import(pathToFileURL(path.join(akar, f)).href);
 const tidur = (ms) => new Promise((r) => setTimeout(r, ms));
 const kini = () => Math.floor(Date.now() / 1000);
@@ -52,7 +53,9 @@ const server = http.createServer((req, res) => {
     };
     hermes.panggilan.push(p);
     setTimeout(() => {
-      if (hermes.gagal) {
+      // gagal: true = selalu gagal; angka = gagal sebanyak itu lalu pulih.
+      if (hermes.gagal === true || hermes.gagal > 0) {
+        if (typeof hermes.gagal === "number") hermes.gagal -= 1;
         res.statusCode = 500;
         return res.end("galat");
       }
@@ -929,13 +932,29 @@ await cek("percakapan lama dilanjutkan dengan nomor sesi Hermes yang tersimpan; 
   assert.equal(b.jendela_n, 1);
 });
 
-await cek("AI gagal menjawab: tercatat sebagai galat, tidak ada pesan terkirim", async () => {
+await cek("AI gagal sekali: pesan dicoba lagi lalu terjawab sekali", async () => {
+  const P = "555000502@lid";
+  hermes.gagal = 1;
+  const g0 = (await stat(A.id)).gagal;
+  const k0 = sA.terkirim.length;
+  tiba(sA, pesan(P, "masih ada slot?"));
+  await tunggu(() => sA.terkirim.length === k0 + 1, 6000, "balasan setelah dicoba ulang");
+  assert.equal((await stat(A.id)).gagal, g0 + 1);
+  assert.match(sA.terkirim.at(-1).isi.text, /masih ada slot/);
+  await tidur(900);
+  assert.equal(sA.terkirim.length, k0 + 1, "tidak terkirim dua kali");
+  hermes.gagal = false;
+});
+
+await cek("AI terus gagal: dicoba 2x lagi lalu menyerah, tidak ada pesan terkirim", async () => {
   const P = "555000503@lid";
   hermes.gagal = true;
   const g0 = (await stat(A.id)).gagal;
   const k0 = sA.terkirim.length;
   tiba(sA, pesan(P, "halo?"));
-  await tunggu(async () => (await stat(A.id)).gagal === g0 + 1, 4000);
+  await tunggu(async () => (await stat(A.id)).gagal === g0 + 3, 8000);
+  await tidur(1200);
+  assert.equal((await stat(A.id)).gagal, g0 + 3, "berhenti setelah 3 percobaan");
   hermes.gagal = false;
   assert.equal(sA.terkirim.length, k0);
   assert.match(JSON.parse(await getSetting("galat_terakhir")).pesan, /HTTP 500/);

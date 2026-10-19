@@ -40,6 +40,13 @@ const MAKS_PESAN_KARAKTER = 2_000;
 const MAKS_CATATAN = 6;
 const MAKS_BELUM_DIBACA = 30;
 const MAKS_FOTO_GILIRAN = 3;
+/**
+ * AI gagal menjawab (mis. penyedia model kena batas laju): pesan dicoba lagi setelah tiap jeda ini,
+ * lalu menyerah. Env AI_JEDA_ULANG_MS (mis. "15000,45000") menggantinya.
+ */
+const JEDA_ULANG_AI_MS = ((d) => (d.length ? d : [15_000, 45_000]))(
+  (process.env.AI_JEDA_ULANG_MS ?? "").split(",").map(Number).filter((n) => Number.isFinite(n) && n > 0)
+);
 
 interface BarisChat {
   sesi_ke: number;
@@ -80,6 +87,10 @@ interface Antrean {
   botBacaSampai: number;
   aktifSampai: number;
   kueriLalu: string;
+  /** Berapa kali pesan yang sedang menunggu sudah gagal dijawab AI. */
+  ulangAi: number;
+  /** >0: giliran berikutnya adalah percobaan ulang setelah AI gagal, dijadwalkan sejauh ini. */
+  jedaUlangMs: number;
 }
 
 interface Keadaan {
@@ -227,7 +238,8 @@ async function proses(kunci: string): Promise<void> {
       a.siap = null;
       const tertunda = a.teks.length;
       const sesiLalu = a.chat?.sesi_ke ?? 0;
-      const pesan = a.teks.splice(0).join("\n").slice(0, MAKS_PESAN_KARAKTER);
+      const asli = a.teks.splice(0);
+      const pesan = asli.join("\n").slice(0, MAKS_PESAN_KARAKTER);
       const pemuatFoto: (() => Promise<Foto | null>)[] = a.foto.splice(0);
       const sesi = ambilGiliran(kunci, a);
       if (sesi === null) {
@@ -256,9 +268,22 @@ async function proses(kunci: string): Promise<void> {
       } catch (e) {
         galat(a, e);
         void mengetik(a.sesi, a.alamat, false);
+        // Pesan dikembalikan ke antrean dan dicoba lagi, kecuali manusia sudah mengambil alih selagi menunggu.
+        if (a.generasi === generasi && !sedangDijeda(a) && a.ulangAi < JEDA_ULANG_AI_MS.length) {
+          a.jedaUlangMs = JEDA_ULANG_AI_MS[a.ulangAi];
+          a.ulangAi += 1;
+          a.teks.unshift(...asli);
+          a.foto.unshift(...pemuatFoto);
+          if (a.foto.length > MAKS_FOTO_GILIRAN) a.foto.splice(0, a.foto.length - MAKS_FOTO_GILIRAN);
+          console.warn(`[bridge] AI gagal menjawab sesi=${a.sesi}, dicoba lagi dalam ${a.jedaUlangMs / 1000} dtk`);
+        } else {
+          a.ulangAi = 0;
+          console.error(`[bridge] AI gagal menjawab sesi=${a.sesi}, pesan tidak dibalas`);
+        }
         return;
       }
     }
+    a.ulangAi = 0;
 
     const kurang = MIN_MENGETIK_MS - (Date.now() - mulai);
     if (kurang > 0) await tidur(kurang);
@@ -289,7 +314,10 @@ async function proses(kunci: string): Promise<void> {
     a.aktifSampai = Date.now() + 600_000;
     // Masih ada yang menunggu (pesan baru, atau jawaban yang ditahan): manusia diberi kesempatan dulu.
     // Masa tunggu setelah chat dibuka dihitung dari saat dibuka, bukan dari selesainya AI berpikir.
-    if (a.teks.length || a.siap) jadwalkan(kunci, a, a.dibukaManusia ? Math.max(1_000, a.dibacaPada + a.tungguBacaMs - Date.now()) : a.tungguMs);
+    const ulang = a.jedaUlangMs;
+    a.jedaUlangMs = 0;
+    if (a.teks.length || a.siap)
+      jadwalkan(kunci, a, ulang || (a.dibukaManusia ? Math.max(1_000, a.dibacaPada + a.tungguBacaMs - Date.now()) : a.tungguMs));
   }
 }
 
@@ -328,6 +356,8 @@ async function antreanUntuk(kunci: string, numberId: number, sesi: string, alama
     botBacaSampai: 0,
     aktifSampai: Date.now() + 600_000,
     kueriLalu: "",
+    ulangAi: 0,
+    jedaUlangMs: 0,
   };
   st.antre.set(kunci, a);
   if (st.antre.size > 500) rapikanAntrean();
