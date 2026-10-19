@@ -128,6 +128,18 @@ export async function pratinjauDokumen(id: number, numberId: number, maks = 1500
   return teks.length > maks ? teks.slice(0, maks).trimEnd() + "…" : teks;
 }
 
+/**
+ * Isi lengkap sebuah dokumen untuk diunduh. Berkas aslinya tidak disimpan (PDF pun hanya teksnya),
+ * jadi teks disusun ulang dari potongannya; digabung di database dalam satu query.
+ */
+export async function teksDokumen(id: number, numberId: number): Promise<{ judul: string; teks: string } | null> {
+  const sql = await db();
+  const [r] = await sql<{ judul: string; teks: string | null }[]>`
+    SELECT d.judul, (SELECT string_agg(c.isi, E'\n\n' ORDER BY c.urutan) FROM chunks c WHERE c.document_id = d.id) AS teks
+      FROM documents d WHERE d.id = ${id} AND d.number_id = ${numberId}`;
+  return r ? { judul: r.judul, teks: r.teks ?? "" } : null;
+}
+
 const STOP = new Set(
   "yang dan di ke dari untuk ini itu ada apa ya kak kakak saya aku kamu mau bisa berapa gimana bagaimana dong sih nih deh aja saja juga atau dengan pada adalah tidak nggak gak ga enggak sudah udah belum akan lagi kalau kalo jadi tapi the and for you are how what".split(" ")
 );

@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, FileText, Loader2, Trash2, Type, UploadCloud, X } from "lucide-react";
+import { Check, ChevronDown, Download, FileText, Loader2, Trash2, Type, UploadCloud, X } from "lucide-react";
 import { hapusDokumenAction, pratinjauAction, tambahTeksAction } from "@/app/actions";
 import { angka, ukuran } from "@/lib/format";
 import { Pesan, SubmitButton } from "./ui";
@@ -237,6 +237,15 @@ function Baris({ d, numberId }: { d: ItemDokumen; numberId: number }) {
             <button type="button" onClick={togglePratinjau} aria-label="Lihat isi" className="grid size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-subtle hover:text-fg">
               <ChevronDown className={`size-4 transition-transform ${buka ? "rotate-180" : ""}`} aria-hidden />
             </button>
+            <a
+              href={`/api/knowledge/unduh?id=${d.id}&nomor=${numberId}`}
+              download
+              aria-label={`Unduh ${d.judul}`}
+              title="Unduh sebagai .txt"
+              className="grid size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-subtle hover:text-fg"
+            >
+              <Download className="size-4" aria-hidden />
+            </a>
             <button type="button" onClick={() => setTanya(true)} aria-label={`Hapus ${d.judul}`} className="grid size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-danger-soft hover:text-danger">
               <Trash2 className="size-4" aria-hidden />
             </button>
