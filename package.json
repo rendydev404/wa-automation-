@@ -7,16 +7,18 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "uji": "node --no-warnings --import ./uji/loader.mjs uji/uji-auth.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-data.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-alur.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-sinkron.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-log.mjs",
+    "uji": "node --no-warnings --import ./uji/loader.mjs uji/uji-auth.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-data.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-alur.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-sinkron.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-log.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-pengguna.mjs",
     "db": "node --no-warnings uji/pg-lokal.mjs"
   },
   "dependencies": {
+    "@remotion/player": "4.0.535",
     "baileys": "7.0.0-rc14",
     "lucide-react": "^1.56.0",
     "next": "16.4.0",
     "postgres": "3.4.9",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "remotion": "4.0.535",
     "server-only": "^0.0.1",
     "unpdf": "^1.8.1",
     "uqr": "0.1.3"

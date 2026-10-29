@@ -2,20 +2,20 @@ import { NextResponse } from "next/server";
 import { formatWa } from "@/lib/bridge";
 import { tanyaHermes } from "@/lib/hermes";
 import { susunSistem } from "@/lib/knowledge";
-import { nomorById } from "@/lib/numbers";
 import { TOLAK_KODE, adaKode } from "@/lib/penjaga";
 import { type Foto, MAKS_FOTO_BYTE } from "@/lib/types";
-import { getUser } from "@/lib/session";
+import { sesiDanNomor } from "@/lib/akses";
+import { terlaluSering } from "@/lib/batas";
 
 /** Uji bot dari dashboard: jalur yang sama dengan WhatsApp (knowledge nomor + Hermes), tanpa mengirim WA. */
 export async function POST(req: Request) {
-  const user = await getUser();
-  if (!user) return NextResponse.json({ error: "Sesi berakhir. Silakan login kembali." }, { status: 401 });
-
   const b = (await req.json().catch(() => null)) as { numberId?: number; pesan?: string; sesi?: string; kueriLalu?: string; foto?: string } | null;
+  const { user, nomor } = await sesiDanNomor(b?.numberId);
+  if (!user) return NextResponse.json({ error: "Sesi berakhir. Silakan login kembali." }, { status: 401 });
+  // Uji memakai kuota AI yang sama dengan WhatsApp: dibatasi per akun.
+  if (terlaluSering(`uji:${user.id}`, 30, 10 * 60_000)) return NextResponse.json({ error: "Terlalu banyak uji. Tunggu beberapa menit." }, { status: 429 });
   const teksPesan = b?.pesan?.trim() ?? "";
   const sesi = b?.sesi ?? "";
-  const nomor = await nomorById(Number(b?.numberId));
   if (!nomor) return NextResponse.json({ error: "Nomor tidak ditemukan." }, { status: 404 });
   // Foto uji (opsional): data URL gambar yang sudah diperkecil di browser, diperlakukan sama dengan foto dari WhatsApp.
   let gambar: Foto[] = [];

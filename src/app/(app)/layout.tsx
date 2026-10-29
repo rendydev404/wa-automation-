@@ -5,16 +5,16 @@ import { logoutAction } from "@/app/actions";
 import { NavKerangka, NavUtama, StatusLayanan } from "@/components/navigasi";
 import { Rangka } from "@/components/rangka";
 import { WaStatusProvider } from "@/components/wa-status";
-import { semuaNomor } from "@/lib/numbers";
+import { nomorMilik } from "@/lib/numbers";
 import { requireUser } from "@/lib/session";
 
 export const viewport: Viewport = { themeColor: "#0b1813" };
 
-/** Daftar nomor di sidebar: dari cache memori (tanpa query); pemeriksaan sesi dibagi dengan halaman. */
+/** Daftar nomor milik pengguna di sidebar: dari cache memori (tanpa query); pemeriksaan sesi dibagi dengan halaman. */
 async function NavData() {
-  await requireUser();
-  const nomor = (await semuaNomor()).map((n) => ({ id: n.id, label: n.label, wa_id: n.wa_id }));
-  return <NavUtama nomor={nomor} />;
+  const user = await requireUser();
+  const nomor = (await nomorMilik(user.id)).map((n) => ({ id: n.id, label: n.label, wa_id: n.wa_id }));
+  return <NavUtama nomor={nomor} admin={user.peran === "admin"} pengguna={{ nama: user.nama || user.email.split("@")[0], email: user.email }} />;
 }
 
 export default function AppLayout({ children }: LayoutProps<"/">) {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSetting, sekarang } from "@/lib/db";
 import { hermesSehat } from "@/lib/hermes";
-import { catatTerhubung, semuaNomor } from "@/lib/numbers";
+import { catatTerhubung, nomorMilik, semuaNomor } from "@/lib/numbers";
 import { getUser } from "@/lib/session";
 import type { StatusWa } from "@/lib/types";
 import { infoSesi } from "@/lib/wa";
@@ -26,18 +26,21 @@ async function hermesCache(): Promise<boolean> {
 }
 
 /**
- * Status semua nomor. Dalam keadaan biasa hanya satu query (pemeriksaan sesi login pengguna):
+ * Status nomor milik pengguna ini. Dalam keadaan biasa hanya satu query (pemeriksaan sesi login pengguna):
  * daftar nomor, status koneksi, dan galat terakhir semuanya dibaca dari memori.
  */
 export async function GET() {
-  if (!(await getUser())) return NextResponse.json({ error: "Sesi berakhir." }, { status: 401 });
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Sesi berakhir." }, { status: 401 });
 
   const hermes = await hermesCache();
-  const galatMentah = await getSetting("galat_terakhir");
+  // Galat AI berisi detail teknis server: hanya untuk admin.
+  const galatMentah = user.peran === "admin" ? await getSetting("galat_terakhir") : null;
   const galatAi = galatMentah ? (JSON.parse(galatMentah) as { at: number; pesan: string }) : null;
   const hasil: StatusWa = { hermes, galatAi: galatAi && sekarang() - galatAi.at < 86400 ? galatAi : null, nomor: {} };
 
-  for (const n of await semuaNomor()) {
+  // Admin memantau semua nomor (juga saat membuka nomor milik pengguna lain); pengguna biasa hanya miliknya.
+  for (const n of user.peran === "admin" ? await semuaNomor() : await nomorMilik(user.id)) {
     const s = infoSesi(n.sesi);
     hasil.nomor[n.id] = s;
     // Biasanya sudah dicatat saat sesi terhubung; ini hanya menulis bila ternyata masih berbeda.

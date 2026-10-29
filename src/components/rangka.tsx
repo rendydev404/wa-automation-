@@ -7,7 +7,7 @@ import { Menu, MessageCircle, X } from "lucide-react";
 
 function Merek() {
   return (
-    <Link href="/" className="flex min-w-0 items-center gap-2.5 rounded-lg">
+    <Link href="/dashboard" className="flex min-w-0 items-center gap-2.5 rounded-lg">
       <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-ink-signal text-ink">
         <MessageCircle className="size-[18px]" strokeWidth={2.4} aria-hidden />
       </span>

@@ -91,10 +91,14 @@ Semua uji memakai PostgreSQL 15 sungguhan yang dijalankan sementara di mesin ini
 | `node --import ./uji/loader.mjs uji/uji-next.mjs` | Server hasil `npm run build` lewat HTTP: impor otomatis dari SQLite, kecepatan endpoint, QR sungguhan untuk 12 nomor. |
 | `node --expose-gc --import ./uji/loader.mjs uji/uji-bocor.mjs` | 60 siklus sambung/putus sungguhan ke WhatsApp: heap dan timer harus kembali ke awal. |
 
-## Produksi (VPS 187.52.115.253)
+## Produksi (VPS 31.97.67.66)
 
-- `/opt/wa-automation` — `docker compose` berisi satu service `app` (127.0.0.1:3200, batas memori
-  512 MB). Rahasia di `/opt/wa-automation/.env` (izin 600).
+Dipindah dari VPS 187.52.115.253 pada 2026-10-29 (database, sesi WhatsApp, dan profil Hermes `cs`
+ikut pindah; app & Hermes di server lama dihentikan dan tidak menyala lagi saat reboot).
+
+
+- `/opt/wa-automation` — `docker compose` berisi satu service `app` (127.0.0.1:3230 lewat
+  `APP_PORT` di `.env`, karena 3200 dipakai app lain di VPS ini; batas memori 512 MB). Rahasia di `/opt/wa-automation/.env` (izin 600).
 - Semua data ada di PostgreSQL (`/opt/wa-postgres`, lihat di bawah). Cadangkan database itu; bila
   hilang, semua nomor harus scan QR ulang. Volume `wa_data` hanya menyimpan `wa.db` lama.
 - Caddy (`/etc/caddy/Caddyfile`) meneruskan `wa.sukapost.tech` ke app.
@@ -122,7 +126,7 @@ memicu deploy. Bisa juga dijalankan manual dari tab Actions ("Run workflow").
 Deploy manual dari mesin ini (tanpa lewat GitHub) tetap bisa:
 
 ```bash
-SSH_KEY=~/.ssh/id_ed25519_vps bash deploy/deploy.sh root@187.52.115.253
+SSH_KEY=~/.ssh/id_ed25519_vps bash deploy/deploy.sh root@31.97.67.66
 ```
 
 Memantau: `docker stats wa-automation-app-1` (memori) dan `docker compose logs -f app | grep "\[wa"`
@@ -148,7 +152,7 @@ Database app ini: PostgreSQL 15 kecil, proyek compose terpisah dari app (`deploy
   replikasi/paralel/JIT, batas container 256 MB tanpa swap. Terukur: 9 MiB saat diam, ±29 MiB
   setelah dipakai, 46 MB disk saat kosong. App memakai pool paling banyak 4 koneksi.
 - Skema dibuat dan dimigrasikan otomatis oleh app saat mulai (`src/lib/db.ts`).
-- Pasang/perbarui: `SSH_KEY=~/.ssh/id_ed25519_vps bash deploy/postgres/pasang.sh root@187.52.115.253`.
+- Pasang/perbarui: `SSH_KEY=~/.ssh/id_ed25519_vps bash deploy/postgres/pasang.sh root@31.97.67.66`.
 - Masuk sebagai admin: `docker exec -it wa-postgres-db-1 psql -U postgres -p 5433 wa`.
 - Belum ada cadangan otomatis. Cadangan manual:
   `docker exec wa-postgres-db-1 pg_dump -U postgres -p 5433 -Fc wa > wa.dump`.

@@ -7,7 +7,7 @@
 # versi baru sehat; bila tidak, versi sebelumnya dikembalikan dan deploy dinyatakan gagal.
 set -euo pipefail
 DIR="${DEPLOY_DIR:-/opt/wa-automation}" # DEPLOY_DIR/DEPLOY_PORT hanya untuk menguji skrip ini; lewat SSH tidak bisa diisi
-PORT="${DEPLOY_PORT:-3200}"
+PORT="${DEPLOY_PORT:-$(grep -oP '^APP_PORT=\K[0-9]+' "$DIR/.env" 2>/dev/null || echo 3200)}"
 
 exec 9>"$DIR/.deploy.lock"
 flock -n 9 || { echo "Deploy lain sedang berjalan."; exit 1; }

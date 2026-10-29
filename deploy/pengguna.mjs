@@ -1,4 +1,5 @@
-// Tambah pengguna dashboard, atau ganti password pengguna yang sudah ada (belum ada halamannya di app).
+// Tambah admin dashboard, atau ganti password akun yang sudah ada (darurat: mis. semua admin terkunci).
+// Pengguna biasa mendaftar sendiri di /daftar; admin mengelolanya di /admin.
 // Email dan password lewat variabel lingkungan supaya tidak tertinggal di berkas mana pun.
 //
 // Lokal (PostgreSQL dev, `npm run db` harus jalan):
@@ -37,8 +38,10 @@ if (process.env.DATABASE_URL) {
   const sql = postgres(process.env.DATABASE_URL, { max: 1, onnotice() {} });
   try {
     sebelum = (await sql`SELECT 1 FROM users WHERE email = ${email}`).length > 0;
-    await sql`INSERT INTO users(email, password_hash, created_at) VALUES (${email}, ${hash}, ${kini})
-              ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`;
+    // Skrip ini alat pengelola server: akun yang dibuat/diubah lewat sini menjadi admin aktif, dan semua sesi lamanya dicabut.
+    await sql`INSERT INTO users(email, password_hash, peran, created_at) VALUES (${email}, ${hash}, 'admin', ${kini})
+              ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, peran = 'admin', status = 'aktif',
+                                                sesi_versi = users.sesi_versi + 1, gagal_login = 0, kunci_sampai = 0`;
     tersimpan = (await sql`SELECT password_hash FROM users WHERE email = ${email}`)[0].password_hash;
     semua = (await sql`SELECT email FROM users ORDER BY id`).map((r) => r.email);
   } finally {

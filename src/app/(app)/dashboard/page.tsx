@@ -8,7 +8,7 @@ import { KartuStat, KartuUtama, Meter } from "@/components/stat";
 import { TombolTambahNomor } from "@/components/tambah-nomor";
 import { angka } from "@/lib/format";
 import { daftarNomor, statHarian, tanggalWib } from "@/lib/numbers";
-import { requireUser } from "@/lib/session";
+import { kuotaNomor, requireUser } from "@/lib/session";
 import { deretHarian, hariTerakhir, persen } from "@/lib/tren";
 
 const fmtHariIni = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -22,7 +22,7 @@ export default function Beranda() {
             <TanggalHariIni />
           </Suspense>
           <h1 className="mt-1.5 text-2xl font-bold tracking-tight sm:text-[28px]">Ringkasan</h1>
-          <p className="mt-1 max-w-xl text-muted">Pantau semua nomor WhatsApp, koneksinya, dan kinerja balasan AI dalam satu layar.</p>
+          <p className="mt-1 max-w-xl text-muted">Pantau nomor WhatsApp Anda, koneksinya, dan kinerja balasan AI dalam satu layar.</p>
         </div>
         <div className="self-start sm:self-auto">
           <TombolTambahNomor />
@@ -43,9 +43,9 @@ async function TanggalHariIni() {
 
 /** Dua query paralel: ringkasan per nomor (satu query, tanpa N+1) dan statistik 7 hari (PK stats). */
 async function Ringkasan() {
-  await requireUser();
+  const user = await requireUser();
   const hari = hariTerakhir(tanggalWib(), 7);
-  const [nomor, stat] = await Promise.all([daftarNomor(), statHarian(hari[0])]);
+  const [nomor, stat, kuota] = await Promise.all([daftarNomor(user.id), statHarian(hari[0], { userId: user.id }), kuotaNomor(user)]);
 
   const tren = deretHarian(hari, stat);
   const urutan = new Map(hari.map((t, i) => [t, i]));
@@ -87,7 +87,7 @@ async function Ringkasan() {
           label="Pelanggan tercatat"
           nilai={angka(pelanggan)}
           ikon={<Users className="size-4" aria-hidden />}
-          keterangan={`Di ${nomor.length} nomor WhatsApp`}
+          keterangan={kuota === null ? `Di ${nomor.length} nomor WhatsApp` : `Di ${nomor.length} dari ${kuota} nomor kuota akun`}
         />
       </section>
 

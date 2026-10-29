@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { KnowledgeError, tambahDokumen } from "@/lib/knowledge";
-import { nomorById } from "@/lib/numbers";
 import { getUser } from "@/lib/session";
+import { nomorUntuk } from "@/lib/akses";
 
 const MAKS_BYTE = 10 * 1024 * 1024;
 const EKSTENSI_TEKS = new Set(["txt", "md", "markdown", "csv"]);
@@ -11,7 +11,8 @@ const galat = (pesan: string, status = 400) => NextResponse.json({ error: pesan 
 
 /** Unggah PDF / berkas teks ke base knowledge sebuah nomor. Hanya teksnya yang disimpan. */
 export async function POST(req: Request) {
-  if (!(await getUser())) return galat("Sesi berakhir. Silakan login kembali.", 401);
+  const user = await getUser();
+  if (!user) return galat("Sesi berakhir. Silakan login kembali.", 401);
   if (Number(req.headers.get("content-length") ?? 0) > MAKS_BYTE + 64 * 1024) return galat("Berkas terlalu besar (maksimal 10 MB).", 413);
 
   let form: FormData;
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
   }
   const numberId = Number(form.get("number_id"));
   const berkas = form.get("berkas");
-  if (!(await nomorById(numberId))) return galat("Nomor tidak ditemukan.", 404);
+  if (!(await nomorUntuk(user, numberId))) return galat("Nomor tidak ditemukan.", 404);
   if (!(berkas instanceof File) || berkas.size === 0) return galat("Pilih berkas dulu.");
   if (berkas.size > MAKS_BYTE) return galat("Berkas terlalu besar (maksimal 10 MB).", 413);
 
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
       ukuranByte: berkas.size,
       teks,
     });
-    revalidatePath("/");
+    revalidatePath("/dashboard");
     revalidatePath(`/nomor/${numberId}`);
     return NextResponse.json({ ok: true, ...hasil });
   } catch (e) {

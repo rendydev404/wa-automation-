@@ -10,6 +10,7 @@ export interface SessionPayload {
   uid: number;
   exp: number; // detik epoch
   pv: string; // sidik jari hash password: ganti password = sesi lama batal
+  sv: number; // = users.sesi_versi: dinaikkan untuk mencabut semua sesi (blokir, keluar dari semua perangkat)
 }
 
 const enc = new TextEncoder();
@@ -44,11 +45,12 @@ export async function passwordFingerprint(passwordHash: string): Promise<string>
   return b64urlEncode(new Uint8Array(digest)).slice(0, 16);
 }
 
-export async function createSessionToken(userId: number, passwordHash: string): Promise<string> {
+export async function createSessionToken(userId: number, passwordHash: string, sesiVersi: number): Promise<string> {
   const payload: SessionPayload = {
     uid: userId,
     exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE,
     pv: await passwordFingerprint(passwordHash),
+    sv: sesiVersi,
   };
   const body = b64urlEncode(enc.encode(JSON.stringify(payload)));
   const sig = await crypto.subtle.sign("HMAC", await hmacKey(), enc.encode(body));
@@ -64,7 +66,7 @@ export async function verifySessionToken(token: string | undefined): Promise<Ses
     const ok = await crypto.subtle.verify("HMAC", await hmacKey(), b64urlDecode(sig), enc.encode(body));
     if (!ok) return null;
     const payload = JSON.parse(new TextDecoder().decode(b64urlDecode(body))) as SessionPayload;
-    if (typeof payload.uid !== "number" || typeof payload.exp !== "number") return null;
+    if (typeof payload.uid !== "number" || typeof payload.exp !== "number" || typeof payload.sv !== "number") return null;
     if (payload.exp < Math.floor(Date.now() / 1000)) return null;
     return payload;
   } catch {

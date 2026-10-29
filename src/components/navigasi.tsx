@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, UserRound } from "lucide-react";
 import { formatNomor } from "@/lib/format";
 import type { StatusSesiWa } from "@/lib/types";
 import { TombolTambahNomor } from "./tambah-nomor";
@@ -49,7 +49,7 @@ function TautanNav({ href, aktif, ikon, children }: { href: string; aktif: boole
       <span className={`grid size-8 place-items-center rounded-lg ${aktif ? "bg-ink-signal/15 text-ink-signal" : "bg-white/[0.05] text-ink-muted group-hover:text-ink-fg"}`}>
         {ikon}
       </span>
-      <span className="text-[13.5px] font-semibold">{children}</span>
+      <span className="min-w-0 text-[13.5px] font-semibold">{children}</span>
     </Link>
   );
 }
@@ -76,15 +76,24 @@ function ItemNomor({ n, aktif }: { n: ItemNomorNav; aktif: boolean }) {
   );
 }
 
-export function NavUtama({ nomor }: { nomor: ItemNomorNav[] }) {
+export function NavUtama({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; admin: boolean; pengguna: { nama: string; email: string } }) {
   const jalur = usePathname();
   return (
     <>
-      <div className="px-3 pt-3">
+      <div className="space-y-0.5 px-3 pt-3">
         <p className={`${JUDUL_KECIL} pb-2`}>Menu</p>
-        <TautanNav href="/" aktif={jalur === "/"} ikon={<LayoutDashboard className="size-4" aria-hidden />}>
+        <TautanNav href="/dashboard" aktif={jalur === "/dashboard"} ikon={<LayoutDashboard className="size-4" aria-hidden />}>
           Ringkasan
         </TautanNav>
+        <TautanNav href="/akun" aktif={jalur === "/akun"} ikon={<UserRound className="size-4" aria-hidden />}>
+          <span className="block leading-tight">Akun saya</span>
+          <span className="block max-w-40 truncate text-[11.5px] leading-tight font-medium text-ink-muted">{pengguna.nama}</span>
+        </TautanNav>
+        {admin && (
+          <TautanNav href="/admin" aktif={jalur.startsWith("/admin")} ikon={<ShieldCheck className="size-4" aria-hidden />}>
+            Admin
+          </TautanNav>
+        )}
       </div>
       <div className="mt-6 flex items-center justify-between pr-6 pb-2 pl-3">
         <p className={JUDUL_KECIL}>Nomor WhatsApp</p>

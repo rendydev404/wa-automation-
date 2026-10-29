@@ -1,0 +1,157 @@
+import { Suspense } from "react";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ChevronRight } from "lucide-react";
+import { formatNomor, tanggal, waktuSingkatWib } from "@/lib/format";
+import { nomorMilik } from "@/lib/numbers";
+import { penggunaById } from "@/lib/pengguna";
+import { kuotaBawaan, requireAdmin } from "@/lib/session";
+import { infoSesi } from "@/lib/wa";
+import { AksiAkun, FormBlokir, FormKuota, HapusAkun, PutuskanWa } from "../../form-admin";
+
+export const metadata: Metadata = { title: "Kelola pengguna · Asisten WhatsApp" };
+
+const STATUS: Record<string, string> = {
+  WORKING: "Terhubung",
+  SCAN_QR_CODE: "Menunggu scan QR",
+  STARTING: "Menyiapkan",
+  FAILED: "Gagal",
+  STOPPED: "Terputus",
+  BELUM_ADA: "Belum tersambung",
+};
+
+export default function HalamanPengguna(props: PageProps<"/admin/pengguna/[id]">) {
+  return (
+    <div>
+      <nav aria-label="Jejak halaman" className="mb-5">
+        <ol className="flex items-center gap-1.5 text-[13px]">
+          <li>
+            <Link href="/admin" className="font-medium text-muted transition-colors hover:text-fg">
+              Admin
+            </Link>
+          </li>
+          <li aria-hidden>
+            <ChevronRight className="size-3.5 text-faint" />
+          </li>
+          <li aria-current="page" className="font-medium text-fg">
+            Kelola pengguna
+          </li>
+        </ol>
+      </nav>
+      <Suspense fallback={<div aria-hidden className="card h-[520px] animate-denyut" />}>
+        <Isi params={props.params} />
+      </Suspense>
+    </div>
+  );
+}
+
+async function Isi({ params }: { params: Promise<{ id: string }> }) {
+  const admin = await requireAdmin();
+  const id = Number((await params).id);
+  const u = Number.isInteger(id) && id > 0 ? await penggunaById(id) : undefined;
+  if (!u) notFound();
+  const [nomor, bawaan] = await Promise.all([nomorMilik(id), kuotaBawaan()]);
+  const diriSendiri = u.id === admin.id;
+
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
+          <span className="relative grid size-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-ink text-xl font-bold text-ink-signal uppercase">
+            <span aria-hidden className="kisi-tinta absolute inset-0" />
+            <span className="relative">{(u.nama || u.email).charAt(0)}</span>
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate text-2xl font-bold tracking-tight">{u.nama || "(tanpa nama)"}</h1>
+              {u.peran === "admin" && <span className="rounded-md bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent uppercase">Admin</span>}
+              {u.google && <span className="rounded-md bg-subtle px-2 py-0.5 text-[11px] font-bold text-muted uppercase">Google</span>}
+              {u.status === "diblokir" ? (
+                <span className="rounded-full bg-danger-soft px-2.5 py-1 text-[11.5px] font-semibold text-danger">Diblokir</span>
+              ) : (
+                <span className="rounded-full bg-success-soft px-2.5 py-1 text-[11.5px] font-semibold text-success">Aktif</span>
+              )}
+            </div>
+            <p className="mt-0.5 truncate text-muted">{u.email}</p>
+          </div>
+        </div>
+        <dl className="card grid grid-cols-2 gap-x-6 gap-y-1 px-4 py-3 text-[12.5px]">
+          <dt className="text-muted">Terdaftar</dt>
+          <dd className="font-semibold">{tanggal(u.created_at)}</dd>
+          <dt className="text-muted">Login terakhir</dt>
+          <dd className="font-semibold">{u.login_terakhir ? waktuSingkatWib(u.login_terakhir) : "Belum pernah"}</dd>
+        </dl>
+      </header>
+
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0 space-y-6">
+          <section className="card overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-5">
+              <div>
+                <h2 className="text-[15px] font-bold">Perangkat WhatsApp</h2>
+                <p className="text-[13px] text-muted">
+                  {nomor.length} dari {u.peran === "admin" ? "∞" : (u.kuota_nomor ?? bawaan)} kuota terpakai
+                </p>
+              </div>
+              <PutuskanWa id={u.id} jumlah={nomor.filter((n) => n.wa_id).length} />
+            </div>
+            <ul className="divide-y divide-line">
+              {nomor.map((n) => {
+                const s = infoSesi(n.sesi);
+                return (
+                  <li key={n.id}>
+                    <Link href={`/nomor/${n.id}`} className="flex items-center justify-between gap-3 px-5 py-3.5 transition-colors hover:bg-subtle/50">
+                      <span className="min-w-0">
+                        <span className="block truncate text-[13.5px] font-semibold">{n.label}</span>
+                        <span className="block text-[12.5px] text-muted tabular-nums">{n.wa_id ? formatNomor(n.wa_id) : "Belum ada nomor tertaut"}</span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2 text-[12px]">
+                        <span className={`rounded-full px-2.5 py-1 font-semibold ${s.status === "WORKING" ? "bg-success-soft text-success" : "bg-subtle text-muted"}`}>{STATUS[s.status] ?? s.status}</span>
+                        <span className={`rounded-full px-2.5 py-1 font-semibold ${n.bot_aktif ? "bg-accent-soft text-accent" : "bg-subtle text-muted"}`}>{n.bot_aktif ? "AI aktif" : "AI mati"}</span>
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+              {nomor.length === 0 && <li className="px-5 py-8 text-center text-[13px] text-muted">Belum menambahkan nomor.</li>}
+            </ul>
+          </section>
+          <section className="card p-6">
+            <h2 className="text-[15px] font-bold">Tindakan akun</h2>
+            <div className="mt-4">
+              <AksiAkun id={u.id} admin={u.peran === "admin"} diriSendiri={diriSendiri} />
+            </div>
+          </section>
+        </div>
+        <div className="space-y-6">
+          {u.peran !== "admin" && (
+            <section className="card p-6">
+              <h2 className="text-[15px] font-bold">Kuota perangkat</h2>
+              <div className="mt-4">
+                <FormKuota id={u.id} kuota={u.kuota_nomor} bawaan={bawaan} />
+              </div>
+            </section>
+          )}
+          {!diriSendiri && (
+            <section className="card p-6">
+              <h2 className="text-[15px] font-bold">{u.status === "diblokir" ? "Akun diblokir" : "Blokir akun"}</h2>
+              <div className="mt-4">
+                <FormBlokir id={u.id} diblokir={u.status === "diblokir"} alasan={u.alasan_blokir} />
+              </div>
+            </section>
+          )}
+          {!diriSendiri && (
+            <section className="card border-danger/30 p-6">
+              <h2 className="text-[15px] font-bold text-danger">Hapus akun</h2>
+              <p className="mt-0.5 text-[13px] text-muted">Semua nomor, knowledge, dan histori percakapannya ikut terhapus permanen.</p>
+              <div className="mt-4">
+                <HapusAkun id={u.id} email={u.email} />
+              </div>
+            </section>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

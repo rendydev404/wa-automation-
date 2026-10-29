@@ -13,7 +13,8 @@ import { TestChat } from "@/components/test-chat";
 import { sekarang } from "@/lib/db";
 import { angka, formatNomor, tanggal } from "@/lib/format";
 import { BATAS_UTUH, daftarDokumen } from "@/lib/knowledge";
-import { nomorById, statHarian, tanggalWib } from "@/lib/numbers";
+import { statHarian, tanggalWib } from "@/lib/numbers";
+import { nomorUntuk } from "@/lib/akses";
 import { daftarPelajaran, jumlahPelajaran } from "@/lib/pelajaran";
 import { ambilPesanPercakapan, daftarPercakapan, ringkasanPercakapan } from "@/lib/percakapan";
 import { requireUser } from "@/lib/session";
@@ -32,7 +33,7 @@ export default function HalamanNomor(props: PageProps<"/nomor/[id]">) {
       <nav aria-label="Jejak halaman" className="mb-5">
         <ol className="flex items-center gap-1.5 text-[13px]">
           <li>
-            <Link href="/" className="font-medium text-muted transition-colors hover:text-fg">
+            <Link href="/dashboard" className="font-medium text-muted transition-colors hover:text-fg">
               Ringkasan
             </Link>
           </li>
@@ -52,16 +53,17 @@ export default function HalamanNomor(props: PageProps<"/nomor/[id]">) {
 }
 
 async function Isi({ params }: { params: Promise<{ id: string }> }) {
-  await requireUser();
-  const id = Number((await params).id);
-  const nomor = Number.isInteger(id) ? await nomorById(id) : undefined;
-  if (!nomor) notFound();
+  const user = await requireUser();
+  const nomor = await nomorUntuk(user, (await params).id);
+  if (!nomor) notFound(); // nomor milik orang lain = tidak ditemukan
+  const id = nomor.id;
+  const admin = user.peran === "admin";
 
   const hari = hariTerakhir(tanggalWib(), 7);
   const [dokumen, sinkronIds, statusSs, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran] = await Promise.all([
     daftarDokumen(id),
-    nomorSinkron(),
-    statusSinkron(),
+    admin ? nomorSinkron() : Promise.resolve([] as number[]),
+    admin ? statusSinkron() : Promise.resolve(null),
     ringkasanPercakapan(id),
     daftarPercakapan(id),
     statHarian(hari[0], id),
@@ -171,7 +173,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
           <div id="uji">
             <TestChat numberId={nomor.id} />
           </div>
-          <SaklarSinkron id={nomor.id} aktif={sinkronIds.includes(nomor.id)} siap={!!konfigurasiSinkron()} keterangan={teksStatusSinkron(statusSs)} />
+          {admin && <SaklarSinkron id={nomor.id} aktif={sinkronIds.includes(nomor.id)} siap={!!konfigurasiSinkron()} keterangan={statusSs ? teksStatusSinkron(statusSs) : ""} />}
           <div id="pengaturan">
             <NumberSettings
               id={nomor.id}

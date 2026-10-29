@@ -3,7 +3,7 @@
 # Satu container saja. WhatsApp (Baileys) berjalan di dalam proses app: tiap nomor = satu koneksi
 # WebSocket keluar ke server WhatsApp, jadi tidak ada port tambahan yang perlu dibuka atau dijaga.
 # Jaringan host dipakai supaya app menjangkau Hermes dan PostgreSQL di loopback tanpa mengubah firewall:
-#   app         127.0.0.1:3200  <- Caddy (wa.sukapost.tech)
+#   app         127.0.0.1:$APP_PORT (bawaan 3200) <- Caddy (wa.sukapost.tech)
 #   PostgreSQL  127.0.0.1:5433  (proyek compose terpisah: /opt/wa-postgres, lihat deploy/postgres/)
 #   Hermes      127.0.0.1:8644  (user suka-automation)
 # DATABASE_URL ada di .env (= WA_DATABASE_URL di /opt/wa-postgres/.env).
@@ -21,7 +21,8 @@ services:
     env_file: .env
     environment:
       HOSTNAME: 127.0.0.1
-      PORT: "3200"
+      # Port bisa diatur lewat APP_PORT di .env (VPS 31.97.67.66: 3230, karena 3200 dipakai app lain).
+      PORT: "${APP_PORT:-3200}"
       DATA_DIR: /data
       HERMES_API_URL: http://127.0.0.1:8644
       HERMES_PROFILE: cs

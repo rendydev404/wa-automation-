@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { nomorById } from "@/lib/numbers";
+import { sesiDanNomor } from "@/lib/akses";
 import { type FilterPercakapan, ambilPesanPercakapan, daftarPercakapan, ringkasanPercakapan } from "@/lib/percakapan";
-import { getUser } from "@/lib/session";
 
 const FILTER_SAH = new Set<FilterPercakapan>(["semua", "bot", "manusia"]);
 
@@ -10,13 +9,11 @@ const FILTER_SAH = new Set<FilterPercakapan>(["semua", "bot", "manusia"]);
  * Mendukung paginasi berbasis kursor (`sebelum_waktu` + `sebelum_id` atau `sebelum_id` / `setelah_id`).
  */
 export async function GET(req: Request) {
-  if (!(await getUser())) return NextResponse.json({ error: "Sesi berakhir. Silakan login kembali." }, { status: 401 });
-
   const u = new URL(req.url);
-  const numberId = Number(u.searchParams.get("number_id"));
-  if (!Number.isInteger(numberId) || !(await nomorById(numberId))) {
-    return NextResponse.json({ error: "Nomor tidak ditemukan." }, { status: 404 });
-  }
+  const { user, nomor } = await sesiDanNomor(u.searchParams.get("number_id"));
+  if (!user) return NextResponse.json({ error: "Sesi berakhir. Silakan login kembali." }, { status: 401 });
+  if (!nomor) return NextResponse.json({ error: "Nomor tidak ditemukan." }, { status: 404 });
+  const numberId = nomor.id;
 
   const percakapanIdParam = u.searchParams.get("percakapan_id");
   if (percakapanIdParam !== null) {

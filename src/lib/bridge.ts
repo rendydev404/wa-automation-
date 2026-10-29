@@ -219,7 +219,7 @@ async function proses(kunci: string): Promise<void> {
     }
     // Selagi menunggu di atas, manusia bisa saja sudah membalas (antrean dikosongkan).
     if (a.generasi !== generasi || (!a.teks.length && !a.siap)) return;
-    if (sedangDijeda(a) || !nomor || !nomor.bot_aktif) {
+    if (sedangDijeda(a) || !nomor || !nomor.bot_aktif || !nomor.pemilik_aktif) {
       a.teks.length = 0;
       a.foto.length = 0;
       a.siap = null;
@@ -454,7 +454,8 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
 
   statistik(nomor.id, "masuk");
   if (teksLog) tulisLatar(() => catatPesan({ numberId: nomor.id, kunci, peran: 0, teks: teksLog, waktu: ev.waktu || sekarang(), telepon, nama: ev.namaPengirim ?? null }));
-  if (!nomor.bot_aktif) return;
+  // Pemilik diblokir admin: pesan tetap tercatat, tapi AI tidak membalas.
+  if (!nomor.bot_aktif || !nomor.pemilik_aktif) return;
 
   let teks = ev.teks.trim();
   if (ev.foto) teks = teks ? `${teks}\n[Pelanggan melampirkan foto]` : "[Pelanggan mengirim foto]";

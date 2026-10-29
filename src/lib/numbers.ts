@@ -4,6 +4,8 @@ import { db, sekarang, transaksi } from "./db";
 
 export interface Nomor {
   id: number;
+  user_id: number | null; // pemilik nomor (users.id)
+  pemilik_aktif: boolean; // pemiliknya tidak diblokir (nomor tanpa pemilik = aktif): AI hanya membalas bila true
   sesi: string; // nama sesi WhatsApp milik nomor ini (kunci wa_auth)
   wa_id: string | null; // digit saja; kosong sebelum QR dipindai
   label: string;
@@ -45,8 +47,10 @@ const st = (g.__waNomor ??= { janji: null });
 async function muat(): Promise<Cache> {
   const sql = await db();
   const semua = await sql<Nomor[]>`
-    SELECT id, sesi, wa_id, label, nama_wa, bot_aktif, instruksi, tunggu_detik, tunggu_baca_detik, jeda_detik, belajar, created_at, last_connected_at
-      FROM numbers ORDER BY id`;
+    SELECT n.id, n.user_id, COALESCE(u.status = 'aktif', true) AS pemilik_aktif, n.sesi, n.wa_id, n.label, n.nama_wa, n.bot_aktif, n.instruksi,
+           n.tunggu_detik, n.tunggu_baca_detik, n.jeda_detik, n.belajar, n.created_at, n.last_connected_at
+      FROM numbers n LEFT JOIN users u ON u.id = n.user_id
+     ORDER BY n.id`;
   return { semua: [...semua], perId: new Map(semua.map((n) => [n.id, n])), perSesi: new Map(semua.map((n) => [n.sesi, n])) };
 }
 
@@ -61,6 +65,9 @@ const basi = (): void => {
   st.janji = null;
 };
 
+/** Dipanggil setelah status/pemilik pengguna berubah (blokir, hapus): cache nomor dimuat ulang. */
+export const segarkanNomor = basi;
+
 export async function semuaNomor(): Promise<Nomor[]> {
   return (await cache()).semua;
 }
@@ -69,26 +76,31 @@ export async function nomorById(id: number): Promise<Nomor | undefined> {
   return (await cache()).perId.get(id);
 }
 
+/** Nomor milik satu pengguna, dari cache (tanpa query). */
+export async function nomorMilik(userId: number): Promise<Nomor[]> {
+  return (await cache()).semua.filter((n) => n.user_id === userId);
+}
+
 export async function nomorBySesi(sesi: string): Promise<Nomor | undefined> {
   return (await cache()).perSesi.get(sesi);
 }
 
-/** Daftar nomor + ringkasan knowledge, percakapan & statistik hari ini, satu query (tanpa N+1). */
-export async function daftarNomor(): Promise<NomorRingkas[]> {
+/** Nomor milik `userId` + ringkasan knowledge, percakapan & statistik hari ini, satu query (tanpa N+1). */
+export async function daftarNomor(userId: number): Promise<NomorRingkas[]> {
   const sql = await db();
   const baris = await sql<NomorRingkas[]>`
-    SELECT n.id, n.sesi, n.wa_id, n.label, n.nama_wa, n.bot_aktif, n.instruksi, n.tunggu_detik, n.tunggu_baca_detik, n.jeda_detik, n.belajar, n.created_at, n.last_connected_at,
+    SELECT n.id, n.user_id, true AS pemilik_aktif, n.sesi, n.wa_id, n.label, n.nama_wa, n.bot_aktif, n.instruksi, n.tunggu_detik, n.tunggu_baca_detik, n.jeda_detik, n.belajar, n.created_at, n.last_connected_at,
            COALESCE(d.jumlah, 0)   AS jumlah_dokumen,
            COALESCE(d.karakter, 0) AS jumlah_karakter,
            COALESCE(s.dibalas, 0)  AS dibalas_hari_ini,
            COALESCE(s.masuk, 0)    AS masuk_hari_ini,
            COALESCE(p.jumlah, 0)   AS jumlah_percakapan
       FROM numbers n
-      LEFT JOIN (SELECT number_id, COUNT(*) AS jumlah, SUM(jumlah_karakter) AS karakter
-                   FROM documents GROUP BY number_id) d ON d.number_id = n.id
+      LEFT JOIN LATERAL (SELECT COUNT(*) AS jumlah, SUM(jumlah_karakter) AS karakter
+                           FROM documents WHERE number_id = n.id) d ON true
       LEFT JOIN stats s ON s.number_id = n.id AND s.tanggal = ${tanggalWib()}
-      LEFT JOIN (SELECT number_id, COUNT(*) AS jumlah
-                   FROM percakapan GROUP BY number_id) p ON p.number_id = n.id
+      LEFT JOIN LATERAL (SELECT COUNT(*) AS jumlah FROM percakapan WHERE number_id = n.id) p ON true
+     WHERE n.user_id = ${userId}
      ORDER BY n.id`;
   return [...baris];
 }
@@ -102,21 +114,23 @@ export interface StatHari {
 
 /**
  * Statistik harian sejak tanggal WIB `awal` (inklusif); hari tanpa aktivitas tidak punya baris.
- * Semua nomor: JOIN ke numbers supaya tiap nomor dibaca lewat primary key stats (number_id, tanggal).
- * Diukur pada 30 nomor × 2 tahun (21.900 baris): 0,21 ms, sedangkan filter tanggal saja = seq scan 1,8 ms.
+ * Semua nomor seorang pengguna (`{ userId }`): JOIN dari numbers (indeks user_id) supaya tiap nomor dibaca
+ * lewat primary key stats (number_id, tanggal). Diukur pada 30 nomor × 2 tahun (21.900 baris): 0,21 ms,
+ * sedangkan filter tanggal saja = seq scan 1,8 ms.
  */
-export async function statHarian(awal: string, numberId?: number): Promise<StatHari[]> {
+export async function statHarian(awal: string, sasaran: { userId: number } | number): Promise<StatHari[]> {
   const sql = await db();
   const baris =
-    numberId === undefined
+    typeof sasaran === "object"
       ? await sql<StatHari[]>`
           SELECT s.number_id, to_char(s.tanggal, 'YYYY-MM-DD') AS tanggal, s.masuk, s.dibalas
             FROM numbers n
-            JOIN stats s ON s.number_id = n.id AND s.tanggal >= ${awal}::date`
+            JOIN stats s ON s.number_id = n.id AND s.tanggal >= ${awal}::date
+           WHERE n.user_id = ${sasaran.userId}`
       : await sql<StatHari[]>`
           SELECT number_id, to_char(tanggal, 'YYYY-MM-DD') AS tanggal, masuk, dibalas
             FROM stats
-           WHERE number_id = ${numberId} AND tanggal >= ${awal}::date`;
+           WHERE number_id = ${sasaran} AND tanggal >= ${awal}::date`;
   return [...baris];
 }
 
@@ -124,13 +138,13 @@ export async function statHarian(awal: string, numberId?: number): Promise<StatH
  * Buat jalur baru. Nama sesinya = id + akhiran acak, supaya nama sesi tidak pernah terpakai ulang
  * dan mewarisi keadaan chat serta riwayat percakapan (di Hermes) milik nomor yang sudah dihapus.
  */
-export async function tambahNomor(label: string): Promise<Nomor> {
+export async function tambahNomor(label: string, userId: number | null = null): Promise<Nomor> {
   const sql = await db();
   const [n] = await sql<Nomor[]>`
     WITH baru AS (SELECT nextval(pg_get_serial_sequence('numbers', 'id'))::integer AS id)
-    INSERT INTO numbers(id, sesi, label, created_at)
-    SELECT id, 'n' || id || 'x' || ${randomBytes(4).toString("hex")}, ${label}, ${sekarang()} FROM baru
-    RETURNING id, sesi, wa_id, label, nama_wa, bot_aktif, instruksi, tunggu_detik, tunggu_baca_detik, jeda_detik, belajar, created_at, last_connected_at`;
+    INSERT INTO numbers(id, user_id, sesi, label, created_at)
+    SELECT id, ${userId}, 'n' || id || 'x' || ${randomBytes(4).toString("hex")}, ${label}, ${sekarang()} FROM baru
+    RETURNING id, user_id, true AS pemilik_aktif, sesi, wa_id, label, nama_wa, bot_aktif, instruksi, tunggu_detik, tunggu_baca_detik, jeda_detik, belajar, created_at, last_connected_at`;
   basi();
   return n;
 }

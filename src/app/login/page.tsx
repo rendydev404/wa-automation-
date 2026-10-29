@@ -1,33 +1,43 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { MessageCircle } from "lucide-react";
+import { GalatGoogle } from "@/components/galat-google";
+import { KartuAuth } from "@/components/kartu-auth";
+import { TombolGoogle } from "@/components/tombol-google";
 import { getUser } from "@/lib/session";
 import { LoginForm } from "./login-form";
 
-/** Sudah login (sesi benar-benar sah di database)? Langsung ke beranda. */
+export const metadata: Metadata = { title: "Masuk · Asisten WhatsApp" };
+
+/** Sudah login (sesi benar-benar sah di database)? Langsung ke dashboard. */
 async function SudahMasuk() {
-  if (await getUser()) redirect("/");
+  if (await getUser()) redirect("/dashboard");
   return null;
 }
 
 export default function LoginPage() {
   return (
-    <main className="grid min-h-screen place-items-center px-4">
+    <KartuAuth
+      judul="Masuk ke akun"
+      sub="Kelola nomor WhatsApp dan base knowledge AI Anda."
+      kaki={
+        <>
+          Belum punya akun?{" "}
+          <Link href="/daftar" className="font-semibold text-accent hover:underline">
+            Daftar gratis
+          </Link>
+        </>
+      }
+    >
       <Suspense fallback={null}>
         <SudahMasuk />
+        <GalatGoogle />
       </Suspense>
-      <div className="w-full max-w-sm">
-        <div className="mb-7 flex flex-col items-center text-center">
-          <span className="mb-4 grid size-12 place-items-center rounded-2xl bg-accent text-on-accent">
-            <MessageCircle className="size-6" aria-hidden />
-          </span>
-          <h1 className="text-xl font-bold tracking-tight">Asisten WhatsApp</h1>
-          <p className="mt-1 text-[13px] text-muted">Masuk untuk mengelola nomor dan base knowledge.</p>
-        </div>
-        <div className="card p-6">
-          <LoginForm />
-        </div>
-      </div>
-    </main>
+      <Suspense fallback={<div aria-hidden className="h-[74px]" />}>
+        <TombolGoogle />
+      </Suspense>
+      <LoginForm />
+    </KartuAuth>
   );
 }

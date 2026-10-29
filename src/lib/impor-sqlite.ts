@@ -79,6 +79,10 @@ export async function imporDariSqlite(sql: Sql): Promise<void> {
         await sisip("wa_auth", auth, ["sesi", "kunci", "biner", "teks"]);
       }
 
+      // Versi SQLite hanya punya satu jenis pengguna (pengelola): semuanya admin, semua nomor milik admin pertama.
+      await tx`UPDATE users SET peran = 'admin'`;
+      await tx`UPDATE numbers SET user_id = (SELECT MIN(id) FROM users) WHERE user_id IS NULL`;
+
       // Id lama dipertahankan; pencacah id PostgreSQL dilanjutkan dari yang terbesar.
       for (const tabel of ["users", "numbers", "documents", "chunks"]) {
         await tx.unsafe(`SELECT setval(pg_get_serial_sequence('${tabel}', 'id'), GREATEST((SELECT COALESCE(MAX(id), 0) FROM ${tabel}), 1), (SELECT COUNT(*) > 0 FROM ${tabel}))`);

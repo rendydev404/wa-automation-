@@ -104,12 +104,13 @@ await cek("semua tabel terimpor dengan jumlah yang benar; sisa yatim tidak ikut"
 await cek("isi dan tipe kolom utuh: id, boolean, pengaturan per nomor, tanda kutip, tanggal statistik", async () => {
   const n = await semuaNomor();
   assert.deepEqual(n.map((x) => x.id), [2, 5, 9]);
-  assert.deepEqual({ ...n[0] }, { id: 2, sesi: "n2xdcae0179", wa_id: "6281234500001", label: "tes", nama_wa: "Toko Lama", bot_aktif: true, instruksi: "Jawab singkat.", tunggu_detik: 7, tunggu_baca_detik: 60, jeda_detik: 900, belajar: true, created_at: kini - 8000, last_connected_at: kini - 50 });
+  assert.deepEqual({ ...n[0] }, { id: 2, user_id: 1, pemilik_aktif: true, sesi: "n2xdcae0179", wa_id: "6281234500001", label: "tes", nama_wa: "Toko Lama", bot_aktif: true, instruksi: "Jawab singkat.", tunggu_detik: 7, tunggu_baca_detik: 60, jeda_detik: 900, belajar: true, created_at: kini - 8000, last_connected_at: kini - 50 });
   assert.equal(n[1].bot_aktif, false);
   assert.equal(n[1].wa_id, null);
   assert.equal(n[2].label, "Outlet 'B'");
-  const [u] = await sql`SELECT * FROM users WHERE id = 1`;
-  assert.deepEqual({ ...u }, { id: 1, email: "admin@contoh.test", password_hash: "scrypt:16384:8:1:garam:hash", created_at: kini - 9000 });
+  const [u] = await sql`SELECT id, email, password_hash, created_at, peran, status FROM users WHERE id = 1`;
+  assert.deepEqual({ ...u }, { id: 1, email: "admin@contoh.test", password_hash: "scrypt:16384:8:1:garam:hash", created_at: kini - 9000, peran: "admin", status: "aktif" });
+  assert.deepEqual(n.map((x) => x.user_id), [1, 1, 1]); // semua nomor lama milik admin pertama
   const st = await sql`SELECT number_id, tanggal::text AS tanggal, masuk, dibalas, gagal FROM stats ORDER BY tanggal`;
   assert.deepEqual(st.map((r) => ({ ...r })), [{ number_id: 2, tanggal: "2026-10-13", masuk: 14, dibalas: 9, gagal: 1 }, { number_id: 2, tanggal: "2026-10-14", masuk: 3, dibalas: 3, gagal: 0 }]);
   const [c] = await sql`SELECT * FROM chat_state WHERE kunci = 'aaaabbbbccccddddeeeeffff00001111'`;
@@ -269,8 +270,9 @@ console.log("\n== ukuran maksimal: 30 nomor x 1 juta karakter knowledge (33 ribu
 await kosongkan();
 const KATA = "harga promo voucher ongkir kirim bayar qris transfer menu paket keluarga ayam sapi nasi minum buka tutup jam hari outlet cabang alamat pesan antar ambil diskon gratis member poin tukar saldo refund komplain garansi".split(" ");
 const acak = (i) => KATA[(i * 7919 + 13) % KATA.length];
+const [pemilik] = await sql`INSERT INTO users(email, password_hash, created_at) VALUES ('pemilik@uji.test', 'x', ${kini}) RETURNING id`;
 const nomorBanyak = [];
-for (let n = 0; n < 30; n++) nomorBanyak.push(await tambahNomor(`Nomor ${n + 1}`));
+for (let n = 0; n < 30; n++) nomorBanyak.push(await tambahNomor(`Nomor ${n + 1}`, pemilik.id));
 const t0 = performance.now();
 for (const n of nomorBanyak) {
   const docs = await sql`INSERT INTO documents ${sql(Array.from({ length: 4 }, (_, d) => ({ number_id: n.id, judul: `Dokumen ${d + 1}`, sumber: "teks", jumlah_karakter: 250_000, created_at: kini + d })), "number_id", "judul", "sumber", "jumlah_karakter", "created_at")} RETURNING id`;
@@ -333,7 +335,7 @@ const uCari = await ukur(300, (i) => K.konteksPengetahuan(nomorBanyak[i % 30].id
 tampil("konteksPengetahuan (2 query: total + cari)", uCari);
 const uSistem = await ukur(200, (i) => K.susunSistem({ id: nomorBanyak[i % 30].id, instruksi: "" }, tanya[i % tanya.length]));
 tampil("susunSistem (seluruh konteks untuk satu balasan AI)", uSistem);
-const uDaftar = await ukur(200, () => daftarNomor());
+const uDaftar = await ukur(200, () => daftarNomor(pemilik.id));
 tampil("daftarNomor (beranda, 30 nomor)", uDaftar);
 const uCache = await ukur(2000, (i) => nomorById(nomorBanyak[i % 30].id));
 tampil("nomorById (dari cache memori, tiap pesan WhatsApp)", uCache);
