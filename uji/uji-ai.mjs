@@ -1,5 +1,6 @@
-// Uji modul AI (src/lib/ai.ts): pilihan penyedia dari pengaturan admin, permintaan ke OpenRouter (dengan fetch
-// tiruan), pencatatan token & biaya, dan riwayat lengkap untuk penyedia tanpa ingatan. PostgreSQL sungguhan.
+// Uji modul AI (src/lib/ai.ts): Hermes sebagai bawaan, Claude API (Anthropic) bila admin memilihnya, API key
+// terenkripsi yang dikelola admin, permintaan ke Anthropic (fetch tiruan), model cadangan, pencatatan token & biaya,
+// riwayat lengkap untuk penyedia tanpa ingatan, dan pemeriksa jawaban. PostgreSQL sungguhan.
 // Pakai (dari akar proyek): node --import ./uji/loader.mjs uji/uji-ai.mjs
 import assert from "node:assert/strict";
 import { mkdirSync, rmSync } from "node:fs";
@@ -15,14 +16,16 @@ mkdirSync(tmp, { recursive: true });
 const pg = await mulaiPg({ dir: path.join(tmp, "pg"), sementara: true });
 process.env.DATABASE_URL = pg.url;
 process.env.DATA_DIR = path.join(tmp, "kosong");
-delete process.env.HERMES_API_URL;
-delete process.env.HERMES_API_KEY;
+process.env.AUTH_SECRET = "r".repeat(48);
+process.env.HERMES_API_URL = "http://127.0.0.1:9"; // "terpasang" (tidak dipanggil di uji ini)
+process.env.HERMES_API_KEY = "uji";
 delete process.env.AI_PENYEDIA;
-process.env.OPENROUTER_API_KEY = "sk-or-uji";
+delete process.env.ANTHROPIC_API_KEY;
 const lib = (f) => import(pathToFileURL(path.join(akar, f)).href);
 
-const { db, setSetting, sekarang } = await lib("src/lib/db.ts");
+const { db, setSetting, getSetting, sekarang } = await lib("src/lib/db.ts");
 const AI = await lib("src/lib/ai.ts");
+const R = await lib("src/lib/rahasia.ts");
 const { tambahNomor } = await lib("src/lib/numbers.ts");
 const { catatPesan, riwayatUntukAi } = await lib("src/lib/percakapan.ts");
 const { teksSoul } = await lib("src/lib/soul.ts");
@@ -36,54 +39,114 @@ const cek = async (nama, fn) => {
 };
 
 const asli = globalThis.fetch;
-let terakhir;
-const tiru = (balas, status = 200) =>
+const permintaan = [];
+/** Anthropic tiruan: `balas(body)` -> [status, json]. */
+const tiru = (balas) =>
   (globalThis.fetch = async (url, o) => {
-    terakhir = { url: String(url), headers: o.headers, body: JSON.parse(o.body) };
-    return new Response(JSON.stringify(balas), { status, headers: { "content-type": "application/json" } });
+    const p = { url: String(url), headers: o.headers, body: o.body ? JSON.parse(o.body) : null };
+    permintaan.push(p);
+    const [status, json] = balas(p.body, p);
+    return new Response(JSON.stringify(json), { status, headers: { "content-type": "application/json" } });
   });
+const jawabClaude = (teks, usage = { input_tokens: 4000, output_tokens: 100, cache_read_input_tokens: 3000, cache_creation_input_tokens: 0 }) => ({
+  model: "claude-haiku-5-5",
+  content: [{ type: "text", text: teks }],
+  usage,
+});
+const KUNCI = "sk-ant-api03-" + "x".repeat(40);
 
-await cek("tanpa pengaturan & tanpa Hermes: OpenRouter dengan model bawaan; pilihan admin berlaku langsung", async () => {
-  assert.deepEqual(await AI.pengaturanAi(), { penyedia: "openrouter", model: "anthropic/claude-haiku-5.5", cadangan: "google/gemini-2.5-flash-lite" });
-  await setSetting("ai_penyedia", "hermes");
-  assert.equal((await AI.pengaturanAi()).penyedia, "hermes");
-  await setSetting("ai_penyedia", "openrouter");
-  await setSetting("ai_model", "openai/gpt-5-mini");
-  await setSetting("ai_cadangan", "bukan model valid!");
-  assert.deepEqual(await AI.pengaturanAi(), { penyedia: "openrouter", model: "openai/gpt-5-mini", cadangan: "google/gemini-2.5-flash-lite" });
-  assert.equal(AI.tanpaIngatan("openrouter"), true);
-  assert.equal(AI.tanpaIngatan("hermes"), false);
+await cek("API key terenkripsi AES-GCM: tidak tersimpan mentah, terbaca kembali, AUTH_SECRET lain = tidak terbaca, samaran aman", async () => {
+  await R.simpanRahasia("anthropic", KUNCI);
+  const mentah = await getSetting("rahasia:anthropic");
+  assert.match(mentah, /^v1:[\w-]+:[\w-]+:[\w-]+$/);
+  assert.ok(!mentah.includes("sk-ant"));
+  assert.equal(await R.bacaRahasia("anthropic"), KUNCI);
+  const lama = process.env.AUTH_SECRET;
+  process.env.AUTH_SECRET = "s".repeat(48);
+  assert.equal(R.bukaSandi(mentah), null);
+  process.env.AUTH_SECRET = lama;
+  const [v, iv, tag, sandi] = mentah.split(":");
+  const ubah = Buffer.from(sandi, "base64url");
+  ubah[0] ^= 1; // satu bit sandi dibalik
+  assert.equal(R.bukaSandi([v, iv, tag, ubah.toString("base64url")].join(":")), null); // diubah sedikit = ditolak (GCM)
+  assert.equal(R.samarkan(KUNCI), "sk-ant-…xxxx");
+  await R.simpanRahasia("anthropic", "");
+  assert.equal(await R.bacaRahasia("anthropic"), null);
 });
 
-await cek("permintaan OpenRouter: SOUL di-cache, model cadangan, data tidak disimpan penyedia, foto ikut; biaya & token terbaca", async () => {
-  tiru({ model: "openai/gpt-5-mini", choices: [{ message: { content: "Halo Kak!" } }], usage: { prompt_tokens: 5100, completion_tokens: 40, cost: 0.0012 } });
+await cek("bawaan Hermes; Claude API hanya bila admin memilihnya DAN kuncinya ada; kunci dihapus = kembali Hermes", async () => {
+  assert.deepEqual(await AI.pengaturanAi(), { penyedia: "hermes", model: "claude-haiku-5-5", cadangan: "claude-sonnet-5-5" });
+  await setSetting("ai_penyedia", "anthropic");
+  assert.equal((await AI.pengaturanAi()).penyedia, "hermes"); // belum ada kunci
+  await R.simpanRahasia("anthropic", KUNCI);
+  await setSetting("ai_model", "claude-sonnet-5-5");
+  await setSetting("ai_cadangan", "bukan model!");
+  assert.deepEqual(await AI.pengaturanAi(), { penyedia: "anthropic", model: "claude-sonnet-5-5", cadangan: "claude-sonnet-5-5" });
+  await setSetting("ai_cadangan", "");
+  assert.equal((await AI.pengaturanAi()).cadangan, ""); // admin memilih tanpa cadangan
+  await setSetting("ai_penyedia", "hermes");
+  assert.equal((await AI.pengaturanAi()).penyedia, "hermes");
+  assert.equal(AI.tanpaIngatan("anthropic"), true);
+  assert.equal(AI.tanpaIngatan("hermes"), false);
+  await setSetting("ai_penyedia", "anthropic");
+  await setSetting("ai_model", "claude-haiku-5-5");
+  await setSetting("ai_cadangan", "claude-sonnet-5-5");
+});
+
+await cek("permintaan Claude API: header & versi, SOUL di-cache, penalaran mati, foto sebagai blok gambar; biaya dihitung termasuk cache", async () => {
+  permintaan.length = 0;
+  tiru(() => [200, jawabClaude("Halo Kak!")]);
+  let j;
   try {
-    const j = await AI.tanyaAi({ sessionId: "x", sistem: "<pengetahuan_nomor>uji</pengetahuan_nomor>", pesan: "halo", gambar: [{ mime: "image/png", data: "AAAA" }] });
-    assert.deepEqual(j, { teks: "Halo Kak!", ms: j.ms, penyedia: "openrouter", model: "openai/gpt-5-mini", tokenMasuk: 5100, tokenKeluar: 40, biayaUsd: 0.0012 });
+    j = await AI.tanyaAi({ sessionId: "x", sistem: "<pengetahuan_nomor>uji</pengetahuan_nomor>", pesan: "halo", gambar: [{ mime: "image/png", data: "AAAA" }] });
   } finally {
     globalThis.fetch = asli;
   }
-  assert.equal(terakhir.url, "https://openrouter.ai/api/v1/chat/completions");
-  assert.equal(terakhir.headers.Authorization, "Bearer sk-or-uji");
-  const b = terakhir.body;
-  assert.deepEqual(b.models, ["openai/gpt-5-mini", "google/gemini-2.5-flash-lite"]);
-  assert.equal(b.messages[0].role, "system");
-  assert.equal(b.messages[0].content[0].text, teksSoul());
-  assert.deepEqual(b.messages[0].content[0].cache_control, { type: "ephemeral" });
-  assert.equal(b.messages[0].content[1].text, "<pengetahuan_nomor>uji</pengetahuan_nomor>");
-  assert.equal(b.messages[1].content[1].image_url.url, "data:image/png;base64,AAAA");
-  assert.deepEqual(b.provider, { data_collection: "deny" });
-  assert.deepEqual(b.usage, { include: true });
+  // 4000 masuk + 3000 baca-cache (0,1x) + 100 keluar dengan harga Haiku 5.5 ($0,10 / $0,50 per juta)
+  const biaya = ((4000 + 3000 * 0.1) * 0.1 + 100 * 0.5) / 1e6;
+  assert.deepEqual(j, { teks: "Halo Kak!", ms: j.ms, penyedia: "anthropic", model: "claude-haiku-5-5", tokenMasuk: 7000, tokenKeluar: 100, biayaUsd: biaya });
+  const p = permintaan[0];
+  assert.equal(p.url, "https://api.anthropic.com/v1/messages");
+  assert.equal(p.headers["x-api-key"], KUNCI);
+  assert.equal(p.headers["anthropic-version"], "2023-06-01");
+  const b = p.body;
+  assert.equal(b.model, "claude-haiku-5-5");
+  assert.deepEqual(b.thinking, { type: "disabled" });
+  assert.equal(b.system[0].text, teksSoul());
+  assert.deepEqual(b.system[0].cache_control, { type: "ephemeral" });
+  assert.equal(b.system[1].text, "<pengetahuan_nomor>uji</pengetahuan_nomor>");
+  assert.deepEqual(b.messages[0].content[0], { type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } });
+  assert.deepEqual(b.messages[0].content[1], { type: "text", text: "halo" });
   assert.ok(b.max_tokens <= 1000);
   assert.doesNotMatch(teksSoul(), /^<!--/); // baris komentar berkas dibuang
 });
 
-await cek("galat & balasan kosong dari OpenRouter dilempar (bridge lalu mencoba ulang)", async () => {
+await cek("model utama sibuk (529/429/5xx) -> cadangan sekali; kunci salah (401) & permintaan salah (400) TIDAK pindah model; kosong = galat", async () => {
   try {
-    tiru({ error: { message: "Insufficient credits", code: 402 } }, 402);
-    await assert.rejects(AI.tanyaAi({ sessionId: "x", sistem: "s", pesan: "p" }), /OpenRouter HTTP 402: Insufficient credits/);
-    tiru({ choices: [{ message: { content: "  " } }] });
+    permintaan.length = 0;
+    tiru((b) => (b.model === "claude-haiku-5-5" ? [529, { type: "error", error: { type: "overloaded_error", message: "Overloaded" } }] : [200, jawabClaude("dari cadangan")]));
+    const j = await AI.tanyaAi({ sessionId: "x", sistem: "s", pesan: "p" });
+    assert.equal(j.teks, "dari cadangan");
+    assert.deepEqual(permintaan.map((x) => x.body.model), ["claude-haiku-5-5", "claude-sonnet-5-5"]);
+
+    permintaan.length = 0;
+    tiru(() => [401, { type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } }]);
+    await assert.rejects(AI.tanyaAi({ sessionId: "x", sistem: "s", pesan: "p" }), /Anthropic HTTP 401: invalid x-api-key/);
+    assert.equal(permintaan.length, 1);
+
+    tiru(() => [200, { content: [{ type: "text", text: "  " }], usage: {} }]);
     await assert.rejects(AI.tanyaAi({ sessionId: "x", sistem: "s", pesan: "p" }), /kosong/);
+  } finally {
+    globalThis.fetch = asli;
+  }
+});
+
+await cek("daftar model dari Anthropic (juga uji kunci): kunci sah -> daftar; ditolak -> null", async () => {
+  try {
+    tiru(() => [200, { data: [{ id: "claude-haiku-5-5", display_name: "Claude Haiku 5.5" }] }]);
+    assert.deepEqual(await AI.modelAnthropic(KUNCI), [{ id: "claude-haiku-5-5", nama: "Claude Haiku 5.5" }]);
+    tiru(() => [401, { error: { message: "invalid" } }]);
+    assert.equal(await AI.modelAnthropic("sk-ant-salah"), null);
   } finally {
     globalThis.fetch = asli;
   }
@@ -91,13 +154,13 @@ await cek("galat & balasan kosong dari OpenRouter dilempar (bridge lalu mencoba 
 
 const n = await tambahNomor("Uji AI");
 await cek("pemakaian tercatat per nomor dan diringkas per model", async () => {
-  const j = { teks: "t", ms: 1200, penyedia: "openrouter", model: "anthropic/claude-haiku-5.5", tokenMasuk: 6000, tokenKeluar: 120, biayaUsd: 0.0009 };
+  const j = { teks: "t", ms: 1200, penyedia: "anthropic", model: "claude-haiku-5-5", tokenMasuk: 6000, tokenKeluar: 120, biayaUsd: 0.0009 };
   await AI.catatPakai(n.id, j, false);
   await AI.catatPakai(n.id, { ...j, ms: 1800, biayaUsd: 0.0011 }, true);
   await AI.catatPakai(n.id, { ...j, penyedia: "hermes", model: null, biayaUsd: null, tokenKeluar: null }, false);
   const r = await AI.ringkasPakai(sekarang() - 60);
-  const haiku = r.find((x) => x.model === "anthropic/claude-haiku-5.5");
-  assert.deepEqual({ ...haiku }, { penyedia: "openrouter", model: "anthropic/claude-haiku-5.5", balasan: 2, biaya_usd: 0.002, token_masuk: 12000, token_keluar: 240, ms_rata: 1500 });
+  const haiku = r.find((x) => x.model === "claude-haiku-5-5");
+  assert.deepEqual({ ...haiku }, { penyedia: "anthropic", model: "claude-haiku-5-5", balasan: 2, biaya_usd: 0.002, token_masuk: 12000, token_keluar: 240, ms_rata: 1500 });
   assert.equal(r.find((x) => x.penyedia === "hermes").balasan, 1);
   const rencana = (await sql`EXPLAIN SELECT COUNT(*) FROM ai_pakai WHERE number_id = ${n.id} AND waktu >= ${sekarang() - 86400}`).map((x) => x["QUERY PLAN"]).join("\n");
   assert.match(rencana, /ai_pakai_nomor_waktu_idx/);
@@ -172,9 +235,9 @@ await cek("penjaga: draf melanggar ditulis ulang sekali; tetap melanggar = jawab
   globalThis.fetch = async (_u, o) => {
     panggil += 1;
     const b = JSON.parse(o.body);
-    balasan.push(b.messages[0].content[1].text);
+    balasan.push(b.system[1].text);
     const teks = ["Aku admin di sini, harganya Rp99.000.", "Paket Hemat Rp25.000 ya Kak."][Math.min(panggil - 1, 1)];
-    return new Response(JSON.stringify({ choices: [{ message: { content: teks } }], usage: { prompt_tokens: 100, completion_tokens: 10, cost: 0.001 } }));
+    return new Response(JSON.stringify({ content: [{ type: "text", text: teks }], usage: { input_tokens: 100, output_tokens: 10 } }));
   };
   try {
     const j = await AI.tanyaAiTerjaga({ sessionId: "x", sistem: "SISTEM", pesan: "harga?" }, SUMBER);
@@ -182,18 +245,18 @@ await cek("penjaga: draf melanggar ditulis ulang sekali; tetap melanggar = jawab
     assert.deepEqual(j.pelanggaran.map((p) => p.jenis), ["identitas", "angka"]);
     assert.equal(j.ditulisUlang, true);
     assert.equal(j.aman, false);
-    assert.equal(j.biayaUsd, 0.002);
+    assert.equal(j.biayaUsd, 2 * ((100 * 0.1 + 10 * 0.5) / 1e6)); // dua panggilan Haiku 5.5
     assert.equal(j.tokenMasuk, 200);
     assert.match(balasan[1], /MELANGGAR aturan inti[\s\S]*mengaku sebagai admin[\s\S]*nominal 99\.000/);
 
     panggil = 0;
     globalThis.fetch = async () =>
-      new Response(JSON.stringify({ choices: [{ message: { content: "Nanti aku kirim ya." } }], usage: { prompt_tokens: 1, completion_tokens: 1, cost: 0 } }));
+      new Response(JSON.stringify({ content: [{ type: "text", text: "Nanti aku kirim ya." }], usage: { input_tokens: 1, output_tokens: 1 } }));
     const k = await AI.tanyaAiTerjaga({ sessionId: "x", sistem: "S", pesan: "p" }, SUMBER);
     assert.equal(k.teks, P.JAWABAN_AMAN);
     assert.equal(k.aman, true);
 
-    globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: "Paket Hemat Rp25.000." } }], usage: {} }));
+    globalThis.fetch = async () => new Response(JSON.stringify({ content: [{ type: "text", text: "Paket Hemat Rp25.000." }], usage: {} }));
     const l = await AI.tanyaAiTerjaga({ sessionId: "x", sistem: "S", pesan: "p" }, SUMBER);
     assert.deepEqual([l.ditulisUlang, l.pelanggaran.length], [false, 0]); // lolos = satu panggilan saja
   } finally {

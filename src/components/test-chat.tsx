@@ -69,7 +69,7 @@ export function TestChat({ numberId }: { numberId: number }) {
           pesan: isi,
           sesi: sesi.current,
           kueriLalu: lalu.current,
-          // Percakapan uji sejauh ini: dipakai penyedia AI tanpa ingatan sesi (OpenRouter).
+          // Percakapan uji sejauh ini: dipakai penyedia AI tanpa ingatan sesi (Claude API).
           riwayat: pesan.filter((g) => g.dari !== "galat").slice(-12).map((g) => ({ ai: g.dari === "bot", teks: g.teks })),
           ...(lampiran ? { foto: lampiran } : {}),
         }),

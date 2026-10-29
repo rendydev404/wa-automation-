@@ -8,6 +8,7 @@ import {
   adminCabutSesiAction,
   adminHapusAction,
   adminAiAction,
+  adminKunciAiAction,
   adminKuotaAction,
   adminPengaturanAction,
   adminPeranAction,
@@ -212,55 +213,110 @@ export function HapusAkun({ id, email }: { id: number; email: string }) {
   );
 }
 
-const SARAN_MODEL = [
-  "anthropic/claude-haiku-5.5",
-  "google/gemini-2.5-flash-lite",
-  "google/gemini-3.1-flash-lite",
-  "openai/gpt-5-mini",
-  "openai/gpt-5-nano",
-  "qwen/qwen3.7-flash",
-  "anthropic/claude-sonnet-5.5",
+/** Model yang disarankan bila daftar dari Anthropic belum bisa diambil (kunci belum diisi). */
+const MODEL_SARAN = [
+  { id: "claude-haiku-5-5", nama: "Claude Haiku 5.5 — cepat & murah (±Rp14/balasan)" },
+  { id: "claude-sonnet-5-5", nama: "Claude Sonnet 5.5 — lebih pintar (±Rp200/balasan)" },
 ];
 
-export function FormAi({ penyedia, model, cadangan, siap }: { penyedia: "hermes" | "openrouter"; model: string; cadangan: string; siap: boolean }) {
+export function FormAi({
+  penyedia,
+  model,
+  cadangan,
+  adaKunci,
+  daftarModel,
+}: {
+  penyedia: "hermes" | "anthropic";
+  model: string;
+  cadangan: string;
+  adaKunci: boolean;
+  /** Dari Anthropic (GET /v1/models) bila kunci sah; null = belum ada kunci / tak terjangkau. */
+  daftarModel: { id: string; nama: string }[] | null;
+}) {
   const [hasil, aksi] = useActionState(adminAiAction, null);
   const [pilih, setPilih] = useState(penyedia);
+  const opsi = daftarModel?.length ? daftarModel : MODEL_SARAN;
+  const pilihan = (nilai: string) => (opsi.some((m) => m.id === nilai) || !nilai ? opsi : [{ id: nilai, nama: nilai }, ...opsi]);
   return (
     <form action={aksi} className="space-y-4">
       <fieldset className="grid grid-cols-2 gap-2">
         <legend className="label">Penyedia untuk semua nomor</legend>
-        {(["hermes", "openrouter"] as const).map((p) => (
+        {(["hermes", "anthropic"] as const).map((p) => (
           <label
             key={p}
-            className={`cursor-pointer rounded-xl border px-3 py-2.5 text-[13px] font-semibold transition-colors ${pilih === p ? "border-accent bg-accent-soft text-accent" : "border-line hover:bg-subtle"} ${p === "openrouter" && !siap ? "opacity-50" : ""}`}
+            className={`rounded-xl border px-3 py-2.5 text-[13px] font-semibold transition-colors ${pilih === p ? "border-accent bg-accent-soft text-accent" : "border-line hover:bg-subtle"} ${p === "anthropic" && !adaKunci ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
           >
-            <input type="radio" name="penyedia" value={p} checked={pilih === p} onChange={() => setPilih(p)} disabled={p === "openrouter" && !siap} className="sr-only" />
-            {p === "hermes" ? "Hermes (lama)" : "OpenRouter (API)"}
+            <input type="radio" name="penyedia" value={p} checked={pilih === p} onChange={() => setPilih(p)} disabled={p === "anthropic" && !adaKunci} className="sr-only" />
+            {p === "hermes" ? "Hermes (utama)" : "Claude API (Anthropic)"}
           </label>
         ))}
       </fieldset>
-      <div className={pilih === "openrouter" ? "space-y-3" : "hidden"}>
+      {!adaKunci && <p className="text-[12px] text-muted">Claude API bisa dipilih setelah API key Anthropic diisi di bawah.</p>}
+      <div className={pilih === "anthropic" ? "space-y-3" : "hidden"}>
         <div>
           <label htmlFor="model-ai" className="label">
             Model utama
           </label>
-          <input id="model-ai" name="model" list="saran-model" defaultValue={model} required className="field font-mono text-[12.5px]" />
+          <select id="model-ai" name="model" defaultValue={model} className="field">
+            {pilihan(model).map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.nama}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label htmlFor="cadangan-ai" className="label">
-            Model cadangan (dipakai otomatis bila utama gagal)
+            Model cadangan (dipakai otomatis bila model utama sedang sibuk/gagal)
           </label>
-          <input id="cadangan-ai" name="cadangan" list="saran-model" defaultValue={cadangan} className="field font-mono text-[12.5px]" />
+          <select id="cadangan-ai" name="cadangan" defaultValue={cadangan} className="field">
+            <option value="">Tanpa cadangan</option>
+            {pilihan(cadangan).map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.nama}
+              </option>
+            ))}
+          </select>
         </div>
-        <datalist id="saran-model">
-          {SARAN_MODEL.map((m) => (
-            <option key={m} value={m} />
-          ))}
-        </datalist>
       </div>
       <p className="text-[12px] text-muted">Berlaku langsung untuk balasan berikutnya. Koneksi WhatsApp tidak terganggu. Coba dulu lewat &quot;Uji bot&quot; di halaman nomor.</p>
       <div className="flex items-center gap-3">
         <SubmitButton>Simpan</SubmitButton>
+        <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
+      </div>
+    </form>
+  );
+}
+
+/** API key Anthropic: hanya bentuk samaran yang pernah sampai ke browser. */
+export function FormKunciAi({ samaran }: { samaran: string | null }) {
+  const [hasil, aksi] = useActionState(adminKunciAiAction, null);
+  const ref = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (hasil?.ok) ref.current?.reset();
+  }, [hasil]);
+  return (
+    <form ref={ref} action={aksi} className="space-y-3">
+      <label htmlFor="kunci-ai" className="label">
+        API key Anthropic {samaran && <span className="font-mono font-normal text-muted">· tersimpan: {samaran}</span>}
+      </label>
+      <input
+        id="kunci-ai"
+        name="kunci"
+        type="password"
+        autoComplete="off"
+        spellCheck={false}
+        placeholder={samaran ? "Isi untuk mengganti kunci" : "sk-ant-..."}
+        className="field font-mono text-[12.5px]"
+      />
+      <p className="text-[12px] text-muted">Dicek dulu ke Anthropic, lalu disimpan terenkripsi. Buat di Claude Console → API Keys, dan pasang Spend limits di sana.</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <SubmitButton>{samaran ? "Ganti kunci" : "Simpan kunci"}</SubmitButton>
+        {samaran && (
+          <button type="submit" name="hapus" value="1" formNoValidate className="btn btn-ghost border border-line text-danger">
+            Hapus kunci
+          </button>
+        )}
         <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
       </div>
     </form>

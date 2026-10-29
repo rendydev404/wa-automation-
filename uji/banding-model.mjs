@@ -1,11 +1,11 @@
-// Bandingkan model AI (lewat OpenRouter) dengan percakapan ASLI: tiap sampel = pesan pelanggan yang dulu dijawab AI
+// Bandingkan model Claude (API Anthropic langsung) dengan percakapan ASLI: tiap sampel = pesan pelanggan yang dulu dijawab AI
 // lama, ditanyakan ulang ke tiap model dengan konteks yang sama persis dengan jalur WhatsApp (knowledge nomor,
 // riwayat chat sesi itu, aturan bot). Tidak ada yang dikirim ke WhatsApp.
 //
 // Pakai (dari akar proyek; DATA = hasil pg_dump --data-only tabel users, numbers, documents, chunks, percakapan,
 // pesan_chat, pelajaran, settings — TANPA wa_auth):
-//   OPENROUTER_API_KEY=... DATA=path/data.sql HASIL=path/hasil.md node --no-warnings --import ./uji/loader.mjs uji/banding-model.mjs
-// Opsional: MODEL="a/b,c/d" (bawaan 4 kandidat), SAMPEL=16.
+//   ANTHROPIC_API_KEY=sk-ant-... DATA=path/data.sql HASIL=path/hasil.md node --no-warnings --import ./uji/loader.mjs uji/banding-model.mjs
+// Opsional: MODEL="claude-haiku-5-5,claude-sonnet-5-5" (bawaan keduanya), SAMPEL=16, JEBAKAN=0 (tanpa pertanyaan jebakan).
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -44,7 +44,7 @@ for (const m of dump.matchAll(/^(COPY [^\n]+ FROM stdin;)\n([\s\S]*?)^\\\.$/gm))
 for (const m of dump.matchAll(/^SELECT pg_catalog\.setval\([^\n]+;$/gm)) await su.unsafe(m[0]);
 await su.end();
 
-const MODEL = (process.env.MODEL || "anthropic/claude-haiku-5.5,google/gemini-2.5-flash-lite,openai/gpt-5-mini,qwen/qwen3.7-flash").split(",");
+const MODEL = (process.env.MODEL || "claude-haiku-5-5,claude-sonnet-5-5").split(",");
 const SAMPEL = Number(process.env.SAMPEL) || 16;
 const LABEL = { 0: "Pelanggan", 1: "Kamu (AI)", 2: "Pemilik nomor" };
 const jam = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -97,7 +97,7 @@ for (const [i, s] of sampel.entries()) {
     MODEL.map(async (model) => {
       try {
         const sumber = [sistem, s.tanya, ...riwayat].join("\n");
-        const j = await tanyaAiTerjaga({ sessionId: "banding", sistem, pesan: s.tanya, paksa: { penyedia: "openrouter", model, cadangan: "" } }, sumber);
+        const j = await tanyaAiTerjaga({ sessionId: "banding", sistem, pesan: s.tanya, paksa: { penyedia: "anthropic", model, cadangan: "" } }, sumber);
         return {
           model,
           teks: formatWa(j.teks),

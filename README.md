@@ -132,6 +132,14 @@ SSH_KEY=~/.ssh/id_ed25519_vps bash deploy/deploy.sh root@31.97.67.66
 Memantau: `docker stats wa-automation-app-1` (memori) dan `docker compose logs -f app | grep "\[wa"`
 (koneksi tiap nomor: terhubung, terputus + kode, sambung ulang).
 
+Mesin AI (`src/lib/ai.ts`) dikelola admin di `/admin` → "Mesin AI", berlaku langsung tanpa restart:
+**Hermes** (utama, bawaan) atau **Claude API** (Anthropic langsung; model utama + cadangan dipilih dari daftar
+model akun Anthropic). API key Anthropic diisi admin di dashboard, diuji ke Anthropic dulu, lalu disimpan
+terenkripsi AES-256-GCM di database (`src/lib/rahasia.ts`, kunci diturunkan dari `AUTH_SECRET`). Setiap jawaban,
+apa pun penyedianya, melewati penjaga (`src/lib/pemeriksa.ts`): mengaku admin/pemilik, menjanjikan tindakan,
+atau angka/tautan tak bersumber = ditulis ulang sekali, lalu jawaban aman. Biaya & token per balasan: tabel `ai_pakai`.
+Membandingkan model dengan percakapan asli: `uji/banding-model.mjs` (cara pakai di awal berkas).
+
 Mengubah aturan bot: sunting `hermes/SOUL-cs.md`, salin ke
 `/home/suka-automation/.hermes/profiles/cs/SOUL.md` (tanpa baris komentar pertama), lalu
 `systemctl --user restart hermes-gateway` sebagai `suka-automation`.

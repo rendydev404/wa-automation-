@@ -2,22 +2,24 @@ import "server-only";
 import { db, getSetting, sekarang } from "./db";
 import { hermesSehat, hermesTerkonfigurasi, tanyaHermes } from "./hermes";
 import { JAWABAN_AMAN, type Pelanggaran, pesanKoreksi, periksaJawaban } from "./pemeriksa";
+import { bacaRahasia } from "./rahasia";
 import { teksSoul } from "./soul";
 import type { Foto } from "./types";
 
 /**
  * Satu pintu ke AI, apa pun penyedianya:
- * - "hermes": profil Hermes `cs` (menyimpan riwayat sesi sendiri; SOUL ada di profilnya).
- * - "openrouter": API OpenRouter (format OpenAI). Tanpa ingatan: SOUL dan riwayat chat dikirim tiap giliran.
- * Penyedia & model dipilih admin di panel (settings ai_penyedia / ai_model / ai_cadangan), berlaku langsung
- * tanpa restart. Env: OPENROUTER_API_KEY, OPENROUTER_MODEL, OPENROUTER_CADANGAN (bawaan bila setting kosong).
+ * - "hermes" (utama, bawaan): profil Hermes `cs`; menyimpan riwayat sesi sendiri, SOUL ada di profilnya.
+ * - "anthropic": Claude API langsung (Messages API). Tanpa ingatan: SOUL dan riwayat chat dikirim tiap giliran.
+ * Semuanya dikelola admin di /admin ("Mesin AI"): penyedia, model utama & cadangan (settings ai_penyedia /
+ * ai_model / ai_cadangan) dan API key (terenkripsi, src/lib/rahasia.ts). Berlaku langsung tanpa restart.
+ * Env ANTHROPIC_API_KEY hanya cadangan bila admin belum mengisi kunci.
  */
 
-export type Penyedia = "hermes" | "openrouter";
+export type Penyedia = "hermes" | "anthropic";
 
-export const MODEL_BAWAAN = process.env.OPENROUTER_MODEL || "anthropic/claude-haiku-5.5";
-export const CADANGAN_BAWAAN = process.env.OPENROUTER_CADANGAN || "google/gemini-2.5-flash-lite";
-const ID_MODEL = /^[a-z0-9-]+\/[a-z0-9._:-]+$/i;
+export const MODEL_BAWAAN = "claude-haiku-5-5";
+export const CADANGAN_BAWAAN = "claude-sonnet-5-5";
+const ID_MODEL = /^claude-[a-z0-9.-]+$/i;
 
 export interface PengaturanAi {
   penyedia: Penyedia;
@@ -25,15 +27,17 @@ export interface PengaturanAi {
   cadangan: string;
 }
 
-export const openrouterSiap = (): boolean => !!process.env.OPENROUTER_API_KEY;
+/** API key Anthropic: dari admin (terenkripsi di database), lalu env. */
+export async function kunciAnthropic(): Promise<string | null> {
+  return (await bacaRahasia("anthropic")) || process.env.ANTHROPIC_API_KEY || null;
+}
 
 export async function pengaturanAi(): Promise<PengaturanAi> {
-  const [p, m, c] = await Promise.all([getSetting("ai_penyedia"), getSetting("ai_model"), getSetting("ai_cadangan")]);
-  // Pilihan admin, lalu env AI_PENYEDIA; tanpa keduanya: Hermes bila terpasang (produksi lama), selain itu OpenRouter.
-  const pilih = p ?? process.env.AI_PENYEDIA ?? null;
-  const penyedia: Penyedia =
-    pilih === "openrouter" ? (openrouterSiap() ? "openrouter" : "hermes") : pilih === "hermes" ? "hermes" : hermesTerkonfigurasi() || !openrouterSiap() ? "hermes" : "openrouter";
-  return { penyedia, model: m && ID_MODEL.test(m) ? m : MODEL_BAWAAN, cadangan: c && ID_MODEL.test(c) ? c : CADANGAN_BAWAAN };
+  const [p, m, c, k] = await Promise.all([getSetting("ai_penyedia"), getSetting("ai_model"), getSetting("ai_cadangan"), kunciAnthropic()]);
+  // Bawaan Hermes. Anthropic hanya bila admin memilihnya DAN kuncinya ada; tanpa Hermes terpasang (dev) dan ada kunci: Anthropic.
+  const pilih = p || process.env.AI_PENYEDIA || "hermes";
+  const penyedia: Penyedia = pilih === "anthropic" && k ? "anthropic" : !hermesTerkonfigurasi() && k ? "anthropic" : "hermes";
+  return { penyedia, model: m && ID_MODEL.test(m) ? m : MODEL_BAWAAN, cadangan: c === "" ? "" : c && ID_MODEL.test(c) ? c : CADANGAN_BAWAAN };
 }
 
 export interface JawabanAi {
@@ -47,9 +51,9 @@ export interface JawabanAi {
 }
 
 export interface PermintaanAi {
-  /** Kunci sesi Hermes (diabaikan OpenRouter). */
+  /** Kunci sesi Hermes (diabaikan Anthropic). */
   sessionId: string;
-  /** Konteks per giliran dari susunSistem (knowledge, instruksi nomor, riwayat, batas topik). */
+  /** Konteks per giliran dari susunSistem (knowledge, instruksi nomor, riwayat, batas topik, aturan inti). */
   sistem: string;
   pesan: string;
   gambar?: Foto[];
@@ -59,7 +63,7 @@ export interface PermintaanAi {
 }
 
 /** Penyedia tanpa ingatan sesi: pemanggil wajib menyertakan riwayat chat lengkap di pesan sistem. */
-export const tanpaIngatan = (p: Penyedia): boolean => p === "openrouter";
+export const tanpaIngatan = (p: Penyedia): boolean => p === "anthropic";
 
 export async function tanyaAi(r: PermintaanAi): Promise<JawabanAi> {
   const atur = { ...(await pengaturanAi()), ...r.paksa };
@@ -67,114 +71,155 @@ export async function tanyaAi(r: PermintaanAi): Promise<JawabanAi> {
     const j = await tanyaHermes(r);
     return { teks: j.teks, ms: j.ms, penyedia: "hermes", model: null, tokenMasuk: j.tokenMasuk, tokenKeluar: null, biayaUsd: null };
   }
-  return tanyaOpenRouter(r, atur.model, atur.cadangan);
+  return tanyaAnthropic(r, atur.model, atur.cadangan);
 }
 
+// ---------- Anthropic (Claude API) ----------
+
+const API = "https://api.anthropic.com/v1";
+const VERSI_API = "2023-06-01";
 const MAKS_TOKEN_KELUAR = 700; // balasan WhatsApp pendek; pagar biaya bila model "kebablasan"
 
 /**
- * Penalaran ("berpikir") dimatikan: diukur pada 8 pertanyaan asli dengan claude-haiku-5.5, waktu balas turun dari
- * rata-rata 3,1 dtk (penalaran rendah) ke 1,5 dtk (maks 1,8 dtk) dan token keluar 323 -> 108, mutu jawaban setara.
- * Model yang penalarannya tidak bisa dimatikan (GPT-5, Qwen) diberi tingkat rendah supaya max_tokens tidak habis
- * untuk berpikir lalu membalas kosong; teks penalarannya tidak dikirim balik.
+ * Harga per 1 juta token (USD) untuk menghitung biaya per balasan; tagihan resmi tetap di Claude Console.
+ * Cache: tulis = 1,25x harga input, baca = 0,1x. Model di luar daftar: biaya tidak dihitung (null).
  */
-function penalaran(model: string) {
-  return /^(openai\/gpt-5|openai\/o\d|qwen\/)/.test(model) ? { effort: "low", exclude: true } : { enabled: false };
+const HARGA: Record<string, { masuk: number; keluar: number }> = {
+  "claude-haiku-5-5": { masuk: 0.1, keluar: 0.5 },
+  "claude-haiku-4-5": { masuk: 1, keluar: 5 },
+  "claude-sonnet-5-5": { masuk: 2, keluar: 10 },
+  "claude-sonnet-5": { masuk: 2, keluar: 10 },
+  "claude-opus-5-5": { masuk: 4, keluar: 20 },
+};
+
+interface PakaiAnthropic {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
 }
 
-async function tanyaOpenRouter(r: PermintaanAi, model: string, cadangan: string): Promise<JawabanAi> {
-  const kunci = process.env.OPENROUTER_API_KEY;
-  if (!kunci) throw new Error("OPENROUTER_API_KEY belum diisi.");
-  const mulai = performance.now();
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+export function biayaAnthropic(model: string, u: PakaiAnthropic): number | null {
+  const h = HARGA[model.replace(/-\d{8}$/, "")];
+  if (!h) return null;
+  const masuk = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) * 1.25 + (u.cache_read_input_tokens ?? 0) * 0.1;
+  return (masuk * h.masuk + (u.output_tokens ?? 0) * h.keluar) / 1e6;
+}
+
+class GalatAnthropic extends Error {
+  status: number;
+  constructor(pesan: string, status: number) {
+    super(pesan);
+    this.status = status;
+  }
+}
+
+/** Sibuk / batas laju / galat server / jaringan: layak dicoba dengan model cadangan. */
+const layakCadangan = (e: unknown) => !(e instanceof GalatAnthropic) || e.status === 429 || e.status === 529 || e.status >= 500;
+
+async function panggilAnthropic(kunci: string, model: string, r: PermintaanAi) {
+  const res = await fetch(`${API}/messages`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${kunci}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.APP_URL || "https://wa.sukapost.tech",
-      "X-Title": "Asisten WhatsApp",
-    },
+    headers: { "x-api-key": kunci, "anthropic-version": VERSI_API, "content-type": "application/json" },
     body: JSON.stringify({
-      // Model cadangan dipakai otomatis bila model utama gagal/kena batas.
-      models: cadangan && cadangan !== model ? [model, cadangan] : [model],
+      model,
+      max_tokens: MAKS_TOKEN_KELUAR,
+      // Penalaran dimatikan: diukur pada pertanyaan asli (claude-haiku-5.5), waktu balas 3,1 -> 1,5 dtk, mutu setara.
+      thinking: { type: "disabled" },
+      temperature: 0.4,
+      // SOUL selalu sama persis di setiap panggilan: di-cache Anthropic (input yang di-cache 10x lebih murah).
+      system: [
+        { type: "text", text: teksSoul(), cache_control: { type: "ephemeral" } },
+        { type: "text", text: r.sistem },
+      ],
       messages: [
-        {
-          role: "system",
-          // SOUL selalu sama persis di setiap panggilan: ditandai supaya di-cache penyedia (input jauh lebih murah).
-          content: [
-            { type: "text", text: teksSoul(), cache_control: { type: "ephemeral" } },
-            { type: "text", text: r.sistem },
-          ],
-        },
         {
           role: "user",
           content: r.gambar?.length
-            ? [{ type: "text", text: r.pesan }, ...r.gambar.map((g) => ({ type: "image_url", image_url: { url: `data:${g.mime};base64,${g.data}` } }))]
+            ? [...r.gambar.map((g) => ({ type: "image", source: { type: "base64", media_type: g.mime, data: g.data } })), { type: "text", text: r.pesan }]
             : r.pesan,
         },
       ],
-      max_tokens: MAKS_TOKEN_KELUAR,
-      reasoning: penalaran(model),
-      temperature: 0.4,
-      usage: { include: true },
-      // Data chat pelanggan tidak boleh disimpan/dipakai melatih model oleh penyedia.
-      provider: { data_collection: "deny" },
     }),
     signal: AbortSignal.timeout(r.timeoutMs ?? (r.gambar?.length ? 90_000 : 60_000)),
     cache: "no-store",
   });
   const d = (await res.json().catch(() => null)) as {
     model?: string;
-    error?: { message?: string; code?: number };
-    choices?: { message?: { content?: string }; finish_reason?: string }[];
-    usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
+    error?: { type?: string; message?: string };
+    content?: { type: string; text?: string }[];
+    usage?: PakaiAnthropic;
   } | null;
-  if (!res.ok || !d || d.error) throw new Error(`OpenRouter HTTP ${res.status}${d?.error?.message ? `: ${d.error.message.slice(0, 200)}` : ""}`);
-  const teks = d.choices?.[0]?.message?.content?.trim() ?? "";
-  if (!teks) throw new Error("OpenRouter membalas kosong");
+  if (!res.ok || !d || d.error) throw new GalatAnthropic(`Anthropic HTTP ${res.status}${d?.error?.message ? `: ${d.error.message.slice(0, 200)}` : ""}`, res.status);
+  const teks = (d.content ?? [])
+    .filter((b) => b.type === "text")
+    .map((b) => b.text ?? "")
+    .join("")
+    .trim();
+  if (!teks) throw new GalatAnthropic("Anthropic membalas kosong", 502);
+  const usage = d.usage ?? {};
   return {
     teks,
-    ms: Math.round(performance.now() - mulai),
-    penyedia: "openrouter",
     model: d.model ?? model,
-    tokenMasuk: d.usage?.prompt_tokens ?? null,
-    tokenKeluar: d.usage?.completion_tokens ?? null,
-    biayaUsd: typeof d.usage?.cost === "number" ? d.usage.cost : null,
+    tokenMasuk: (usage.input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0),
+    tokenKeluar: usage.output_tokens ?? null,
+    biayaUsd: biayaAnthropic(model, usage),
   };
 }
 
-// ---------- Kesehatan & saldo ----------
-
-/** Penyedia aktif bisa dijangkau? (dipanggil berkala lewat cache di /api/wa/status) */
-export async function aiSehat(): Promise<boolean> {
-  const { penyedia } = await pengaturanAi();
-  if (penyedia === "hermes") return hermesSehat();
-  return (await saldoOpenRouter()) !== null;
-}
-
-export interface SaldoOpenRouter {
-  /** Batas kredit key ini (USD), null = tanpa batas. */
-  batas: number | null;
-  sisa: number | null;
-  terpakai: number;
-}
-
-export async function saldoOpenRouter(): Promise<SaldoOpenRouter | null> {
-  const kunci = process.env.OPENROUTER_API_KEY;
-  if (!kunci) return null;
+async function tanyaAnthropic(r: PermintaanAi, model: string, cadangan: string): Promise<JawabanAi> {
+  const kunci = await kunciAnthropic();
+  if (!kunci) throw new Error("API key Anthropic belum diisi admin.");
+  const mulai = performance.now();
+  let j;
   try {
-    const res = await fetch("https://openrouter.ai/api/v1/key", { headers: { Authorization: `Bearer ${kunci}` }, signal: AbortSignal.timeout(5000), cache: "no-store" });
+    j = await panggilAnthropic(kunci, model, r);
+  } catch (e) {
+    // Model utama sibuk/gagal: model cadangan dicoba sekali. Kunci salah (401) atau permintaan salah (400) tidak.
+    if (!cadangan || cadangan === model || !layakCadangan(e)) throw e;
+    console.warn(`[ai] ${model} gagal (${e instanceof Error ? e.message : e}), memakai cadangan ${cadangan}`);
+    j = await panggilAnthropic(kunci, cadangan, r);
+  }
+  return { ...j, ms: Math.round(performance.now() - mulai), penyedia: "anthropic" };
+}
+
+/** Daftar model Claude yang bisa dipakai kunci ini (juga uji koneksi). null = kunci salah / tak terjangkau. */
+export async function modelAnthropic(kunci?: string | null): Promise<{ id: string; nama: string }[] | null> {
+  const k = kunci ?? (await kunciAnthropic());
+  if (!k) return null;
+  try {
+    const res = await fetch(`${API}/models?limit=100`, {
+      headers: { "x-api-key": k, "anthropic-version": VERSI_API },
+      signal: AbortSignal.timeout(8000),
+      cache: "no-store",
+    });
     if (!res.ok) return null;
-    const { data } = (await res.json()) as { data: { limit: number | null; limit_remaining: number | null; usage: number } };
-    return { batas: data.limit, sisa: data.limit_remaining, terpakai: data.usage };
+    const { data } = (await res.json()) as { data: { id: string; display_name?: string }[] };
+    return data.map((m) => ({ id: m.id, nama: m.display_name || m.id }));
   } catch {
     return null;
   }
 }
 
+// ---------- Kesehatan ----------
+
+const g = globalThis as unknown as { __waAiSehat?: { kunci: string; at: number; ok: boolean } };
+
+/** Penyedia aktif bisa dijangkau? (dipanggil berkala lewat cache di /api/wa/status) */
+export async function aiSehat(): Promise<boolean> {
+  const { penyedia } = await pengaturanAi();
+  if (penyedia === "hermes") return hermesSehat();
+  const k = (await kunciAnthropic()) ?? "";
+  const c = g.__waAiSehat;
+  if (c && c.kunci === k && Date.now() - c.at < 5 * 60_000) return c.ok; // daftar model cukup dicek tiap 5 menit
+  const ok = (await modelAnthropic(k)) !== null;
+  g.__waAiSehat = { kunci: k, at: Date.now(), ok };
+  return ok;
+}
+
 // ---------- Pemakaian ----------
 
-/** Catat satu balasan AI yang berhasil (token & biaya nyata dari penyedia) untuk kuota dan laporan biaya. */
+/** Catat satu balasan AI yang berhasil (token & biaya per balasan) untuk kuota dan laporan biaya. */
 export async function catatPakai(numberId: number, j: JawabanAi, foto: boolean): Promise<void> {
   const sql = await db();
   await sql`

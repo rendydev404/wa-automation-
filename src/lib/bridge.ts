@@ -252,7 +252,7 @@ async function proses(kunci: string): Promise<void> {
       try {
         // Isi chat yang tidak dilihat AI (balasan manusia, pesan selagi AI diam) dibaca dari histori,
         // bersamaan dengan knowledge. Tulis histori yang masih antre ditunggu dulu supaya ikut terbaca.
-        // Penyedia tanpa ingatan sesi (OpenRouter) diberi seluruh percakapan sesi ini, bukan hanya yang belum dilihat.
+        // Penyedia tanpa ingatan sesi (Claude API) diberi seluruh percakapan sesi ini, bukan hanya yang belum dilihat.
         const lengkap = tanpaIngatan((await pengaturanAi()).penyedia);
         const riwayat = st.tulis.then(() => riwayatUntukAi(kunci, { sesiBaru: sesi !== sesiLalu, tertunda, lengkap }));
         // Foto baru diunduh sekarang (AI memang akan menjawab), bersamaan, langsung ke memori.

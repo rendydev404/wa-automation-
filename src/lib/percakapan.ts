@@ -246,7 +246,7 @@ const jamWib = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day:
  *   - `tertunda` pesan pelanggan paling akhir sedang dijawab (dikirim sebagai pesan biasa): tidak diulang.
  * Satu Index Scan pada pesan_chat_percakapan_idx (paling banyak RIWAYAT_BARIS baris).
  */
-/** Penyedia tanpa ingatan (OpenRouter): seluruh percakapan sesi ini, paling banyak 20 baris dan ±6.000 karakter. */
+/** Penyedia tanpa ingatan (Claude API): seluruh percakapan sesi ini, paling banyak 20 baris dan ±6.000 karakter. */
 const RIWAYAT_LENGKAP_MAKS = 6_000;
 const SESI_BARU_DTK = 12 * 3600; // sama dengan aturan sesi baru di bridge.ts
 

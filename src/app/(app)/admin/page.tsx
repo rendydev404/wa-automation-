@@ -6,8 +6,9 @@ import { KartuStat } from "@/components/stat";
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna, ringkasanAdmin } from "@/lib/pengguna";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
-import { FormAi, FormBuatAkun, FormPengaturan } from "./form-admin";
-import { openrouterSiap, pengaturanAi, ringkasPakai, saldoOpenRouter } from "@/lib/ai";
+import { FormAi, FormBuatAkun, FormKunciAi, FormPengaturan } from "./form-admin";
+import { kunciAnthropic, modelAnthropic, pengaturanAi, ringkasPakai } from "@/lib/ai";
+import { samarkan } from "@/lib/rahasia";
 import { sekarang } from "@/lib/db";
 
 export const metadata: Metadata = { title: "Admin · Asisten WhatsApp" };
@@ -76,7 +77,9 @@ const KURS = 16_500; // perkiraan Rp per USD untuk tampilan biaya
 
 async function MesinAi() {
   await requireAdmin();
-  const [atur, saldo, pakai] = await Promise.all([pengaturanAi(), saldoOpenRouter(), ringkasPakai(sekarang() - 7 * 86400)]);
+  const [atur, kunci, pakai] = await Promise.all([pengaturanAi(), kunciAnthropic(), ringkasPakai(sekarang() - 7 * 86400)]);
+  // Daftar model resmi dari akun Anthropic (sekaligus bukti kuncinya masih berlaku).
+  const daftarModel = kunci ? await modelAnthropic(kunci) : null;
   const total = pakai.reduce((a, p) => ({ n: a.n + p.balasan, usd: a.usd + p.biaya_usd }), { n: 0, usd: 0 });
   return (
     <section className="card p-6">
@@ -84,15 +87,16 @@ async function MesinAi() {
         <Bot className="size-4 text-accent" aria-hidden /> Mesin AI
       </h2>
       <p className="mt-0.5 text-[13px] text-muted">
-        Sekarang: <span className="font-semibold text-fg">{atur.penyedia === "openrouter" ? `OpenRouter · ${atur.model}` : "Hermes"}</span>
+        Sekarang: <span className="font-semibold text-fg">{atur.penyedia === "anthropic" ? `Claude API · ${atur.model}` : "Hermes"}</span>
       </p>
-      {saldo && (
-        <p className="mt-1 text-[12.5px] text-muted">
-          Saldo OpenRouter: {saldo.sisa === null ? "tanpa batas" : `$${saldo.sisa.toFixed(2)} tersisa`} · terpakai ${saldo.terpakai.toFixed(2)}
-        </p>
+      {kunci && daftarModel === null && (
+        <p className="mt-1 text-[12.5px] text-danger">API key Anthropic tersimpan tapi ditolak/tak terjangkau. Periksa kuncinya.</p>
       )}
       <div className="mt-4">
-        <FormAi penyedia={atur.penyedia} model={atur.model} cadangan={atur.cadangan} siap={openrouterSiap()} />
+        <FormAi penyedia={atur.penyedia} model={atur.model} cadangan={atur.cadangan} adaKunci={!!kunci} daftarModel={daftarModel} />
+      </div>
+      <div className="mt-5 border-t border-line pt-4">
+        <FormKunciAi samaran={kunci ? samarkan(kunci) : null} />
       </div>
       <div className="mt-5 border-t border-line pt-4">
         <p className="text-[12.5px] font-semibold">7 hari terakhir</p>

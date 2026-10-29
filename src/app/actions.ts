@@ -3,7 +3,8 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { nomorUntuk } from "@/lib/akses";
-import { openrouterSiap } from "@/lib/ai";
+import { kunciAnthropic, modelAnthropic } from "@/lib/ai";
+import { samarkan, simpanRahasia } from "@/lib/rahasia";
 import { authConfigured } from "@/lib/auth";
 import { ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
 import { sekarang, setSetting } from "@/lib/db";
@@ -444,16 +445,40 @@ export async function adminPengaturanAction(_lalu: Hasil | null, form: FormData)
 /** Penyedia & model AI untuk semua nomor. Berlaku langsung (dibaca tiap giliran), tanpa restart/deploy. */
 export async function adminAiAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   const admin = await requireAdmin();
-  const penyedia = form.get("penyedia") === "openrouter" ? "openrouter" : "hermes";
+  const penyedia = form.get("penyedia") === "anthropic" ? "anthropic" : "hermes";
   const model = String(form.get("model") ?? "").trim();
   const cadangan = String(form.get("cadangan") ?? "").trim();
-  const sah = /^[a-z0-9-]+\/[a-z0-9._:-]+$/i;
-  if (penyedia === "openrouter" && !openrouterSiap()) return { ok: false, pesan: "OPENROUTER_API_KEY belum diisi di server." };
-  if (!sah.test(model) || (cadangan && !sah.test(cadangan))) return { ok: false, pesan: "Nama model tidak valid (contoh: anthropic/claude-haiku-5.5)." };
+  const sah = /^claude-[a-z0-9.-]+$/i;
+  if (penyedia === "anthropic" && !(await kunciAnthropic())) return { ok: false, pesan: "Isi API key Anthropic dulu." };
+  if (!sah.test(model) || (cadangan && !sah.test(cadangan))) return { ok: false, pesan: "Nama model tidak valid (contoh: claude-haiku-5-5)." };
   await setSetting("ai_penyedia", penyedia);
   await setSetting("ai_model", model);
   await setSetting("ai_cadangan", cadangan);
-  await catatLog(admin, "ubah mesin AI", null, `${penyedia}${penyedia === "openrouter" ? ` · ${model}${cadangan ? ` (cadangan ${cadangan})` : ""}` : ""}`);
+  await catatLog(admin, "ubah mesin AI", null, `${penyedia}${penyedia === "anthropic" ? ` · ${model}${cadangan ? ` (cadangan ${cadangan})` : ""}` : ""}`);
   revalidatePath("/admin");
-  return { ok: true, pesan: penyedia === "openrouter" ? `Semua nomor kini memakai OpenRouter (${model}).` : "Semua nomor kini memakai Hermes." };
+  return { ok: true, pesan: penyedia === "anthropic" ? `Semua nomor kini memakai Claude API (${model}).` : "Semua nomor kini memakai Hermes." };
+}
+
+/**
+ * Simpan (atau hapus, bila kosong) API key Anthropic. Kunci diuji dulu ke Anthropic (daftar model) supaya kunci
+ * salah tidak pernah tersimpan; disimpan terenkripsi dan tidak pernah dikirim balik ke browser.
+ */
+export async function adminKunciAiAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  if (terlaluSering(`kunci-ai:${admin.id}`, 10, 10 * 60_000)) return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi nanti." };
+  const kunci = String(form.get("kunci") ?? "").trim();
+  if (form.get("hapus") === "1") {
+    await simpanRahasia("anthropic", "");
+    await setSetting("ai_penyedia", "hermes"); // tanpa kunci, Claude API tidak bisa dipakai: kembali ke Hermes
+    await catatLog(admin, "hapus API key Anthropic", null);
+    revalidatePath("/admin");
+    return { ok: true, pesan: "API key dihapus. Semua nomor memakai Hermes." };
+  }
+  if (!/^sk-ant-[A-Za-z0-9_-]{20,}$/.test(kunci)) return { ok: false, pesan: "Format API key tidak dikenali (diawali sk-ant-)." };
+  const model = await modelAnthropic(kunci);
+  if (!model) return { ok: false, pesan: "Anthropic menolak kunci ini (salah, dicabut, atau tidak terjangkau)." };
+  await simpanRahasia("anthropic", kunci);
+  await catatLog(admin, "simpan API key Anthropic", null, samarkan(kunci));
+  revalidatePath("/admin");
+  return { ok: true, pesan: `Kunci valid dan tersimpan terenkripsi (${model.length} model tersedia).` };
 }

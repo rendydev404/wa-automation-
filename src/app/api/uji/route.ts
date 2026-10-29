@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   if (!/^[a-z0-9]{8,24}$/.test(sesi)) return NextResponse.json({ error: "Sesi uji tidak valid." }, { status: 400 });
   const pesan = gambar.length ? (teksPesan ? `${teksPesan}\n[Pelanggan melampirkan foto]` : "[Pelanggan mengirim foto]") : teksPesan;
 
-  // Percakapan uji sejauh ini (dikirim browser). Penyedia tanpa ingatan (OpenRouter) menerimanya di pesan sistem;
+  // Percakapan uji sejauh ini (dikirim browser). Penyedia tanpa ingatan (Claude API) menerimanya di pesan sistem;
   // untuk semua penyedia ia juga sumber fakta bagi pemeriksa jawaban.
   const lengkap = tanpaIngatan((await pengaturanAi()).penyedia);
   const semuaRiwayat = Array.isArray(b?.riwayat)
