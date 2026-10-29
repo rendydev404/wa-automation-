@@ -16,6 +16,8 @@ export interface Nomor {
   tunggu_baca_detik: number; // chat sudah dibuka manusia di HP tapi tidak dibalas: AI mengambil alih setelah ini
   jeda_detik: number; // setelah manusia membalas, AI diam di chat itu selama ini (0 = hanya pesan itu)
   belajar: boolean; // AI belajar dari balasan manusia di nomor ini (lihat pelajaran.ts)
+  teruskan_ke: string | null; // nomor WhatsApp pribadi pemilik (digit) penerima pesan yang diteruskan AI
+  teruskan_aktif: boolean;
   created_at: number;
   last_connected_at: number | null;
 }
@@ -48,7 +50,7 @@ async function muat(): Promise<Cache> {
   const sql = await db();
   const semua = await sql<Nomor[]>`
     SELECT n.id, n.user_id, COALESCE(u.status = 'aktif', true) AS pemilik_aktif, n.sesi, n.wa_id, n.label, n.nama_wa, n.bot_aktif, n.instruksi,
-           n.tunggu_detik, n.tunggu_baca_detik, n.jeda_detik, n.belajar, n.created_at, n.last_connected_at
+           n.tunggu_detik, n.tunggu_baca_detik, n.jeda_detik, n.belajar, n.teruskan_ke, n.teruskan_aktif, n.created_at, n.last_connected_at
       FROM numbers n LEFT JOIN users u ON u.id = n.user_id
      ORDER BY n.id`;
   return { semua: [...semua], perId: new Map(semua.map((n) => [n.id, n])), perSesi: new Map(semua.map((n) => [n.sesi, n])) };
@@ -89,7 +91,7 @@ export async function nomorBySesi(sesi: string): Promise<Nomor | undefined> {
 export async function daftarNomor(userId: number): Promise<NomorRingkas[]> {
   const sql = await db();
   const baris = await sql<NomorRingkas[]>`
-    SELECT n.id, n.user_id, true AS pemilik_aktif, n.sesi, n.wa_id, n.label, n.nama_wa, n.bot_aktif, n.instruksi, n.tunggu_detik, n.tunggu_baca_detik, n.jeda_detik, n.belajar, n.created_at, n.last_connected_at,
+    SELECT n.id, n.user_id, true AS pemilik_aktif, n.sesi, n.wa_id, n.label, n.nama_wa, n.bot_aktif, n.instruksi, n.tunggu_detik, n.tunggu_baca_detik, n.jeda_detik, n.belajar, n.teruskan_ke, n.teruskan_aktif, n.created_at, n.last_connected_at,
            COALESCE(d.jumlah, 0)   AS jumlah_dokumen,
            COALESCE(d.karakter, 0) AS jumlah_karakter,
            COALESCE(s.dibalas, 0)  AS dibalas_hari_ini,
@@ -144,7 +146,7 @@ export async function tambahNomor(label: string, userId: number | null = null): 
     WITH baru AS (SELECT nextval(pg_get_serial_sequence('numbers', 'id'))::integer AS id)
     INSERT INTO numbers(id, user_id, sesi, label, created_at)
     SELECT id, ${userId}, 'n' || id || 'x' || ${randomBytes(4).toString("hex")}, ${label}, ${sekarang()} FROM baru
-    RETURNING id, user_id, true AS pemilik_aktif, sesi, wa_id, label, nama_wa, bot_aktif, instruksi, tunggu_detik, tunggu_baca_detik, jeda_detik, belajar, created_at, last_connected_at`;
+    RETURNING id, user_id, true AS pemilik_aktif, sesi, wa_id, label, nama_wa, bot_aktif, instruksi, tunggu_detik, tunggu_baca_detik, jeda_detik, belajar, teruskan_ke, teruskan_aktif, created_at, last_connected_at`;
   basi();
   return n;
 }
@@ -181,6 +183,24 @@ export async function setBotAktif(id: number, aktif: boolean): Promise<void> {
 export async function setBelajar(id: number, aktif: boolean): Promise<void> {
   const sql = await db();
   await sql`UPDATE numbers SET belajar = ${aktif} WHERE id = ${id}`;
+  basi();
+}
+
+/**
+ * Nomor WhatsApp pribadi penerima pesan yang diteruskan AI. Format bebas (0812..., +62 812-..., 62812...) dirapikan
+ * jadi digit berawalan kode negara; null = format tidak dikenali.
+ */
+export function rapikanNomorWa(masukan: string): string | null {
+  let d = masukan.replace(/[^0-9+]/g, "");
+  if (d.startsWith("+")) d = d.slice(1);
+  else if (d.startsWith("0")) d = `62${d.slice(1)}`;
+  else if (d.startsWith("8")) d = `62${d}`;
+  return /^[1-9][0-9]{7,14}$/.test(d) ? d : null;
+}
+
+export async function setTeruskan(id: number, data: { ke: string | null; aktif: boolean }): Promise<void> {
+  const sql = await db();
+  await sql`UPDATE numbers SET teruskan_ke = ${data.ke}, teruskan_aktif = ${data.aktif && !!data.ke} WHERE id = ${id}`;
   basi();
 }
 

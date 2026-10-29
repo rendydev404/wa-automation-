@@ -29,8 +29,8 @@ export default function HalamanPengguna(props: PageProps<"/admin/pengguna/[id]">
       <nav aria-label="Jejak halaman" className="mb-5">
         <ol className="flex items-center gap-1.5 text-[13px]">
           <li>
-            <Link href="/admin" className="font-medium text-muted transition-colors hover:text-fg">
-              Admin
+            <Link href="/admin/pengguna" className="font-medium text-muted transition-colors hover:text-fg">
+              Pengguna
             </Link>
           </li>
           <li aria-hidden>

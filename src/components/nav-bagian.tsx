@@ -7,6 +7,7 @@ const BAGIAN = [
   { id: "histori", label: "Percakapan" },
   { id: "knowledge", label: "Knowledge" },
   { id: "uji", label: "Uji bot" },
+  { id: "teruskan", label: "Teruskan" },
   { id: "pengaturan", label: "Pengaturan" },
 ] as const;
 

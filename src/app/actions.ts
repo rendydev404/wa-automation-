@@ -8,10 +8,12 @@ import { METODE_BAYAR } from "@/lib/harga";
 import { authConfigured } from "@/lib/auth";
 import { asalAplikasi, ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
 import { sekarang, setSetting } from "@/lib/db";
-import { berikanPaket, hentikanLangganan, mulaiBayar, paketById, riwayatTransaksi, segarkanKuota, simpanPaket, terapkanHargaSaran, terapkanStatus } from "@/lib/langganan";
+import { ATURAN_ANGKA, ATURAN_SAKLAR, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
+import { berikanPaket, hentikanLangganan, mulaiBayar, paketById, riwayatTransaksi, segarkanKuota, simpanPaket, terapkanSimulasi, terapkanStatus } from "@/lib/langganan";
 import { MidtransError, konfigMidtrans } from "@/lib/midtrans";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
-import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, semuaNomor, setBelajar, setBotAktif, tambahNomor, ubahNomor } from "@/lib/numbers";
+import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setTeruskan, tambahNomor, ubahNomor } from "@/lib/numbers";
+import { ujiTeruskan } from "@/lib/penerusan";
 import { cekPassword, verifyPassword } from "@/lib/password";
 import { type ItemPelajaran, daftarPelajaran, hapusPelajaran } from "@/lib/pelajaran";
 import {
@@ -252,6 +254,40 @@ export async function hapusNomorAction(id: number): Promise<Hasil> {
   redirect("/dashboard");
 }
 
+// ---------- Teruskan ke pemilik ----------
+
+/** Nomor WhatsApp pribadi penerima pesan yang diteruskan AI (pesanan, bukti bayar, keluhan) + saklar aktif. */
+export async function teruskanAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const id = Number(form.get("number_id"));
+  const nomor = await nomorUntuk(await requireUser(), id);
+  if (!nomor) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  const mentah = String(form.get("teruskan_ke") ?? "").trim();
+  const aktif = form.get("aktif") === "on";
+  const ke = mentah ? rapikanNomorWa(mentah) : null;
+  if (mentah && !ke) return { ok: false, pesan: "Nomor WhatsApp tidak valid. Contoh: 0812 3456 7890 atau +62 812 3456 7890." };
+  if (ke && ke === nomor.wa_id) return { ok: false, pesan: "Isi dengan nomor lain (WhatsApp pribadi Anda), bukan nomor bisnis yang dibalas AI ini." };
+  if (aktif && !ke) return { ok: false, pesan: "Isi nomor WhatsApp penerima dulu sebelum menyalakan penerusan." };
+  await setTeruskan(id, { ke, aktif });
+  revalidatePath(`/nomor/${id}`);
+  return { ok: true, pesan: aktif ? "Tersimpan. AI akan meneruskan hal penting ke nomor ini." : "Tersimpan. Penerusan dimatikan." };
+}
+
+/** Kirim pesan uji dari nomor bisnis ke nomor pribadi: memastikan nomornya benar & WhatsApp-nya menerima. */
+export async function ujiTeruskanAction(id: number): Promise<Hasil> {
+  const user = await requireUser();
+  const nomor = await nomorUntuk(user, id);
+  if (!nomor) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  if (!nomor.teruskan_ke) return { ok: false, pesan: "Simpan nomor WhatsApp penerima dulu." };
+  if (terlaluSering(`uji-teruskan:${user.id}`, 5, 10 * 60_000)) return { ok: false, pesan: "Terlalu sering. Coba lagi beberapa menit lagi." };
+  try {
+    await ujiTeruskan(nomor, nomor.teruskan_ke);
+  } catch (e) {
+    return { ok: false, pesan: `Gagal mengirim: ${pesanGalat(e)} Pastikan nomor bisnis ini sedang terhubung.` };
+  }
+  revalidatePath(`/nomor/${id}`);
+  return { ok: true, pesan: "Pesan uji terkirim. Cek WhatsApp pribadi Anda." };
+}
+
 // ---------- Base knowledge ----------
 
 export async function tambahTeksAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
@@ -409,8 +445,8 @@ export async function adminHapusAction(id: number, konfirmasi: string): Promise<
   } catch (e) {
     return { ok: false, pesan: pesanGalat(e) };
   }
-  revalidatePath("/admin");
-  redirect("/admin");
+  revalidatePath("/admin", "layout");
+  redirect("/admin/pengguna");
 }
 
 export async function adminBuatAkunAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
@@ -429,7 +465,7 @@ export async function adminBuatAkunAction(_lalu: Hasil | null, form: FormData): 
   const akun = await buatAkun({ email, nama, password, peran, kuota });
   if (!akun) return { ok: false, pesan: "Email ini sudah terdaftar." };
   await catatLog(admin, "buat akun", email, peran === "admin" ? "sebagai admin" : undefined);
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   return { ok: true, pesan: `Akun ${email} dibuat.` };
 }
 
@@ -448,8 +484,28 @@ export async function adminPengaturanAction(_lalu: Hasil | null, form: FormData)
   await setSetting("kurs_usd", String(kurs));
   segarkanKuota();
   await catatLog(admin, "ubah pengaturan", null, `pendaftaran ${buka ? "dibuka" : "ditutup"}, kuota gratis ${kuota} nomor & ${balasan} balasan/bulan`);
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   return { ok: true, pesan: "Pengaturan tersimpan." };
+}
+
+/** Aturan sistem (src/lib/aturan.ts): batas laju, panjang balasan, peringatan kuota, penerusan, aturan global semua bot. */
+export async function adminAturanAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const nilai: [string, string][] = [];
+  for (const [k, a] of Object.entries(ATURAN_ANGKA)) {
+    const v = Number(form.get(k));
+    if (!(Number.isInteger(v) && v >= a.min && v <= a.max)) return { ok: false, pesan: `${a.label}: harus ${a.min}–${a.max} ${a.satuan}.` };
+    nilai.push([k, String(v)]);
+  }
+  for (const k of Object.keys(ATURAN_SAKLAR)) nilai.push([k, form.get(k) === "on" ? "1" : "0"]);
+  const global = String(form.get("aturan_global") ?? "").replace(/\r\n/g, "\n").trim();
+  if (global.length > MAKS_ATURAN_GLOBAL) return { ok: false, pesan: `Aturan untuk semua bot maksimal ${MAKS_ATURAN_GLOBAL.toLocaleString("id-ID")} karakter.` };
+  nilai.push(["aturan_global", global]);
+  for (const [k, v] of nilai) await setSetting(k, v);
+  await catatLog(admin, "ubah aturan sistem", null, nilai.filter(([k]) => k !== "aturan_global").map(([k, v]) => `${k}=${v}`).join(", ") + `, aturan global ${global.length} karakter`);
+  revalidatePath("/admin", "layout");
+  revalidatePath("/", "layout");
+  return { ok: true, pesan: "Aturan tersimpan dan langsung berlaku untuk semua bot." };
 }
 
 /** Penyedia & model AI untuk semua nomor. Berlaku langsung (dibaca tiap giliran), tanpa restart/deploy. */
@@ -465,7 +521,7 @@ export async function adminAiAction(_lalu: Hasil | null, form: FormData): Promis
   await setSetting("ai_model", model);
   await setSetting("ai_cadangan", cadangan);
   await catatLog(admin, "ubah mesin AI", null, `${penyedia}${penyedia === "anthropic" ? ` · ${model}${cadangan ? ` (cadangan ${cadangan})` : ""}` : ""}`);
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   return { ok: true, pesan: penyedia === "anthropic" ? `Semua nomor kini memakai Claude API (${model}).` : "Semua nomor kini memakai Hermes." };
 }
 
@@ -543,7 +599,7 @@ export async function adminPaketAction(_lalu: Hasil | null, form: FormData): Pro
     return { ok: false, pesan: "Kode paket sudah dipakai paket lain." };
   }
   await catatLog(admin, id ? "ubah paket" : "buat paket", null, `${nama} · Rp${p.harga.toLocaleString("id-ID")} · ${p.kuota_nomor} nomor · ${p.kuota_balasan} balasan`);
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   revalidatePath("/langganan");
   revalidatePath("/");
   return { ok: true, pesan: id ? "Paket diperbarui." : "Paket dibuat." };
@@ -602,18 +658,19 @@ export async function adminHargaAction(_lalu: Hasil | null, form: FormData): Pro
   const acuanTeks = `margin ${a.margin}%, pemakaian ${a.pemakaian}%, ${a.metode}, ${a.model}, kurs ${a.kurs}`;
   if (form.get("terapkan") !== "1") {
     await catatLog(admin, "ubah acuan harga", null, acuanTeks);
-    revalidatePath("/admin");
+    revalidatePath("/admin", "layout");
     return { ok: true, pesan: "Acuan harga tersimpan." };
   }
+  const mode = form.get("mode") === "kunci-harga" ? "kunci-harga" : "kunci-kuota";
   let berubah;
   try {
-    berubah = await terapkanHargaSaran({ ...a, metode: a.metode as keyof typeof METODE_BAYAR });
+    berubah = await terapkanSimulasi({ ...a, metode: a.metode as keyof typeof METODE_BAYAR }, mode);
   } catch (e) {
-    return { ok: false, pesan: e instanceof Error ? e.message : "Gagal menerapkan harga." };
+    return { ok: false, pesan: e instanceof Error ? e.message : "Gagal menerapkan simulasi." };
   }
-  await catatLog(admin, "terapkan harga saran", null, `${acuanTeks}; ${berubah.map((b) => `${b.nama} ${b.lama}->${b.baru}`).join(", ") || "tidak ada perubahan"}`);
-  revalidatePath("/admin");
+  await catatLog(admin, "terapkan simulasi paket", null, `${acuanTeks}, ${mode}; ${berubah.map((b) => `${b.nama}: ${b.sebelum} -> ${b.sesudah}`).join("; ") || "tidak ada perubahan"}`);
+  revalidatePath("/admin", "layout");
   revalidatePath("/langganan");
   revalidatePath("/");
-  return { ok: true, pesan: berubah.length ? `Harga diperbarui: ${berubah.map((b) => `${b.nama} Rp${b.baru.toLocaleString("id-ID")}`).join(", ")}.` : "Harga semua paket sudah sesuai margin." };
+  return { ok: true, pesan: berubah.length ? `Paket diperbarui: ${berubah.map((b) => `${b.nama} → ${b.sesudah}`).join("; ")}.` : "Semua paket sudah sesuai simulasi." };
 }

@@ -8,6 +8,8 @@ interface Gelembung {
   teks: string;
   meta?: string;
   foto?: string;
+  /** Hal yang di WhatsApp akan diteruskan ke nomor pribadi pemilik. */
+  teruskan?: { label: string; ringkasan: string } | null;
 }
 
 const sesiBaru = () => Math.random().toString(36).slice(2, 14).padEnd(8, "0");
@@ -74,11 +76,11 @@ export function TestChat({ numberId }: { numberId: number }) {
           ...(lampiran ? { foto: lampiran } : {}),
         }),
       });
-      const d = (await res.json().catch(() => ({}))) as { teks?: string; ms?: number; mode?: keyof typeof MODE; pelajaran?: number; diblokir?: boolean; error?: string };
+      const d = (await res.json().catch(() => ({}))) as { teks?: string; ms?: number; mode?: keyof typeof MODE; pelajaran?: number; diblokir?: boolean; error?: string; teruskan?: { label: string; ringkasan: string } | null };
       if (res.ok && d.teks) {
         lalu.current = isi;
         const meta = `${((d.ms ?? 0) / 1000).toFixed(1).replace(".", ",")} dtk · ${MODE[d.mode ?? "kosong"]}${d.pelajaran ? ` · ${d.pelajaran} balasan admin` : ""}${d.diblokir ? " · kode diblokir" : ""}`;
-        setPesan((p) => [...p, { dari: "bot", teks: d.teks!, meta }]);
+        setPesan((p) => [...p, { dari: "bot", teks: d.teks!, meta, teruskan: d.teruskan }]);
       } else setPesan((p) => [...p, { dari: "galat", teks: d.error ?? `Gagal (HTTP ${res.status}).` }]);
     } catch {
       setPesan((p) => [...p, { dari: "galat", teks: "Koneksi terputus." }]);
@@ -124,6 +126,12 @@ export function TestChat({ numberId }: { numberId: number }) {
               )}
               {g.dari === "bot" ? <TeksWa teks={g.teks} /> : g.teks}
             </div>
+            {g.teruskan && (
+              <div className="mt-1.5 max-w-[85%] rounded-xl border border-dashed border-accent/50 bg-accent-soft/30 px-3 py-2 text-[12px]">
+                <p className="font-semibold text-accent">Diteruskan ke WhatsApp pribadi pemilik: {g.teruskan.label}</p>
+                <p className="mt-0.5 whitespace-pre-line text-muted">{g.teruskan.ringkasan}</p>
+              </div>
+            )}
             {g.meta && <p className="mt-1 pl-1 text-[11px] text-faint">{g.meta}</p>}
           </div>
         ))}

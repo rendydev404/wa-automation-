@@ -3,6 +3,8 @@ import { formatWa } from "@/lib/bridge";
 import { pengaturanAi, tanpaIngatan, tanyaAiTerjaga } from "@/lib/ai";
 import { susunSistem } from "@/lib/knowledge";
 import { TOLAK_KODE, adaKode } from "@/lib/penjaga";
+import { bisaTeruskan } from "@/lib/penerusan";
+import { JENIS_TERUSKAN } from "@/lib/teruskan";
 import { type Foto, MAKS_FOTO_BYTE } from "@/lib/types";
 import { sesiDanNomor } from "@/lib/akses";
 import { terlaluSering } from "@/lib/batas";
@@ -37,7 +39,7 @@ export async function POST(req: Request) {
 
   // Percakapan uji sejauh ini (dikirim browser). Penyedia tanpa ingatan (Claude API) menerimanya di pesan sistem;
   // untuk semua penyedia ia juga sumber fakta bagi pemeriksa jawaban.
-  const lengkap = tanpaIngatan((await pengaturanAi()).penyedia);
+  const [lengkap, teruskan] = await Promise.all([pengaturanAi().then((p) => tanpaIngatan(p.penyedia)), bisaTeruskan(nomor)]);
   const semuaRiwayat = Array.isArray(b?.riwayat)
     ? b.riwayat.slice(-12).map((m) => `${m.ai ? "Kamu (AI)" : "Pelanggan"}: ${String(m.teks ?? "").replace(/\s*\n\s*/g, " / ").slice(0, 500)}`)
     : [];
@@ -45,9 +47,10 @@ export async function POST(req: Request) {
     adaFoto: gambar.length > 0,
     riwayat: lengkap ? semuaRiwayat : [],
     riwayatLengkap: lengkap,
+    teruskan,
   });
   try {
-    const j = await tanyaAiTerjaga({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar }, [sistem, pesan, ...semuaRiwayat].join("\n"));
+    const j = await tanyaAiTerjaga({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar }, [sistem, pesan, ...semuaRiwayat].join("\n"), { teruskan });
     // Penjaga yang sama dengan WhatsApp, supaya hasil uji mencerminkan yang benar-benar terkirim.
     const diblokir = adaKode(j.teks);
     const teks = diblokir ? TOLAK_KODE : formatWa(j.teks);
@@ -63,6 +66,8 @@ export async function POST(req: Request) {
       // Untuk admin yang menguji: draf pertama ditolak pemeriksa (jenis pelanggarannya), lalu ditulis ulang / diganti jawaban aman.
       koreksi: j.pelanggaran.map((x) => x.jenis),
       aman: j.aman,
+      // Di WhatsApp ini dikirim ke nomor pribadi pemilik; di uji hanya ditampilkan.
+      teruskan: j.teruskan ? { label: JENIS_TERUSKAN[j.teruskan.jenis].label, ringkasan: j.teruskan.ringkasan } : null,
     });
   } catch (e) {
     return NextResponse.json({ error: `AI tidak menjawab: ${e instanceof Error ? e.message : "galat"}` }, { status: 502 });

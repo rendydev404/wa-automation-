@@ -37,9 +37,9 @@ const n1 = await tambahNomor("uji-1");
 const n2 = await tambahNomor("uji-2");
 
 await cek("skema dibuat oleh migrasi; app berjalan sebagai role biasa (bukan superuser)", async () => {
-  assert.equal((await sql`SELECT MAX(versi) AS v FROM skema_versi`)[0].v, 8);
+  assert.equal((await sql`SELECT MAX(versi) AS v FROM skema_versi`)[0].v, 9);
   const tabel = (await sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY 1`).map((r) => r.tablename);
-  assert.deepEqual(tabel, ["admin_log", "ai_pakai", "chat_state", "chunks", "documents", "langganan", "numbers", "paket", "pelajaran", "percakapan", "pesan_chat", "settings", "skema_versi", "stats", "transaksi", "users", "wa_auth"]);
+  assert.deepEqual(tabel, ["admin_log", "ai_pakai", "chat_state", "chunks", "documents", "langganan", "numbers", "paket", "pelajaran", "percakapan", "pesan_chat", "settings", "skema_versi", "stats", "teruskan", "transaksi", "users", "wa_auth"]);
   assert.equal((await sql`SELECT rolsuper FROM pg_roles WHERE rolname = current_user`)[0].rolsuper, false);
   assert.match(n1.sesi, new RegExp(`^n${n1.id}x[0-9a-f]{8}$`));
   assert.equal(n2.id, n1.id + 1);

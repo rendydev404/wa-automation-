@@ -5,13 +5,13 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { Menu, MessageCircle, X } from "lucide-react";
 
-function Merek() {
+function Merek({ beranda, label }: { beranda: string; label: string }) {
   return (
-    <Link href="/dashboard" className="flex min-w-0 items-center gap-2.5 rounded-lg">
+    <Link href={beranda} className="flex min-w-0 items-center gap-2.5 rounded-lg">
       <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-ink-signal text-ink">
         <MessageCircle className="size-[18px]" strokeWidth={2.4} aria-hidden />
       </span>
-      <span className="truncate text-[15px] font-bold tracking-tight">Asisten WhatsApp</span>
+      <span className="truncate text-[15px] font-bold tracking-tight">{label}</span>
     </Link>
   );
 }
@@ -20,7 +20,17 @@ function Merek() {
  * Rangka aplikasi. Desktop (lg+): sidebar gelap tetap di kiri. HP/tablet: bilah atas gelap dan
  * sidebar yang sama menjadi laci geser — satu elemen untuk keduanya, tanpa render ganda.
  */
-export function Rangka({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) {
+export function Rangka({
+  sidebar,
+  children,
+  beranda = "/dashboard",
+  label = "Asisten WhatsApp",
+}: {
+  sidebar: ReactNode;
+  children: ReactNode;
+  beranda?: string;
+  label?: string;
+}) {
   const [buka, setBuka] = useState(false);
   const tombolTutup = useRef<HTMLButtonElement>(null);
 
@@ -44,7 +54,7 @@ export function Rangka({ sidebar, children }: { sidebar: ReactNode; children: Re
   return (
     <div className="min-h-svh lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-ink-line bg-ink/95 px-4 text-ink-fg backdrop-blur sm:px-6 lg:hidden">
-        <Merek />
+        <Merek beranda={beranda} label={label} />
         <button
           type="button"
           aria-label="Buka menu"
@@ -77,7 +87,7 @@ export function Rangka({ sidebar, children }: { sidebar: ReactNode; children: Re
         <div className="relative flex h-16 shrink-0 items-center justify-between gap-2 px-5">
           <div aria-hidden className="kisi-tinta pointer-events-none absolute inset-0 opacity-60" />
           <div className="relative min-w-0">
-            <Merek />
+            <Merek beranda={beranda} label={label} />
           </div>
           <button
             ref={tombolTutup}

@@ -1,5 +1,3 @@
-import { Suspense } from "react";
-import type { Metadata } from "next";
 import Link from "next/link";
 import { Bot, ChevronRight, CreditCard, Package, Phone, ShieldCheck, UserCheck, UserPlus, UserX, Users } from "lucide-react";
 import { KartuStat } from "@/components/stat";
@@ -7,14 +5,14 @@ import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna, ringkasanAdmin } from "@/lib/pengguna";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
 import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, SalinTeks } from "./form-admin";
-import { acuanHarga, daftarPaket, kuotaBalasanGratis, riwayatTransaksi } from "@/lib/langganan";
+import { acuanHarga, daftarPaket, kuotaBalasanGratis, pemakaianNyata, riwayatTransaksi } from "@/lib/langganan";
 import { SimulasiHarga } from "./simulasi-harga";
 import { konfigMidtrans, kunciMidtransSah } from "@/lib/midtrans";
 import { asalAplikasi } from "@/lib/batas";
 import { kunciAnthropic, kursUsd, modelAnthropic, pengaturanAi, perkiraanPerBalasan, ringkasPakai } from "@/lib/ai";
 import { sekarang } from "@/lib/db";
 
-export const metadata: Metadata = { title: "Admin · Asisten WhatsApp" };
+/** Bagian-bagian panel admin; tiap halaman di /admin/* menyusunnya. */
 
 const FILTER: { nilai: FilterPengguna; label: string }[] = [
   { nilai: "semua", label: "Semua" },
@@ -23,58 +21,21 @@ const FILTER: { nilai: FilterPengguna; label: string }[] = [
   { nilai: "admin", label: "Admin" },
 ];
 
-export default function HalamanAdmin(props: PageProps<"/admin">) {
+export function BuatAkun() {
   return (
-    <div className="space-y-6 lg:space-y-8">
-      <div>
-        <p className="text-[11.5px] font-semibold tracking-[0.08em] text-accent uppercase">Panel admin</p>
-        <h1 className="mt-1.5 text-2xl font-bold tracking-tight sm:text-[28px]">Kelola pengguna</h1>
-        <p className="mt-1 max-w-2xl text-muted">Atur kuota perangkat WhatsApp tiap akun, blokir penyalahgunaan, reset password, dan aturan pendaftaran.</p>
+    <section className="card p-6">
+      <h2 className="flex items-center gap-2 text-[15px] font-bold">
+        <UserPlus className="size-4 text-accent" aria-hidden /> Buat akun
+      </h2>
+      <p className="mt-0.5 text-[13px] text-muted">Untuk klien yang tidak mendaftar sendiri.</p>
+      <div className="mt-4">
+        <FormBuatAkun />
       </div>
-      <Suspense fallback={<div aria-hidden className="grid grid-cols-2 gap-3 xl:grid-cols-4">{[0, 1, 2, 3].map((i) => <div key={i} className="card h-32 animate-denyut" />)}</div>}>
-        <Ringkasan />
-      </Suspense>
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="min-w-0 space-y-6">
-          <Suspense fallback={<div aria-hidden className="card h-[480px] animate-denyut" />}>
-            <TabelPengguna searchParams={props.searchParams} />
-          </Suspense>
-          <Suspense fallback={<div aria-hidden className="card h-72 animate-denyut" />}>
-            <KelolaPaket />
-          </Suspense>
-          <Suspense fallback={<div aria-hidden className="card h-56 animate-denyut" />}>
-            <Transaksi />
-          </Suspense>
-        </div>
-        <div className="space-y-6">
-          <Suspense fallback={<div aria-hidden className="card h-72 animate-denyut" />}>
-            <MesinAi />
-          </Suspense>
-          <Suspense fallback={<div aria-hidden className="card h-64 animate-denyut" />}>
-            <Pembayaran />
-          </Suspense>
-          <Suspense fallback={<div aria-hidden className="card h-56 animate-denyut" />}>
-            <Pengaturan />
-          </Suspense>
-          <section className="card p-6">
-            <h2 className="flex items-center gap-2 text-[15px] font-bold">
-              <UserPlus className="size-4 text-accent" aria-hidden /> Buat akun
-            </h2>
-            <p className="mt-0.5 text-[13px] text-muted">Untuk klien yang tidak mendaftar sendiri.</p>
-            <div className="mt-4">
-              <FormBuatAkun />
-            </div>
-          </section>
-          <Suspense fallback={<div aria-hidden className="card h-72 animate-denyut" />}>
-            <Log />
-          </Suspense>
-        </div>
-      </div>
-    </div>
+    </section>
   );
 }
 
-async function Ringkasan() {
+export async function Ringkasan() {
   await requireAdmin();
   const r = await ringkasanAdmin();
   return (
@@ -87,7 +48,7 @@ async function Ringkasan() {
   );
 }
 
-async function MesinAi() {
+export async function MesinAi() {
   await requireAdmin();
   const kunci = kunciAnthropic();
   const [atur, pakai, KURS] = await Promise.all([pengaturanAi(), ringkasPakai(sekarang() - 7 * 86400), kursUsd()]);
@@ -148,7 +109,7 @@ async function MesinAi() {
   );
 }
 
-async function Pengaturan() {
+export async function Pengaturan() {
   await requireAdmin();
   const [buka, kuota, balasan, kurs] = await Promise.all([pendaftaranDibuka(), kuotaBawaan(), kuotaBalasanGratis(), kursUsd()]);
   return (
@@ -171,9 +132,9 @@ const MODEL_ACUAN = [
   { id: "claude-haiku-4-5", nama: "Claude Haiku 4.5" },
 ];
 
-async function KelolaPaket() {
+export async function KelolaPaket() {
   await requireAdmin();
-  const [paket, acuan] = await Promise.all([daftarPaket({ semua: true }), acuanHarga()]);
+  const [paket, acuan, nyata] = await Promise.all([daftarPaket({ semua: true }), acuanHarga(), pemakaianNyata()]);
   const modelAcuan = MODEL_ACUAN.flatMap((m) => {
     const usd = perkiraanPerBalasan(m.id);
     return usd === null ? [] : [{ ...m, usd }];
@@ -185,12 +146,13 @@ async function KelolaPaket() {
       </h2>
       <p className="mt-0.5 text-[13px] text-muted">Perubahan berlaku untuk pembelian berikutnya; pelanggan yang sedang aktif tetap memakai kuota saat ia membeli.</p>
       <details className="mt-4 rounded-xl border border-accent/30 bg-accent-soft/30" open>
-        <summary className="cursor-pointer px-4 py-3 text-[13.5px] font-semibold text-accent">Margin keuntungan & simulasi harga</summary>
+        <summary className="cursor-pointer px-4 py-3 text-[13.5px] font-semibold text-accent">Margin keuntungan & simulasi paket (pratinjau langsung)</summary>
         <div className="border-t border-accent/20 bg-surface p-4">
           <SimulasiHarga
-            paket={paket.map((p) => ({ id: p.id, nama: p.nama, harga: p.harga, durasi_hari: p.durasi_hari, kuota_nomor: p.kuota_nomor, kuota_balasan: p.kuota_balasan }))}
+            paket={paket.map((p) => ({ id: p.id, nama: p.nama, harga: p.harga, durasi_hari: p.durasi_hari, kuota_nomor: p.kuota_nomor, kuota_balasan: p.kuota_balasan, unggulan: p.unggulan }))}
             model={modelAcuan}
             acuan={acuan}
+            nyata={nyata}
           />
         </div>
       </details>
@@ -232,7 +194,7 @@ const STATUS_TRX: Record<string, string> = {
   dikembalikan: "bg-subtle text-muted",
 };
 
-async function Transaksi() {
+export async function Transaksi() {
   await requireAdmin();
   const daftar = await riwayatTransaksi({ batas: 25 });
   const lunas = daftar.filter((t) => t.status === "lunas");
@@ -271,7 +233,7 @@ async function Transaksi() {
   );
 }
 
-async function Pembayaran() {
+export async function Pembayaran() {
   await requireAdmin();
   const [k, asal] = await Promise.all([konfigMidtrans(), asalAplikasi()]);
   // Kunci dipasang developer di server; di sini hanya dicek apakah Midtrans menerimanya.
@@ -294,7 +256,7 @@ async function Pembayaran() {
   );
 }
 
-async function TabelPengguna({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+export async function TabelPengguna({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireAdmin();
   const sp = await searchParams;
   const cari = typeof sp.q === "string" ? sp.q : "";
@@ -306,13 +268,13 @@ async function TabelPengguna({ searchParams }: { searchParams: Promise<Record<st
     const semua = { q: cari || undefined, f: filter === "semua" ? undefined : filter, ...ubah };
     for (const [k, v] of Object.entries(semua)) if (v) q.set(k, v);
     const s = q.toString();
-    return s ? `/admin?${s}` : "/admin";
+    return s ? `/admin/pengguna?${s}` : "/admin/pengguna";
   };
 
   return (
     <section className="card min-w-0 overflow-hidden">
       <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <form action="/admin" className="flex w-full max-w-sm gap-2">
+        <form action="/admin/pengguna" className="flex w-full max-w-sm gap-2">
           {filter !== "semua" && <input type="hidden" name="f" value={filter} />}
           <label htmlFor="cari-pengguna" className="sr-only">
             Cari pengguna
@@ -406,9 +368,9 @@ async function TabelPengguna({ searchParams }: { searchParams: Promise<Record<st
   );
 }
 
-async function Log() {
+export async function Log({ batas = 25 }: { batas?: number } = {}) {
   await requireAdmin();
-  const log = await daftarLog(25);
+  const log = await daftarLog(batas);
   return (
     <section className="card p-6">
       <h2 className="text-[15px] font-bold">Jejak tindakan admin</h2>

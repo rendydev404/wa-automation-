@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Viewport } from "next";
 import { LogOut } from "lucide-react";
 import { logoutAction } from "@/app/actions";
+import { BannerAkun } from "@/components/banner-akun";
 import { NavKerangka, NavUtama, StatusLayanan } from "@/components/navigasi";
 import { Rangka } from "@/components/rangka";
 import { PenyediaTur } from "@/components/tur";
@@ -45,7 +46,12 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
           </>
         }
       >
-        <main className="mx-auto w-full max-w-[1320px] px-4 pt-6 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-10 lg:pt-10">{children}</main>
+        <main className="mx-auto w-full max-w-[1320px] px-4 pt-6 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-10 lg:pt-10">
+          <Suspense fallback={null}>
+            <BannerAkun />
+          </Suspense>
+          {children}
+        </main>
       </Rangka>
       </PenyediaTur>
     </WaStatusProvider>

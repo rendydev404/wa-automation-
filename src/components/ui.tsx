@@ -15,10 +15,10 @@ export function Pill({ nada, children }: { nada: "hijau" | "kuning" | "merah" | 
   return <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${kelas}`}>{children}</span>;
 }
 
-export function SubmitButton({ children, className = "btn btn-primary" }: { children: ReactNode; className?: string }) {
+export function SubmitButton({ children, className = "btn btn-primary", disabled }: { children: ReactNode; className?: string; disabled?: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className={className}>
+    <button type="submit" disabled={pending || disabled} className={className}>
       {pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
       {children}
     </button>

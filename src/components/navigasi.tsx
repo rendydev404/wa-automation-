@@ -96,7 +96,7 @@ export function NavUtama({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
         </TautanNav>
         {admin && (
           <TautanNav href="/admin" aktif={jalur.startsWith("/admin")} ikon={<ShieldCheck className="size-4" aria-hidden />}>
-            Admin
+            Panel admin
           </TautanNav>
         )}
         {/* Panduan: tur halaman yang sedang dibuka (halaman nomor punya tur sendiri). */}

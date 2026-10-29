@@ -1,8 +1,10 @@
 import "server-only";
+import { aturan } from "./aturan";
 import { db, getSetting, sekarang } from "./db";
 import { hermesSehat, hermesTerkonfigurasi, tanyaHermes } from "./hermes";
 import { JAWABAN_AMAN, type Pelanggaran, pesanKoreksi, periksaJawaban } from "./pemeriksa";
 import { teksSoul } from "./soul";
+import { type TagTeruskan, ambilTeruskan } from "./teruskan";
 import type { Foto } from "./types";
 
 /**
@@ -78,7 +80,6 @@ export async function tanyaAi(r: PermintaanAi): Promise<JawabanAi> {
 
 const API = "https://api.anthropic.com/v1";
 const VERSI_API = "2023-06-01";
-const MAKS_TOKEN_KELUAR = 700; // balasan WhatsApp pendek; pagar biaya bila model "kebablasan"
 
 /**
  * Tarif resmi Anthropic per 1 juta token (USD), dicek di platform.claude.com/docs/en/about-claude/pricing
@@ -144,7 +145,8 @@ async function panggilAnthropic(kunci: string, model: string, r: PermintaanAi) {
     headers: { "x-api-key": kunci, "anthropic-version": VERSI_API, "content-type": "application/json" },
     body: JSON.stringify({
       model,
-      max_tokens: MAKS_TOKEN_KELUAR,
+      // Balasan WhatsApp pendek; pagar biaya bila model "kebablasan" (aturan admin, bawaan 700)
+      max_tokens: await aturan("maks_token_balasan"),
       // Penalaran dimatikan: diukur pada pertanyaan asli (claude-haiku-5.5), waktu balas 3,1 -> 1,5 dtk, mutu setara.
       thinking: { type: "disabled" },
       temperature: 0.4,
@@ -277,6 +279,8 @@ export interface JawabanTerjaga extends JawabanAi {
   ditulisUlang: boolean;
   /** Tulisan ulang tetap melanggar: yang dikirim JAWABAN_AMAN. */
   aman: boolean;
+  /** Hal yang diteruskan ke pemilik (hanya bila opsi.teruskan); teks sudah bersih dari tag. */
+  teruskan: TagTeruskan | null;
 }
 
 /**
@@ -284,14 +288,18 @@ export interface JawabanTerjaga extends JawabanAi {
  * pesan lawan bicara, riwayat chat lengkap). Draf yang melanggar ditulis ulang sekali dengan umpan balik yang
  * spesifik; bila tetap melanggar, dikirim jawaban aman. Biaya, token, dan waktu kedua panggilan dijumlahkan.
  */
-export async function tanyaAiTerjaga(r: PermintaanAi, sumber: string): Promise<JawabanTerjaga> {
+export async function tanyaAiTerjaga(r: PermintaanAi, sumber: string, opsiJaga: { teruskan?: boolean } = {}): Promise<JawabanTerjaga> {
   const j1 = await tanyaAi(r);
-  const opsi = { adaFoto: !!r.gambar?.length };
+  const opsi = { adaFoto: !!r.gambar?.length, teruskan: !!opsiJaga.teruskan };
+  // Tag teruskan dibuang dari teks pelanggan; penerusan dari draf yang lolos, atau dari draf mana pun bila jawaban
+  // akhirnya JAWABAN_AMAN (pemilik tetap perlu tahu, dan jawaban aman memang menyerahkan ke pemilik).
+  const pisah = (t: string) => (opsi.teruskan ? ambilTeruskan(t) : { teks: ambilTeruskan(t).teks, tag: null });
+  const d1 = pisah(j1.teks);
   const p1 = periksaJawaban(j1.teks, sumber, opsi);
-  if (!p1.length) return { ...j1, pelanggaran: [], ditulisUlang: false, aman: false };
+  if (!p1.length) return { ...j1, teks: d1.teks, pelanggaran: [], ditulisUlang: false, aman: false, teruskan: d1.tag };
 
   // Sesi Hermes terpisah supaya draf yang ditolak tidak masuk ingatan percakapan aslinya.
-  const j2 = await tanyaAi({ ...r, sessionId: `${r.sessionId}-koreksi`, sistem: `${r.sistem}\n\n${pesanKoreksi(j1.teks, p1)}` });
+  const j2 = await tanyaAi({ ...r, sessionId: `${r.sessionId}-koreksi`, sistem: `${r.sistem}\n\n${pesanKoreksi(j1.teks, p1, opsi.teruskan)}` });
   const tambah = (a: number | null, b: number | null) => (a === null && b === null ? null : (a ?? 0) + (b ?? 0));
   const gabung = {
     ...j2,
@@ -300,7 +308,8 @@ export async function tanyaAiTerjaga(r: PermintaanAi, sumber: string): Promise<J
     tokenKeluar: tambah(j1.tokenKeluar, j2.tokenKeluar),
     biayaUsd: tambah(j1.biayaUsd, j2.biayaUsd),
   };
+  const d2 = pisah(j2.teks);
   const p2 = periksaJawaban(j2.teks, sumber, opsi);
-  if (!p2.length) return { ...gabung, pelanggaran: p1, ditulisUlang: true, aman: false };
-  return { ...gabung, teks: JAWABAN_AMAN, pelanggaran: p1, ditulisUlang: true, aman: true };
+  if (!p2.length) return { ...gabung, teks: d2.teks, pelanggaran: p1, ditulisUlang: true, aman: false, teruskan: d2.tag };
+  return { ...gabung, teks: JAWABAN_AMAN, pelanggaran: p1, ditulisUlang: true, aman: true, teruskan: d2.tag ?? d1.tag };
 }

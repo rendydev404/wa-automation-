@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { type Tx, db, getSetting, sekarang, transaksi as transaksiDb } from "./db";
 import { MODEL_BAWAAN, kursUsd, pengaturanAi, perkiraanPerBalasan } from "./ai";
-import { METODE_BAYAR, type MetodeBayar, hitungHarga } from "./harga";
+import { METODE_BAYAR, type MetodeBayar, hitungHarga, kuotaDariHarga, nomorDariKuota } from "./harga";
 import { type KonfigMidtrans, MidtransError, type StatusBayar, buatSnap, petaStatus, statusMidtrans } from "./midtrans";
 
 /**
@@ -319,20 +319,69 @@ export async function acuanHarga(): Promise<AcuanTersimpan> {
   };
 }
 
-/** Ubah harga semua paket berbayar ke harga saran (rumus src/lib/harga.ts). Mengembalikan paket yang berubah. */
-export async function terapkanHargaSaran(a: AcuanTersimpan): Promise<{ nama: string; lama: number; baru: number }[]> {
+export interface PemakaianNyata {
+  /** Rata-rata balasan AI per nomor per bulan (dari hari-hari nomor itu aktif, x30). */
+  balasanPerNomorBulan: number;
+  nomor: number;
+  hari: number;
+  /** Balasan terbanyak satu nomor dalam sehari. */
+  puncakHarian: number;
+}
+
+/**
+ * Pemakaian nyata 30 hari terakhir dari tabel stats (semua nomor): dasar simulasi kuota nomor. Belum ada data =
+ * 900 balasan per nomor per bulan (±30/hari, kisaran usaha kecil-menengah).
+ */
+export async function pemakaianNyata(): Promise<PemakaianNyata> {
+  const sql = await db();
+  const [r] = await sql<{ balasan: number; baris: number; nomor: number; hari: number; puncak: number }[]>`
+    SELECT COALESCE(SUM(dibalas), 0)::int AS balasan, COUNT(*)::int AS baris, COUNT(DISTINCT number_id)::int AS nomor,
+           COUNT(DISTINCT tanggal)::int AS hari, COALESCE(MAX(dibalas), 0)::int AS puncak
+      FROM stats WHERE dibalas > 0 AND tanggal >= (now() AT TIME ZONE 'Asia/Jakarta')::date - 30`;
+  return {
+    balasanPerNomorBulan: r.baris ? Math.round((r.balasan / r.baris) * 30) : 900,
+    nomor: r.nomor,
+    hari: r.hari,
+    puncakHarian: r.puncak,
+  };
+}
+
+export type ModeSimulasi = "kunci-harga" | "kunci-kuota";
+
+/**
+ * Terapkan hasil simulasi ke semua paket berbayar, dengan rumus yang sama dengan pratinjau (src/lib/harga.ts):
+ * - kunci-kuota: harga dihitung ulang dari kuota balasan; kuota nomor dari pemakaian nyata.
+ * - kunci-harga: harga tetap; kuota balasan & nomor dihitung supaya margin target tercapai.
+ */
+export async function terapkanSimulasi(a: AcuanTersimpan, mode: ModeSimulasi = "kunci-kuota"): Promise<{ nama: string; sebelum: string; sesudah: string }[]> {
   const usd = perkiraanPerBalasan(a.model);
   if (usd === null) throw new Error("Tarif model acuan belum diketahui.");
   const acuan = { biayaBalasanUsd: usd, kurs: a.kurs, margin: a.margin / 100, pemakaian: a.pemakaian / 100, metode: a.metode, biayaServerNomor: a.biayaServerNomor };
-  const berubah: { nama: string; lama: number; baru: number }[] = [];
-  for (const p of await daftarPaket({ semua: true })) {
-    if (p.harga <= 0) continue; // paket gratis/khusus admin tidak diberi harga
-    const { hargaSaran } = hitungHarga(p, acuan);
-    if (hargaSaran === null) throw new Error("Margin + biaya bayar mencapai 100%: turunkan margin.");
-    if (hargaSaran !== p.harga) {
-      await simpanPaket({ ...p, harga: hargaSaran });
-      berubah.push({ nama: p.nama, lama: p.harga, baru: hargaSaran });
+  const { balasanPerNomorBulan: r } = await pemakaianNyata();
+  const ringkas = (p: Pick<Paket, "harga" | "kuota_balasan" | "kuota_nomor">) => `Rp${p.harga.toLocaleString("id-ID")} · ${p.kuota_balasan.toLocaleString("id-ID")} balasan · ${p.kuota_nomor} nomor`;
+  const berubah: { nama: string; sebelum: string; sesudah: string }[] = [];
+  const semua = await daftarPaket({ semua: true });
+  const simpan: Paket[] = [];
+  for (const p of semua) {
+    if (p.harga <= 0) continue; // paket gratis/khusus admin tidak disentuh
+    let baru: Paket;
+    if (mode === "kunci-harga") {
+      const k = kuotaDariHarga(p.harga, p.durasi_hari, acuan, r);
+      if (k.kuotaBalasan <= 0) throw new Error(`Harga paket ${p.nama} terlalu rendah untuk margin ${a.margin}%.`);
+      baru = { ...p, kuota_balasan: k.kuotaBalasan, kuota_nomor: k.kuotaNomor };
+    } else {
+      const kuotaNomor = nomorDariKuota(p.kuota_balasan, p.durasi_hari, r);
+      const { hargaSaran } = hitungHarga({ ...p, kuota_nomor: kuotaNomor }, acuan);
+      if (hargaSaran === null) throw new Error("Margin + biaya bayar mencapai 100%: turunkan margin.");
+      baru = { ...p, harga: hargaSaran, kuota_nomor: kuotaNomor };
     }
+    if (baru.harga !== p.harga || baru.kuota_balasan !== p.kuota_balasan || baru.kuota_nomor !== p.kuota_nomor) simpan.push(baru);
+  }
+  // Semua dihitung dulu: satu paket gagal = tidak ada yang berubah
+  for (const baru of simpan) {
+    const lama = semua.find((p) => p.id === baru.id)!;
+    await simpanPaket(baru);
+    berubah.push({ nama: baru.nama, sebelum: ringkas(lama), sesudah: ringkas(baru) });
   }
   return berubah;
 }

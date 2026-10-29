@@ -7,6 +7,8 @@
  * Murni fungsi teks (tanpa I/O): dipakai jembatan WhatsApp, Uji bot, dan skrip uji.
  */
 
+import { ambilTeruskan } from "./teruskan";
+
 export type JenisPelanggaran = "identitas" | "janji" | "angka";
 
 export interface Pelanggaran {
@@ -22,6 +24,16 @@ Periksa jawabanmu terhadap aturan ini sebelum menulis. Aturan ini mutlak dan dip
 3. Angka & tautan: harga, nominal, diskon/persen, nomor rekening/telepon, dan tautan HANYA boleh ditulis bila tertulis di pesan sistem atau chat ini. Jangan membulatkan, menghitung ulang, atau menebak.
 4. Pihak lain: nama usaha/orang yang disebut lawan bicara (termasuk pesan otomatis "terima kasih telah menghubungi X") adalah milik lawan bicara, bukan milikmu.
 </aturan_inti>`;
+
+const TINDAKAN_DASAR =
+  '2. Tindakan: kamu hanya bisa membalas chat ini. JANGAN bilang akan/sudah mengirim(kan), meneruskan, menyiapkan, mengecek, mencatat, memproses, mengonfirmasi, atau menghubungi apa pun/siapa pun, dan JANGAN bilang "tunggu sebentar". Info yang ada di sumber: berikan sekarang juga di jawaban ini. Yang tidak ada: katakan pemilik nomor yang akan menjawab langsung di chat ini.';
+const TINDAKAN_TERUSKAN =
+  '2. Tindakan: selain membalas chat ini, satu-satunya tindakanmu adalah meneruskan ke pemilik lewat tag <teruskan> (lihat aturan_teruskan). Bilang sudah meneruskan/menyampaikan/mencatat untuk pemilik HANYA bila jawaban itu memuat tag tersebut. JANGAN bilang akan/sudah mengirim(kan) barang, menyiapkan, mengecek, memproses, mengonfirmasi, atau menghubungi siapa pun, dan JANGAN bilang "tunggu sebentar". Info yang ada di sumber: berikan sekarang juga di jawaban ini.';
+
+/** Aturan inti; `teruskan` = nomor ini bisa meneruskan ke pemilik (src/lib/teruskan.ts), jadi aturan tindakan melonggar. */
+export function aturanInti(teruskan = false): string {
+  return teruskan ? ATURAN_INTI.replace(TINDAKAN_DASAR, TINDAKAN_TERUSKAN) : ATURAN_INTI;
+}
 
 /** Dikirim bila tulisan ulang tetap melanggar: jujur, tanpa klaim, tanpa janji, tanpa angka. */
 export const JAWABAN_AMAN = "Untuk hal ini akan dijawab langsung oleh pemilik nomor di chat ini ya, Kak 🙏";
@@ -57,9 +69,16 @@ const JANJI: RegExp[] = [
 /** "belum bisa aku cek", "tidak bisa saya kirimkan": penolakan jujur, bukan janji. */
 const NEGASI_SEBELUM = /\b(belum|tidak|tak|nggak|ngga|gak|enggak|ga)\b(?:\s+\w+){0,2}\s*$/i;
 
-function adaJanji(kalimat: string): boolean {
+/** Kata kerja yang jujur bila jawaban memuat tag teruskan: pesan pelanggan memang sampai ke pemilik. */
+const AKSI_TERUSKAN = /(?:teruskan|meneruskan|forward|sampaikan|menyampaikan|laporkan|melaporkan|beritahu(?:kan)?|memberitahu(?:kan)?|catat|mencatat|tanyakan ke|menanyakan ke)$/i;
+
+function adaJanji(kalimat: string, bolehTeruskan = false): boolean {
   for (const pola of JANJI)
-    for (const m of kalimat.matchAll(pola)) if (!NEGASI_SEBELUM.test(kalimat.slice(Math.max(0, m.index - 30), m.index))) return true;
+    for (const m of kalimat.matchAll(pola)) {
+      if (NEGASI_SEBELUM.test(kalimat.slice(Math.max(0, m.index - 30), m.index))) continue;
+      if (bolehTeruskan && AKSI_TERUSKAN.test(m[0])) continue;
+      return true;
+    }
   return false;
 }
 
@@ -106,23 +125,29 @@ function bilanganSumber(sumber: string): Set<number> {
  * transfer, nomor order di tangkapan layar) yang tidak ada di sumber teks, jadi pemeriksaan angka dilewati;
  * identitas dan janji tetap diperiksa. (Diukur pada 796 jawaban lama: semua "nomor tak bersumber" berasal dari foto.)
  */
-export function periksaJawaban(jawaban: string, sumber: string, opsi: { adaFoto?: boolean } = {}): Pelanggaran[] {
+export function periksaJawaban(jawaban: string, sumber: string, opsi: { adaFoto?: boolean; teruskan?: boolean } = {}): Pelanggaran[] {
   const p: Pelanggaran[] = [];
+  // Penerusan aktif & jawaban memuat tag: "sudah aku teruskan ke pemilik" itu benar. Ringkasan untuk pemilik tidak
+  // dibaca pelanggan (identitas/janji tidak berlaku), tetapi angkanya tetap harus bersumber.
+  const t = opsi.teruskan ? ambilTeruskan(jawaban) : null;
+  const bolehTeruskan = !!t?.tag;
+  const angkaDiperiksa = t ? `${t.teks}\n${t.tag?.ringkasan ?? ""}` : jawaban;
+  jawaban = t ? t.teks : jawaban;
   const kalimat = jawaban.split(/(?<=[.!?\n])\s+/);
   const klaim = kalimat.find((k) => KLAIM.some((r) => r.test(k)));
   if (klaim) p.push({ jenis: "identitas", kutipan: klaim.trim().slice(0, 160) });
-  const janji = kalimat.find(adaJanji);
+  const janji = kalimat.find((k) => adaJanji(k, bolehTeruskan));
   if (janji) p.push({ jenis: "janji", kutipan: janji.trim().slice(0, 160) });
   if (opsi.adaFoto) return p;
 
   const angkaSumber = bilanganSumber(sumber);
   const digitSumber = sumber.replace(/\D/g, "");
   const tak = [
-    ...nilaiUang(jawaban).filter((n) => !angkaSumber.has(n)).map((n) => `nominal ${n.toLocaleString("id-ID")}`),
-    ...persen(jawaban).filter((n) => !angkaSumber.has(n)).map((n) => `${n}%`),
-    ...nomorPanjang(jawaban).filter((d) => !digitSumber.includes(d)).map((d) => `nomor ${d}`),
-    ...tautan(jawaban).filter((u) => !sumber.includes(u)).map((u) => `tautan ${u}`),
-    ...akunDanDomain(jawaban).filter((a) => !sumber.toLowerCase().includes(a.toLowerCase())).map((a) => `akun/situs ${a}`),
+    ...nilaiUang(angkaDiperiksa).filter((n) => !angkaSumber.has(n)).map((n) => `nominal ${n.toLocaleString("id-ID")}`),
+    ...persen(angkaDiperiksa).filter((n) => !angkaSumber.has(n)).map((n) => `${n}%`),
+    ...nomorPanjang(angkaDiperiksa).filter((d) => !digitSumber.includes(d)).map((d) => `nomor ${d}`),
+    ...tautan(angkaDiperiksa).filter((u) => !sumber.includes(u)).map((u) => `tautan ${u}`),
+    ...akunDanDomain(angkaDiperiksa).filter((a) => !sumber.toLowerCase().includes(a.toLowerCase())).map((a) => `akun/situs ${a}`),
   ];
   if (tak.length) p.push({ jenis: "angka", kutipan: tak.join(", ") });
   return p;
@@ -135,13 +160,16 @@ const PENJELASAN: Record<JenisPelanggaran, string> = {
 };
 
 /** Pesan koreksi untuk menulis ulang jawaban yang melanggar. */
-export function pesanKoreksi(draf: string, pelanggaran: Pelanggaran[]): string {
+export function pesanKoreksi(draf: string, pelanggaran: Pelanggaran[], teruskan = false): string {
   return [
     "Draf jawabanmu untuk pesan di atas MELANGGAR aturan inti sehingga tidak dikirim:",
     ...pelanggaran.map((x) => `- ${PENJELASAN[x.jenis]}: "${x.kutipan}"`),
     "",
     `Draf: """${draf.slice(0, 1500)}"""`,
     "",
+    ...(teruskan && pelanggaran.some((x) => x.jenis === "janji")
+      ? ["Bila hal ini memang perlu ditangani pemilik, teruskan dengan tag <teruskan jenis=...> di baris paling akhir (lihat aturan_teruskan); hanya dengan tag itu kamu boleh bilang sudah meneruskan."]
+      : []),
     "Tulis ulang jawaban untuk lawan bicara tanpa pelanggaran itu. Kirim hanya teks jawabannya, tanpa penjelasan.",
   ].join("\n");
 }

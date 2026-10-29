@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { BookOpen, Check, ChevronDown, Download, FileText, Lightbulb, Loader2, Sparkles, Trash2, Type, UploadCloud, X } from "lucide-react";
 import { hapusDokumenAction, pratinjauAction, tambahTeksAction } from "@/app/actions";
 import { angka, ukuran } from "@/lib/format";
-import { CONTOH_KNOWLEDGE } from "./isi-tur";
+import { TemplatKnowledge } from "./templat-knowledge";
 import { Pesan, SubmitButton } from "./ui";
 
 export interface ItemDokumen {
@@ -26,11 +26,11 @@ interface Unggahan {
 const MAKS_BYTE = 10 * 1024 * 1024;
 
 export function KnowledgePanel({ numberId, dokumen, total, batasUtuh }: { numberId: number; dokumen: ItemDokumen[]; total: number; batasUtuh: number }) {
-  const [tab, setTab] = useState<"berkas" | "teks">(total === 0 ? "teks" : "berkas");
+  const [tab, setTab] = useState<"templat" | "berkas" | "teks">(total === 0 ? "templat" : "berkas");
   // Naik setiap "Pakai contoh" diklik: formulir teks dibuat ulang berisi contoh.
   const [contoh, setContoh] = useState(0);
   const pakaiContoh = () => {
-    setTab("teks");
+    setTab("templat");
     setContoh((n) => n + 1);
   };
   return (
@@ -50,7 +50,7 @@ export function KnowledgePanel({ numberId, dokumen, total, batasUtuh }: { number
 
       <div className="px-5 pt-5 sm:px-6">
         <div role="tablist" className="inline-flex rounded-xl bg-subtle p-1">
-          {(["berkas", "teks"] as const).map((t) => (
+          {(["templat", "berkas", "teks"] as const).map((t) => (
             <button
               key={t}
               role="tab"
@@ -59,12 +59,12 @@ export function KnowledgePanel({ numberId, dokumen, total, batasUtuh }: { number
               onClick={() => setTab(t)}
               className={`rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${tab === t ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
             >
-              {t === "berkas" ? "Unggah berkas" : "Tulis teks"}
+              {t === "templat" ? "Pakai templat" : t === "berkas" ? "Unggah berkas" : "Tulis teks"}
             </button>
           ))}
         </div>
         <div className="mt-4">
-          {tab === "berkas" ? <Unggah numberId={numberId} /> : <FormTeks key={contoh} numberId={numberId} isiAwal={contoh ? CONTOH_KNOWLEDGE : undefined} />}
+          {tab === "templat" ? <TemplatKnowledge key={contoh} numberId={numberId} /> : tab === "berkas" ? <Unggah numberId={numberId} /> : <FormTeks numberId={numberId} />}
         </div>
       </div>
 
@@ -322,9 +322,9 @@ function PenjelasanKnowledge({ terbuka, pakaiContoh }: { terbuka: boolean; pakai
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" onClick={pakaiContoh} className="btn btn-primary">
-            <Sparkles className="size-4" aria-hidden /> Pakai contoh
+            <Sparkles className="size-4" aria-hidden /> Pakai templat
           </button>
-          <span className="text-[12.5px] text-muted">Isi contoh langsung muncul di &quot;Tulis teks&quot;; tinggal ganti bagian [dalam kurung siku]. Sudah punya menu/daftar harga dalam PDF? Pakai &quot;Unggah berkas&quot;.</span>
+          <span className="text-[12.5px] text-muted">Pilih jenis usaha, formulir sudah berisi contoh lengkap; tinggal ganti nama produk, harga, jam, dan alamat. Sudah punya menu/daftar harga dalam PDF? Pakai &quot;Unggah berkas&quot;.</span>
         </div>
       </div>
     </details>

@@ -10,8 +10,12 @@ import { PanelPelajaran } from "@/components/panel-pelajaran";
 import { HapusNomor, LencanaTerhubung, NumberSettings, SaklarBot, SaklarSinkron } from "@/components/number-settings";
 import { KartuStat, Meter, Sparkline } from "@/components/stat";
 import { TestChat } from "@/components/test-chat";
+import { PanelTeruskan } from "@/components/panel-teruskan";
+import { saklar } from "@/lib/aturan";
+import { riwayatTeruskan } from "@/lib/penerusan";
+import { JENIS_TERUSKAN } from "@/lib/teruskan";
 import { sekarang } from "@/lib/db";
-import { angka, formatNomor, tanggal } from "@/lib/format";
+import { angka, formatNomor, tanggal, waktuSingkatWib } from "@/lib/format";
 import { BATAS_UTUH, daftarDokumen } from "@/lib/knowledge";
 import { statHarian, tanggalWib } from "@/lib/numbers";
 import { nomorUntuk } from "@/lib/akses";
@@ -63,7 +67,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   const admin = user.peran === "admin";
 
   const hari = hariTerakhir(tanggalWib(), 7);
-  const [dokumen, sinkronIds, statusSs, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran, tur] = await Promise.all([
+  const [dokumen, sinkronIds, statusSs, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran, tur, diteruskan, teruskanDiizinkan] = await Promise.all([
     daftarDokumen(id),
     admin ? nomorSinkron() : Promise.resolve([] as number[]),
     admin ? statusSinkron() : Promise.resolve(null),
@@ -73,6 +77,8 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
     jumlahPelajaran(id),
     daftarPelajaran(id),
     turSelesai(user.id),
+    riwayatTeruskan(id, 10),
+    saklar("teruskan_diizinkan"),
   ]);
   const chatPertama = daftarChat.daftar[0] ? await ambilPesanPercakapan(id, daftarChat.daftar[0].id) : null;
   const total = dokumen.reduce((n, d) => n + d.jumlah_karakter, 0);
@@ -179,6 +185,24 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
         <div className="min-w-0 space-y-6">
           <div id="uji" data-tur="uji">
             <TestChat numberId={nomor.id} />
+          </div>
+          <div id="teruskan" data-tur="teruskan">
+            <PanelTeruskan
+              numberId={nomor.id}
+              teruskanKe={nomor.teruskan_ke}
+              aktif={nomor.teruskan_aktif}
+              diizinkan={teruskanDiizinkan}
+              waBisnis={nomor.wa_id}
+              riwayat={diteruskan.map((r) => ({
+                id: r.id,
+                label: JENIS_TERUSKAN[r.jenis].label,
+                ikon: JENIS_TERUSKAN[r.jenis].ikon,
+                pelanggan: r.pelanggan,
+                ringkasan: r.ringkasan,
+                status: r.status,
+                waktu: waktuSingkatWib(r.created_at, sekarang()),
+              }))}
+            />
           </div>
           {admin && <SaklarSinkron id={nomor.id} aktif={sinkronIds.includes(nomor.id)} siap={!!konfigurasiSinkron()} keterangan={statusSs ? teksStatusSinkron(statusSs) : ""} />}
           <div id="pengaturan" data-tur="pengaturan">

@@ -236,19 +236,52 @@ await cek("rumus harga: modal dari tarif resmi x kuota (+5% foto/tulis-ulang), b
   assert.equal(H.hitungHarga({ harga: 1000, durasi_hari: 30, kuota_nomor: 1, kuota_balasan: 1 }, { ...a, margin: 0.98 }).hargaSaran, null);
 });
 
-await cek("acuan harga tersimpan (bawaan: margin 60%, pakai 100%, kartu, Haiku 5.5) & terapkan harga saran ke semua paket berbayar", async () => {
+await cek("pemakaian nyata dari stats 30 hari (rata-rata per nomor per hari aktif x30); belum ada data = 900/bulan", async () => {
+  assert.deepEqual(await L.pemakaianNyata(), { balasanPerNomorBulan: 900, nomor: 0, hari: 0, puncakHarian: 0 });
+  await sql`INSERT INTO stats(number_id, tanggal, masuk, dibalas) VALUES (${n1.id}, (now() AT TIME ZONE 'Asia/Jakarta')::date, 70, 60),
+    (${nLain.id}, (now() AT TIME ZONE 'Asia/Jakarta')::date, 30, 20), (${nLain.id}, (now() AT TIME ZONE 'Asia/Jakarta')::date - 40, 900, 900)`;
+  assert.deepEqual(await L.pemakaianNyata(), { balasanPerNomorBulan: 1200, nomor: 2, hari: 1, puncakHarian: 60 }); // (60+20)/2 x30; baris 40 hari lalu diabaikan
+  await sql`DELETE FROM stats`;
+});
+
+await cek("kebalikan rumus: harga dikunci -> kuota balasan (kelipatan 50, margin tetap tercapai) & nomor dari pemakaian nyata", async () => {
+  const usd = AI2.perkiraanPerBalasan("claude-haiku-5-5");
+  const a = { biayaBalasanUsd: usd, kurs: 16500, margin: 0.6, pemakaian: 1, metode: "kartu", biayaServerNomor: 0 };
+  assert.deepEqual(H.kuotaDariHarga(45000, 30, a, 900), { kuotaBalasan: 1000, kuotaNomor: 1 });
+  const k = H.kuotaDariHarga(144000, 30, { ...a, margin: 0.5 }, 900);
+  assert.equal(k.kuotaBalasan % 50, 0);
+  assert.ok(H.hitungHarga({ harga: 144000, durasi_hari: 30, kuota_nomor: k.kuotaNomor, kuota_balasan: k.kuotaBalasan }, { ...a, margin: 0.5 }).margin >= 0.5);
+  assert.deepEqual(H.kuotaDariHarga(3000, 30, a, 900), { kuotaBalasan: 0, kuotaNomor: 1 }); // terlalu murah
+  assert.equal(H.nomorDariKuota(3500, 30, 900), 4);
+  assert.equal(H.nomorDariKuota(3500, 60, 900), 2); // durasi 60 hari: tiap nomor memakai 2x lipat
+  assert.equal(H.nomorDariKuota(100, 30, 900), 1); // minimal 1
+});
+
+await cek("acuan harga tersimpan (bawaan: margin 60%, pakai 100%, kartu, Haiku 5.5) & terapkan simulasi ke semua paket berbayar", async () => {
   const a = await L.acuanHarga();
   assert.deepEqual({ ...a, kurs: undefined }, { margin: 60, pemakaian: 100, metode: "kartu", biayaServerNomor: 0, kurs: undefined, model: "claude-haiku-5-5" });
-  const berubah = await L.terapkanHargaSaran({ ...a, kurs: 16500 });
+  const acuan = { ...a, kurs: 16500 };
+  const berubah = await L.terapkanSimulasi(acuan, "kunci-kuota");
   assert.deepEqual(
-    berubah.map((b) => [b.nama, b.lama, b.baru]),
+    berubah.map((b) => [b.nama, b.sesudah]),
     [
-      ["Starter", 99000, 45000],
-      ["Bisnis", 249000, 144000],
-      ["Pro", 599000, 401000],
+      ["Starter", "Rp45.000 · 1.000 balasan · 1 nomor"],
+      ["Bisnis", "Rp144.000 · 3.500 balasan · 4 nomor"],
+      ["Pro", "Rp401.000 · 10.000 balasan · 11 nomor"],
     ]
   );
-  assert.deepEqual(await L.terapkanHargaSaran({ ...a, kurs: 16500 }), []); // sudah sesuai: tidak ada perubahan
+  assert.equal(berubah[0].sebelum, "Rp99.000 · 1.000 balasan · 1 nomor");
+  assert.deepEqual(await L.terapkanSimulasi(acuan, "kunci-kuota"), []); // sudah sesuai: tidak ada perubahan
+  assert.deepEqual(await L.terapkanSimulasi(acuan, "kunci-harga"), []); // dua arah rumus konsisten
+  // Harga dikunci, margin turun ke 50%: kuota balasan naik, harga tetap
+  const naik = await L.terapkanSimulasi({ ...acuan, margin: 50 }, "kunci-harga");
+  assert.equal(naik.length, 3);
+  const starterBaru = (await L.daftarPaket({ semua: true })).find((p) => p.kode === "starter");
+  assert.equal(starterBaru.harga, 45000);
+  assert.ok(starterBaru.kuota_balasan > 1000);
+  const sebelum = await L.daftarPaket({ semua: true });
+  await assert.rejects(L.terapkanSimulasi({ ...acuan, margin: 90, metode: "va" }, "kunci-harga"), /terlalu rendah/);
+  assert.deepEqual(await L.daftarPaket({ semua: true }), sebelum); // gagal = tidak ada paket yang berubah
   await setSetting("margin_target", "80");
   assert.equal((await L.acuanHarga()).margin, 80);
 });

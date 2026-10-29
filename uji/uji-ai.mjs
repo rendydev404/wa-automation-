@@ -264,6 +264,72 @@ await cek("penjaga: draf melanggar ditulis ulang sekali; tetap melanggar = jawab
   }
 });
 
+const T = await lib("src/lib/teruskan.ts");
+const { rapikanNomorWa } = await lib("src/lib/numbers.ts");
+
+await cek("teruskan: tag dipisah dari jawaban (jenis tak dikenal = lainnya, tag terpotong tetap terbaca, tag kosong diabaikan)", async () => {
+  const a = T.ambilTeruskan('Siap Kak, sudah aku teruskan ya.\n<teruskan jenis="pesanan">\nNama: Rina\n\nPesanan: 2 Paket Hemat\n</teruskan>');
+  assert.deepEqual(a, { teks: "Siap Kak, sudah aku teruskan ya.", tag: { jenis: "pesanan", ringkasan: "Nama: Rina\nPesanan: 2 Paket Hemat" } });
+  assert.equal(T.ambilTeruskan("<teruskan jenis=aneh>isi</teruskan>").tag.jenis, "lainnya");
+  assert.equal(T.ambilTeruskan('<teruskan jenis="uji">isi</teruskan>').tag.jenis, "lainnya"); // "uji" hanya dari dashboard
+  assert.deepEqual(T.ambilTeruskan('Oke.\n<teruskan jenis="keluhan">Barang rusak'), { teks: "Oke.", tag: { jenis: "keluhan", ringkasan: "Barang rusak" } });
+  assert.deepEqual(T.ambilTeruskan("Halo <teruskan></teruskan>"), { teks: "Halo", tag: null });
+  assert.deepEqual(T.ambilTeruskan("Biasa saja."), { teks: "Biasa saja.", tag: null });
+  assert.equal(T.ambilTeruskan("a </teruskan> b").teks, "a  b");
+});
+
+await cek("teruskan: pesan ke pemilik memuat jenis, nama + nomor pelanggan, ringkasan, dan tautan chat", async () => {
+  const t = T.pesanUntukPemilik({ tag: { jenis: "pembayaran", ringkasan: "Sudah transfer BCA" }, namaPelanggan: "Rina", teleponPelanggan: "6281234567890", labelNomor: "CS", namaWa: "Toko Uji" });
+  assert.match(t, /^💳 \*Konfirmasi pembayaran\*\nDari: Rina · \+62 812-3456-7890\nMasuk di: Toko Uji \(CS\)\n\nSudah transfer BCA\n\nChat pelanggan: https:\/\/wa\.me\/6281234567890/);
+  assert.match(T.pesanUntukPemilik({ tag: { jenis: "hubungi", ringkasan: "x" }, namaPelanggan: null, teleponPelanggan: null, labelNomor: "CS", namaWa: null }), /Dari: pelanggan \(nomor tersembunyi\)/);
+});
+
+await cek("nomor WA penerima dirapikan: 08xx / +62 / 62 / 8xx / spasi & strip; selain itu ditolak", async () => {
+  for (const m of ["0812-3456-7890", "+62 812 3456 7890", "6281234567890", "812 3456 7890"]) assert.equal(rapikanNomorWa(m), "6281234567890", m);
+  assert.equal(rapikanNomorWa("+1 (415) 555-0100"), "14155550100");
+  for (const m of ["", "123", "abc", "0", "+0812345678"]) assert.equal(rapikanNomorWa(m), null, m);
+});
+
+await cek("pemeriksa + teruskan: 'sudah aku teruskan' sah HANYA bila tag ada & penerusan aktif; janji lain tetap ditolak; angka ringkasan tetap diperiksa", async () => {
+  const tag = '\n<teruskan jenis="pesanan">Nama: Rina\nPesanan: 2 Paket Hemat Rp25.000</teruskan>';
+  const j = (t, o) => periksaJawaban(t, SUMBER, o).map((p) => p.jenis);
+  assert.deepEqual(j(`Siap Kak, pesanannya sudah aku teruskan ke pemilik ya.${tag}`, { teruskan: true }), []);
+  assert.deepEqual(j(`Datanya sudah aku catat dan aku sampaikan ke admin.${tag}`, { teruskan: true }), []);
+  assert.deepEqual(j("Siap Kak, pesanannya sudah aku teruskan ke pemilik ya.", { teruskan: true }), ["janji"]); // tanpa tag = bohong
+  assert.deepEqual(j(`Siap Kak, sudah aku teruskan.${tag}`, {}), ["janji"]); // penerusan mati
+  assert.deepEqual(j(`Sudah aku teruskan, pesanan langsung kami siapkan ya.${tag}`, { teruskan: true }), ["janji"]); // menyiapkan tetap janji
+  assert.deepEqual(j('Sudah aku teruskan ya.\n<teruskan jenis="pesanan">Total: Rp99.000</teruskan>', { teruskan: true }), ["angka"]);
+  assert.deepEqual(j('Sudah aku teruskan ya.\n<teruskan jenis="hubungi">Aku admin di sini</teruskan>', { teruskan: true }), []); // isi tag untuk pemilik, bukan klaim ke pelanggan
+});
+
+await cek("aturan inti versi teruskan: hanya aturan tindakan yang berubah", async () => {
+  const P2 = await lib("src/lib/pemeriksa.ts");
+  assert.equal(P2.aturanInti(false), P2.ATURAN_INTI);
+  const t = P2.aturanInti(true);
+  assert.notEqual(t, P2.ATURAN_INTI);
+  assert.match(t, /satu-satunya tindakanmu adalah meneruskan ke pemilik lewat tag <teruskan>/);
+  assert.equal(t.split("\n").length, P2.ATURAN_INTI.split("\n").length);
+});
+
+await cek("templat base knowledge: semua jenis tersusun, harga resmi, data pesanan, contoh yang belum diganti ditandai", async () => {
+  const TU = await lib("src/lib/templat-usaha.ts");
+  for (const k of Object.keys(TU.JENIS_USAHA)) {
+    const t = TU.susunTemplat(k, TU.isiAwal(k));
+    assert.match(t, /# PERAN & GAYA BAHASA/, k);
+    assert.match(t, /WAJIB DIKUMPULKAN/, k);
+    assert.ok(t.length < 14000, `${k} muat dibaca utuh`);
+    assert.ok(TU.masihContoh(k, TU.isiAwal(k)).length >= 2, k);
+  }
+  const isi = { ...TU.isiAwal("kuliner"), namaUsaha: "Warung Uji", produk: [{ nama: "Mie Ayam", harga: "15000", ket: "" }, { nama: "Kerupuk", harga: "", ket: "" }], promo: "", alamat: "", bayar: "QRIS", jam: "08-20" };
+  const t = TU.susunTemplat("kuliner", isi);
+  assert.match(t, /- Mie Ayam: Rp15\.000\n- Kerupuk: harga ditanyakan ke pemilik/);
+  assert.match(t, /Tidak ada promo saat ini/);
+  assert.doesNotMatch(t, /Alamat:/);
+  assert.deepEqual(TU.masihContoh("kuliner", isi), []);
+  // Harga di templat lolos pemeriksa angka (sumber = dokumen itu sendiri)
+  assert.deepEqual(periksaJawaban("Mie Ayam Rp15.000 ya Kak.", t), []);
+});
+
 await sql.end({ timeout: 2 });
 await pg.berhenti();
 console.log(`\nLOLOS ${lolos} uji modul AI`);

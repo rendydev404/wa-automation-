@@ -76,3 +76,22 @@ export function hitungHarga(p: PaketHarga, a: AcuanHarga): HasilHarga {
     hargaSaran: penyebut > 0 ? Math.max(1_000, Math.ceil((modal + m.tetap) / penyebut / 1_000) * 1_000) : null,
   };
 }
+
+/** Nomor yang muat dalam kuota balasan bila tiap nomor seramai rata-rata nyata (minimal 1). */
+export function nomorDariKuota(kuotaBalasan: number, durasiHari: number, balasanPerNomorBulan: number): number {
+  const perNomor = balasanPerNomorBulan * (durasiHari / 30);
+  return perNomor > 0 ? Math.max(1, Math.round(kuotaBalasan / perNomor)) : 1;
+}
+
+/**
+ * Kebalikan hitungHarga: harga dikunci, berapa kuota balasan (dan nomor) yang masih memberi margin target.
+ * Biaya server ditanggung per balasan (biaya server per nomor / balasan per nomor per bulan). Kuota dibulatkan
+ * ke bawah ke kelipatan 50 supaya margin tidak pernah di bawah target.
+ */
+export function kuotaDariHarga(harga: number, durasiHari: number, a: AcuanHarga, balasanPerNomorBulan: number): { kuotaBalasan: number; kuotaNomor: number } {
+  const m = METODE_BAYAR[a.metode] ?? METODE_BAYAR.kartu;
+  const bersih = harga * (1 - a.margin - m.persen) - m.tetap;
+  const perBalasan = a.biayaBalasanUsd * a.kurs * (1 + TAMBAHAN_BIAYA_BALASAN) * a.pemakaian + (balasanPerNomorBulan > 0 ? a.biayaServerNomor / balasanPerNomorBulan : 0);
+  const kuotaBalasan = bersih > 0 && perBalasan > 0 ? Math.floor(bersih / perBalasan / 50) * 50 : 0;
+  return { kuotaBalasan, kuotaNomor: nomorDariKuota(kuotaBalasan, durasiHari, balasanPerNomorBulan) };
+}

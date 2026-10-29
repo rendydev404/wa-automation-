@@ -35,7 +35,7 @@ async function tunggu(fn, ms = 4000, apa = "") {
 }
 
 // ---------- Hermes tiruan ----------
-const hermes = { panggilan: [], jedaMs: 40, gagal: false };
+const hermes = { panggilan: [], jedaMs: 40, gagal: false, jawab: null }; // jawab(p): isi jawaban khusus (null = bawaan)
 const unduhan = []; // id pesan yang fotonya diunduh (Baileys tiruan)
 const server = http.createServer((req, res) => {
   let b = "";
@@ -60,7 +60,7 @@ const server = http.createServer((req, res) => {
         return res.end("galat");
       }
       res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify({ choices: [{ message: { content: `**Jawaban** untuk: ${p.pesan}` } }] }));
+      res.end(JSON.stringify({ choices: [{ message: { content: hermes.jawab?.(p) ?? `**Jawaban** untuk: ${p.pesan}` } }] }));
     }, hermes.jedaMs);
   });
 });
@@ -475,6 +475,61 @@ await cek("kuota balasan AI pemilik habis: pesan tercatat tetapi AI diam; kuota 
   await tunggu(() => hermes.panggilan.length === n0 + 1, 4000, "AI membalas lagi setelah kuota ditambah");
   await tunggu(() => sA.terkirim.length > k0, 4000, "balasan terkirim"); // tuntas sebelum uji berikutnya menghitung
   await sql`UPDATE numbers SET user_id = NULL WHERE id = ${A.id}`; // kembali seperti semula untuk uji berikutnya
+  cacheNomorBasi();
+});
+
+await cek("teruskan ke pemilik: tag dibuang dari balasan pelanggan, ringkasan terkirim ke WA pribadi pemilik & tercatat", async () => {
+  const PEMILIK = "6281200001111";
+  await sql`UPDATE numbers SET teruskan_ke = ${PEMILIK}, teruskan_aktif = true WHERE id = ${A.id}`;
+  cacheNomorBasi();
+  hermes.jawab = (p) =>
+    /pesan 2 nasi/.test(p.pesan) ? 'Siap Kak, pesanannya sudah aku teruskan ke pemilik ya 🙏\n<teruskan jenis="pesanan">Nama: Rina\nPesanan: 2 nasi ayam\nDiambil: jam 12</teruskan>' : null;
+  const n0 = hermes.panggilan.length;
+  const k0 = sA.terkirim.length;
+  tiba(sA, { ...pesan("6285500000307@s.whatsapp.net", "mau pesan 2 nasi ayam, ambil jam 12, atas nama Rina"), pushName: "Rina" });
+  await tunggu(() => sA.terkirim.length >= k0 + 2, 5000, "balasan pelanggan + penerusan");
+  const baru = sA.terkirim.slice(k0);
+  const kePelanggan = baru.find((k) => k.jid === "6285500000307@s.whatsapp.net");
+  const kePemilik = baru.find((k) => k.jid === `${PEMILIK}@s.whatsapp.net`);
+  assert.ok(kePelanggan && kePemilik, JSON.stringify(baru.map((b) => b.jid)));
+  assert.equal(kePelanggan.isi.text, "Siap Kak, pesanannya sudah aku teruskan ke pemilik ya 🙏");
+  assert.match(kePemilik.isi.text, /Pesanan baru/);
+  assert.match(kePemilik.isi.text, /Dari: Rina · \+62 855-0000-0307/);
+  assert.match(kePemilik.isi.text, /Pesanan: 2 nasi ayam/);
+  assert.match(kePemilik.isi.text, /wa\.me\/6285500000307/);
+  assert.ok(baru.indexOf(kePelanggan) < baru.indexOf(kePemilik), "diteruskan setelah balasan pelanggan terkirim");
+  // AI diberi aturan teruskan & aturan inti versi teruskan
+  const p = hermes.panggilan[n0];
+  assert.match(p.sistem, /Kamu BISA meneruskan pesan ke pemilik usaha/);
+  assert.match(p.sistem, /satu-satunya tindakanmu adalah meneruskan/);
+  const [r] = await sql`SELECT jenis, ringkasan, tujuan, status, pelanggan FROM teruskan WHERE number_id = ${A.id} ORDER BY id DESC LIMIT 1`;
+  assert.deepEqual({ ...r }, { jenis: "pesanan", ringkasan: "Nama: Rina\nPesanan: 2 nasi ayam\nDiambil: jam 12", tujuan: PEMILIK, status: "terkirim", pelanggan: "Rina · +6285500000307" });
+  // Gema pesan keluar ke pemilik & balasan pemilik dari WA pribadinya: bukan chat pelanggan, AI tidak menjawab
+  const n1 = hermes.panggilan.length;
+  const k1 = sA.terkirim.length;
+  tiba(sA, pesan(`${PEMILIK}@s.whatsapp.net`, kePemilik.isi.text, { dariSaya: true, id: kePemilik.id }));
+  tiba(sA, pesan(`${PEMILIK}@s.whatsapp.net`, "oke, saya siapkan"));
+  await tidur(2600);
+  assert.equal(hermes.panggilan.length, n1);
+  assert.equal(sA.terkirim.length, k1);
+  hermes.jawab = null;
+});
+
+await cek("teruskan mati: tag tetap dibuang dari balasan pelanggan dan TIDAK ada pesan ke pemilik; AI diberi tahu ia tidak bisa meneruskan", async () => {
+  await sql`UPDATE numbers SET teruskan_aktif = false WHERE id = ${A.id}`;
+  cacheNomorBasi();
+  hermes.jawab = (p) => (/pesan 3 nasi/.test(p.pesan) ? 'Baik Kak, pesanannya aku rangkum ya.\n<teruskan jenis="pesanan">Nama: Budi</teruskan>' : null);
+  const n0 = hermes.panggilan.length;
+  const k0 = sA.terkirim.length;
+  tiba(sA, pesan("6285500000308@s.whatsapp.net", "mau pesan 3 nasi"));
+  await tunggu(() => sA.terkirim.length > k0, 5000, "balasan pelanggan");
+  await tidur(300);
+  const baru = sA.terkirim.slice(k0);
+  assert.equal(baru.length, 1);
+  assert.equal(baru[0].isi.text, "Baik Kak, pesanannya aku rangkum ya.");
+  assert.match(hermes.panggilan[n0].sistem, /Penerusan ke pemilik TIDAK aktif/);
+  hermes.jawab = null;
+  await sql`UPDATE numbers SET teruskan_ke = NULL WHERE id = ${A.id}`;
   cacheNomorBasi();
 });
 

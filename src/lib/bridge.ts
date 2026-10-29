@@ -3,7 +3,10 @@ import { createHash } from "node:crypto";
 import { db, sekarang, setSetting } from "./db";
 import { catatPakai, pengaturanAi, tanpaIngatan, tanyaAiTerjaga } from "./ai";
 import { catatBalasanLokal, sisaKuotaAi } from "./langganan";
+import { aturan } from "./aturan";
 import { susunSistem } from "./knowledge";
+import { bisaTeruskan, teruskanKePemilik } from "./penerusan";
+import type { TagTeruskan } from "./teruskan";
 import { type Nomor, catatStat, catatTerhubung, nomorBySesi } from "./numbers";
 import { catatPesan, riwayatUntukAi } from "./percakapan";
 import { pelajariBalasan } from "./pelajaran";
@@ -34,9 +37,6 @@ import { type EventWa, digitWa, kirimTeks, mengetik, padaEvent, tandaiDibaca } f
 
 const MIN_MENGETIK_MS = 1_200;
 const UMUR_PESAN_MAKS_DTK = 120; // pesan lama (mis. menumpuk saat offline) tidak dijawab
-const JENDELA_DTK = 600;
-const MAKS_BALASAN_PER_JENDELA = 10;
-const SESI_BARU_SETELAH_DTK = 12 * 3600; // percakapan baru bila pelanggan diam >12 jam
 const MAKS_PESAN_KARAKTER = 2_000;
 const MAKS_CATATAN = 6;
 const MAKS_BELUM_DIBACA = 30;
@@ -82,6 +82,11 @@ interface Antrean {
   dibacaPada: number;
   /** Jawaban AI yang sudah jadi tetapi ditahan karena manusia membuka chat. */
   siap: string | null;
+  /** Hal yang akan diteruskan ke pemilik bersama jawaban `siap` (dikirim hanya bila jawaban itu terkirim). */
+  siapTeruskan: TagTeruskan | null;
+  /** Nama & nomor pelanggan terakhir di chat ini, untuk pesan yang diteruskan ke pemilik. */
+  namaPelanggan: string | null;
+  teleponPelanggan: string | null;
   /** Hal yang terjadi di chat di luar pengetahuan AI; disertakan di giliran AI berikutnya. */
   catatan: string[];
   /** Tanda-baca yang dikirim bot sendiri bisa bergema sebagai event; diabaikan sampai waktu ini. */
@@ -150,8 +155,20 @@ function jedaChat(kunci: string, a: Antrean, detik: number): void {
   simpanChat(kunci, a.chat);
 }
 
+/** Batas laju & sesi dari aturan admin (src/lib/aturan.ts; bawaan 10 balasan per 10 menit, sesi baru setelah 12 jam). */
+interface BatasGiliran {
+  maks: number;
+  jendelaDtk: number;
+  sesiBaruDtk: number;
+}
+
+async function batasGiliran(): Promise<BatasGiliran> {
+  const [maks, menit, jam] = await Promise.all([aturan("laju_maks_balasan"), aturan("laju_jendela_menit"), aturan("sesi_baru_jam")]);
+  return { maks, jendelaDtk: menit * 60, sesiBaruDtk: jam * 3600 };
+}
+
 /** Catat satu balasan; kembalikan nomor sesi Hermes, atau null bila batas laju terlampaui. */
-function ambilGiliran(kunci: string, a: Antrean): number | null {
+function ambilGiliran(kunci: string, a: Antrean, batas: BatasGiliran): number | null {
   const t = sekarang();
   const b = a.chat;
   if (!b) {
@@ -159,10 +176,10 @@ function ambilGiliran(kunci: string, a: Antrean): number | null {
     simpanChat(kunci, a.chat);
     return 1;
   }
-  const jendelaBaru = t - b.jendela_awal > JENDELA_DTK;
+  const jendelaBaru = t - b.jendela_awal > batas.jendelaDtk;
   const n = jendelaBaru ? 1 : b.jendela_n + 1;
-  if (n > MAKS_BALASAN_PER_JENDELA) return null;
-  const sesi = t - b.last_at > SESI_BARU_SETELAH_DTK ? b.sesi_ke + 1 : b.sesi_ke;
+  if (n > batas.maks) return null;
+  const sesi = t - b.last_at > batas.sesiBaruDtk ? b.sesi_ke + 1 : b.sesi_ke;
   a.chat = { ...b, sesi_ke: sesi, last_at: t, jendela_awal: jendelaBaru ? t : b.jendela_awal, jendela_n: n };
   simpanChat(kunci, a.chat);
   return sesi;
@@ -248,18 +265,22 @@ async function proses(kunci: string): Promise<void> {
     void mengetik(a.sesi, a.alamat, true);
 
     let jawaban: string;
+    let tag: TagTeruskan | null = null;
     if (a.siap && !a.teks.length) {
       // Jawaban sudah disusun sebelum manusia membuka chat, dan ia tidak jadi membalas: kirim itu.
       jawaban = a.siap;
+      tag = a.siapTeruskan;
       a.siap = null;
+      a.siapTeruskan = null;
     } else {
       a.siap = null;
+      a.siapTeruskan = null;
       const tertunda = a.teks.length;
       const sesiLalu = a.chat?.sesi_ke ?? 0;
       const asli = a.teks.splice(0);
       const pesan = asli.join("\n").slice(0, MAKS_PESAN_KARAKTER);
       const pemuatFoto: (() => Promise<Foto | null>)[] = a.foto.splice(0);
-      const sesi = ambilGiliran(kunci, a);
+      const sesi = ambilGiliran(kunci, a, await batasGiliran());
       if (sesi === null) {
         void mengetik(a.sesi, a.alamat, false);
         return; // batas laju: diam
@@ -271,17 +292,18 @@ async function proses(kunci: string): Promise<void> {
         // Isi chat yang tidak dilihat AI (balasan manusia, pesan selagi AI diam) dibaca dari histori,
         // bersamaan dengan knowledge. Tulis histori yang masih antre ditunggu dulu supaya ikut terbaca.
         // Penyedia tanpa ingatan sesi (Claude API) diberi seluruh percakapan sesi ini, bukan hanya yang belum dilihat.
-        const lengkap = tanpaIngatan((await pengaturanAi()).penyedia);
+        const [lengkap, teruskan] = await Promise.all([pengaturanAi().then((p) => tanpaIngatan(p.penyedia)), bisaTeruskan(nomor)]);
         const riwayat = st.tulis.then(() => riwayatUntukAi(kunci, { sesiBaru: sesi !== sesiLalu, tertunda, lengkap }));
         // Foto baru diunduh sekarang (AI memang akan menjawab), bersamaan, langsung ke memori.
         const gambar = (await Promise.all(pemuatFoto.map((ambil) => ambil().catch(() => null)))).filter((f: Foto | null): f is Foto => !!f);
         const gagalFoto = pemuatFoto.length - gambar.length;
         const isiPesan = gagalFoto ? `${pesan}\n[${gagalFoto} foto gagal dimuat sehingga tidak bisa kamu lihat; minta pelanggan mengirim ulang bila perlu]` : pesan;
-        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0, riwayatLengkap: lengkap });
+        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0, riwayatLengkap: lengkap, teruskan });
         // Sumber fakta untuk pemeriksa: pesan sistem + pesan pelanggan + seluruh chat sesi ini (Hermes hanya diberi
         // yang belum ia lihat, jadi sisanya dibaca terpisah supaya angka yang pernah disebut di chat tetap sah).
         const sumber = [sistem, isiPesan, ...(lengkap ? [] : await riwayatUntukAi(kunci, { sesiBaru: false, tertunda, lengkap: true }))].join("\n");
-        const hasil = await tanyaAiTerjaga({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar }, sumber);
+        const hasil = await tanyaAiTerjaga({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar }, sumber, { teruskan });
+        tag = teruskan ? hasil.teruskan : null;
         tulisLatar(() => catatPakai(a.numberId, hasil, gambar.length > 0));
         if (nomor.user_id !== null) catatBalasanLokal(nomor.user_id);
         if (hasil.pelanggaran.length) {
@@ -322,7 +344,10 @@ async function proses(kunci: string): Promise<void> {
     // Selagi AI menyusun jawaban, manusia bisa saja membuka chat atau membalas: jangan menimpali.
     if (a.generasi !== generasi || sedangDijeda(a)) {
       void mengetik(a.sesi, a.alamat, false);
-      if (a.batalKarena === "dibaca" && !sedangDijeda(a)) a.siap = jawaban; // ditahan; lihat blok finally
+      if (a.batalKarena === "dibaca" && !sedangDijeda(a)) {
+        a.siap = jawaban; // ditahan; lihat blok finally
+        a.siapTeruskan = tag;
+      }
       else catat(a, "Jawaban yang kamu susun untuk pesan sebelumnya TIDAK terkirim, karena pemilik nomor membalas sendiri.");
       return;
     }
@@ -334,6 +359,8 @@ async function proses(kunci: string): Promise<void> {
       // Id pesan dicatat sebelum pesan berangkat, jadi tidak mungkin dikira balasan manusia.
       await kirimTeks(a.sesi, a.alamat, jawaban, (id) => ingat(st.terkirim, id, 500));
       statistik(a.numberId, "dibalas");
+      // Diteruskan ke pemilik hanya setelah jawabannya benar-benar sampai ke pelanggan ("sudah aku teruskan" jadi benar).
+      if (tag) void teruskanKePemilik(nomor, { kunci, nama: a.namaPelanggan, telepon: a.teleponPelanggan }, tag, (id) => ingat(st.terkirim, id, 500));
       tulisLatar(() => catatPesan({ numberId: a.numberId, kunci, peran: 1, teks: jawaban, waktu: sekarang() }));
     } catch (e) {
       galat(a, e);
@@ -383,6 +410,9 @@ async function antreanUntuk(kunci: string, numberId: number, sesi: string, alama
     dibukaManusia: false,
     dibacaPada: 0,
     siap: null,
+    siapTeruskan: null,
+    namaPelanggan: null,
+    teleponPelanggan: null,
     catatan: [],
     botBacaSampai: 0,
     aktifSampai: Date.now() + 600_000,
@@ -455,6 +485,9 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   if (ev.waktu && sekarang() - ev.waktu > UMUR_PESAN_MAKS_DTK) return;
 
   const telepon = teleponDariEvent(ev);
+  // Chat dengan nomor pribadi pemilik (penerima pesan yang diteruskan AI) bukan chat pelanggan: tidak dijawab AI,
+  // tidak dipelajari, tidak masuk histori/statistik, ke arah mana pun.
+  if (nomor.teruskan_ke && (telepon === nomor.teruskan_ke || digitWa(ev.chat) === nomor.teruskan_ke)) return;
   const teksLog = teksLogPesan(ev);
 
   if (ev.dariSaya) {
@@ -496,6 +529,8 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   const a = await antreanUntuk(kunci, nomor.id, sesi, ev.alamat);
   if (sedangDijeda(a)) return; // manusia sedang memegang chat ini
   a.alamat = ev.alamat;
+  a.namaPelanggan = ev.namaPengirim?.trim() || a.namaPelanggan;
+  a.teleponPelanggan = telepon ?? a.teleponPelanggan;
   a.tungguMs = nomor.tunggu_detik * 1000;
   a.tungguBacaMs = nomor.tunggu_baca_detik * 1000;
   if (a.siap) {

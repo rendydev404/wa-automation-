@@ -2,7 +2,9 @@ import "server-only";
 import { db, sekarang, transaksi } from "./db";
 import type { Nomor } from "./numbers";
 import { konteksPelajaran, saringKueri } from "./pelajaran";
-import { ATURAN_INTI } from "./pemeriksa";
+import { aturanGlobal, blokAturanAdmin } from "./aturan";
+import { aturanInti } from "./pemeriksa";
+import { ATURAN_TANPA_TERUSKAN, ATURAN_TERUSKAN } from "./teruskan";
 import { ATURAN_TOPIK } from "./penjaga";
 
 /**
@@ -251,6 +253,8 @@ export interface OpsiSistem {
   adaFoto?: boolean;
   /** `riwayat` = seluruh percakapan sesi ini (penyedia AI tanpa ingatan sesi), bukan hanya yang belum dilihat. */
   riwayatLengkap?: boolean;
+  /** Nomor ini bisa meneruskan ke WhatsApp pribadi pemilik (src/lib/teruskan.ts). */
+  teruskan?: boolean;
 }
 
 const PANDUAN_FOTO = `<foto_pelanggan>
@@ -273,10 +277,11 @@ export async function susunSistem(
   kueri: string,
   opsi: OpsiSistem = {}
 ): Promise<{ sistem: string; konteks: Konteks; pelajaran: number }> {
-  const [konteks, pelajaran, riwayat] = await Promise.all([
+  const [konteks, pelajaran, riwayat, global] = await Promise.all([
     konteksPengetahuan(nomor.id, kueri),
     nomor.belajar ? konteksPelajaran(nomor.id, kueriCari(saringKueri(kueri))) : { teks: "", n: 0 },
     opsi.riwayat ?? [],
+    aturanGlobal(),
   ]);
   const bagian = [`Waktu sekarang: ${waktuWib()}.`];
   if (nomor.instruksi.trim()) bagian.push(`<instruksi_nomor>\n${nomor.instruksi.trim()}\n</instruksi_nomor>`);
@@ -312,7 +317,9 @@ export async function susunSistem(
     bagian.push(`<catatan_percakapan>\n${baris.join("\n")}\n</catatan_percakapan>`);
   }
   if (opsi.adaFoto) bagian.push(PANDUAN_FOTO);
+  const pengelola = blokAturanAdmin(global);
+  if (pengelola) bagian.push(pengelola);
   // Paling akhir dan di luar blok admin: batas topik berlaku untuk semua nomor dan tidak bisa ditimpa knowledge.
-  bagian.push(ATURAN_TOPIK, ATURAN_INTI);
+  bagian.push(opsi.teruskan ? ATURAN_TERUSKAN : ATURAN_TANPA_TERUSKAN, ATURAN_TOPIK, aturanInti(!!opsi.teruskan));
   return { sistem: bagian.join("\n\n"), konteks, pelajaran: pelajaran.n };
 }
