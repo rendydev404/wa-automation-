@@ -2,6 +2,7 @@ import "server-only";
 import { db, sekarang, transaksi } from "./db";
 import type { Nomor } from "./numbers";
 import { konteksPelajaran, saringKueri } from "./pelajaran";
+import { ATURAN_INTI } from "./pemeriksa";
 import { ATURAN_TOPIK } from "./penjaga";
 
 /**
@@ -248,6 +249,8 @@ export interface OpsiSistem {
   riwayat?: string[] | Promise<string[]>;
   /** Pesan pelanggan kali ini menyertakan foto yang ikut dikirim ke AI. */
   adaFoto?: boolean;
+  /** `riwayat` = seluruh percakapan sesi ini (penyedia AI tanpa ingatan sesi), bukan hanya yang belum dilihat. */
+  riwayatLengkap?: boolean;
 }
 
 const PANDUAN_FOTO = `<foto_pelanggan>
@@ -300,7 +303,9 @@ export async function susunSistem(
     const baris: string[] = [];
     if (riwayat.length)
       baris.push(
-        'Isi chat ini yang belum ada di ingatanmu, urut waktu ("Pemilik nomor" = balasan yang diketik manusia sendiri dari HP; anggap sudah dibaca lawan bicara):',
+        opsi.riwayatLengkap
+          ? 'Percakapan di chat ini sejauh ini, urut waktu ("Kamu (AI)" = balasanmu sebelumnya; "Pemilik nomor" = balasan yang diketik manusia sendiri dari HP, anggap sudah dibaca lawan bicara). Lanjutkan dari sini: jangan mengulang sapaan atau jawaban yang sudah diberikan.'
+          : 'Isi chat ini yang belum ada di ingatanmu, urut waktu ("Pemilik nomor" = balasan yang diketik manusia sendiri dari HP; anggap sudah dibaca lawan bicara):',
         ...riwayat
       );
     if (catatan.length) baris.push(...catatan.map((c) => `- ${c}`));
@@ -308,6 +313,6 @@ export async function susunSistem(
   }
   if (opsi.adaFoto) bagian.push(PANDUAN_FOTO);
   // Paling akhir dan di luar blok admin: batas topik berlaku untuk semua nomor dan tidak bisa ditimpa knowledge.
-  bagian.push(ATURAN_TOPIK);
+  bagian.push(ATURAN_TOPIK, ATURAN_INTI);
   return { sistem: bagian.join("\n\n"), konteks, pelajaran: pelajaran.n };
 }

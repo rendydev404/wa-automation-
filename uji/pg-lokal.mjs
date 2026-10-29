@@ -30,7 +30,7 @@ export function portBebas() {
 export async function mulaiPg({ dir, port, sementara = false }) {
   const { default: EmbeddedPostgres } = await impor("embedded-postgres/dist/index.js");
   const { default: postgres } = await impor("postgres/src/index.js");
-  if (sementara) rmSync(dir, { recursive: true, force: true });
+  if (sementara) rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); // Windows: proses postgres bisa masih melepas berkas sesaat
   const p = port ?? (await portBebas());
   const baru = !existsSync(path.join(dir, "PG_VERSION"));
   const pg = new EmbeddedPostgres({
@@ -65,7 +65,7 @@ export async function mulaiPg({ dir, port, sementara = false }) {
     lanjut: () => pg.start(),
     async berhenti() {
       await pg.stop();
-      if (sementara) rmSync(dir, { recursive: true, force: true });
+      if (sementara) rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); // Windows: proses postgres bisa masih melepas berkas sesaat
     },
   };
 }

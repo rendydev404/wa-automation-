@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSetting, sekarang } from "@/lib/db";
-import { hermesSehat } from "@/lib/hermes";
+import { aiSehat } from "@/lib/ai";
 import { catatTerhubung, nomorMilik, semuaNomor } from "@/lib/numbers";
 import { getUser } from "@/lib/session";
 import type { StatusWa } from "@/lib/types";
@@ -15,7 +15,7 @@ const g = globalThis as unknown as { __waHermes?: { at: number; ok: boolean; jan
 async function hermesCache(): Promise<boolean> {
   const c = (g.__waHermes ??= { at: 0, ok: false, janji: null });
   if (Date.now() - c.at >= 30_000 && !c.janji) {
-    c.janji = hermesSehat()
+    c.janji = aiSehat()
       .then((ok) => (c.ok = ok))
       .finally(() => {
         c.at = Date.now();

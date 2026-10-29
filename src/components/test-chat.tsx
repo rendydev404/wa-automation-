@@ -64,7 +64,15 @@ export function TestChat({ numberId }: { numberId: number }) {
       const res = await fetch("/api/uji", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ numberId, pesan: isi, sesi: sesi.current, kueriLalu: lalu.current, ...(lampiran ? { foto: lampiran } : {}) }),
+        body: JSON.stringify({
+          numberId,
+          pesan: isi,
+          sesi: sesi.current,
+          kueriLalu: lalu.current,
+          // Percakapan uji sejauh ini: dipakai penyedia AI tanpa ingatan sesi (OpenRouter).
+          riwayat: pesan.filter((g) => g.dari !== "galat").slice(-12).map((g) => ({ ai: g.dari === "bot", teks: g.teks })),
+          ...(lampiran ? { foto: lampiran } : {}),
+        }),
       });
       const d = (await res.json().catch(() => ({}))) as { teks?: string; ms?: number; mode?: keyof typeof MODE; pelajaran?: number; diblokir?: boolean; error?: string };
       if (res.ok && d.teks) {

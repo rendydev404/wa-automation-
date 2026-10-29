@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { nomorUntuk } from "@/lib/akses";
+import { openrouterSiap } from "@/lib/ai";
 import { authConfigured } from "@/lib/auth";
 import { ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
 import { sekarang, setSetting } from "@/lib/db";
@@ -438,4 +439,21 @@ export async function adminPengaturanAction(_lalu: Hasil | null, form: FormData)
   await catatLog(admin, "ubah pengaturan", null, `pendaftaran ${buka ? "dibuka" : "ditutup"}, kuota bawaan ${kuota}`);
   revalidatePath("/admin");
   return { ok: true, pesan: "Pengaturan tersimpan." };
+}
+
+/** Penyedia & model AI untuk semua nomor. Berlaku langsung (dibaca tiap giliran), tanpa restart/deploy. */
+export async function adminAiAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const penyedia = form.get("penyedia") === "openrouter" ? "openrouter" : "hermes";
+  const model = String(form.get("model") ?? "").trim();
+  const cadangan = String(form.get("cadangan") ?? "").trim();
+  const sah = /^[a-z0-9-]+\/[a-z0-9._:-]+$/i;
+  if (penyedia === "openrouter" && !openrouterSiap()) return { ok: false, pesan: "OPENROUTER_API_KEY belum diisi di server." };
+  if (!sah.test(model) || (cadangan && !sah.test(cadangan))) return { ok: false, pesan: "Nama model tidak valid (contoh: anthropic/claude-haiku-5.5)." };
+  await setSetting("ai_penyedia", penyedia);
+  await setSetting("ai_model", model);
+  await setSetting("ai_cadangan", cadangan);
+  await catatLog(admin, "ubah mesin AI", null, `${penyedia}${penyedia === "openrouter" ? ` · ${model}${cadangan ? ` (cadangan ${cadangan})` : ""}` : ""}`);
+  revalidatePath("/admin");
+  return { ok: true, pesan: penyedia === "openrouter" ? `Semua nomor kini memakai OpenRouter (${model}).` : "Semua nomor kini memakai Hermes." };
 }

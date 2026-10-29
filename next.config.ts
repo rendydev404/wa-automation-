@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
   // unpdf membawa pdf.js sendiri; biarkan dimuat dari node_modules, jangan dibundel.
   // baileys (WhatsApp) murni ESM dengan protobuf & WASM: dimuat apa adanya saat dibutuhkan.
   serverExternalPackages: ["unpdf", "baileys", "postgres"],
+  // Aturan umum bot dibaca saat jalan (src/lib/soul.ts) untuk penyedia AI tanpa Hermes: ikut ke build standalone.
+  outputFileTracingIncludes: { "/**": ["./hermes/SOUL-cs.md"] },
   experimental: {
     // Unggahan PDF maksimal 10 MB (+ overhead multipart).
     proxyClientMaxBodySize: "12mb",

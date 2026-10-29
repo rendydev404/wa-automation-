@@ -1,15 +1,22 @@
 import { NextResponse } from "next/server";
 import { formatWa } from "@/lib/bridge";
-import { tanyaHermes } from "@/lib/hermes";
+import { pengaturanAi, tanpaIngatan, tanyaAiTerjaga } from "@/lib/ai";
 import { susunSistem } from "@/lib/knowledge";
 import { TOLAK_KODE, adaKode } from "@/lib/penjaga";
 import { type Foto, MAKS_FOTO_BYTE } from "@/lib/types";
 import { sesiDanNomor } from "@/lib/akses";
 import { terlaluSering } from "@/lib/batas";
 
-/** Uji bot dari dashboard: jalur yang sama dengan WhatsApp (knowledge nomor + Hermes), tanpa mengirim WA. */
+/** Uji bot dari dashboard: jalur yang sama dengan WhatsApp (knowledge nomor + penyedia AI aktif), tanpa mengirim WA. */
 export async function POST(req: Request) {
-  const b = (await req.json().catch(() => null)) as { numberId?: number; pesan?: string; sesi?: string; kueriLalu?: string; foto?: string } | null;
+  const b = (await req.json().catch(() => null)) as {
+    numberId?: number;
+    pesan?: string;
+    sesi?: string;
+    kueriLalu?: string;
+    foto?: string;
+    riwayat?: { ai?: boolean; teks?: string }[];
+  } | null;
   const { user, nomor } = await sesiDanNomor(b?.numberId);
   if (!user) return NextResponse.json({ error: "Sesi berakhir. Silakan login kembali." }, { status: 401 });
   // Uji memakai kuota AI yang sama dengan WhatsApp: dibatasi per akun.
@@ -28,13 +35,35 @@ export async function POST(req: Request) {
   if (!/^[a-z0-9]{8,24}$/.test(sesi)) return NextResponse.json({ error: "Sesi uji tidak valid." }, { status: 400 });
   const pesan = gambar.length ? (teksPesan ? `${teksPesan}\n[Pelanggan melampirkan foto]` : "[Pelanggan mengirim foto]") : teksPesan;
 
-  const { sistem, konteks, pelajaran } = await susunSistem(nomor, `${(b?.kueriLalu ?? "").slice(0, 2000)}\n${teksPesan}`, { adaFoto: gambar.length > 0 });
+  // Percakapan uji sejauh ini (dikirim browser). Penyedia tanpa ingatan (OpenRouter) menerimanya di pesan sistem;
+  // untuk semua penyedia ia juga sumber fakta bagi pemeriksa jawaban.
+  const lengkap = tanpaIngatan((await pengaturanAi()).penyedia);
+  const semuaRiwayat = Array.isArray(b?.riwayat)
+    ? b.riwayat.slice(-12).map((m) => `${m.ai ? "Kamu (AI)" : "Pelanggan"}: ${String(m.teks ?? "").replace(/\s*\n\s*/g, " / ").slice(0, 500)}`)
+    : [];
+  const { sistem, konteks, pelajaran } = await susunSistem(nomor, `${(b?.kueriLalu ?? "").slice(0, 2000)}\n${teksPesan}`, {
+    adaFoto: gambar.length > 0,
+    riwayat: lengkap ? semuaRiwayat : [],
+    riwayatLengkap: lengkap,
+  });
   try {
-    const j = await tanyaHermes({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar });
+    const j = await tanyaAiTerjaga({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar }, [sistem, pesan, ...semuaRiwayat].join("\n"));
     // Penjaga yang sama dengan WhatsApp, supaya hasil uji mencerminkan yang benar-benar terkirim.
     const diblokir = adaKode(j.teks);
     const teks = diblokir ? TOLAK_KODE : formatWa(j.teks);
-    return NextResponse.json({ teks, ms: j.ms, mode: konteks.mode, karakterKonteks: konteks.karakter, pelajaran, diblokir });
+    return NextResponse.json({
+      teks,
+      ms: j.ms,
+      mode: konteks.mode,
+      karakterKonteks: konteks.karakter,
+      pelajaran,
+      diblokir,
+      model: j.model,
+      biayaUsd: j.biayaUsd,
+      // Untuk admin yang menguji: draf pertama ditolak pemeriksa (jenis pelanggarannya), lalu ditulis ulang / diganti jawaban aman.
+      koreksi: j.pelanggaran.map((x) => x.jenis),
+      aman: j.aman,
+    });
   } catch (e) {
     return NextResponse.json({ error: `AI tidak menjawab: ${e instanceof Error ? e.message : "galat"}` }, { status: 502 });
   }

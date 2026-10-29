@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { db, sekarang, setSetting } from "./db";
-import { tanyaHermes } from "./hermes";
+import { catatPakai, pengaturanAi, tanpaIngatan, tanyaAiTerjaga } from "./ai";
 import { susunSistem } from "./knowledge";
 import { type Nomor, catatStat, catatTerhubung, nomorBySesi } from "./numbers";
 import { catatPesan, riwayatUntukAi } from "./percakapan";
@@ -252,13 +252,25 @@ async function proses(kunci: string): Promise<void> {
       try {
         // Isi chat yang tidak dilihat AI (balasan manusia, pesan selagi AI diam) dibaca dari histori,
         // bersamaan dengan knowledge. Tulis histori yang masih antre ditunggu dulu supaya ikut terbaca.
-        const riwayat = st.tulis.then(() => riwayatUntukAi(kunci, { sesiBaru: sesi !== sesiLalu, tertunda }));
+        // Penyedia tanpa ingatan sesi (OpenRouter) diberi seluruh percakapan sesi ini, bukan hanya yang belum dilihat.
+        const lengkap = tanpaIngatan((await pengaturanAi()).penyedia);
+        const riwayat = st.tulis.then(() => riwayatUntukAi(kunci, { sesiBaru: sesi !== sesiLalu, tertunda, lengkap }));
         // Foto baru diunduh sekarang (AI memang akan menjawab), bersamaan, langsung ke memori.
         const gambar = (await Promise.all(pemuatFoto.map((ambil) => ambil().catch(() => null)))).filter((f: Foto | null): f is Foto => !!f);
         const gagalFoto = pemuatFoto.length - gambar.length;
         const isiPesan = gagalFoto ? `${pesan}\n[${gagalFoto} foto gagal dimuat sehingga tidak bisa kamu lihat; minta pelanggan mengirim ulang bila perlu]` : pesan;
-        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0 });
-        const mentah = (await tanyaHermes({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar })).teks;
+        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0, riwayatLengkap: lengkap });
+        // Sumber fakta untuk pemeriksa: pesan sistem + pesan pelanggan + seluruh chat sesi ini (Hermes hanya diberi
+        // yang belum ia lihat, jadi sisanya dibaca terpisah supaya angka yang pernah disebut di chat tetap sah).
+        const sumber = [sistem, isiPesan, ...(lengkap ? [] : await riwayatUntukAi(kunci, { sesiBaru: false, tertunda, lengkap: true }))].join("\n");
+        const hasil = await tanyaAiTerjaga({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar }, sumber);
+        tulisLatar(() => catatPakai(a.numberId, hasil, gambar.length > 0));
+        if (hasil.pelanggaran.length) {
+          console.warn(`[bridge] jawaban AI ditolak pemeriksa (${hasil.pelanggaran.map((p) => p.jenis).join(",")}) sesi=${a.sesi}${hasil.aman ? ", dikirim jawaban aman" : ", ditulis ulang"}`);
+          // Hermes mengingat draf pertamanya sendiri: beri tahu jawaban yang benar-benar terkirim.
+          if (!lengkap) catat(a, `Jawabanmu untuk pesan terakhir ditolak pemeriksa dan diganti dengan: "${hasil.teks.slice(0, 400)}". Anggap itulah yang kamu kirim.`);
+        }
+        const mentah = hasil.teks;
         if (adaKode(mentah)) {
           // Pengaman terakhir: kode program tidak pernah sampai ke WhatsApp, apa pun isi pesannya.
           console.warn(`[bridge] jawaban AI berisi kode, diganti penolakan sesi=${a.sesi}`);

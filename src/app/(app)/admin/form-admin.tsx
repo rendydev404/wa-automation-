@@ -7,6 +7,7 @@ import {
   adminBuatAkunAction,
   adminCabutSesiAction,
   adminHapusAction,
+  adminAiAction,
   adminKuotaAction,
   adminPengaturanAction,
   adminPeranAction,
@@ -208,5 +209,60 @@ export function HapusAkun({ id, email }: { id: number; email: string }) {
       </div>
       {galat && <Pesan ok={false}>{galat}</Pesan>}
     </div>
+  );
+}
+
+const SARAN_MODEL = [
+  "anthropic/claude-haiku-5.5",
+  "google/gemini-2.5-flash-lite",
+  "google/gemini-3.1-flash-lite",
+  "openai/gpt-5-mini",
+  "openai/gpt-5-nano",
+  "qwen/qwen3.7-flash",
+  "anthropic/claude-sonnet-5.5",
+];
+
+export function FormAi({ penyedia, model, cadangan, siap }: { penyedia: "hermes" | "openrouter"; model: string; cadangan: string; siap: boolean }) {
+  const [hasil, aksi] = useActionState(adminAiAction, null);
+  const [pilih, setPilih] = useState(penyedia);
+  return (
+    <form action={aksi} className="space-y-4">
+      <fieldset className="grid grid-cols-2 gap-2">
+        <legend className="label">Penyedia untuk semua nomor</legend>
+        {(["hermes", "openrouter"] as const).map((p) => (
+          <label
+            key={p}
+            className={`cursor-pointer rounded-xl border px-3 py-2.5 text-[13px] font-semibold transition-colors ${pilih === p ? "border-accent bg-accent-soft text-accent" : "border-line hover:bg-subtle"} ${p === "openrouter" && !siap ? "opacity-50" : ""}`}
+          >
+            <input type="radio" name="penyedia" value={p} checked={pilih === p} onChange={() => setPilih(p)} disabled={p === "openrouter" && !siap} className="sr-only" />
+            {p === "hermes" ? "Hermes (lama)" : "OpenRouter (API)"}
+          </label>
+        ))}
+      </fieldset>
+      <div className={pilih === "openrouter" ? "space-y-3" : "hidden"}>
+        <div>
+          <label htmlFor="model-ai" className="label">
+            Model utama
+          </label>
+          <input id="model-ai" name="model" list="saran-model" defaultValue={model} required className="field font-mono text-[12.5px]" />
+        </div>
+        <div>
+          <label htmlFor="cadangan-ai" className="label">
+            Model cadangan (dipakai otomatis bila utama gagal)
+          </label>
+          <input id="cadangan-ai" name="cadangan" list="saran-model" defaultValue={cadangan} className="field font-mono text-[12.5px]" />
+        </div>
+        <datalist id="saran-model">
+          {SARAN_MODEL.map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
+      </div>
+      <p className="text-[12px] text-muted">Berlaku langsung untuk balasan berikutnya. Koneksi WhatsApp tidak terganggu. Coba dulu lewat &quot;Uji bot&quot; di halaman nomor.</p>
+      <div className="flex items-center gap-3">
+        <SubmitButton>Simpan</SubmitButton>
+        <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
+      </div>
+    </form>
   );
 }

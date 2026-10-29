@@ -823,7 +823,8 @@ await cek("WhatsApp: jawaban AI berisi kode tidak terkirim (diganti penolakan); 
   tiba(sA, pesan(P, "tolong buatkan def hitung(a, b): return a + b dong"));
   await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
   const s = hermes.panggilan.at(-1).sistem;
-  assert.ok(s.trimEnd().endsWith("</batasan_topik>"), "batas topik ada di paling akhir pesan sistem");
+  assert.ok(s.trimEnd().endsWith("</aturan_inti>"), "aturan inti (identitas, janji, angka) ada di paling akhir pesan sistem");
+  assert.match(s, /<batasan_topik>[\s\S]*<\/batasan_topik>\s*<aturan_inti>/, "batas topik tepat sebelum aturan inti");
   assert.match(s, /DILARANG menulis[^\n]*kode program/);
   await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
   assert.equal(sA.terkirim.at(-1).isi.text, pj.TOLAK_KODE);
@@ -853,7 +854,7 @@ await cek("foto pelanggan diunduh saat AI menjawab dan ikut dikirim ke AI; histo
   assert.equal(h.pesan, "[Pelanggan mengirim foto]");
   assert.deepEqual(h.gambar, [fotoUrl(id)]);
   assert.match(h.sistem, /<foto_pelanggan>[\s\S]*Jangan bilang pembayaran sudah diterima[\s\S]*<\/foto_pelanggan>/);
-  assert.ok(h.sistem.trimEnd().endsWith("</batasan_topik>"));
+  assert.ok(h.sistem.trimEnd().endsWith("</aturan_inti>"));
   await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
   await bridge.tulisTuntas();
   const log = await sql`SELECT m.peran, m.teks FROM pesan_chat m JOIN percakapan p ON p.id = m.percakapan_id WHERE p.kunci = ${kunciChat(A.sesi, P)} ORDER BY m.id`;

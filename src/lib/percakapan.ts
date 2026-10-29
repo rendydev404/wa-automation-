@@ -246,7 +246,11 @@ const jamWib = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day:
  *   - `tertunda` pesan pelanggan paling akhir sedang dijawab (dikirim sebagai pesan biasa): tidak diulang.
  * Satu Index Scan pada pesan_chat_percakapan_idx (paling banyak RIWAYAT_BARIS baris).
  */
-export async function riwayatUntukAi(kunci: string, opsi: { sesiBaru: boolean; tertunda: number }): Promise<string[]> {
+/** Penyedia tanpa ingatan (OpenRouter): seluruh percakapan sesi ini, paling banyak 20 baris dan ±6.000 karakter. */
+const RIWAYAT_LENGKAP_MAKS = 6_000;
+const SESI_BARU_DTK = 12 * 3600; // sama dengan aturan sesi baru di bridge.ts
+
+export async function riwayatUntukAi(kunci: string, opsi: { sesiBaru: boolean; tertunda: number; lengkap?: boolean }): Promise<string[]> {
   const sql = await db();
   const baris = await sql<{ peran: PeranPesan; teks: string; waktu: number }[]>`
     SELECT peran, teks, waktu
@@ -258,7 +262,11 @@ export async function riwayatUntukAi(kunci: string, opsi: { sesiBaru: boolean; t
   let akhir = urut.length;
   for (let n = opsi.tertunda; n > 0 && akhir > 0 && urut[akhir - 1].peran === 0; n--) akhir--;
   let awal = 0;
-  if (opsi.sesiBaru) awal = Math.max(0, akhir - RIWAYAT_SESI_BARU);
+  if (opsi.lengkap) {
+    // Mundur dari pesan terbaru sampai ada jeda diam >12 jam (awal sesi percakapan ini).
+    awal = akhir;
+    for (let i = akhir - 1; i >= 0 && (i === akhir - 1 || urut[i + 1].waktu - urut[i].waktu <= SESI_BARU_DTK); i--) awal = i;
+  } else if (opsi.sesiBaru) awal = Math.max(0, akhir - RIWAYAT_SESI_BARU);
   else for (let i = akhir - 1; i >= 0; i--) if (urut[i].peran === 1) { awal = i + 1; break; }
 
   // Anggaran dihitung dari yang terbaru: bila terlalu panjang, yang paling lama dibuang.
@@ -268,7 +276,7 @@ export async function riwayatUntukAi(kunci: string, opsi: { sesiBaru: boolean; t
     const m = urut[i];
     const isi = m.teks.replace(/\s*\n\s*/g, " / ").slice(0, RIWAYAT_TEKS_MAKS);
     const baris = `[${jamWib.format(m.waktu * 1000)}] ${LABEL_PERAN[m.peran]}: ${isi}`;
-    if (terpakai + baris.length > RIWAYAT_TOTAL_MAKS && keluar.length) break;
+    if (terpakai + baris.length > (opsi.lengkap ? RIWAYAT_LENGKAP_MAKS : RIWAYAT_TOTAL_MAKS) && keluar.length) break;
     keluar.push(baris);
     terpakai += baris.length;
   }

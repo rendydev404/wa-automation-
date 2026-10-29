@@ -1,12 +1,14 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, Phone, ShieldCheck, UserCheck, UserPlus, UserX, Users } from "lucide-react";
+import { Bot, ChevronRight, Phone, ShieldCheck, UserCheck, UserPlus, UserX, Users } from "lucide-react";
 import { KartuStat } from "@/components/stat";
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna, ringkasanAdmin } from "@/lib/pengguna";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
-import { FormBuatAkun, FormPengaturan } from "./form-admin";
+import { FormAi, FormBuatAkun, FormPengaturan } from "./form-admin";
+import { openrouterSiap, pengaturanAi, ringkasPakai, saldoOpenRouter } from "@/lib/ai";
+import { sekarang } from "@/lib/db";
 
 export const metadata: Metadata = { title: "Admin · Asisten WhatsApp" };
 
@@ -33,6 +35,9 @@ export default function HalamanAdmin(props: PageProps<"/admin">) {
           <TabelPengguna searchParams={props.searchParams} />
         </Suspense>
         <div className="space-y-6">
+          <Suspense fallback={<div aria-hidden className="card h-72 animate-denyut" />}>
+            <MesinAi />
+          </Suspense>
           <Suspense fallback={<div aria-hidden className="card h-56 animate-denyut" />}>
             <Pengaturan />
           </Suspense>
@@ -63,6 +68,55 @@ async function Ringkasan() {
       <KartuStat label="Akun aktif" nilai={angka(r.aktif)} ikon={<UserCheck className="size-4" aria-hidden />} keterangan={`${angka(r.admin)} admin`} />
       <KartuStat label="Diblokir" nilai={angka(r.diblokir)} ikon={<UserX className="size-4" aria-hidden />} keterangan="AI berhenti membalas di nomornya" />
       <KartuStat label="Nomor WhatsApp" nilai={angka(r.nomor)} ikon={<Phone className="size-4" aria-hidden />} keterangan={`${angka(r.tertaut)} sudah tertaut`} />
+    </section>
+  );
+}
+
+const KURS = 16_500; // perkiraan Rp per USD untuk tampilan biaya
+
+async function MesinAi() {
+  await requireAdmin();
+  const [atur, saldo, pakai] = await Promise.all([pengaturanAi(), saldoOpenRouter(), ringkasPakai(sekarang() - 7 * 86400)]);
+  const total = pakai.reduce((a, p) => ({ n: a.n + p.balasan, usd: a.usd + p.biaya_usd }), { n: 0, usd: 0 });
+  return (
+    <section className="card p-6">
+      <h2 className="flex items-center gap-2 text-[15px] font-bold">
+        <Bot className="size-4 text-accent" aria-hidden /> Mesin AI
+      </h2>
+      <p className="mt-0.5 text-[13px] text-muted">
+        Sekarang: <span className="font-semibold text-fg">{atur.penyedia === "openrouter" ? `OpenRouter · ${atur.model}` : "Hermes"}</span>
+      </p>
+      {saldo && (
+        <p className="mt-1 text-[12.5px] text-muted">
+          Saldo OpenRouter: {saldo.sisa === null ? "tanpa batas" : `$${saldo.sisa.toFixed(2)} tersisa`} · terpakai ${saldo.terpakai.toFixed(2)}
+        </p>
+      )}
+      <div className="mt-4">
+        <FormAi penyedia={atur.penyedia} model={atur.model} cadangan={atur.cadangan} siap={openrouterSiap()} />
+      </div>
+      <div className="mt-5 border-t border-line pt-4">
+        <p className="text-[12.5px] font-semibold">7 hari terakhir</p>
+        {pakai.length === 0 ? (
+          <p className="mt-1 text-[12.5px] text-muted">Belum ada balasan AI tercatat.</p>
+        ) : (
+          <ul className="mt-2 space-y-1.5 text-[12.5px]">
+            {pakai.map((p) => (
+              <li key={`${p.penyedia}-${p.model}`} className="flex justify-between gap-3">
+                <span className="truncate text-muted">{p.model ?? p.penyedia}</span>
+                <span className="shrink-0 tabular-nums">
+                  {angka(p.balasan)} balasan{p.biaya_usd > 0 && ` · Rp${angka(Math.round(p.biaya_usd * KURS))}`}
+                </span>
+              </li>
+            ))}
+            {total.usd > 0 && (
+              <li className="flex justify-between gap-3 border-t border-line pt-1.5 font-semibold">
+                <span>Rata-rata per balasan</span>
+                <span className="tabular-nums">Rp{angka(Math.round((total.usd * KURS) / Math.max(1, pakai.filter((p) => p.biaya_usd > 0).reduce((a, p) => a + p.balasan, 0))))}</span>
+              </li>
+            )}
+          </ul>
+        )}
+      </div>
     </section>
   );
 }
