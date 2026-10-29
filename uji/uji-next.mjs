@@ -104,7 +104,7 @@ try {
   }
   console.log(`server siap; /api/health pertama (termasuk membuka koneksi database + migrasi + impor) dalam ${(performance.now() - tMulai).toFixed(0)} ms`);
 
-  const cookie = `wa_sesi=${await createSessionToken(1, hash)}`;
+  const cookie = `wa_sesi=${await createSessionToken(1, hash, 1)}`; // sesi_versi awal = 1
   const agent = new http.Agent({ keepAlive: true });
   const minta = (metode, jalur, { headers = {}, body } = {}) =>
     new Promise((resolve, reject) => {
@@ -144,11 +144,12 @@ try {
 
   console.log("\n== kecepatan endpoint (12 nomor) ==");
   await ukur("/api/wa/status", 30);
-  await ukur("/", 20, { "accept-encoding": "gzip" });
+  await ukur("/dashboard", 20, { "accept-encoding": "gzip" });
   baris("GET /api/wa/status", await ukur("/api/wa/status"));
   baris("GET /api/health (1 query ke PostgreSQL)", await ukur("/api/health"));
   baris("GET /api/wa/qr (nomor tanpa sesi)", await ukur("/api/wa/qr?id=1&h="));
-  baris("GET / (beranda, gzip)", await ukur("/", 60, { "accept-encoding": "gzip" }));
+  baris("GET /dashboard (beranda, gzip)", await ukur("/dashboard", 60, { "accept-encoding": "gzip" }));
+  baris("GET / (landing page statis, gzip)", await ukur("/", 60, { "accept-encoding": "gzip" }));
   baris("GET /nomor/7 (halaman nomor, gzip)", await ukur("/nomor/7", 60, { "accept-encoding": "gzip" }));
   await tidur(2500);
   const rss0 = rss();
