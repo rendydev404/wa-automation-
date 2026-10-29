@@ -1,5 +1,5 @@
-// Uji modul AI (src/lib/ai.ts): Hermes sebagai bawaan, Claude API (Anthropic) bila admin memilihnya, API key
-// terenkripsi yang dikelola admin, permintaan ke Anthropic (fetch tiruan), model cadangan, pencatatan token & biaya,
+// Uji modul AI (src/lib/ai.ts): Hermes sebagai bawaan, Claude API (Anthropic) bila admin memilihnya dan API key
+// terpasang di .env server, permintaan ke Anthropic (fetch tiruan), model cadangan, pencatatan token & biaya,
 // riwayat lengkap untuk penyedia tanpa ingatan, dan pemeriksa jawaban. PostgreSQL sungguhan.
 // Pakai (dari akar proyek): node --import ./uji/loader.mjs uji/uji-ai.mjs
 import assert from "node:assert/strict";
@@ -23,9 +23,8 @@ delete process.env.AI_PENYEDIA;
 delete process.env.ANTHROPIC_API_KEY;
 const lib = (f) => import(pathToFileURL(path.join(akar, f)).href);
 
-const { db, setSetting, getSetting, sekarang } = await lib("src/lib/db.ts");
+const { db, setSetting, sekarang } = await lib("src/lib/db.ts");
 const AI = await lib("src/lib/ai.ts");
-const R = await lib("src/lib/rahasia.ts");
 const { tambahNomor } = await lib("src/lib/numbers.ts");
 const { catatPesan, riwayatUntukAi } = await lib("src/lib/percakapan.ts");
 const { teksSoul } = await lib("src/lib/soul.ts");
@@ -55,30 +54,12 @@ const jawabClaude = (teks, usage = { input_tokens: 4000, output_tokens: 100, cac
 });
 const KUNCI = "sk-ant-api03-" + "x".repeat(40);
 
-await cek("API key terenkripsi AES-GCM: tidak tersimpan mentah, terbaca kembali, AUTH_SECRET lain = tidak terbaca, samaran aman", async () => {
-  await R.simpanRahasia("anthropic", KUNCI);
-  const mentah = await getSetting("rahasia:anthropic");
-  assert.match(mentah, /^v1:[\w-]+:[\w-]+:[\w-]+$/);
-  assert.ok(!mentah.includes("sk-ant"));
-  assert.equal(await R.bacaRahasia("anthropic"), KUNCI);
-  const lama = process.env.AUTH_SECRET;
-  process.env.AUTH_SECRET = "s".repeat(48);
-  assert.equal(R.bukaSandi(mentah), null);
-  process.env.AUTH_SECRET = lama;
-  const [v, iv, tag, sandi] = mentah.split(":");
-  const ubah = Buffer.from(sandi, "base64url");
-  ubah[0] ^= 1; // satu bit sandi dibalik
-  assert.equal(R.bukaSandi([v, iv, tag, ubah.toString("base64url")].join(":")), null); // diubah sedikit = ditolak (GCM)
-  assert.equal(R.samarkan(KUNCI), "sk-ant-…xxxx");
-  await R.simpanRahasia("anthropic", "");
-  assert.equal(await R.bacaRahasia("anthropic"), null);
-});
-
-await cek("bawaan Hermes; Claude API hanya bila admin memilihnya DAN kuncinya ada; kunci dihapus = kembali Hermes", async () => {
+await cek("bawaan Hermes; Claude API hanya bila admin memilihnya DAN developer memasang ANTHROPIC_API_KEY di server", async () => {
   assert.deepEqual(await AI.pengaturanAi(), { penyedia: "hermes", model: "claude-haiku-5-5", cadangan: "claude-sonnet-5-5" });
   await setSetting("ai_penyedia", "anthropic");
-  assert.equal((await AI.pengaturanAi()).penyedia, "hermes"); // belum ada kunci
-  await R.simpanRahasia("anthropic", KUNCI);
+  assert.equal((await AI.pengaturanAi()).penyedia, "hermes"); // belum ada kunci di server
+  process.env.ANTHROPIC_API_KEY = KUNCI;
+  assert.equal(AI.kunciAnthropic(), KUNCI);
   await setSetting("ai_model", "claude-sonnet-5-5");
   await setSetting("ai_cadangan", "bukan model!");
   assert.deepEqual(await AI.pengaturanAi(), { penyedia: "anthropic", model: "claude-sonnet-5-5", cadangan: "claude-sonnet-5-5" });

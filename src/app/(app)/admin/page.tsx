@@ -6,13 +6,11 @@ import { KartuStat } from "@/components/stat";
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna, ringkasanAdmin } from "@/lib/pengguna";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
-import { FormAi, FormBuatAkun, FormKunciAi, FormMidtrans, FormPaket, FormPengaturan } from "./form-admin";
+import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, SalinTeks } from "./form-admin";
 import { daftarPaket, kuotaBalasanGratis, riwayatTransaksi } from "@/lib/langganan";
-import { konfigMidtrans } from "@/lib/midtrans";
-import { bacaRahasia } from "@/lib/rahasia";
+import { konfigMidtrans, kunciMidtransSah } from "@/lib/midtrans";
 import { asalAplikasi } from "@/lib/batas";
 import { kunciAnthropic, modelAnthropic, pengaturanAi, ringkasPakai } from "@/lib/ai";
-import { samarkan } from "@/lib/rahasia";
 import { sekarang } from "@/lib/db";
 
 export const metadata: Metadata = { title: "Admin · Asisten WhatsApp" };
@@ -92,7 +90,8 @@ const KURS = 16_500; // perkiraan Rp per USD untuk tampilan biaya
 
 async function MesinAi() {
   await requireAdmin();
-  const [atur, kunci, pakai] = await Promise.all([pengaturanAi(), kunciAnthropic(), ringkasPakai(sekarang() - 7 * 86400)]);
+  const kunci = kunciAnthropic();
+  const [atur, pakai] = await Promise.all([pengaturanAi(), ringkasPakai(sekarang() - 7 * 86400)]);
   // Daftar model resmi dari akun Anthropic (sekaligus bukti kuncinya masih berlaku).
   const daftarModel = kunci ? await modelAnthropic(kunci) : null;
   const total = pakai.reduce((a, p) => ({ n: a.n + p.balasan, usd: a.usd + p.biaya_usd }), { n: 0, usd: 0 });
@@ -104,14 +103,12 @@ async function MesinAi() {
       <p className="mt-0.5 text-[13px] text-muted">
         Sekarang: <span className="font-semibold text-fg">{atur.penyedia === "anthropic" ? `Claude API · ${atur.model}` : "Hermes"}</span>
       </p>
-      {kunci && daftarModel === null && (
-        <p className="mt-1 text-[12.5px] text-danger">API key Anthropic tersimpan tapi ditolak/tak terjangkau. Periksa kuncinya.</p>
-      )}
+      <p className={`mt-1 text-[12.5px] ${kunci && daftarModel === null ? "text-danger" : "text-muted"}`}>
+        API key Anthropic:{" "}
+        {!kunci ? "belum dipasang di server (developer: ANTHROPIC_API_KEY di .env)." : daftarModel === null ? "terpasang di server tapi ditolak/tak terjangkau, hubungi developer." : "terpasang di server ✓"}
+      </p>
       <div className="mt-4">
         <FormAi penyedia={atur.penyedia} model={atur.model} cadangan={atur.cadangan} adaKunci={!!kunci} daftarModel={daftarModel} />
-      </div>
-      <div className="mt-5 border-t border-line pt-4">
-        <FormKunciAi samaran={kunci ? samarkan(kunci) : null} />
       </div>
       <div className="mt-5 border-t border-line pt-4">
         <p className="text-[12.5px] font-semibold">7 hari terakhir</p>
@@ -244,17 +241,22 @@ async function Transaksi() {
 
 async function Pembayaran() {
   await requireAdmin();
-  const [k, kunci, asal] = await Promise.all([konfigMidtrans(), bacaRahasia("midtrans_server"), asalAplikasi()]);
+  const [k, asal] = await Promise.all([konfigMidtrans(), asalAplikasi()]);
+  // Kunci dipasang developer di server; di sini hanya dicek apakah Midtrans menerimanya.
+  const sah = k ? await kunciMidtransSah(k) : false;
   return (
     <section className="card p-6">
       <h2 className="flex items-center gap-2 text-[15px] font-bold">
         <CreditCard className="size-4 text-accent" aria-hidden /> Pembayaran (Midtrans Snap)
       </h2>
       <p className="mt-0.5 text-[13px] text-muted">
-        {k ? `Aktif · ${k.produksi ? "Production" : "Sandbox"}` : "Belum aktif. Isi server key dari dashboard Midtrans → Settings → Access Keys."}
+        {!k
+          ? "Belum aktif: server key belum dipasang developer di server (MIDTRANS_SERVER_KEY di .env)."
+          : `${sah ? "Aktif ✓" : "Kunci terpasang tapi ditolak Midtrans, hubungi developer."} · ${k.produksi ? "Production" : "Sandbox"}`}
       </p>
       <div className="mt-4">
-        <FormMidtrans samaran={kunci ? samarkan(kunci) : null} produksi={k?.produksi ?? true} urlNotifikasi={`${asal}/api/midtrans/notifikasi`} />
+        <p className="label">Payment Notification URL (tempel di dashboard Midtrans → Settings → Payment)</p>
+        <SalinTeks teks={`${asal}/api/midtrans/notifikasi`} label="Salin URL notifikasi" />
       </div>
     </section>
   );

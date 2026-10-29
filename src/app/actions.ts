@@ -3,13 +3,12 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { nomorUntuk } from "@/lib/akses";
-import { kunciAnthropic, modelAnthropic } from "@/lib/ai";
-import { samarkan, simpanRahasia } from "@/lib/rahasia";
+import { kunciAnthropic } from "@/lib/ai";
 import { authConfigured } from "@/lib/auth";
 import { asalAplikasi, ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
 import { sekarang, setSetting } from "@/lib/db";
 import { berikanPaket, hentikanLangganan, mulaiBayar, paketById, riwayatTransaksi, segarkanKuota, simpanPaket, terapkanStatus } from "@/lib/langganan";
-import { MidtransError, konfigMidtrans, kunciMidtransSah } from "@/lib/midtrans";
+import { MidtransError, konfigMidtrans } from "@/lib/midtrans";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
 import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, semuaNomor, setBelajar, setBotAktif, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { cekPassword, verifyPassword } from "@/lib/password";
@@ -456,7 +455,7 @@ export async function adminAiAction(_lalu: Hasil | null, form: FormData): Promis
   const model = String(form.get("model") ?? "").trim();
   const cadangan = String(form.get("cadangan") ?? "").trim();
   const sah = /^claude-[a-z0-9.-]+$/i;
-  if (penyedia === "anthropic" && !(await kunciAnthropic())) return { ok: false, pesan: "Isi API key Anthropic dulu." };
+  if (penyedia === "anthropic" && !kunciAnthropic()) return { ok: false, pesan: "API key Anthropic belum dipasang developer di server (ANTHROPIC_API_KEY)." };
   if (!sah.test(model) || (cadangan && !sah.test(cadangan))) return { ok: false, pesan: "Nama model tidak valid (contoh: claude-haiku-5-5)." };
   await setSetting("ai_penyedia", penyedia);
   await setSetting("ai_model", model);
@@ -466,29 +465,6 @@ export async function adminAiAction(_lalu: Hasil | null, form: FormData): Promis
   return { ok: true, pesan: penyedia === "anthropic" ? `Semua nomor kini memakai Claude API (${model}).` : "Semua nomor kini memakai Hermes." };
 }
 
-/**
- * Simpan (atau hapus, bila kosong) API key Anthropic. Kunci diuji dulu ke Anthropic (daftar model) supaya kunci
- * salah tidak pernah tersimpan; disimpan terenkripsi dan tidak pernah dikirim balik ke browser.
- */
-export async function adminKunciAiAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
-  const admin = await requireAdmin();
-  if (terlaluSering(`kunci-ai:${admin.id}`, 10, 10 * 60_000)) return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi nanti." };
-  const kunci = String(form.get("kunci") ?? "").trim();
-  if (form.get("hapus") === "1") {
-    await simpanRahasia("anthropic", "");
-    await setSetting("ai_penyedia", "hermes"); // tanpa kunci, Claude API tidak bisa dipakai: kembali ke Hermes
-    await catatLog(admin, "hapus API key Anthropic", null);
-    revalidatePath("/admin");
-    return { ok: true, pesan: "API key dihapus. Semua nomor memakai Hermes." };
-  }
-  if (!/^sk-ant-[A-Za-z0-9_-]{20,}$/.test(kunci)) return { ok: false, pesan: "Format API key tidak dikenali (diawali sk-ant-)." };
-  const model = await modelAnthropic(kunci);
-  if (!model) return { ok: false, pesan: "Anthropic menolak kunci ini (salah, dicabut, atau tidak terjangkau)." };
-  await simpanRahasia("anthropic", kunci);
-  await catatLog(admin, "simpan API key Anthropic", null, samarkan(kunci));
-  revalidatePath("/admin");
-  return { ok: true, pesan: `Kunci valid dan tersimpan terenkripsi (${model.length} model tersedia).` };
-}
 
 // ---------- Tur panduan ----------
 
@@ -593,38 +569,4 @@ export async function adminHentikanLanggananAction(id: number): Promise<Hasil> {
   await catatLog(admin, "hentikan langganan", u.email);
   revalidatePath(`/admin/pengguna/${u.id}`);
   return { ok: true, pesan: "Langganan dihentikan; akun kembali ke kuota gratis." };
-}
-
-// Kunci Midtrans: huruf, angka, dan _ - . ~ (format baru dashboard Midtrans memakai . dan ~).
-const FORMAT_KUNCI_MIDTRANS = /^(SB-)?Mid-server-[A-Za-z0-9_.~-]{10,}$/;
-
-/** Server key Midtrans (terenkripsi) + mode. Kunci diuji ke Midtrans sebelum disimpan. */
-export async function adminMidtransAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
-  const admin = await requireAdmin();
-  if (terlaluSering(`midtrans:${admin.id}`, 10, 10 * 60_000)) return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi nanti." };
-  if (form.get("hapus") === "1") {
-    await simpanRahasia("midtrans_server", "");
-    await simpanRahasia("midtrans_signature", "");
-    await catatLog(admin, "hapus server key Midtrans", null);
-    revalidatePath("/admin");
-    return { ok: true, pesan: "Server key dihapus. Pembayaran nonaktif." };
-  }
-  const produksi = form.get("mode") !== "sandbox";
-  const kunci = String(form.get("server_key") ?? "").trim();
-  if (kunci) {
-    if (!FORMAT_KUNCI_MIDTRANS.test(kunci)) return { ok: false, pesan: "Format server key tidak dikenali (diawali Mid-server- atau SB-Mid-server-)." };
-    if (produksi === kunci.startsWith("SB-")) return { ok: false, pesan: produksi ? "Ini server key sandbox: pilih mode Sandbox, atau pakai server key production." : "Ini server key production: pilih mode Production." };
-    if (!(await kunciMidtransSah({ serverKey: kunci, produksi }))) return { ok: false, pesan: "Midtrans menolak server key ini." };
-    await simpanRahasia("midtrans_server", kunci);
-  }
-  // Signature secret key (opsional): kunci tambahan untuk memverifikasi tanda tangan notifikasi.
-  const ttd = String(form.get("signature_key") ?? "").trim();
-  if (ttd) {
-    if (!FORMAT_KUNCI_MIDTRANS.test(ttd)) return { ok: false, pesan: "Format signature secret key tidak dikenali." };
-    await simpanRahasia("midtrans_signature", ttd);
-  }
-  await setSetting("midtrans_mode", produksi ? "produksi" : "sandbox");
-  await catatLog(admin, kunci ? "simpan server key Midtrans" : "ubah mode Midtrans", null, `${produksi ? "production" : "sandbox"}${kunci ? ` · ${samarkan(kunci)}` : ""}`);
-  revalidatePath("/admin");
-  return { ok: true, pesan: kunci ? "Server key valid dan tersimpan terenkripsi." : "Mode tersimpan." };
 }

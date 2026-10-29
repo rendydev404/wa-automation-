@@ -204,14 +204,14 @@ await cek("riwayat transaksi per pengguna & semua (admin), terbaru dulu", async 
 });
 globalThis.fetch = asli;
 
-await cek("server key admin terenkripsi dipakai konfigMidtrans; mode bawaan production, sandbox bila dipilih", async () => {
-  const R = await lib("src/lib/rahasia.ts");
+await cek("kunci Midtrans hanya dari .env server; mode bawaan production, sandbox bila MIDTRANS_MODE=sandbox", async () => {
+  delete process.env.MIDTRANS_SERVER_KEY;
   assert.equal(await M.konfigMidtrans(), null);
-  await R.simpanRahasia("midtrans_server", SK);
+  process.env.MIDTRANS_SERVER_KEY = SK;
   assert.deepEqual(await M.konfigMidtrans(), { serverKey: SK, produksi: true, kunciTandaTangan: [SK] });
-  await R.simpanRahasia("midtrans_signature", "Mid-server-ttd.~x");
+  process.env.MIDTRANS_SIGNATURE_KEY = "Mid-server-ttd.~x";
   assert.deepEqual((await M.konfigMidtrans()).kunciTandaTangan, [SK, "Mid-server-ttd.~x"]);
-  await setSetting("midtrans_mode", "sandbox");
+  process.env.MIDTRANS_MODE = "sandbox";
   assert.equal((await M.konfigMidtrans()).produksi, false);
 });
 

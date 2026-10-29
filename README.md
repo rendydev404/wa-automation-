@@ -134,8 +134,8 @@ Memantau: `docker stats wa-automation-app-1` (memori) dan `docker compose logs -
 
 Mesin AI (`src/lib/ai.ts`) dikelola admin di `/admin` → "Mesin AI", berlaku langsung tanpa restart:
 **Hermes** (utama, bawaan) atau **Claude API** (Anthropic langsung; model utama + cadangan dipilih dari daftar
-model akun Anthropic). API key Anthropic diisi admin di dashboard, diuji ke Anthropic dulu, lalu disimpan
-terenkripsi AES-256-GCM di database (`src/lib/rahasia.ts`, kunci diturunkan dari `AUTH_SECRET`). Setiap jawaban,
+model akun Anthropic). API key TIDAK lewat dashboard: developer memasang `ANTHROPIC_API_KEY` di
+`/opt/wa-automation/.env` (admin hanya melihat statusnya). Setiap jawaban,
 apa pun penyedianya, melewati penjaga (`src/lib/pemeriksa.ts`): mengaku admin/pemilik, menjanjikan tindakan,
 atau angka/tautan tak bersumber = ditulis ulang sekali, lalu jawaban aman. Biaya & token per balasan: tabel `ai_pakai`.
 Membandingkan model dengan percakapan asli: `uji/banding-model.mjs` (cara pakai di awal berkas).
@@ -145,7 +145,8 @@ Paket & pembayaran (`src/lib/langganan.ts`, `src/lib/midtrans.ts`), semuanya dik
   Akun tanpa paket memakai kuota gratis bulanan (bulan kalender WIB). Admin tanpa batas.
 - **Kuota balasan AI ditegakkan** di jembatan WhatsApp: habis = AI diam (pesan tetap tercatat), dicek dari
   memori dan disegarkan tiap 60 dtk, jadi tidak ada query tambahan per pesan.
-- **Midtrans Snap** (bawaan production): server key diisi admin (diuji ke Midtrans, disimpan terenkripsi).
+- **Midtrans Snap** (bawaan production): developer memasang `MIDTRANS_SERVER_KEY` (dan opsional
+  `MIDTRANS_SIGNATURE_KEY`, `MIDTRANS_MODE=sandbox`) di `/opt/wa-automation/.env`; admin hanya melihat status.
   Payment Notification URL di dashboard Midtrans: `https://wa.sukapost.tech/api/midtrans/notifikasi`.
   Webhook memeriksa tanda tangan SHA-512, lalu status diambil ulang dari API Midtrans dan nominal dicocokkan;
   paket aktif tepat sekali. Bayar paket yang sama = diperpanjang; paket lain = mulai baru.

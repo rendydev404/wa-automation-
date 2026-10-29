@@ -10,9 +10,7 @@ import {
   adminAiAction,
   adminBerikanPaketAction,
   adminHentikanLanggananAction,
-  adminMidtransAction,
   adminPaketAction,
-  adminKunciAiAction,
   adminKuotaAction,
   adminPengaturanAction,
   adminPeranAction,
@@ -261,7 +259,7 @@ export function FormAi({
           </label>
         ))}
       </fieldset>
-      {!adaKunci && <p className="text-[12px] text-muted">Claude API bisa dipilih setelah API key Anthropic diisi di bawah.</p>}
+      {!adaKunci && <p className="text-[12px] text-muted">Claude API bisa dipilih setelah developer memasang ANTHROPIC_API_KEY di server.</p>}
       <div className={pilih === "anthropic" ? "space-y-3" : "hidden"}>
         <div>
           <label htmlFor="model-ai" className="label">
@@ -298,40 +296,6 @@ export function FormAi({
   );
 }
 
-/** API key Anthropic: hanya bentuk samaran yang pernah sampai ke browser. */
-export function FormKunciAi({ samaran }: { samaran: string | null }) {
-  const [hasil, aksi] = useActionState(adminKunciAiAction, null);
-  const ref = useRef<HTMLFormElement>(null);
-  useEffect(() => {
-    if (hasil?.ok) ref.current?.reset();
-  }, [hasil]);
-  return (
-    <form ref={ref} action={aksi} className="space-y-3">
-      <label htmlFor="kunci-ai" className="label">
-        API key Anthropic {samaran && <span className="font-mono font-normal text-muted">· tersimpan: {samaran}</span>}
-      </label>
-      <input
-        id="kunci-ai"
-        name="kunci"
-        type="password"
-        autoComplete="off"
-        spellCheck={false}
-        placeholder={samaran ? "Isi untuk mengganti kunci" : "sk-ant-..."}
-        className="field font-mono text-[12.5px]"
-      />
-      <p className="text-[12px] text-muted">Dicek dulu ke Anthropic, lalu disimpan terenkripsi. Buat di Claude Console → API Keys, dan pasang Spend limits di sana.</p>
-      <div className="flex flex-wrap items-center gap-2">
-        <SubmitButton>{samaran ? "Ganti kunci" : "Simpan kunci"}</SubmitButton>
-        {samaran && (
-          <button type="submit" name="hapus" value="1" formNoValidate className="btn btn-ghost border border-line text-danger">
-            Hapus kunci
-          </button>
-        )}
-        <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
-      </div>
-    </form>
-  );
-}
 
 // ---------- Paket langganan ----------
 
@@ -383,70 +347,6 @@ export function FormPaket({ paket }: { paket?: PaketForm }) {
   );
 }
 
-// ---------- Midtrans ----------
-
-export function FormMidtrans({ samaran, produksi, urlNotifikasi }: { samaran: string | null; produksi: boolean; urlNotifikasi: string }) {
-  const [hasil, aksi] = useActionState(adminMidtransAction, null);
-  const ref = useRef<HTMLFormElement>(null);
-  useEffect(() => {
-    if (hasil?.ok) ref.current?.reset();
-  }, [hasil]);
-  return (
-    <form ref={ref} action={aksi} className="space-y-3">
-      <fieldset className="grid grid-cols-2 gap-2">
-        <legend className="label">Mode</legend>
-        {[
-          ["produksi", "Production"],
-          ["sandbox", "Sandbox (uji coba)"],
-        ].map(([v, l]) => (
-          <label key={v} className="flex cursor-pointer items-center gap-2 rounded-xl border border-line px-3 py-2 text-[13px] font-semibold has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:text-accent">
-            <input type="radio" name="mode" value={v} defaultChecked={(v === "produksi") === produksi} className="sr-only" />
-            {l}
-          </label>
-        ))}
-      </fieldset>
-      <label htmlFor="server-key" className="label">
-        Server key {samaran && <span className="font-mono font-normal text-muted">· tersimpan: {samaran}</span>}
-      </label>
-      <input
-        id="server-key"
-        name="server_key"
-        type="password"
-        autoComplete="off"
-        spellCheck={false}
-        placeholder={samaran ? "Isi untuk mengganti" : "Mid-server-..."}
-        className="field font-mono text-[12.5px]"
-      />
-      <input
-        name="signature_key"
-        type="password"
-        aria-label="Signature secret key (opsional)"
-        autoComplete="off"
-        spellCheck={false}
-        placeholder="Signature secret key (opsional, bila ada di dashboard Midtrans)"
-        className="field font-mono text-[12.5px]"
-      />
-      <div>
-        <p className="label">Payment Notification URL (tempel di dashboard Midtrans → Settings → Payment)</p>
-        <div className="flex gap-2">
-          <code className="field flex-1 overflow-x-auto font-mono text-[12px] whitespace-nowrap select-all">{urlNotifikasi}</code>
-          <button type="button" className="btn btn-ghost border border-line" onClick={() => navigator.clipboard?.writeText(urlNotifikasi)} aria-label="Salin URL notifikasi">
-            <Copy className="size-4" aria-hidden />
-          </button>
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <SubmitButton>Simpan</SubmitButton>
-        {samaran && (
-          <button type="submit" name="hapus" value="1" formNoValidate className="btn btn-ghost border border-line text-danger">
-            Hapus kunci
-          </button>
-        )}
-        <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
-      </div>
-    </form>
-  );
-}
 
 // ---------- Langganan per pengguna ----------
 
@@ -483,5 +383,17 @@ export function HentikanLangganan({ id }: { id: number }) {
       className="btn btn-ghost border border-line text-danger"
       aksi={() => adminHentikanLanggananAction(id)}
     />
+  );
+}
+
+/** Teks yang bisa disalin dengan satu klik (mis. URL notifikasi Midtrans). */
+export function SalinTeks({ teks, label }: { teks: string; label: string }) {
+  return (
+    <div className="flex gap-2">
+      <code className="field flex-1 overflow-x-auto font-mono text-[12px] whitespace-nowrap select-all">{teks}</code>
+      <button type="button" className="btn btn-ghost border border-line" onClick={() => navigator.clipboard?.writeText(teks)} aria-label={label}>
+        <Copy className="size-4" aria-hidden />
+      </button>
+    </div>
   );
 }

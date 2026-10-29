@@ -1,11 +1,10 @@
 import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
-import { getSetting } from "./db";
-import { bacaRahasia } from "./rahasia";
 
 /**
- * Midtrans Snap. Server key diisi admin di dashboard (terenkripsi, src/lib/rahasia.ts); mode bawaan PRODUKSI
- * (setting midtrans_mode = "sandbox" hanya untuk mencoba). Alur:
+ * Midtrans Snap. Kunci dipasang developer di .env server, tidak lewat dashboard: MIDTRANS_SERVER_KEY,
+ * MIDTRANS_SIGNATURE_KEY (opsional, kunci tambahan untuk verifikasi notifikasi), MIDTRANS_MODE (bawaan production;
+ * "sandbox" hanya untuk mencoba). Alur:
  *   1. buatSnap(): transaksi dibuat di Midtrans -> redirect_url halaman pembayaran Snap.
  *   2. Midtrans memanggil webhook /api/midtrans/notifikasi. Tanda tangan diperiksa (SHA-512), lalu status
  *      DIAMBIL ULANG dari API Midtrans (sumber kebenaran) sebelum paket diaktifkan.
@@ -20,10 +19,14 @@ export interface KonfigMidtrans {
 }
 
 export async function konfigMidtrans(): Promise<KonfigMidtrans | null> {
-  const [serverKey, kunciTtd, mode] = await Promise.all([bacaRahasia("midtrans_server"), bacaRahasia("midtrans_signature"), getSetting("midtrans_mode")]);
-  const kunci = serverKey || process.env.MIDTRANS_SERVER_KEY || null;
+  const kunci = process.env.MIDTRANS_SERVER_KEY?.trim();
   if (!kunci) return null;
-  return { serverKey: kunci, produksi: mode !== "sandbox", kunciTandaTangan: kunciTtd && kunciTtd !== kunci ? [kunci, kunciTtd] : [kunci] };
+  const kunciTtd = process.env.MIDTRANS_SIGNATURE_KEY?.trim();
+  return {
+    serverKey: kunci,
+    produksi: process.env.MIDTRANS_MODE?.trim().toLowerCase() !== "sandbox",
+    kunciTandaTangan: kunciTtd && kunciTtd !== kunci ? [kunci, kunciTtd] : [kunci],
+  };
 }
 
 const alamatSnap = (k: KonfigMidtrans) => (k.produksi ? "https://app.midtrans.com/snap/v1/transactions" : "https://app.sandbox.midtrans.com/snap/v1/transactions");

@@ -2,7 +2,6 @@ import "server-only";
 import { db, getSetting, sekarang } from "./db";
 import { hermesSehat, hermesTerkonfigurasi, tanyaHermes } from "./hermes";
 import { JAWABAN_AMAN, type Pelanggaran, pesanKoreksi, periksaJawaban } from "./pemeriksa";
-import { bacaRahasia } from "./rahasia";
 import { teksSoul } from "./soul";
 import type { Foto } from "./types";
 
@@ -10,9 +9,9 @@ import type { Foto } from "./types";
  * Satu pintu ke AI, apa pun penyedianya:
  * - "hermes" (utama, bawaan): profil Hermes `cs`; menyimpan riwayat sesi sendiri, SOUL ada di profilnya.
  * - "anthropic": Claude API langsung (Messages API). Tanpa ingatan: SOUL dan riwayat chat dikirim tiap giliran.
- * Semuanya dikelola admin di /admin ("Mesin AI"): penyedia, model utama & cadangan (settings ai_penyedia /
- * ai_model / ai_cadangan) dan API key (terenkripsi, src/lib/rahasia.ts). Berlaku langsung tanpa restart.
- * Env ANTHROPIC_API_KEY hanya cadangan bila admin belum mengisi kunci.
+ * Admin memilih penyedia, model utama & cadangan di /admin ("Mesin AI"; settings ai_penyedia / ai_model /
+ * ai_cadangan), berlaku langsung tanpa restart. API key TIDAK lewat dashboard: dipasang developer di .env server
+ * (ANTHROPIC_API_KEY), jadi rahasia tidak pernah tersimpan di database maupun lewat browser.
  */
 
 export type Penyedia = "hermes" | "anthropic";
@@ -27,13 +26,14 @@ export interface PengaturanAi {
   cadangan: string;
 }
 
-/** API key Anthropic: dari admin (terenkripsi di database), lalu env. */
-export async function kunciAnthropic(): Promise<string | null> {
-  return (await bacaRahasia("anthropic")) || process.env.ANTHROPIC_API_KEY || null;
+/** API key Anthropic dari .env server (dipasang developer). */
+export function kunciAnthropic(): string | null {
+  return process.env.ANTHROPIC_API_KEY?.trim() || null;
 }
 
 export async function pengaturanAi(): Promise<PengaturanAi> {
-  const [p, m, c, k] = await Promise.all([getSetting("ai_penyedia"), getSetting("ai_model"), getSetting("ai_cadangan"), kunciAnthropic()]);
+  const [p, m, c] = await Promise.all([getSetting("ai_penyedia"), getSetting("ai_model"), getSetting("ai_cadangan")]);
+  const k = kunciAnthropic();
   // Bawaan Hermes. Anthropic hanya bila admin memilihnya DAN kuncinya ada; tanpa Hermes terpasang (dev) dan ada kunci: Anthropic.
   const pilih = p || process.env.AI_PENYEDIA || "hermes";
   const penyedia: Penyedia = pilih === "anthropic" && k ? "anthropic" : !hermesTerkonfigurasi() && k ? "anthropic" : "hermes";
@@ -168,8 +168,8 @@ async function panggilAnthropic(kunci: string, model: string, r: PermintaanAi) {
 }
 
 async function tanyaAnthropic(r: PermintaanAi, model: string, cadangan: string): Promise<JawabanAi> {
-  const kunci = await kunciAnthropic();
-  if (!kunci) throw new Error("API key Anthropic belum diisi admin.");
+  const kunci = kunciAnthropic();
+  if (!kunci) throw new Error("ANTHROPIC_API_KEY belum dipasang di server.");
   const mulai = performance.now();
   let j;
   try {
@@ -185,7 +185,7 @@ async function tanyaAnthropic(r: PermintaanAi, model: string, cadangan: string):
 
 /** Daftar model Claude yang bisa dipakai kunci ini (juga uji koneksi). null = kunci salah / tak terjangkau. */
 export async function modelAnthropic(kunci?: string | null): Promise<{ id: string; nama: string }[] | null> {
-  const k = kunci ?? (await kunciAnthropic());
+  const k = kunci ?? kunciAnthropic();
   if (!k) return null;
   try {
     const res = await fetch(`${API}/models?limit=100`, {
@@ -209,7 +209,7 @@ const g = globalThis as unknown as { __waAiSehat?: { kunci: string; at: number; 
 export async function aiSehat(): Promise<boolean> {
   const { penyedia } = await pengaturanAi();
   if (penyedia === "hermes") return hermesSehat();
-  const k = (await kunciAnthropic()) ?? "";
+  const k = kunciAnthropic() ?? "";
   const c = g.__waAiSehat;
   if (c && c.kunci === k && Date.now() - c.at < 5 * 60_000) return c.ok; // daftar model cukup dicek tiap 5 menit
   const ok = (await modelAnthropic(k)) !== null;
