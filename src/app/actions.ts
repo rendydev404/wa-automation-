@@ -595,12 +595,16 @@ export async function adminHentikanLanggananAction(id: number): Promise<Hasil> {
   return { ok: true, pesan: "Langganan dihentikan; akun kembali ke kuota gratis." };
 }
 
+// Kunci Midtrans: huruf, angka, dan _ - . ~ (format baru dashboard Midtrans memakai . dan ~).
+const FORMAT_KUNCI_MIDTRANS = /^(SB-)?Mid-server-[A-Za-z0-9_.~-]{10,}$/;
+
 /** Server key Midtrans (terenkripsi) + mode. Kunci diuji ke Midtrans sebelum disimpan. */
 export async function adminMidtransAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   const admin = await requireAdmin();
   if (terlaluSering(`midtrans:${admin.id}`, 10, 10 * 60_000)) return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi nanti." };
   if (form.get("hapus") === "1") {
     await simpanRahasia("midtrans_server", "");
+    await simpanRahasia("midtrans_signature", "");
     await catatLog(admin, "hapus server key Midtrans", null);
     revalidatePath("/admin");
     return { ok: true, pesan: "Server key dihapus. Pembayaran nonaktif." };
@@ -608,10 +612,16 @@ export async function adminMidtransAction(_lalu: Hasil | null, form: FormData): 
   const produksi = form.get("mode") !== "sandbox";
   const kunci = String(form.get("server_key") ?? "").trim();
   if (kunci) {
-    if (!/^(SB-)?Mid-server-[A-Za-z0-9_-]{10,}$/.test(kunci)) return { ok: false, pesan: "Format server key tidak dikenali (diawali Mid-server- atau SB-Mid-server-)." };
+    if (!FORMAT_KUNCI_MIDTRANS.test(kunci)) return { ok: false, pesan: "Format server key tidak dikenali (diawali Mid-server- atau SB-Mid-server-)." };
     if (produksi === kunci.startsWith("SB-")) return { ok: false, pesan: produksi ? "Ini server key sandbox: pilih mode Sandbox, atau pakai server key production." : "Ini server key production: pilih mode Production." };
     if (!(await kunciMidtransSah({ serverKey: kunci, produksi }))) return { ok: false, pesan: "Midtrans menolak server key ini." };
     await simpanRahasia("midtrans_server", kunci);
+  }
+  // Signature secret key (opsional): kunci tambahan untuk memverifikasi tanda tangan notifikasi.
+  const ttd = String(form.get("signature_key") ?? "").trim();
+  if (ttd) {
+    if (!FORMAT_KUNCI_MIDTRANS.test(ttd)) return { ok: false, pesan: "Format signature secret key tidak dikenali." };
+    await simpanRahasia("midtrans_signature", ttd);
   }
   await setSetting("midtrans_mode", produksi ? "produksi" : "sandbox");
   await catatLog(admin, kunci ? "simpan server key Midtrans" : "ubah mode Midtrans", null, `${produksi ? "production" : "sandbox"}${kunci ? ` · ${samarkan(kunci)}` : ""}`);

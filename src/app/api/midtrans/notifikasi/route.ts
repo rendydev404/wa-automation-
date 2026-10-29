@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   const k = await konfigMidtrans();
   if (!k) return NextResponse.json({ ok: false }, { status: 503 });
   const n = (await req.json().catch(() => null)) as Partial<StatusMidtrans> | null;
-  if (!n || !tandaTanganSah(n, k.serverKey)) return NextResponse.json({ ok: false }, { status: 403 });
+  if (!n || !tandaTanganSah(n, k.kunciTandaTangan ?? [k.serverKey])) return NextResponse.json({ ok: false }, { status: 403 });
   if (!/^WA-\d+-\d+-[0-9a-f]+$/.test(n.order_id ?? "")) return NextResponse.json({ ok: true }); // bukan transaksi aplikasi ini
   try {
     const h = await terapkanStatus(k, n.order_id!);

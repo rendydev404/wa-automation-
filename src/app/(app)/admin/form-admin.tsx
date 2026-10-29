@@ -417,6 +417,15 @@ export function FormMidtrans({ samaran, produksi, urlNotifikasi }: { samaran: st
         placeholder={samaran ? "Isi untuk mengganti" : "Mid-server-..."}
         className="field font-mono text-[12.5px]"
       />
+      <input
+        name="signature_key"
+        type="password"
+        aria-label="Signature secret key (opsional)"
+        autoComplete="off"
+        spellCheck={false}
+        placeholder="Signature secret key (opsional, bila ada di dashboard Midtrans)"
+        className="field font-mono text-[12.5px]"
+      />
       <div>
         <p className="label">Payment Notification URL (tempel di dashboard Midtrans → Settings → Payment)</p>
         <div className="flex gap-2">

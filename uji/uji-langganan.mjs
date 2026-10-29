@@ -123,6 +123,10 @@ await cek("tanda tangan notifikasi: SHA-512(order+status+gross+serverKey) sah; d
   assert.equal(M.tandaTanganSah({ ...n, gross_amount: "1.00", signature_key: sig }, SK), false);
   assert.equal(M.tandaTanganSah({ ...n, signature_key: sig }, "Mid-server-lain"), false);
   assert.equal(M.tandaTanganSah({ ...n }, SK), false);
+  // Kunci tanda tangan terpisah (signature secret key): sah bila cocok dengan salah satu kunci.
+  const sigLain = createHash("sha512").update(`${n.order_id}${n.status_code}${n.gross_amount}Mid-server-ttd.~x`).digest("hex");
+  assert.equal(M.tandaTanganSah({ ...n, signature_key: sigLain }, [SK, "Mid-server-ttd.~x"]), true);
+  assert.equal(M.tandaTanganSah({ ...n, signature_key: sigLain }, [SK]), false);
 });
 
 await cek("peta status Midtrans: settlement/capture-accept lunas, challenge menunggu, expire, deny/cancel gagal, refund", async () => {
@@ -204,7 +208,9 @@ await cek("server key admin terenkripsi dipakai konfigMidtrans; mode bawaan prod
   const R = await lib("src/lib/rahasia.ts");
   assert.equal(await M.konfigMidtrans(), null);
   await R.simpanRahasia("midtrans_server", SK);
-  assert.deepEqual(await M.konfigMidtrans(), { serverKey: SK, produksi: true });
+  assert.deepEqual(await M.konfigMidtrans(), { serverKey: SK, produksi: true, kunciTandaTangan: [SK] });
+  await R.simpanRahasia("midtrans_signature", "Mid-server-ttd.~x");
+  assert.deepEqual((await M.konfigMidtrans()).kunciTandaTangan, [SK, "Mid-server-ttd.~x"]);
   await setSetting("midtrans_mode", "sandbox");
   assert.equal((await M.konfigMidtrans()).produksi, false);
 });

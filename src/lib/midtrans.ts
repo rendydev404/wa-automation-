@@ -15,12 +15,15 @@ import { bacaRahasia } from "./rahasia";
 export interface KonfigMidtrans {
   serverKey: string;
   produksi: boolean;
+  /** Kunci yang boleh dipakai Midtrans menandatangani notifikasi: server key, ditambah "signature secret key" bila diisi admin. */
+  kunciTandaTangan?: string[];
 }
 
 export async function konfigMidtrans(): Promise<KonfigMidtrans | null> {
-  const [serverKey, mode] = await Promise.all([bacaRahasia("midtrans_server"), getSetting("midtrans_mode")]);
+  const [serverKey, kunciTtd, mode] = await Promise.all([bacaRahasia("midtrans_server"), bacaRahasia("midtrans_signature"), getSetting("midtrans_mode")]);
   const kunci = serverKey || process.env.MIDTRANS_SERVER_KEY || null;
-  return kunci ? { serverKey: kunci, produksi: mode !== "sandbox" } : null;
+  if (!kunci) return null;
+  return { serverKey: kunci, produksi: mode !== "sandbox", kunciTandaTangan: kunciTtd && kunciTtd !== kunci ? [kunci, kunciTtd] : [kunci] };
 }
 
 const alamatSnap = (k: KonfigMidtrans) => (k.produksi ? "https://app.midtrans.com/snap/v1/transactions" : "https://app.sandbox.midtrans.com/snap/v1/transactions");
@@ -74,13 +77,17 @@ export async function statusMidtrans(k: KonfigMidtrans, orderId: string): Promis
   return d;
 }
 
-/** signature_key = SHA-512(order_id + status_code + gross_amount + server_key), dibandingkan waktu-konstan. */
-export function tandaTanganSah(n: Partial<StatusMidtrans>, serverKey: string): boolean {
+/**
+ * signature_key = SHA-512(order_id + status_code + gross_amount + kunci), dibandingkan waktu-konstan. Sah bila cocok
+ * dengan salah satu `kunci` (server key, atau signature secret key bila admin mengisinya).
+ */
+export function tandaTanganSah(n: Partial<StatusMidtrans>, kunci: string | string[]): boolean {
   if (!n.order_id || !n.status_code || !n.gross_amount || !n.signature_key) return false;
-  const harap = createHash("sha512").update(`${n.order_id}${n.status_code}${n.gross_amount}${serverKey}`).digest("hex");
-  const a = Buffer.from(harap);
   const b = Buffer.from(String(n.signature_key).toLowerCase());
-  return a.length === b.length && timingSafeEqual(a, b);
+  return (Array.isArray(kunci) ? kunci : [kunci]).some((k) => {
+    const a = Buffer.from(createHash("sha512").update(`${n.order_id}${n.status_code}${n.gross_amount}${k}`).digest("hex"));
+    return a.length === b.length && timingSafeEqual(a, b);
+  });
 }
 
 export type StatusBayar = "menunggu" | "lunas" | "gagal" | "kedaluwarsa" | "dikembalikan";
