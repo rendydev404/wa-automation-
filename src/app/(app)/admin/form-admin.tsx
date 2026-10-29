@@ -19,7 +19,7 @@ import {
 } from "@/app/actions";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "@/components/ui";
 
-export function FormPengaturan({ buka, kuota, balasan }: { buka: boolean; kuota: number; balasan: number }) {
+export function FormPengaturan({ buka, kuota, balasan, kurs }: { buka: boolean; kuota: number; balasan: number; kurs: number }) {
   const [hasil, aksi] = useActionState(adminPengaturanAction, null);
   const [aktif, setAktif] = useState(buka);
   return (
@@ -43,6 +43,12 @@ export function FormPengaturan({ buka, kuota, balasan }: { buka: boolean; kuota:
           Kuota balasan AI gratis per bulan (akun tanpa paket)
         </label>
         <input id="kuota_balasan_gratis" name="kuota_balasan_gratis" type="number" min={0} defaultValue={balasan} required className="field" />
+      </div>
+      <div>
+        <label htmlFor="kurs_usd" className="label">
+          Kurs USD → Rp (untuk menampilkan biaya AI)
+        </label>
+        <input id="kurs_usd" name="kurs_usd" type="number" min={1000} max={100000} defaultValue={kurs} required className="field" />
       </div>
       <div className="flex items-center gap-3">
         <SubmitButton>Simpan aturan</SubmitButton>
@@ -223,8 +229,8 @@ export function HapusAkun({ id, email }: { id: number; email: string }) {
 
 /** Model yang disarankan bila daftar dari Anthropic belum bisa diambil (kunci belum diisi). */
 const MODEL_SARAN = [
-  { id: "claude-haiku-5-5", nama: "Claude Haiku 5.5 — cepat & murah (±Rp14/balasan)" },
-  { id: "claude-sonnet-5-5", nama: "Claude Sonnet 5.5 — lebih pintar (±Rp200/balasan)" },
+  { id: "claude-haiku-5-5", nama: "Claude Haiku 5.5 — cepat & murah" },
+  { id: "claude-sonnet-5-5", nama: "Claude Sonnet 5.5 — lebih pintar" },
 ];
 
 export function FormAi({
@@ -233,6 +239,7 @@ export function FormAi({
   cadangan,
   adaKunci,
   daftarModel,
+  biaya,
 }: {
   penyedia: "hermes" | "anthropic";
   model: string;
@@ -240,10 +247,15 @@ export function FormAi({
   adaKunci: boolean;
   /** Dari Anthropic (GET /v1/models) bila kunci sah; null = belum ada kunci / tak terjangkau. */
   daftarModel: { id: string; nama: string }[] | null;
+  /** Perkiraan biaya per balasan (Rp) dari tarif resmi + profil token nyata; model tanpa tarif tidak tercantum. */
+  biaya: Record<string, number>;
 }) {
   const [hasil, aksi] = useActionState(adminAiAction, null);
   const [pilih, setPilih] = useState(penyedia);
-  const opsi = daftarModel?.length ? daftarModel : MODEL_SARAN;
+  const opsi = (daftarModel?.length ? daftarModel : MODEL_SARAN).map((m) => ({
+    ...m,
+    nama: biaya[m.id] !== undefined ? `${m.nama} · ±Rp${biaya[m.id].toLocaleString("id-ID")}/balasan` : m.nama,
+  }));
   const pilihan = (nilai: string) => (opsi.some((m) => m.id === nilai) || !nilai ? opsi : [{ id: nilai, nama: nilai }, ...opsi]);
   return (
     <form action={aksi} className="space-y-4">

@@ -215,6 +215,44 @@ await cek("kunci Midtrans hanya dari .env server; mode bawaan production, sandbo
   assert.equal((await M.konfigMidtrans()).produksi, false);
 });
 
+console.log("== Harga & margin ==");
+const H = await lib("src/lib/harga.ts");
+const AI2 = await lib("src/lib/ai.ts");
+
+await cek("rumus harga: modal dari tarif resmi x kuota (+5% foto/tulis-ulang), biaya bayar, untung, margin, harga saran dibulatkan ke atas", async () => {
+  const usd = AI2.perkiraanPerBalasan("claude-haiku-5-5"); // 0,000846 USD
+  const a = { biayaBalasanUsd: usd, kurs: 16500, margin: 0.6, pemakaian: 1, metode: "kartu", biayaServerNomor: 0 };
+  const s = H.hitungHarga({ harga: 99000, durasi_hari: 30, kuota_nomor: 1, kuota_balasan: 1000 }, a);
+  assert.ok(Math.abs(s.biayaPerBalasan - 14.65695) < 1e-6);
+  assert.ok(Math.abs(s.modal - 14656.95) < 1e-3);
+  assert.equal(s.biayaBayar, 99000 * 0.029 + 2000);
+  assert.ok(Math.abs(s.untung - (99000 - 4871 - 14656.95)) < 1e-3);
+  assert.ok(Math.abs(s.margin - 0.80275) < 1e-4);
+  assert.equal(s.hargaSaran, 45000); // (14.656,95 + 2.000) / (1 - 0,6 - 0,029) = 44.897 -> 45.000
+  // Biaya server per nomor ikut masuk modal, sebanding durasi
+  const t = H.hitungHarga({ harga: 249000, durasi_hari: 60, kuota_nomor: 3, kuota_balasan: 3500 }, { ...a, biayaServerNomor: 5000 });
+  assert.ok(Math.abs(t.modalServer - 3 * 5000 * 2) < 1e-9);
+  // Margin + biaya bayar >= 100%: tidak ada harga yang masuk akal
+  assert.equal(H.hitungHarga({ harga: 1000, durasi_hari: 30, kuota_nomor: 1, kuota_balasan: 1 }, { ...a, margin: 0.98 }).hargaSaran, null);
+});
+
+await cek("acuan harga tersimpan (bawaan: margin 60%, pakai 100%, kartu, Haiku 5.5) & terapkan harga saran ke semua paket berbayar", async () => {
+  const a = await L.acuanHarga();
+  assert.deepEqual({ ...a, kurs: undefined }, { margin: 60, pemakaian: 100, metode: "kartu", biayaServerNomor: 0, kurs: undefined, model: "claude-haiku-5-5" });
+  const berubah = await L.terapkanHargaSaran({ ...a, kurs: 16500 });
+  assert.deepEqual(
+    berubah.map((b) => [b.nama, b.lama, b.baru]),
+    [
+      ["Starter", 99000, 45000],
+      ["Bisnis", 249000, 144000],
+      ["Pro", 599000, 401000],
+    ]
+  );
+  assert.deepEqual(await L.terapkanHargaSaran({ ...a, kurs: 16500 }), []); // sudah sesuai: tidak ada perubahan
+  await setSetting("margin_target", "80");
+  assert.equal((await L.acuanHarga()).margin, 80);
+});
+
 await cek("tur panduan: tercatat per akun, tidak dobel", async () => {
   assert.deepEqual(await P.turSelesai(budi.id), []);
   await P.tandaiTurSelesai(budi.id, "dashboard");

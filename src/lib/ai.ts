@@ -81,15 +81,15 @@ const VERSI_API = "2023-06-01";
 const MAKS_TOKEN_KELUAR = 700; // balasan WhatsApp pendek; pagar biaya bila model "kebablasan"
 
 /**
- * Harga per 1 juta token (USD) untuk menghitung biaya per balasan; tagihan resmi tetap di Claude Console.
- * Cache: tulis = 1,25x harga input, baca = 0,1x. Model di luar daftar: biaya tidak dihitung (null).
+ * Tarif resmi Anthropic per 1 juta token (USD), dicek di platform.claude.com/docs/en/about-claude/pricing
+ * (29 Okt 2026), untuk prompt <= 100 ribu token (prompt balasan WhatsApp ±12 ribu token). Cache = TTL 5 menit.
+ * Hanya model yang tarifnya sudah dicek; model lain: biaya tidak dihitung (null) daripada mengira-ngira.
+ * Tagihan resmi tetap di Claude Console.
  */
-const HARGA: Record<string, { masuk: number; keluar: number }> = {
-  "claude-haiku-5-5": { masuk: 0.1, keluar: 0.5 },
-  "claude-haiku-4-5": { masuk: 1, keluar: 5 },
-  "claude-sonnet-5-5": { masuk: 2, keluar: 10 },
-  "claude-sonnet-5": { masuk: 2, keluar: 10 },
-  "claude-opus-5-5": { masuk: 4, keluar: 20 },
+const HARGA: Record<string, { masuk: number; keluar: number; tulisCache: number; bacaCache: number }> = {
+  "claude-haiku-5-5": { masuk: 0.1, keluar: 0.5, tulisCache: 0.125, bacaCache: 0.01 },
+  "claude-sonnet-5-5": { masuk: 2, keluar: 10, tulisCache: 2.5, bacaCache: 0.1 }, // baca cache turun ke $0,10 sejak 7 Okt 2026
+  "claude-haiku-4-5": { masuk: 1, keluar: 5, tulisCache: 1.25, bacaCache: 0.1 },
 };
 
 interface PakaiAnthropic {
@@ -102,8 +102,29 @@ interface PakaiAnthropic {
 export function biayaAnthropic(model: string, u: PakaiAnthropic): number | null {
   const h = HARGA[model.replace(/-\d{8}$/, "")];
   if (!h) return null;
-  const masuk = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) * 1.25 + (u.cache_read_input_tokens ?? 0) * 0.1;
-  return (masuk * h.masuk + (u.output_tokens ?? 0) * h.keluar) / 1e6;
+  return (
+    ((u.input_tokens ?? 0) * h.masuk +
+      (u.cache_creation_input_tokens ?? 0) * h.tulisCache +
+      (u.cache_read_input_tokens ?? 0) * h.bacaCache +
+      (u.output_tokens ?? 0) * h.keluar) /
+    1e6
+  );
+}
+
+/**
+ * Profil token satu balasan WhatsApp, diukur dari 16 pertanyaan asli pelanggan di produksi (29 Okt 2026,
+ * claude-haiku-5.5, penalaran mati): ±7.500 token input biasa + ±4.100 token SOUL dari cache + ±110 token keluar.
+ * Hanya untuk perkiraan di dashboard sebelum ada pemakaian nyata; biaya sebenarnya dihitung dari usage tiap balasan.
+ */
+export const PROFIL_BALASAN = { input_tokens: 7_500, cache_read_input_tokens: 4_100, output_tokens: 110 } as const;
+
+/** Perkiraan biaya satu balasan (USD) untuk sebuah model; null bila tarifnya belum dicek. */
+export const perkiraanPerBalasan = (model: string): number | null => biayaAnthropic(model, PROFIL_BALASAN);
+
+/** Kurs Rupiah per USD untuk tampilan biaya (pengaturan admin "kurs_usd"; bawaan 16.500). */
+export async function kursUsd(): Promise<number> {
+  const v = Number(await getSetting("kurs_usd"));
+  return Number.isFinite(v) && v >= 1000 && v <= 100_000 ? v : 16_500;
 }
 
 class GalatAnthropic extends Error {

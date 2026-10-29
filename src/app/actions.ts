@@ -3,11 +3,12 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { nomorUntuk } from "@/lib/akses";
-import { kunciAnthropic } from "@/lib/ai";
+import { kunciAnthropic, perkiraanPerBalasan } from "@/lib/ai";
+import { METODE_BAYAR } from "@/lib/harga";
 import { authConfigured } from "@/lib/auth";
 import { asalAplikasi, ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
 import { sekarang, setSetting } from "@/lib/db";
-import { berikanPaket, hentikanLangganan, mulaiBayar, paketById, riwayatTransaksi, segarkanKuota, simpanPaket, terapkanStatus } from "@/lib/langganan";
+import { berikanPaket, hentikanLangganan, mulaiBayar, paketById, riwayatTransaksi, segarkanKuota, simpanPaket, terapkanHargaSaran, terapkanStatus } from "@/lib/langganan";
 import { MidtransError, konfigMidtrans } from "@/lib/midtrans";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
 import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, semuaNomor, setBelajar, setBotAktif, tambahNomor, ubahNomor } from "@/lib/numbers";
@@ -437,11 +438,14 @@ export async function adminPengaturanAction(_lalu: Hasil | null, form: FormData)
   const buka = form.get("pendaftaran") === "on";
   const kuota = Number(form.get("kuota_bawaan"));
   const balasan = Number(form.get("kuota_balasan_gratis"));
+  const kurs = Number(form.get("kurs_usd"));
   if (!(Number.isInteger(kuota) && kuota >= 0 && kuota <= 100)) return { ok: false, pesan: "Kuota bawaan harus 0–100 nomor." };
   if (!(Number.isInteger(balasan) && balasan >= 0 && balasan <= 1_000_000)) return { ok: false, pesan: "Kuota balasan gratis tidak valid." };
+  if (!(Number.isFinite(kurs) && kurs >= 1000 && kurs <= 100_000)) return { ok: false, pesan: "Kurs USD harus 1.000–100.000." };
   await setSetting("pendaftaran", buka ? "buka" : "tutup");
   await setSetting("kuota_bawaan", String(kuota));
   await setSetting("kuota_balasan_gratis", String(balasan));
+  await setSetting("kurs_usd", String(kurs));
   segarkanKuota();
   await catatLog(admin, "ubah pengaturan", null, `pendaftaran ${buka ? "dibuka" : "ditutup"}, kuota gratis ${kuota} nomor & ${balasan} balasan/bulan`);
   revalidatePath("/admin");
@@ -569,4 +573,47 @@ export async function adminHentikanLanggananAction(id: number): Promise<Hasil> {
   await catatLog(admin, "hentikan langganan", u.email);
   revalidatePath(`/admin/pengguna/${u.id}`);
   return { ok: true, pesan: "Langganan dihentikan; akun kembali ke kuota gratis." };
+}
+
+/** Acuan harga & margin (simulasi di /admin). terapkan=1: harga semua paket berbayar dihitung ulang di server. */
+export async function adminHargaAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const bulat = (k: string) => Number(form.get(k));
+  const a = {
+    margin: bulat("margin"),
+    pemakaian: bulat("pemakaian"),
+    metode: String(form.get("metode") ?? ""),
+    biayaServerNomor: bulat("biaya_server"),
+    kurs: bulat("kurs"),
+    model: String(form.get("model") ?? ""),
+  };
+  if (!(Number.isInteger(a.margin) && a.margin >= 0 && a.margin <= 90)) return { ok: false, pesan: "Margin harus 0–90%." };
+  if (!(Number.isInteger(a.pemakaian) && a.pemakaian >= 10 && a.pemakaian <= 100)) return { ok: false, pesan: "Pemakaian kuota 10–100%." };
+  if (!(a.metode in METODE_BAYAR)) return { ok: false, pesan: "Metode bayar tidak dikenal." };
+  if (!(Number.isFinite(a.biayaServerNomor) && a.biayaServerNomor >= 0 && a.biayaServerNomor <= 1_000_000)) return { ok: false, pesan: "Biaya server tidak valid." };
+  if (!(Number.isFinite(a.kurs) && a.kurs >= 1000 && a.kurs <= 100_000)) return { ok: false, pesan: "Kurs USD harus 1.000–100.000." };
+  if (perkiraanPerBalasan(a.model) === null) return { ok: false, pesan: "Tarif model acuan belum diketahui." };
+  await setSetting("margin_target", String(a.margin));
+  await setSetting("pemakaian_acuan", String(a.pemakaian));
+  await setSetting("metode_acuan", a.metode);
+  await setSetting("biaya_server_nomor", String(Math.round(a.biayaServerNomor)));
+  await setSetting("kurs_usd", String(a.kurs));
+  await setSetting("harga_model", a.model);
+  const acuanTeks = `margin ${a.margin}%, pemakaian ${a.pemakaian}%, ${a.metode}, ${a.model}, kurs ${a.kurs}`;
+  if (form.get("terapkan") !== "1") {
+    await catatLog(admin, "ubah acuan harga", null, acuanTeks);
+    revalidatePath("/admin");
+    return { ok: true, pesan: "Acuan harga tersimpan." };
+  }
+  let berubah;
+  try {
+    berubah = await terapkanHargaSaran({ ...a, metode: a.metode as keyof typeof METODE_BAYAR });
+  } catch (e) {
+    return { ok: false, pesan: e instanceof Error ? e.message : "Gagal menerapkan harga." };
+  }
+  await catatLog(admin, "terapkan harga saran", null, `${acuanTeks}; ${berubah.map((b) => `${b.nama} ${b.lama}->${b.baru}`).join(", ") || "tidak ada perubahan"}`);
+  revalidatePath("/admin");
+  revalidatePath("/langganan");
+  revalidatePath("/");
+  return { ok: true, pesan: berubah.length ? `Harga diperbarui: ${berubah.map((b) => `${b.nama} Rp${b.baru.toLocaleString("id-ID")}`).join(", ")}.` : "Harga semua paket sudah sesuai margin." };
 }

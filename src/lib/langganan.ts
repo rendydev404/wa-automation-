@@ -1,6 +1,8 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { type Tx, db, getSetting, sekarang, transaksi as transaksiDb } from "./db";
+import { MODEL_BAWAAN, kursUsd, pengaturanAi, perkiraanPerBalasan } from "./ai";
+import { METODE_BAYAR, type MetodeBayar, hitungHarga } from "./harga";
 import { type KonfigMidtrans, MidtransError, type StatusBayar, buatSnap, petaStatus, statusMidtrans } from "./midtrans";
 
 /**
@@ -284,4 +286,53 @@ export async function hentikanLangganan(userId: number): Promise<void> {
   const sql = await db();
   await sql`UPDATE langganan SET sampai = ${sekarang()} WHERE user_id = ${userId} AND sampai > ${sekarang()}`;
   segarkanKuota(userId);
+}
+
+// ---------- Acuan harga & margin (diatur admin, lihat src/lib/harga.ts) ----------
+
+export interface AcuanTersimpan {
+  margin: number; // persen 0..90
+  pemakaian: number; // persen 10..100
+  metode: MetodeBayar;
+  biayaServerNomor: number; // Rp per nomor per bulan
+  kurs: number;
+  model: string; // model Claude acuan biaya
+}
+
+export async function acuanHarga(): Promise<AcuanTersimpan> {
+  const [m, p, mt, bs, kurs, md, atur] = await Promise.all([
+    getSetting("margin_target"),
+    getSetting("pemakaian_acuan"),
+    getSetting("metode_acuan"),
+    getSetting("biaya_server_nomor"),
+    kursUsd(),
+    getSetting("harga_model"),
+    pengaturanAi(),
+  ]);
+  return {
+    margin: Math.min(90, angkaSetting(m, 60)),
+    pemakaian: Math.min(100, Math.max(10, angkaSetting(p, 100))),
+    metode: mt && mt in METODE_BAYAR ? (mt as MetodeBayar) : "kartu",
+    biayaServerNomor: angkaSetting(bs, 0),
+    kurs,
+    model: md && perkiraanPerBalasan(md) !== null ? md : perkiraanPerBalasan(atur.model) !== null ? atur.model : MODEL_BAWAAN,
+  };
+}
+
+/** Ubah harga semua paket berbayar ke harga saran (rumus src/lib/harga.ts). Mengembalikan paket yang berubah. */
+export async function terapkanHargaSaran(a: AcuanTersimpan): Promise<{ nama: string; lama: number; baru: number }[]> {
+  const usd = perkiraanPerBalasan(a.model);
+  if (usd === null) throw new Error("Tarif model acuan belum diketahui.");
+  const acuan = { biayaBalasanUsd: usd, kurs: a.kurs, margin: a.margin / 100, pemakaian: a.pemakaian / 100, metode: a.metode, biayaServerNomor: a.biayaServerNomor };
+  const berubah: { nama: string; lama: number; baru: number }[] = [];
+  for (const p of await daftarPaket({ semua: true })) {
+    if (p.harga <= 0) continue; // paket gratis/khusus admin tidak diberi harga
+    const { hargaSaran } = hitungHarga(p, acuan);
+    if (hargaSaran === null) throw new Error("Margin + biaya bayar mencapai 100%: turunkan margin.");
+    if (hargaSaran !== p.harga) {
+      await simpanPaket({ ...p, harga: hargaSaran });
+      berubah.push({ nama: p.nama, lama: p.harga, baru: hargaSaran });
+    }
+  }
+  return berubah;
 }

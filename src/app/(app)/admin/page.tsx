@@ -7,10 +7,11 @@ import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna, ringkasanAdmin } from "@/lib/pengguna";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
 import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, SalinTeks } from "./form-admin";
-import { daftarPaket, kuotaBalasanGratis, riwayatTransaksi } from "@/lib/langganan";
+import { acuanHarga, daftarPaket, kuotaBalasanGratis, riwayatTransaksi } from "@/lib/langganan";
+import { SimulasiHarga } from "./simulasi-harga";
 import { konfigMidtrans, kunciMidtransSah } from "@/lib/midtrans";
 import { asalAplikasi } from "@/lib/batas";
-import { kunciAnthropic, modelAnthropic, pengaturanAi, ringkasPakai } from "@/lib/ai";
+import { kunciAnthropic, kursUsd, modelAnthropic, pengaturanAi, perkiraanPerBalasan, ringkasPakai } from "@/lib/ai";
 import { sekarang } from "@/lib/db";
 
 export const metadata: Metadata = { title: "Admin · Asisten WhatsApp" };
@@ -86,12 +87,10 @@ async function Ringkasan() {
   );
 }
 
-const KURS = 16_500; // perkiraan Rp per USD untuk tampilan biaya
-
 async function MesinAi() {
   await requireAdmin();
   const kunci = kunciAnthropic();
-  const [atur, pakai] = await Promise.all([pengaturanAi(), ringkasPakai(sekarang() - 7 * 86400)]);
+  const [atur, pakai, KURS] = await Promise.all([pengaturanAi(), ringkasPakai(sekarang() - 7 * 86400), kursUsd()]);
   // Daftar model resmi dari akun Anthropic (sekaligus bukti kuncinya masih berlaku).
   const daftarModel = kunci ? await modelAnthropic(kunci) : null;
   const total = pakai.reduce((a, p) => ({ n: a.n + p.balasan, usd: a.usd + p.biaya_usd }), { n: 0, usd: 0 });
@@ -108,7 +107,19 @@ async function MesinAi() {
         {!kunci ? "belum dipasang di server (developer: ANTHROPIC_API_KEY di .env)." : daftarModel === null ? "terpasang di server tapi ditolak/tak terjangkau, hubungi developer." : "terpasang di server ✓"}
       </p>
       <div className="mt-4">
-        <FormAi penyedia={atur.penyedia} model={atur.model} cadangan={atur.cadangan} adaKunci={!!kunci} daftarModel={daftarModel} />
+        <FormAi
+          penyedia={atur.penyedia}
+          model={atur.model}
+          cadangan={atur.cadangan}
+          adaKunci={!!kunci}
+          daftarModel={daftarModel}
+          biaya={Object.fromEntries(
+            [...new Set([...(daftarModel ?? []).map((m) => m.id), "claude-haiku-5-5", "claude-sonnet-5-5"])]
+              .map((id) => [id, perkiraanPerBalasan(id)] as const)
+              .filter((x): x is readonly [string, number] => x[1] !== null)
+              .map(([id, usd]) => [id, Math.round(usd * KURS)])
+          )}
+        />
       </div>
       <div className="mt-5 border-t border-line pt-4">
         <p className="text-[12.5px] font-semibold">7 hari terakhir</p>
@@ -139,7 +150,7 @@ async function MesinAi() {
 
 async function Pengaturan() {
   await requireAdmin();
-  const [buka, kuota, balasan] = await Promise.all([pendaftaranDibuka(), kuotaBawaan(), kuotaBalasanGratis()]);
+  const [buka, kuota, balasan, kurs] = await Promise.all([pendaftaranDibuka(), kuotaBawaan(), kuotaBalasanGratis(), kursUsd()]);
   return (
     <section className="card p-6">
       <h2 className="flex items-center gap-2 text-[15px] font-bold">
@@ -147,21 +158,42 @@ async function Pengaturan() {
       </h2>
       <p className="mt-0.5 text-[13px] text-muted">Berlaku untuk akun yang dibuat setelah disimpan.</p>
       <div className="mt-4">
-        <FormPengaturan buka={buka} kuota={kuota} balasan={balasan} />
+        <FormPengaturan buka={buka} kuota={kuota} balasan={balasan} kurs={kurs} />
       </div>
     </section>
   );
 }
 
+/** Model yang tarif resminya sudah dicek (src/lib/ai.ts) dan bisa jadi acuan biaya. */
+const MODEL_ACUAN = [
+  { id: "claude-haiku-5-5", nama: "Claude Haiku 5.5" },
+  { id: "claude-sonnet-5-5", nama: "Claude Sonnet 5.5" },
+  { id: "claude-haiku-4-5", nama: "Claude Haiku 4.5" },
+];
+
 async function KelolaPaket() {
   await requireAdmin();
-  const paket = await daftarPaket({ semua: true });
+  const [paket, acuan] = await Promise.all([daftarPaket({ semua: true }), acuanHarga()]);
+  const modelAcuan = MODEL_ACUAN.flatMap((m) => {
+    const usd = perkiraanPerBalasan(m.id);
+    return usd === null ? [] : [{ ...m, usd }];
+  });
   return (
     <section className="card p-6">
       <h2 className="flex items-center gap-2 text-[15px] font-bold">
         <Package className="size-4 text-accent" aria-hidden /> Paket langganan
       </h2>
       <p className="mt-0.5 text-[13px] text-muted">Perubahan berlaku untuk pembelian berikutnya; pelanggan yang sedang aktif tetap memakai kuota saat ia membeli.</p>
+      <details className="mt-4 rounded-xl border border-accent/30 bg-accent-soft/30" open>
+        <summary className="cursor-pointer px-4 py-3 text-[13.5px] font-semibold text-accent">Margin keuntungan & simulasi harga</summary>
+        <div className="border-t border-accent/20 bg-surface p-4">
+          <SimulasiHarga
+            paket={paket.map((p) => ({ id: p.id, nama: p.nama, harga: p.harga, durasi_hari: p.durasi_hari, kuota_nomor: p.kuota_nomor, kuota_balasan: p.kuota_balasan }))}
+            model={modelAcuan}
+            acuan={acuan}
+          />
+        </div>
+      </details>
       <ul className="mt-4 divide-y divide-line rounded-xl border border-line">
         {paket.map((p) => (
           <li key={p.id}>

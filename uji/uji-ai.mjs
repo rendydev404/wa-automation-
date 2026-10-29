@@ -133,6 +133,25 @@ await cek("daftar model dari Anthropic (juga uji kunci): kunci sah -> daftar; di
   }
 });
 
+await cek("tarif resmi Anthropic per model (termasuk cache) & perkiraan per balasan dari profil token nyata", async () => {
+  const dekat = (a, b) => assert.ok(Math.abs(a - b) < 1e-12, `${a} != ${b}`);
+  // Haiku 5.5: $0,10 masuk, $0,50 keluar, tulis cache $0,125, baca cache $0,01 (per juta token)
+  dekat(AI.biayaAnthropic("claude-haiku-5-5", { input_tokens: 1e6 }), 0.1);
+  dekat(AI.biayaAnthropic("claude-haiku-5-5", { output_tokens: 1e6 }), 0.5);
+  dekat(AI.biayaAnthropic("claude-haiku-5-5", { cache_creation_input_tokens: 1e6 }), 0.125);
+  dekat(AI.biayaAnthropic("claude-haiku-5-5", { cache_read_input_tokens: 1e6 }), 0.01);
+  // Sonnet 5.5: baca cache $0,10 (bukan 10% x $2 = $0,20)
+  dekat(AI.biayaAnthropic("claude-sonnet-5-5", { cache_read_input_tokens: 1e6 }), 0.1);
+  dekat(AI.biayaAnthropic("claude-sonnet-5-5-20261001", { input_tokens: 1e6 }), 2); // id bertanggal
+  assert.equal(AI.biayaAnthropic("claude-model-belum-dicek", { input_tokens: 1e6 }), null);
+  // Profil nyata: 7.500 input + 4.100 cache + 110 keluar
+  dekat(AI.perkiraanPerBalasan("claude-haiku-5-5"), 0.000846); // ±Rp14 pada kurs 16.500
+  dekat(AI.perkiraanPerBalasan("claude-sonnet-5-5"), 0.01651); // ±Rp272
+  assert.equal(await AI.kursUsd(), 16500);
+  await setSetting("kurs_usd", "16200");
+  assert.equal(await AI.kursUsd(), 16200);
+});
+
 const n = await tambahNomor("Uji AI");
 await cek("pemakaian tercatat per nomor dan diringkas per model", async () => {
   const j = { teks: "t", ms: 1200, penyedia: "anthropic", model: "claude-haiku-5-5", tokenMasuk: 6000, tokenKeluar: 120, biayaUsd: 0.0009 };
