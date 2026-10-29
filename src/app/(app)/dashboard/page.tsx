@@ -8,6 +8,11 @@ import { KartuStat, KartuUtama, Meter } from "@/components/stat";
 import { TombolTambahNomor } from "@/components/tambah-nomor";
 import { angka } from "@/lib/format";
 import { daftarNomor, statHarian, tanggalWib } from "@/lib/numbers";
+import Link from "next/link";
+import { TUR_DASHBOARD } from "@/components/isi-tur";
+import { TurOtomatis } from "@/components/tur";
+import { balasanTerpakai, hakAkun } from "@/lib/langganan";
+import { turSelesai } from "@/lib/pengguna";
 import { kuotaNomor, requireUser } from "@/lib/session";
 import { deretHarian, hariTerakhir, persen } from "@/lib/tren";
 
@@ -45,7 +50,14 @@ async function TanggalHariIni() {
 async function Ringkasan() {
   const user = await requireUser();
   const hari = hariTerakhir(tanggalWib(), 7);
-  const [nomor, stat, kuota] = await Promise.all([daftarNomor(user.id), statHarian(hari[0], { userId: user.id }), kuotaNomor(user)]);
+  const [nomor, stat, kuota, tur, hak] = await Promise.all([
+    daftarNomor(user.id),
+    statHarian(hari[0], { userId: user.id }),
+    kuotaNomor(user),
+    turSelesai(user.id),
+    hakAkun(user),
+  ]);
+  const terpakai = hak.balasan === null ? 0 : await balasanTerpakai(user.id, hak.periodeMulai);
 
   const tren = deretHarian(hari, stat);
   const urutan = new Map(hari.map((t, i) => [t, i]));
@@ -67,7 +79,20 @@ async function Ringkasan() {
 
   return (
     <div className="space-y-6 lg:space-y-8">
-      <section aria-label="Statistik hari ini" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+      <TurOtomatis nama="dashboard" langkah={TUR_DASHBOARD} sudah={tur.includes("dashboard")} />
+      {hak.balasan !== null && terpakai >= hak.balasan * 0.8 && (
+        <p role={terpakai >= hak.balasan ? "alert" : "status"} className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4 text-[13.5px] font-semibold ${terpakai >= hak.balasan ? "bg-danger-soft text-danger" : "bg-warning-soft text-warning"}`}>
+          <span>
+            {terpakai >= hak.balasan
+              ? `Kuota balasan AI habis (${angka(terpakai)}/${angka(hak.balasan)}). AI berhenti membalas sampai paket diperpanjang.`
+              : `Kuota balasan AI hampir habis: ${angka(terpakai)} dari ${angka(hak.balasan)} terpakai.`}
+          </span>
+          <Link href="/langganan" className="btn btn-primary">
+            Lihat paket
+          </Link>
+        </p>
+      )}
+      <section aria-label="Statistik hari ini" data-tur="ringkasan" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <KartuUtama
           label="Pesan masuk hari ini"
           nilai={angka(kini.masuk)}

@@ -8,6 +8,10 @@ import {
   adminCabutSesiAction,
   adminHapusAction,
   adminAiAction,
+  adminBerikanPaketAction,
+  adminHentikanLanggananAction,
+  adminMidtransAction,
+  adminPaketAction,
   adminKunciAiAction,
   adminKuotaAction,
   adminPengaturanAction,
@@ -17,7 +21,7 @@ import {
 } from "@/app/actions";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "@/components/ui";
 
-export function FormPengaturan({ buka, kuota }: { buka: boolean; kuota: number }) {
+export function FormPengaturan({ buka, kuota, balasan }: { buka: boolean; kuota: number; balasan: number }) {
   const [hasil, aksi] = useActionState(adminPengaturanAction, null);
   const [aktif, setAktif] = useState(buka);
   return (
@@ -35,6 +39,12 @@ export function FormPengaturan({ buka, kuota }: { buka: boolean; kuota: number }
           Kuota nomor akun baru
         </label>
         <input id="kuota_bawaan" name="kuota_bawaan" type="number" min={0} max={100} defaultValue={kuota} required className="field" />
+      </div>
+      <div>
+        <label htmlFor="kuota_balasan_gratis" className="label">
+          Kuota balasan AI gratis per bulan (akun tanpa paket)
+        </label>
+        <input id="kuota_balasan_gratis" name="kuota_balasan_gratis" type="number" min={0} defaultValue={balasan} required className="field" />
       </div>
       <div className="flex items-center gap-3">
         <SubmitButton>Simpan aturan</SubmitButton>
@@ -320,5 +330,149 @@ export function FormKunciAi({ samaran }: { samaran: string | null }) {
         <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
       </div>
     </form>
+  );
+}
+
+// ---------- Paket langganan ----------
+
+export interface PaketForm {
+  id: number;
+  kode: string;
+  nama: string;
+  harga: number;
+  durasi_hari: number;
+  kuota_nomor: number;
+  kuota_balasan: number;
+  deskripsi: string;
+  aktif: boolean;
+  unggulan: boolean;
+  urutan: number;
+}
+
+/** Satu formulir untuk membuat (tanpa `paket`) atau mengubah paket. */
+export function FormPaket({ paket }: { paket?: PaketForm }) {
+  const [hasil, aksi] = useActionState(adminPaketAction, null);
+  const p = paket;
+  const kolom = "field text-[13px]";
+  return (
+    <form action={aksi} className="space-y-3">
+      {p && <input type="hidden" name="id" value={p.id} />}
+      <div className="grid grid-cols-2 gap-2">
+        <input name="nama" aria-label="Nama paket" placeholder="Nama paket" defaultValue={p?.nama} required maxLength={40} className={kolom} />
+        <input name="harga" aria-label="Harga (Rp)" placeholder="Harga (Rp)" inputMode="numeric" defaultValue={p?.harga} required className={kolom} />
+        <input name="durasi_hari" aria-label="Durasi (hari)" placeholder="Durasi (hari)" inputMode="numeric" defaultValue={p?.durasi_hari ?? 30} required className={kolom} />
+        <input name="kuota_nomor" aria-label="Kuota nomor" placeholder="Kuota nomor" inputMode="numeric" defaultValue={p?.kuota_nomor} required className={kolom} />
+        <input name="kuota_balasan" aria-label="Kuota balasan AI" placeholder="Kuota balasan AI" inputMode="numeric" defaultValue={p?.kuota_balasan} required className={kolom} />
+        <input name="urutan" aria-label="Urutan tampil" placeholder="Urutan" inputMode="numeric" defaultValue={p?.urutan ?? 0} className={kolom} />
+      </div>
+      <input name="deskripsi" aria-label="Deskripsi singkat" placeholder="Deskripsi singkat" defaultValue={p?.deskripsi} maxLength={200} className={kolom} />
+      {!p && <input name="kode" aria-label="Kode (opsional)" placeholder="Kode unik (opsional, mis. bisnis-tahunan)" className={kolom} />}
+      <div className="flex flex-wrap items-center gap-4 text-[13px]">
+        <label className="flex items-center gap-2">
+          <input type="checkbox" name="aktif" defaultChecked={p?.aktif ?? true} className="size-4 accent-[var(--c-accent)]" /> Dijual
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" name="unggulan" defaultChecked={p?.unggulan} className="size-4 accent-[var(--c-accent)]" /> Tandai &quot;paling banyak dipilih&quot;
+        </label>
+      </div>
+      <div className="flex items-center gap-3">
+        <SubmitButton>{p ? "Simpan paket" : "Buat paket"}</SubmitButton>
+        <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
+      </div>
+    </form>
+  );
+}
+
+// ---------- Midtrans ----------
+
+export function FormMidtrans({ samaran, produksi, urlNotifikasi }: { samaran: string | null; produksi: boolean; urlNotifikasi: string }) {
+  const [hasil, aksi] = useActionState(adminMidtransAction, null);
+  const ref = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (hasil?.ok) ref.current?.reset();
+  }, [hasil]);
+  return (
+    <form ref={ref} action={aksi} className="space-y-3">
+      <fieldset className="grid grid-cols-2 gap-2">
+        <legend className="label">Mode</legend>
+        {[
+          ["produksi", "Production"],
+          ["sandbox", "Sandbox (uji coba)"],
+        ].map(([v, l]) => (
+          <label key={v} className="flex cursor-pointer items-center gap-2 rounded-xl border border-line px-3 py-2 text-[13px] font-semibold has-[:checked]:border-accent has-[:checked]:bg-accent-soft has-[:checked]:text-accent">
+            <input type="radio" name="mode" value={v} defaultChecked={(v === "produksi") === produksi} className="sr-only" />
+            {l}
+          </label>
+        ))}
+      </fieldset>
+      <label htmlFor="server-key" className="label">
+        Server key {samaran && <span className="font-mono font-normal text-muted">· tersimpan: {samaran}</span>}
+      </label>
+      <input
+        id="server-key"
+        name="server_key"
+        type="password"
+        autoComplete="off"
+        spellCheck={false}
+        placeholder={samaran ? "Isi untuk mengganti" : "Mid-server-..."}
+        className="field font-mono text-[12.5px]"
+      />
+      <div>
+        <p className="label">Payment Notification URL (tempel di dashboard Midtrans → Settings → Payment)</p>
+        <div className="flex gap-2">
+          <code className="field flex-1 overflow-x-auto font-mono text-[12px] whitespace-nowrap select-all">{urlNotifikasi}</code>
+          <button type="button" className="btn btn-ghost border border-line" onClick={() => navigator.clipboard?.writeText(urlNotifikasi)} aria-label="Salin URL notifikasi">
+            <Copy className="size-4" aria-hidden />
+          </button>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <SubmitButton>Simpan</SubmitButton>
+        {samaran && (
+          <button type="submit" name="hapus" value="1" formNoValidate className="btn btn-ghost border border-line text-danger">
+            Hapus kunci
+          </button>
+        )}
+        <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
+      </div>
+    </form>
+  );
+}
+
+// ---------- Langganan per pengguna ----------
+
+export function FormBerikanPaket({ id, paket }: { id: number; paket: { id: number; nama: string; durasi_hari: number }[] }) {
+  const [hasil, aksi] = useActionState(adminBerikanPaketAction, null);
+  return (
+    <form action={aksi} className="space-y-3">
+      <input type="hidden" name="id" value={id} />
+      <div className="grid grid-cols-[1fr_110px] gap-2">
+        <select name="paket" aria-label="Paket" required className="field">
+          {paket.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.nama} ({p.durasi_hari} hari)
+            </option>
+          ))}
+        </select>
+        <input name="hari" aria-label="Jumlah hari (opsional)" placeholder="Hari" inputMode="numeric" className="field" />
+      </div>
+      <p className="text-[12px] text-muted">Untuk pembayaran di luar Midtrans atau kompensasi. Hari kosong = durasi paket.</p>
+      <div className="flex items-center gap-3">
+        <SubmitButton>Berikan paket</SubmitButton>
+        <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
+      </div>
+    </form>
+  );
+}
+
+export function HentikanLangganan({ id }: { id: number }) {
+  return (
+    <TombolKonfirmasi
+      label="Hentikan langganan"
+      tanya="Kembali ke kuota gratis?"
+      ya="Hentikan"
+      className="btn btn-ghost border border-line text-danger"
+      aksi={() => adminHentikanLanggananAction(id)}
+    />
   );
 }

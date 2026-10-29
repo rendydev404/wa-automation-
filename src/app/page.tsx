@@ -1,7 +1,9 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, BookOpenText, Camera, Check, GraduationCap, Hand, History, Lock, MessageCircle, ShieldCheck, Smartphone, Zap } from "lucide-react";
 import { DemoAlur, DemoChat } from "@/components/landing/demo";
+import { HargaLanding } from "@/components/landing/harga";
 import { Kalkulator } from "@/components/landing/kalkulator";
 
 /** Landing page publik: seluruhnya statis (prerender), animasi Remotion dimuat terpisah di sisi klien. */
@@ -32,7 +34,8 @@ const FAQ = [
   { t: "Apakah nomor WhatsApp saya aman?", j: "Nomor tersambung sebagai perangkat tertaut, sama seperti WhatsApp Web. Anda bisa memutusnya kapan saja dari dashboard atau dari HP (Perangkat tertaut → Keluar)." },
   { t: "Bisa dipakai WhatsApp Business?", j: "Bisa. WhatsApp biasa maupun WhatsApp Business, selama bisa membuka menu Perangkat tertaut." },
   { t: "Bagaimana kalau AI tidak tahu jawabannya?", j: "AI dilarang menebak. Bila informasinya tidak ada di base knowledge, AI berkata terus terang dan meneruskan ke Anda." },
-  { t: "Berapa nomor yang bisa saya sambungkan?", j: "Akun baru mendapat kuota 1 nomor. Butuh lebih banyak untuk tim atau cabang? Hubungi admin untuk menambah kuota." },
+  { t: "Berapa nomor yang bisa saya sambungkan?", j: "Akun gratis mendapat 1 nomor. Butuh lebih banyak untuk tim atau cabang? Pilih paket Bisnis atau Pro di bagian Harga." },
+  { t: "Apa yang terjadi kalau kuota balasan AI habis?", j: "AI berhenti membalas sementara dan chat tetap masuk ke HP-mu seperti biasa. Perpanjang atau naikkan paket, AI langsung aktif lagi." },
   { t: "Bolehkah untuk broadcast/promo massal?", j: "Tidak. Layanan ini untuk membalas pelanggan yang menghubungi Anda. Akun yang dipakai untuk spam akan diblokir." },
 ];
 
@@ -56,6 +59,9 @@ export default function Landing() {
             </a>
             <a href="#cara-kerja" className="transition-colors hover:text-ink-fg">
               Cara kerja
+            </a>
+            <a href="#harga" className="transition-colors hover:text-ink-fg">
+              Harga
             </a>
             <a href="#keamanan" className="transition-colors hover:text-ink-fg">
               Keamanan
@@ -171,6 +177,18 @@ export default function Landing() {
           <p className="mt-3 text-[16px] text-muted">Geser sesuai jumlah chat harian usaha Anda. Waktu yang biasanya habis untuk mengetik jawaban yang sama berulang-ulang bisa dipakai untuk mengembangkan usaha.</p>
         </div>
         <Kalkulator />
+      </section>
+
+      {/* ---------- Harga (dari paket yang dikelola admin) ---------- */}
+      <section id="harga" className="mx-auto max-w-[1200px] scroll-mt-8 px-4 pb-20 sm:px-6 lg:pb-28">
+        <div className="max-w-2xl">
+          <p className="text-[12px] font-bold tracking-[0.1em] text-accent uppercase">Harga</p>
+          <h2 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-[40px]">Pilih paket sesuai kebutuhan.</h2>
+          <p className="mt-3 text-[16px] text-muted">Tanpa kontrak. Perpanjang kapan saja, kuota balasan AI langsung bertambah.</p>
+        </div>
+        <Suspense fallback={<div aria-hidden className="mt-12 grid gap-4 md:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-96 animate-denyut rounded-3xl bg-subtle" />)}</div>}>
+          <HargaLanding />
+        </Suspense>
       </section>
 
       {/* ---------- Keamanan ---------- */}

@@ -140,6 +140,18 @@ apa pun penyedianya, melewati penjaga (`src/lib/pemeriksa.ts`): mengaku admin/pe
 atau angka/tautan tak bersumber = ditulis ulang sekali, lalu jawaban aman. Biaya & token per balasan: tabel `ai_pakai`.
 Membandingkan model dengan percakapan asli: `uji/banding-model.mjs` (cara pakai di awal berkas).
 
+Paket & pembayaran (`src/lib/langganan.ts`, `src/lib/midtrans.ts`), semuanya dikelola admin di `/admin`:
+- **Paket** (harga, durasi, kuota nomor, kuota balasan AI). Langganan menyimpan salinan kuota saat dibeli.
+  Akun tanpa paket memakai kuota gratis bulanan (bulan kalender WIB). Admin tanpa batas.
+- **Kuota balasan AI ditegakkan** di jembatan WhatsApp: habis = AI diam (pesan tetap tercatat), dicek dari
+  memori dan disegarkan tiap 60 dtk, jadi tidak ada query tambahan per pesan.
+- **Midtrans Snap** (bawaan production): server key diisi admin (diuji ke Midtrans, disimpan terenkripsi).
+  Payment Notification URL di dashboard Midtrans: `https://wa.sukapost.tech/api/midtrans/notifikasi`.
+  Webhook memeriksa tanda tangan SHA-512, lalu status diambil ulang dari API Midtrans dan nominal dicocokkan;
+  paket aktif tepat sekali. Bayar paket yang sama = diperpanjang; paket lain = mulai baru.
+- Tur panduan (`src/components/tur.tsx`, isi di `isi-tur.tsx`) tampil sekali per akun di dashboard dan halaman
+  nomor; tombol "Panduan" di sidebar memutarnya ulang.
+
 Mengubah aturan bot: sunting `hermes/SOUL-cs.md`, salin ke
 `/home/suka-automation/.hermes/profiles/cs/SOUL.md` (tanpa baris komentar pertama), lalu
 `systemctl --user restart hermes-gateway` sebagai `suka-automation`.

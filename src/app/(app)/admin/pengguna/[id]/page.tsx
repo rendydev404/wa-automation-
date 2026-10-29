@@ -8,7 +8,9 @@ import { nomorMilik } from "@/lib/numbers";
 import { penggunaById } from "@/lib/pengguna";
 import { kuotaBawaan, requireAdmin } from "@/lib/session";
 import { infoSesi } from "@/lib/wa";
-import { AksiAkun, FormBlokir, FormKuota, HapusAkun, PutuskanWa } from "../../form-admin";
+import { AksiAkun, FormBerikanPaket, FormBlokir, FormKuota, HapusAkun, HentikanLangganan, PutuskanWa } from "../../form-admin";
+import { angka } from "@/lib/format";
+import { balasanTerpakai, daftarPaket, hakAkun, langgananAktif } from "@/lib/langganan";
 
 export const metadata: Metadata = { title: "Kelola pengguna · Asisten WhatsApp" };
 
@@ -51,7 +53,8 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   const id = Number((await params).id);
   const u = Number.isInteger(id) && id > 0 ? await penggunaById(id) : undefined;
   if (!u) notFound();
-  const [nomor, bawaan] = await Promise.all([nomorMilik(id), kuotaBawaan()]);
+  const [nomor, bawaan, hak, aktif, paket] = await Promise.all([nomorMilik(id), kuotaBawaan(), hakAkun(u), langgananAktif(id), daftarPaket({ semua: true })]);
+  const terpakai = hak.balasan === null ? 0 : await balasanTerpakai(id, hak.periodeMulai);
   const diriSendiri = u.id === admin.id;
 
   return (
@@ -125,6 +128,26 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
           </section>
         </div>
         <div className="space-y-6">
+          {u.peran !== "admin" && (
+            <section className="card p-6">
+              <h2 className="text-[15px] font-bold">Langganan</h2>
+              <p className="mt-1 text-[13px] text-muted">
+                <span className="font-semibold text-fg">{hak.paket}</span>
+                {hak.sampai ? ` · sampai ${tanggal(hak.sampai)}` : " · kuota gratis bulanan"}
+              </p>
+              <p className="mt-1 text-[13px] text-muted tabular-nums">
+                Balasan AI: {angka(terpakai)} / {hak.balasan === null ? "∞" : angka(hak.balasan)}
+              </p>
+              <div className="mt-4">
+                <FormBerikanPaket id={u.id} paket={paket} />
+              </div>
+              {aktif && (
+                <div className="mt-3 border-t border-line pt-3">
+                  <HentikanLangganan id={u.id} />
+                </div>
+              )}
+            </section>
+          )}
           {u.peran !== "admin" && (
             <section className="card p-6">
               <h2 className="text-[15px] font-bold">Kuota perangkat</h2>

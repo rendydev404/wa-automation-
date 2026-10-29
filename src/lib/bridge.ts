@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { db, sekarang, setSetting } from "./db";
 import { catatPakai, pengaturanAi, tanpaIngatan, tanyaAiTerjaga } from "./ai";
+import { catatBalasanLokal, sisaKuotaAi } from "./langganan";
 import { susunSistem } from "./knowledge";
 import { type Nomor, catatStat, catatTerhubung, nomorBySesi } from "./numbers";
 import { catatPesan, riwayatUntukAi } from "./percakapan";
@@ -191,6 +192,23 @@ function catat(a: Antrean, isi: string): void {
   if (a.catatan.length > MAKS_CATATAN) a.catatan.shift();
 }
 
+const kuotaDicatat = new Map<number, number>(); // pemilik -> kapan terakhir "kuota habis" ditulis ke log
+
+/**
+ * Kuota balasan AI pemilik nomor sudah habis? (paket langganan / kuota gratis bulanan; lihat langganan.ts)
+ * Dibaca dari memori, disegarkan paling cepat tiap 60 dtk. Database tak terjangkau = jangan menahan AI.
+ */
+async function kuotaHabis(userId: number | null): Promise<boolean> {
+  if (userId === null) return false;
+  const sisa = await sisaKuotaAi(userId).catch(() => null);
+  if (sisa === null || sisa > 0) return false;
+  if (Date.now() - (kuotaDicatat.get(userId) ?? 0) > 3600_000) {
+    kuotaDicatat.set(userId, Date.now());
+    console.warn(`[bridge] kuota balasan AI pengguna ${userId} habis: AI diam sampai paket diperpanjang`);
+  }
+  return true;
+}
+
 function statistik(numberId: number, kolom: "masuk" | "dibalas" | "gagal"): void {
   tulisLatar(() => catatStat(numberId, kolom));
 }
@@ -219,7 +237,7 @@ async function proses(kunci: string): Promise<void> {
     }
     // Selagi menunggu di atas, manusia bisa saja sudah membalas (antrean dikosongkan).
     if (a.generasi !== generasi || (!a.teks.length && !a.siap)) return;
-    if (sedangDijeda(a) || !nomor || !nomor.bot_aktif || !nomor.pemilik_aktif) {
+    if (sedangDijeda(a) || !nomor || !nomor.bot_aktif || !nomor.pemilik_aktif || (await kuotaHabis(nomor.user_id))) {
       a.teks.length = 0;
       a.foto.length = 0;
       a.siap = null;
@@ -265,6 +283,7 @@ async function proses(kunci: string): Promise<void> {
         const sumber = [sistem, isiPesan, ...(lengkap ? [] : await riwayatUntukAi(kunci, { sesiBaru: false, tertunda, lengkap: true }))].join("\n");
         const hasil = await tanyaAiTerjaga({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar }, sumber);
         tulisLatar(() => catatPakai(a.numberId, hasil, gambar.length > 0));
+        if (nomor.user_id !== null) catatBalasanLokal(nomor.user_id);
         if (hasil.pelanggaran.length) {
           console.warn(`[bridge] jawaban AI ditolak pemeriksa (${hasil.pelanggaran.map((p) => p.jenis).join(",")}) sesi=${a.sesi}${hasil.aman ? ", dikirim jawaban aman" : ", ditulis ulang"}`);
           // Hermes mengingat draf pertamanya sendiri: beri tahu jawaban yang benar-benar terkirim.

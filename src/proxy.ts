@@ -3,8 +3,9 @@ import type { NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 
 // /api/sinkron dipanggil database (bukan browser); keabsahannya dicek lewat tanda tangan HMAC di handler-nya.
-// "/" = landing page publik; /api/auth/google* = masuk dengan Google (sebelum ada sesi).
-const PUBLIK = new Set(["/", "/api/health", "/api/sinkron", "/api/auth/google", "/api/auth/google/callback"]);
+// "/" = landing page publik; /api/auth/google* = masuk dengan Google (sebelum ada sesi);
+// /api/midtrans/notifikasi = webhook Midtrans (keabsahan dicek lewat tanda tangan SHA-512 + status ulang dari API).
+const PUBLIK = new Set(["/", "/api/health", "/api/sinkron", "/api/auth/google", "/api/auth/google/callback", "/api/midtrans/notifikasi"]);
 
 function asalSama(req: NextRequest): boolean {
   const origin = req.headers.get("origin");

@@ -454,6 +454,30 @@ await cek("balasan otomatis dimatikan: pesan dihitung tetapi tidak dijawab", asy
   assert.equal((await stat(A.id)).masuk, m0 + 1);
 });
 
+await cek("kuota balasan AI pemilik habis: pesan tercatat tetapi AI diam; kuota ditambah = AI membalas lagi", async () => {
+  const L = await lib("src/lib/langganan.ts");
+  const { setSetting } = await lib("src/lib/db.ts");
+  const [u] = await sql`INSERT INTO users(email, password_hash, created_at) VALUES ('kuota@uji.test', 'x', ${kini()}) RETURNING id`;
+  await sql`UPDATE numbers SET user_id = ${u.id} WHERE id = ${A.id}`;
+  cacheNomorBasi();
+  await setSetting("kuota_balasan_gratis", "0");
+  L.segarkanKuota();
+  const n0 = hermes.panggilan.length;
+  const m0 = (await stat(A.id)).masuk;
+  tiba(sA, pesan("555000305@lid", "masih bisa dibalas?"));
+  await tidur(2600);
+  assert.equal(hermes.panggilan.length, n0, "AI tidak dipanggil saat kuota habis");
+  assert.equal((await stat(A.id)).masuk, m0 + 1, "pesan tetap dihitung masuk");
+  await setSetting("kuota_balasan_gratis", "100");
+  L.segarkanKuota();
+  const k0 = sA.terkirim.length;
+  tiba(sA, pesan("555000306@lid", "sekarang bagaimana?"));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000, "AI membalas lagi setelah kuota ditambah");
+  await tunggu(() => sA.terkirim.length > k0, 4000, "balasan terkirim"); // tuntas sebelum uji berikutnya menghitung
+  await sql`UPDATE numbers SET user_id = NULL WHERE id = ${A.id}`; // kembali seperti semula untuk uji berikutnya
+  cacheNomorBasi();
+});
+
 // =====================================================================================
 bagian("D. Serah-terima manusia <-> AI");
 const P2 = "555000401@lid";

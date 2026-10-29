@@ -240,3 +240,16 @@ export async function passwordHash(id: number): Promise<string | undefined> {
   const [u] = await sql<{ password_hash: string }[]>`SELECT password_hash FROM users WHERE id = ${id}`;
   return u?.password_hash;
 }
+
+// ---------- Tur panduan ----------
+
+export async function turSelesai(id: number): Promise<string[]> {
+  const sql = await db();
+  const [u] = await sql<{ tur_selesai: string[] }[]>`SELECT tur_selesai FROM users WHERE id = ${id}`;
+  return u?.tur_selesai ?? [];
+}
+
+export async function tandaiTurSelesai(id: number, nama: string): Promise<void> {
+  const sql = await db();
+  await sql`UPDATE users SET tur_selesai = array_append(tur_selesai, ${nama}) WHERE id = ${id} AND NOT (${nama} = ANY(tur_selesai))`;
+}

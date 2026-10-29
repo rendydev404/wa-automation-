@@ -4,6 +4,7 @@ import { LogOut } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { NavKerangka, NavUtama, StatusLayanan } from "@/components/navigasi";
 import { Rangka } from "@/components/rangka";
+import { PenyediaTur } from "@/components/tur";
 import { WaStatusProvider } from "@/components/wa-status";
 import { nomorMilik } from "@/lib/numbers";
 import { requireUser } from "@/lib/session";
@@ -20,6 +21,7 @@ async function NavData() {
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <WaStatusProvider>
+      <PenyediaTur>
       <Rangka
         sidebar={
           <>
@@ -45,6 +47,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
       >
         <main className="mx-auto w-full max-w-[1320px] px-4 pt-6 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-10 lg:pt-10">{children}</main>
       </Rangka>
+      </PenyediaTur>
     </WaStatusProvider>
   );
 }

@@ -2,9 +2,10 @@
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Download, FileText, Loader2, Trash2, Type, UploadCloud, X } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Download, FileText, Lightbulb, Loader2, Sparkles, Trash2, Type, UploadCloud, X } from "lucide-react";
 import { hapusDokumenAction, pratinjauAction, tambahTeksAction } from "@/app/actions";
 import { angka, ukuran } from "@/lib/format";
+import { CONTOH_KNOWLEDGE } from "./isi-tur";
 import { Pesan, SubmitButton } from "./ui";
 
 export interface ItemDokumen {
@@ -25,7 +26,13 @@ interface Unggahan {
 const MAKS_BYTE = 10 * 1024 * 1024;
 
 export function KnowledgePanel({ numberId, dokumen, total, batasUtuh }: { numberId: number; dokumen: ItemDokumen[]; total: number; batasUtuh: number }) {
-  const [tab, setTab] = useState<"berkas" | "teks">("berkas");
+  const [tab, setTab] = useState<"berkas" | "teks">(total === 0 ? "teks" : "berkas");
+  // Naik setiap "Pakai contoh" diklik: formulir teks dibuat ulang berisi contoh.
+  const [contoh, setContoh] = useState(0);
+  const pakaiContoh = () => {
+    setTab("teks");
+    setContoh((n) => n + 1);
+  };
   return (
     <section className="card">
       <div className="border-b border-line px-5 py-4 sm:px-6">
@@ -38,6 +45,8 @@ export function KnowledgePanel({ numberId, dokumen, total, batasUtuh }: { number
               : `${angka(total)} karakter · AI membaca bagian yang paling relevan dengan pertanyaan pelanggan.`}
         </p>
       </div>
+
+      <PenjelasanKnowledge terbuka={total === 0} pakaiContoh={pakaiContoh} />
 
       <div className="px-5 pt-5 sm:px-6">
         <div role="tablist" className="inline-flex rounded-xl bg-subtle p-1">
@@ -54,7 +63,9 @@ export function KnowledgePanel({ numberId, dokumen, total, batasUtuh }: { number
             </button>
           ))}
         </div>
-        <div className="mt-4">{tab === "berkas" ? <Unggah numberId={numberId} /> : <FormTeks numberId={numberId} />}</div>
+        <div className="mt-4">
+          {tab === "berkas" ? <Unggah numberId={numberId} /> : <FormTeks key={contoh} numberId={numberId} isiAwal={contoh ? CONTOH_KNOWLEDGE : undefined} />}
+        </div>
       </div>
 
       <div className="px-5 pt-6 pb-5 sm:px-6">
@@ -167,7 +178,7 @@ function Unggah({ numberId }: { numberId: number }) {
   );
 }
 
-function FormTeks({ numberId }: { numberId: number }) {
+function FormTeks({ numberId, isiAwal }: { numberId: number; isiAwal?: string }) {
   const [hasil, aksi] = useActionState(tambahTeksAction, null);
   const form = useRef<HTMLFormElement>(null);
   useEffect(() => {
@@ -180,13 +191,18 @@ function FormTeks({ numberId }: { numberId: number }) {
         <label htmlFor="judul" className="label">
           Judul
         </label>
-        <input id="judul" name="judul" required maxLength={120} placeholder="Tentang pemilik nomor & peran AI" className="field" />
+        <input id="judul" name="judul" required maxLength={120} defaultValue={isiAwal ? "Info usaha" : undefined} placeholder="Tentang pemilik nomor & peran AI" className="field" />
       </div>
       <div>
         <label htmlFor="isi" className="label">
           Isi
         </label>
-        <textarea id="isi" name="isi" required rows={7} placeholder={"Kamu adalah asisten Budi, seorang desainer lepas. Balas pesan saat Budi sibuk.\nTarif desain logo: Rp …\nJam kerja: …"} className="field resize-y leading-relaxed" />
+        {isiAwal && (
+          <p className="mb-2 rounded-lg bg-warning-soft px-3 py-2 text-[12.5px] text-warning">
+            Ganti semua tulisan di dalam <b>[kurung siku]</b> dengan data usahamu. Bagian yang tidak perlu boleh dihapus.
+          </p>
+        )}
+        <textarea id="isi" name="isi" required rows={isiAwal ? 18 : 7} defaultValue={isiAwal} placeholder={"Kamu adalah asisten Budi, seorang desainer lepas. Balas pesan saat Budi sibuk.\nTarif desain logo: Rp …\nJam kerja: …"} className="field resize-y leading-relaxed" />
       </div>
       <div className="flex items-center gap-3">
         <SubmitButton>Tambahkan</SubmitButton>
@@ -262,5 +278,55 @@ function Baris({ d, numberId }: { d: ItemDokumen; numberId: number }) {
         </div>
       )}
     </li>
+  );
+}
+
+/** Penjelasan base knowledge untuk orang awam: perumpamaan, apa yang ditulis, dan contoh siap pakai. */
+function PenjelasanKnowledge({ terbuka, pakaiContoh }: { terbuka: boolean; pakaiContoh: () => void }) {
+  return (
+    <details open={terbuka} className="group border-b border-line bg-accent-soft/40 px-5 py-4 sm:px-6">
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-[13.5px] font-semibold text-accent [&::-webkit-details-marker]:hidden">
+        <BookOpen className="size-4" aria-hidden />
+        Apa itu base knowledge? (baca dulu, 1 menit)
+        <ChevronDown className="ml-auto size-4 transition-transform group-open:rotate-180" aria-hidden />
+      </summary>
+      <div className="mt-3 space-y-3 text-[13.5px] leading-relaxed text-fg">
+        <p>
+          Anggap AI ini <b>karyawan baru</b> yang menjaga WhatsApp kamu. Base knowledge adalah <b>buku catatan</b> yang kamu berikan kepadanya. AI hanya menjawab
+          dari catatan ini. Yang tidak tertulis, ia akan bilang belum tahu dan menyerahkannya ke kamu, jadi ia tidak mengarang harga atau janji.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl bg-surface p-3">
+            <p className="flex items-center gap-1.5 font-semibold">
+              <Check className="size-4 text-accent" aria-hidden /> Tulis ini
+            </p>
+            <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-[13px] text-muted">
+              <li>Nama usaha & AI berperan sebagai apa</li>
+              <li>Produk/layanan beserta harganya</li>
+              <li>Jam buka, alamat, link Google Maps</li>
+              <li>Cara pesan, cara bayar, pengiriman</li>
+              <li>Pertanyaan yang sering ditanya + jawabannya</li>
+            </ul>
+          </div>
+          <div className="rounded-xl bg-surface p-3">
+            <p className="flex items-center gap-1.5 font-semibold">
+              <Lightbulb className="size-4 text-warning" aria-hidden /> Tips
+            </p>
+            <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-[13px] text-muted">
+              <li>Tulis seperti menjelaskan ke karyawan baru</li>
+              <li>Satu info per baris, harga ditulis lengkap (Rp25.000)</li>
+              <li>Harga/promo berubah? Perbarui di sini</li>
+              <li>Jangan tulis password, PIN, atau data rahasia</li>
+            </ul>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" onClick={pakaiContoh} className="btn btn-primary">
+            <Sparkles className="size-4" aria-hidden /> Pakai contoh
+          </button>
+          <span className="text-[12.5px] text-muted">Isi contoh langsung muncul di &quot;Tulis teks&quot;; tinggal ganti bagian [dalam kurung siku]. Sudah punya menu/daftar harga dalam PDF? Pakai &quot;Unggah berkas&quot;.</span>
+        </div>
+      </div>
+    </details>
   );
 }

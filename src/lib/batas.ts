@@ -30,3 +30,11 @@ export async function ipKlien(): Promise<string> {
 export async function lewatHttps(): Promise<boolean> {
   return ((await headers()).get("x-forwarded-proto") ?? "http").startsWith("https");
 }
+
+/** Alamat publik aplikasi (untuk tautan kembali dari Midtrans): APP_URL, atau host & protokol dari proxy depan. */
+export async function asalAplikasi(): Promise<string> {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/+$/, "");
+  const h = await headers();
+  const host = h.get("x-forwarded-host")?.split(",")[0].trim() || h.get("host") || "localhost";
+  return `${(await lewatHttps()) ? "https" : "http"}://${host}`;
+}

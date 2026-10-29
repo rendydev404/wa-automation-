@@ -18,6 +18,9 @@ import { nomorUntuk } from "@/lib/akses";
 import { daftarPelajaran, jumlahPelajaran } from "@/lib/pelajaran";
 import { ambilPesanPercakapan, daftarPercakapan, ringkasanPercakapan } from "@/lib/percakapan";
 import { requireUser } from "@/lib/session";
+import { TUR_NOMOR } from "@/components/isi-tur";
+import { TurOtomatis } from "@/components/tur";
+import { turSelesai } from "@/lib/pengguna";
 import { konfigurasi as konfigurasiSinkron, nomorSinkron, statusSinkron, type Status } from "@/lib/sinkron";
 import { deretHarian, hariTerakhir, persen } from "@/lib/tren";
 
@@ -60,7 +63,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   const admin = user.peran === "admin";
 
   const hari = hariTerakhir(tanggalWib(), 7);
-  const [dokumen, sinkronIds, statusSs, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran] = await Promise.all([
+  const [dokumen, sinkronIds, statusSs, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran, tur] = await Promise.all([
     daftarDokumen(id),
     admin ? nomorSinkron() : Promise.resolve([] as number[]),
     admin ? statusSinkron() : Promise.resolve(null),
@@ -69,6 +72,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
     statHarian(hari[0], id),
     jumlahPelajaran(id),
     daftarPelajaran(id),
+    turSelesai(user.id),
   ]);
   const chatPertama = daftarChat.daftar[0] ? await ambilPesanPercakapan(id, daftarChat.daftar[0].id) : null;
   const total = dokumen.reduce((n, d) => n + d.jumlah_karakter, 0);
@@ -92,7 +96,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             <p className="mt-0.5 text-muted tabular-nums">{nomor.wa_id ? formatNomor(nomor.wa_id) : "Belum ada nomor tertaut"}</p>
           </div>
         </div>
-        <div className="card flex items-center px-4 py-3 sm:min-w-64">
+        <div className="card flex items-center px-4 py-3 sm:min-w-64" data-tur="saklar-bot">
           <SaklarBot id={nomor.id} aktif={!!nomor.bot_aktif} label={nomor.label} />
         </div>
       </header>
@@ -130,10 +134,12 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
 
       <NavBagian />
 
-      <div id="koneksi">
+      <TurOtomatis nama="nomor" langkah={TUR_NOMOR} sudah={tur.includes("nomor")} />
+      <div id="koneksi" data-tur="koneksi">
         <ConnectionCard id={nomor.id} />
       </div>
 
+      <div data-tur="histori">
       <HistoriPercakapan
         numberId={nomor.id}
         ringkasanAwal={ringkasanChat}
@@ -143,9 +149,10 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
         adaSebelumnyaAwal={chatPertama?.adaSebelumnya ?? false}
         kiniAwal={sekarang()}
       />
+      </div>
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
-        <div id="knowledge" className="min-w-0 space-y-6">
+        <div id="knowledge" className="min-w-0 space-y-6" data-tur="knowledge">
           <KnowledgePanel
             numberId={nomor.id}
             total={total}
@@ -170,11 +177,11 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
           />
         </div>
         <div className="min-w-0 space-y-6">
-          <div id="uji">
+          <div id="uji" data-tur="uji">
             <TestChat numberId={nomor.id} />
           </div>
           {admin && <SaklarSinkron id={nomor.id} aktif={sinkronIds.includes(nomor.id)} siap={!!konfigurasiSinkron()} keterangan={statusSs ? teksStatusSinkron(statusSs) : ""} />}
-          <div id="pengaturan">
+          <div id="pengaturan" data-tur="pengaturan">
             <NumberSettings
               id={nomor.id}
               label={nomor.label}

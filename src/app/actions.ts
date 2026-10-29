@@ -6,8 +6,10 @@ import { nomorUntuk } from "@/lib/akses";
 import { kunciAnthropic, modelAnthropic } from "@/lib/ai";
 import { samarkan, simpanRahasia } from "@/lib/rahasia";
 import { authConfigured } from "@/lib/auth";
-import { ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
+import { asalAplikasi, ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
 import { sekarang, setSetting } from "@/lib/db";
+import { berikanPaket, hentikanLangganan, mulaiBayar, paketById, riwayatTransaksi, segarkanKuota, simpanPaket, terapkanStatus } from "@/lib/langganan";
+import { MidtransError, konfigMidtrans, kunciMidtransSah } from "@/lib/midtrans";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
 import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, semuaNomor, setBelajar, setBotAktif, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { cekPassword, verifyPassword } from "@/lib/password";
@@ -27,6 +29,7 @@ import {
   setKuota,
   setPeran,
   TANPA_PASSWORD,
+  tandaiTurSelesai,
   ubahNama,
 } from "@/lib/pengguna";
 import { hapusPercakapan } from "@/lib/percakapan";
@@ -434,10 +437,14 @@ export async function adminPengaturanAction(_lalu: Hasil | null, form: FormData)
   const admin = await requireAdmin();
   const buka = form.get("pendaftaran") === "on";
   const kuota = Number(form.get("kuota_bawaan"));
+  const balasan = Number(form.get("kuota_balasan_gratis"));
   if (!(Number.isInteger(kuota) && kuota >= 0 && kuota <= 100)) return { ok: false, pesan: "Kuota bawaan harus 0–100 nomor." };
+  if (!(Number.isInteger(balasan) && balasan >= 0 && balasan <= 1_000_000)) return { ok: false, pesan: "Kuota balasan gratis tidak valid." };
   await setSetting("pendaftaran", buka ? "buka" : "tutup");
   await setSetting("kuota_bawaan", String(kuota));
-  await catatLog(admin, "ubah pengaturan", null, `pendaftaran ${buka ? "dibuka" : "ditutup"}, kuota bawaan ${kuota}`);
+  await setSetting("kuota_balasan_gratis", String(balasan));
+  segarkanKuota();
+  await catatLog(admin, "ubah pengaturan", null, `pendaftaran ${buka ? "dibuka" : "ditutup"}, kuota gratis ${kuota} nomor & ${balasan} balasan/bulan`);
   revalidatePath("/admin");
   return { ok: true, pesan: "Pengaturan tersimpan." };
 }
@@ -481,4 +488,133 @@ export async function adminKunciAiAction(_lalu: Hasil | null, form: FormData): P
   await catatLog(admin, "simpan API key Anthropic", null, samarkan(kunci));
   revalidatePath("/admin");
   return { ok: true, pesan: `Kunci valid dan tersimpan terenkripsi (${model.length} model tersedia).` };
+}
+
+// ---------- Tur panduan ----------
+
+const TUR_SAH = new Set(["dashboard", "nomor"]);
+
+export async function selesaiTurAction(nama: string): Promise<void> {
+  const user = await requireUser();
+  if (!TUR_SAH.has(nama)) return;
+  await tandaiTurSelesai(user.id, nama);
+}
+
+// ---------- Langganan & pembayaran ----------
+
+/** Buat tagihan paket di Midtrans Snap; browser lalu dibawa ke halaman pembayarannya. */
+export async function bayarPaketAction(paketId: number): Promise<Hasil & { url?: string }> {
+  const user = await requireUser();
+  if (terlaluSering(`bayar:${user.id}`, 10, 10 * 60_000)) return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." };
+  const k = await konfigMidtrans();
+  if (!k) return { ok: false, pesan: "Pembayaran belum diaktifkan admin." };
+  const paket = Number.isInteger(paketId) ? await paketById(paketId) : undefined;
+  if (!paket || !paket.aktif || paket.harga < 1000) return { ok: false, pesan: "Paket tidak ditemukan." };
+  try {
+    return { ok: true, url: await mulaiBayar(k, user, paket, await asalAplikasi()) };
+  } catch (e) {
+    console.error(`[bayar] gagal membuat tagihan user=${user.id}: ${e instanceof Error ? e.message : e}`);
+    return { ok: false, pesan: e instanceof MidtransError ? "Pembayaran sedang tidak bisa dibuat. Coba lagi nanti." : "Terjadi kesalahan. Coba lagi." };
+  }
+}
+
+/** Kembali dari Midtrans: status terbaru ditanyakan langsung ke Midtrans (tidak menunggu webhook). */
+export async function cekBayarAction(orderId: string): Promise<Hasil & { status?: string }> {
+  const user = await requireUser();
+  const k = await konfigMidtrans();
+  const t = (await riwayatTransaksi({ userId: user.id, batas: 50 })).find((x) => x.order_id === orderId);
+  if (!k || !t) return { ok: false, pesan: "Transaksi tidak ditemukan." };
+  try {
+    const h = await terapkanStatus(k, orderId);
+    revalidatePath("/langganan");
+    return { ok: true, status: h?.status };
+  } catch {
+    return { ok: false, pesan: "Status pembayaran belum bisa dicek. Coba muat ulang sebentar lagi." };
+  }
+}
+
+// ---------- Admin: paket, langganan, Midtrans ----------
+
+export async function adminPaketAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const id = idSah(form.get("id")) ?? undefined;
+  const angkaForm = (k: string) => Number(String(form.get(k) ?? "").replace(/[^\d]/g, ""));
+  const nama = String(form.get("nama") ?? "").trim().slice(0, 40);
+  const p = {
+    id,
+    kode: (String(form.get("kode") ?? "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "") || nama.toLowerCase().replace(/[^a-z0-9]+/g, "-")).slice(0, 30),
+    nama,
+    harga: angkaForm("harga"),
+    durasi_hari: angkaForm("durasi_hari"),
+    kuota_nomor: angkaForm("kuota_nomor"),
+    kuota_balasan: angkaForm("kuota_balasan"),
+    deskripsi: String(form.get("deskripsi") ?? "").trim().slice(0, 200),
+    aktif: form.get("aktif") === "on",
+    unggulan: form.get("unggulan") === "on",
+    urutan: angkaForm("urutan"),
+  };
+  if (nama.length < 2) return { ok: false, pesan: "Nama paket wajib diisi." };
+  if (!(p.harga === 0 || p.harga >= 1000) || p.harga > 100_000_000) return { ok: false, pesan: "Harga minimal Rp1.000 (atau 0 untuk paket yang hanya diberikan admin)." };
+  if (!(p.durasi_hari >= 1 && p.durasi_hari <= 3660)) return { ok: false, pesan: "Durasi 1–3660 hari." };
+  if (p.kuota_nomor > 1000 || p.kuota_balasan > 10_000_000) return { ok: false, pesan: "Kuota terlalu besar." };
+  try {
+    await simpanPaket(p);
+  } catch {
+    return { ok: false, pesan: "Kode paket sudah dipakai paket lain." };
+  }
+  await catatLog(admin, id ? "ubah paket" : "buat paket", null, `${nama} · Rp${p.harga.toLocaleString("id-ID")} · ${p.kuota_nomor} nomor · ${p.kuota_balasan} balasan`);
+  revalidatePath("/admin");
+  revalidatePath("/langganan");
+  revalidatePath("/");
+  return { ok: true, pesan: id ? "Paket diperbarui." : "Paket dibuat." };
+}
+
+export async function adminBerikanPaketAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const userId = idSah(form.get("id"));
+  const paketId = idSah(form.get("paket"));
+  const hariMentah = String(form.get("hari") ?? "").trim();
+  const hari = hariMentah ? Number(hariMentah) : undefined;
+  const u = userId ? await penggunaById(userId) : undefined;
+  const p = paketId ? await paketById(paketId) : undefined;
+  if (!u || !p) return { ok: false, pesan: "Pengguna atau paket tidak valid." };
+  if (hari !== undefined && !(Number.isInteger(hari) && hari >= 1 && hari <= 3660)) return { ok: false, pesan: "Jumlah hari 1–3660." };
+  await berikanPaket(u.id, p.id, hari);
+  await catatLog(admin, "berikan paket", u.email, `${p.nama} ${hari ?? p.durasi_hari} hari`);
+  revalidatePath(`/admin/pengguna/${u.id}`);
+  return { ok: true, pesan: `Paket ${p.nama} aktif untuk ${u.email}.` };
+}
+
+export async function adminHentikanLanggananAction(id: number): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const u = idSah(id) ? await penggunaById(id) : undefined;
+  if (!u) return { ok: false, pesan: "Pengguna tidak ditemukan." };
+  await hentikanLangganan(u.id);
+  await catatLog(admin, "hentikan langganan", u.email);
+  revalidatePath(`/admin/pengguna/${u.id}`);
+  return { ok: true, pesan: "Langganan dihentikan; akun kembali ke kuota gratis." };
+}
+
+/** Server key Midtrans (terenkripsi) + mode. Kunci diuji ke Midtrans sebelum disimpan. */
+export async function adminMidtransAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  if (terlaluSering(`midtrans:${admin.id}`, 10, 10 * 60_000)) return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi nanti." };
+  if (form.get("hapus") === "1") {
+    await simpanRahasia("midtrans_server", "");
+    await catatLog(admin, "hapus server key Midtrans", null);
+    revalidatePath("/admin");
+    return { ok: true, pesan: "Server key dihapus. Pembayaran nonaktif." };
+  }
+  const produksi = form.get("mode") !== "sandbox";
+  const kunci = String(form.get("server_key") ?? "").trim();
+  if (kunci) {
+    if (!/^(SB-)?Mid-server-[A-Za-z0-9_-]{10,}$/.test(kunci)) return { ok: false, pesan: "Format server key tidak dikenali (diawali Mid-server- atau SB-Mid-server-)." };
+    if (produksi === kunci.startsWith("SB-")) return { ok: false, pesan: produksi ? "Ini server key sandbox: pilih mode Sandbox, atau pakai server key production." : "Ini server key production: pilih mode Production." };
+    if (!(await kunciMidtransSah({ serverKey: kunci, produksi }))) return { ok: false, pesan: "Midtrans menolak server key ini." };
+    await simpanRahasia("midtrans_server", kunci);
+  }
+  await setSetting("midtrans_mode", produksi ? "produksi" : "sandbox");
+  await catatLog(admin, kunci ? "simpan server key Midtrans" : "ubah mode Midtrans", null, `${produksi ? "production" : "sandbox"}${kunci ? ` · ${samarkan(kunci)}` : ""}`);
+  revalidatePath("/admin");
+  return { ok: true, pesan: kunci ? "Server key valid dan tersimpan terenkripsi." : "Mode tersimpan." };
 }

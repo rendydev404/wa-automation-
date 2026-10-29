@@ -29,7 +29,7 @@ export function TombolTambahNomor({ varian = "utama" }: { varian?: "utama" | "na
           <Plus className="size-4" aria-hidden /> Tambah nomor
         </button>
       ) : (
-        <button type="button" onClick={() => setBukaDi(jalur)} className="btn btn-primary shrink-0">
+        <button type="button" onClick={() => setBukaDi(jalur)} className="btn btn-primary shrink-0" data-tur="tambah-nomor">
           <Plus className="size-4" aria-hidden /> Tambah nomor
         </button>
       )}

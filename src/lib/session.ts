@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { SESSION_COOKIE, SESSION_MAX_AGE, createSessionToken, passwordFingerprint, verifySessionToken } from "./auth";
 import { db, getSetting, sekarang } from "./db";
+import { hakAkun } from "./langganan";
 import { hashPassword } from "./password";
 
 export type Peran = "admin" | "user";
@@ -114,20 +115,12 @@ export async function catatLoginBerhasil(id: number): Promise<void> {
 
 // ---------- Kuota nomor ----------
 
-export const KUOTA_BAWAAN_AWAL = 1;
+/** Kuota nomor akun tanpa paket (pengaturan admin); sumbernya langganan.ts. */
+export { kuotaNomorGratis as kuotaBawaan } from "./langganan";
 
-/** Kuota nomor untuk akun baru (pengaturan admin). */
-export async function kuotaBawaan(): Promise<number> {
-  const v = Number(await getSetting("kuota_bawaan"));
-  return Number.isInteger(v) && v >= 0 ? v : KUOTA_BAWAAN_AWAL;
-}
-
-/** Jumlah nomor maksimal milik pengguna ini; null = tanpa batas (admin). */
+/** Jumlah nomor maksimal milik pengguna ini; null = tanpa batas (admin). Dari paket aktif / kuota gratis (langganan.ts). */
 export async function kuotaNomor(user: User): Promise<number | null> {
-  if (user.peran === "admin") return null;
-  const sql = await db();
-  const [r] = await sql<{ kuota_nomor: number | null }[]>`SELECT kuota_nomor FROM users WHERE id = ${user.id}`;
-  return r?.kuota_nomor ?? (await kuotaBawaan());
+  return (await hakAkun(user)).nomor;
 }
 
 export async function pendaftaranDibuka(): Promise<boolean> {

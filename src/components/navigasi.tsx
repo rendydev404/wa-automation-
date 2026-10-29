@@ -3,10 +3,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ShieldCheck, UserRound } from "lucide-react";
+import { CircleHelp, CreditCard, LayoutDashboard, ShieldCheck, UserRound } from "lucide-react";
 import { formatNomor } from "@/lib/format";
 import type { StatusSesiWa } from "@/lib/types";
+import { TUR_DASHBOARD, TUR_NOMOR } from "./isi-tur";
 import { TombolTambahNomor } from "./tambah-nomor";
+import { TombolTur } from "./tur";
 import { useSesiNomor, useWaStatus } from "./wa-status";
 
 export interface ItemNomorNav {
@@ -42,9 +44,9 @@ function kelasTautan(aktif: boolean): string {
 /** Garis sinyal di tepi kiri item yang sedang dibuka. */
 const Penanda = () => <span aria-hidden className="absolute inset-y-2.5 left-0 w-[3px] rounded-r-full bg-ink-signal" />;
 
-function TautanNav({ href, aktif, ikon, children }: { href: string; aktif: boolean; ikon: ReactNode; children: ReactNode }) {
+function TautanNav({ href, aktif, ikon, children, tur }: { href: string; aktif: boolean; ikon: ReactNode; children: ReactNode; tur?: string }) {
   return (
-    <Link href={href} aria-current={aktif ? "page" : undefined} className={kelasTautan(aktif)}>
+    <Link href={href} aria-current={aktif ? "page" : undefined} className={kelasTautan(aktif)} data-tur={tur}>
       {aktif && <Penanda />}
       <span className={`grid size-8 place-items-center rounded-lg ${aktif ? "bg-ink-signal/15 text-ink-signal" : "bg-white/[0.05] text-ink-muted group-hover:text-ink-fg"}`}>
         {ikon}
@@ -89,13 +91,29 @@ export function NavUtama({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
           <span className="block leading-tight">Akun saya</span>
           <span className="block max-w-40 truncate text-[11.5px] leading-tight font-medium text-ink-muted">{pengguna.nama}</span>
         </TautanNav>
+        <TautanNav href="/langganan" aktif={jalur === "/langganan"} ikon={<CreditCard className="size-4" aria-hidden />} tur="nav-langganan">
+          Langganan
+        </TautanNav>
         {admin && (
           <TautanNav href="/admin" aktif={jalur.startsWith("/admin")} ikon={<ShieldCheck className="size-4" aria-hidden />}>
             Admin
           </TautanNav>
         )}
+        {/* Panduan: tur halaman yang sedang dibuka (halaman nomor punya tur sendiri). */}
+        <span data-tur="nav-panduan" className="block">
+          <TombolTur
+            nama={jalur.startsWith("/nomor/") ? "nomor" : "dashboard"}
+            langkah={jalur.startsWith("/nomor/") ? TUR_NOMOR : TUR_DASHBOARD}
+            className={`${kelasTautan(false)} w-full text-left`}
+          >
+            <span className="grid size-8 place-items-center rounded-lg bg-white/[0.05] text-ink-muted group-hover:text-ink-fg">
+              <CircleHelp className="size-4" aria-hidden />
+            </span>
+            <span className="text-[13.5px] font-semibold">Panduan</span>
+          </TombolTur>
+        </span>
       </div>
-      <div className="mt-6 flex items-center justify-between pr-6 pb-2 pl-3">
+      <div data-tur="nav-nomor" className="mt-6 flex items-center justify-between pr-6 pb-2 pl-3">
         <p className={JUDUL_KECIL}>Nomor WhatsApp</p>
         <span className="rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted tabular-nums">{nomor.length}</span>
       </div>

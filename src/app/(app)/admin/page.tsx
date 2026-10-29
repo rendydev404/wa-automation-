@@ -1,12 +1,16 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Bot, ChevronRight, Phone, ShieldCheck, UserCheck, UserPlus, UserX, Users } from "lucide-react";
+import { Bot, ChevronRight, CreditCard, Package, Phone, ShieldCheck, UserCheck, UserPlus, UserX, Users } from "lucide-react";
 import { KartuStat } from "@/components/stat";
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna, ringkasanAdmin } from "@/lib/pengguna";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
-import { FormAi, FormBuatAkun, FormKunciAi, FormPengaturan } from "./form-admin";
+import { FormAi, FormBuatAkun, FormKunciAi, FormMidtrans, FormPaket, FormPengaturan } from "./form-admin";
+import { daftarPaket, kuotaBalasanGratis, riwayatTransaksi } from "@/lib/langganan";
+import { konfigMidtrans } from "@/lib/midtrans";
+import { bacaRahasia } from "@/lib/rahasia";
+import { asalAplikasi } from "@/lib/batas";
 import { kunciAnthropic, modelAnthropic, pengaturanAi, ringkasPakai } from "@/lib/ai";
 import { samarkan } from "@/lib/rahasia";
 import { sekarang } from "@/lib/db";
@@ -32,12 +36,23 @@ export default function HalamanAdmin(props: PageProps<"/admin">) {
         <Ringkasan />
       </Suspense>
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <Suspense fallback={<div aria-hidden className="card h-[480px] animate-denyut" />}>
-          <TabelPengguna searchParams={props.searchParams} />
-        </Suspense>
+        <div className="min-w-0 space-y-6">
+          <Suspense fallback={<div aria-hidden className="card h-[480px] animate-denyut" />}>
+            <TabelPengguna searchParams={props.searchParams} />
+          </Suspense>
+          <Suspense fallback={<div aria-hidden className="card h-72 animate-denyut" />}>
+            <KelolaPaket />
+          </Suspense>
+          <Suspense fallback={<div aria-hidden className="card h-56 animate-denyut" />}>
+            <Transaksi />
+          </Suspense>
+        </div>
         <div className="space-y-6">
           <Suspense fallback={<div aria-hidden className="card h-72 animate-denyut" />}>
             <MesinAi />
+          </Suspense>
+          <Suspense fallback={<div aria-hidden className="card h-64 animate-denyut" />}>
+            <Pembayaran />
           </Suspense>
           <Suspense fallback={<div aria-hidden className="card h-56 animate-denyut" />}>
             <Pengaturan />
@@ -127,7 +142,7 @@ async function MesinAi() {
 
 async function Pengaturan() {
   await requireAdmin();
-  const [buka, kuota] = await Promise.all([pendaftaranDibuka(), kuotaBawaan()]);
+  const [buka, kuota, balasan] = await Promise.all([pendaftaranDibuka(), kuotaBawaan(), kuotaBalasanGratis()]);
   return (
     <section className="card p-6">
       <h2 className="flex items-center gap-2 text-[15px] font-bold">
@@ -135,7 +150,111 @@ async function Pengaturan() {
       </h2>
       <p className="mt-0.5 text-[13px] text-muted">Berlaku untuk akun yang dibuat setelah disimpan.</p>
       <div className="mt-4">
-        <FormPengaturan buka={buka} kuota={kuota} />
+        <FormPengaturan buka={buka} kuota={kuota} balasan={balasan} />
+      </div>
+    </section>
+  );
+}
+
+async function KelolaPaket() {
+  await requireAdmin();
+  const paket = await daftarPaket({ semua: true });
+  return (
+    <section className="card p-6">
+      <h2 className="flex items-center gap-2 text-[15px] font-bold">
+        <Package className="size-4 text-accent" aria-hidden /> Paket langganan
+      </h2>
+      <p className="mt-0.5 text-[13px] text-muted">Perubahan berlaku untuk pembelian berikutnya; pelanggan yang sedang aktif tetap memakai kuota saat ia membeli.</p>
+      <ul className="mt-4 divide-y divide-line rounded-xl border border-line">
+        {paket.map((p) => (
+          <li key={p.id}>
+            <details className="group">
+              <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-4 py-3 text-[13px] [&::-webkit-details-marker]:hidden">
+                <span className="font-semibold">
+                  {p.nama} {!p.aktif && <span className="ml-1 rounded-md bg-subtle px-1.5 py-0.5 text-[11px] text-muted">tidak dijual</span>}
+                  {p.unggulan && <span className="ml-1 rounded-md bg-accent-soft px-1.5 py-0.5 text-[11px] text-accent">unggulan</span>}
+                </span>
+                <span className="text-muted tabular-nums">
+                  Rp{angka(p.harga)} · {p.durasi_hari} hari · {angka(p.kuota_nomor)} nomor · {angka(p.kuota_balasan)} balasan
+                </span>
+              </summary>
+              <div className="border-t border-line bg-subtle/40 p-4">
+                <FormPaket paket={p} />
+              </div>
+            </details>
+          </li>
+        ))}
+      </ul>
+      <details className="mt-4">
+        <summary className="cursor-pointer text-[13px] font-semibold text-accent">+ Buat paket baru</summary>
+        <div className="mt-3">
+          <FormPaket />
+        </div>
+      </details>
+    </section>
+  );
+}
+
+const STATUS_TRX: Record<string, string> = {
+  menunggu: "bg-warning-soft text-warning",
+  lunas: "bg-success-soft text-success",
+  gagal: "bg-danger-soft text-danger",
+  kedaluwarsa: "bg-subtle text-muted",
+  dikembalikan: "bg-subtle text-muted",
+};
+
+async function Transaksi() {
+  await requireAdmin();
+  const daftar = await riwayatTransaksi({ batas: 25 });
+  const lunas = daftar.filter((t) => t.status === "lunas");
+  return (
+    <section className="card overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-4">
+        <h2 className="flex items-center gap-2 text-[15px] font-bold">
+          <CreditCard className="size-4 text-accent" aria-hidden /> Transaksi terbaru
+        </h2>
+        <span className="text-[12.5px] text-muted">
+          {lunas.length} lunas · Rp{angka(lunas.reduce((a, t) => a + t.jumlah, 0))}
+        </span>
+      </div>
+      {daftar.length === 0 ? (
+        <p className="px-5 py-8 text-center text-[13px] text-muted">Belum ada transaksi.</p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {daftar.map((t) => (
+            <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-[13px]">
+              <span className="min-w-0">
+                <Link href={`/admin/pengguna/${t.user_id}`} className="font-semibold hover:underline">
+                  {t.email}
+                </Link>{" "}
+                · {t.nama_paket} · Rp{angka(t.jumlah)}
+                <span className="block text-[12px] text-faint">
+                  {waktuSingkatWib(t.dibuat)} · {t.order_id}
+                  {t.metode ? ` · ${t.metode.replace(/_/g, " ")}` : ""}
+                </span>
+              </span>
+              <span className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${STATUS_TRX[t.status] ?? ""}`}>{t.status}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+async function Pembayaran() {
+  await requireAdmin();
+  const [k, kunci, asal] = await Promise.all([konfigMidtrans(), bacaRahasia("midtrans_server"), asalAplikasi()]);
+  return (
+    <section className="card p-6">
+      <h2 className="flex items-center gap-2 text-[15px] font-bold">
+        <CreditCard className="size-4 text-accent" aria-hidden /> Pembayaran (Midtrans Snap)
+      </h2>
+      <p className="mt-0.5 text-[13px] text-muted">
+        {k ? `Aktif · ${k.produksi ? "Production" : "Sandbox"}` : "Belum aktif. Isi server key dari dashboard Midtrans → Settings → Access Keys."}
+      </p>
+      <div className="mt-4">
+        <FormMidtrans samaran={kunci ? samarkan(kunci) : null} produksi={k?.produksi ?? true} urlNotifikasi={`${asal}/api/midtrans/notifikasi`} />
       </div>
     </section>
   );
