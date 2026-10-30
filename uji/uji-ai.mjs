@@ -174,22 +174,23 @@ await cek("pemakaian tercatat per nomor dan diringkas per model", async () => {
   assert.match(rencana, /ai_pakai_nomor_waktu_idx/);
 });
 
-await cek("riwayat lengkap (penyedia tanpa ingatan): seluruh sesi sampai jeda >12 jam, tanpa pesan yang sedang dijawab", async () => {
+await cek("riwayat lengkap (penyedia tanpa ingatan): seluruh percakapan (tidak dipotong karena lama diam), tanpa pesan yang sedang dijawab", async () => {
   const kunci = "k".repeat(32);
   const t = sekarang();
   const tulis = (peran, teks, waktu) => catatPesan({ numberId: n.id, kunci, peran, teks, waktu, telepon: "62811", nama: "Budi" });
-  await tulis(0, "pesan kemarin", t - 20 * 3600); // sesi lama: tidak ikut
+  await tulis(0, "pesan kemarin", t - 20 * 3600); // tidak ada sesi baru karena diam lama: tetap ikut
   await tulis(0, "halo", t - 600);
   await tulis(1, "Halo Kak, ada yang bisa dibantu?", t - 590);
   await tulis(2, "Harga paket 50rb ya", t - 300);
   await tulis(0, "oke mau pesan", t - 10); // pesan yang sedang dijawab (tertunda)
-  const lengkap = await riwayatUntukAi(kunci, { sesiBaru: false, tertunda: 1, lengkap: true, jedaSesiDtk: 12 * 3600 });
-  assert.equal(lengkap.length, 3);
-  assert.match(lengkap[0], /Pelanggan: halo$/);
-  assert.match(lengkap[1], /Kamu \(AI\): Halo Kak/);
-  assert.match(lengkap[2], /Pemilik nomor: Harga paket 50rb ya$/);
+  const lengkap = await riwayatUntukAi(kunci, { sesiBaru: false, tertunda: 1, lengkap: true });
+  assert.equal(lengkap.length, 4);
+  assert.match(lengkap[0], /Pelanggan: pesan kemarin$/);
+  assert.match(lengkap[1], /Pelanggan: halo$/);
+  assert.match(lengkap[2], /Kamu \(AI\): Halo Kak/);
+  assert.match(lengkap[3], /Pemilik nomor: Harga paket 50rb ya$/);
   // Mode Hermes tetap hanya yang belum dilihat AI (setelah balasan AI terakhir).
-  const hermes = await riwayatUntukAi(kunci, { sesiBaru: false, tertunda: 1, jedaSesiDtk: 12 * 3600 });
+  const hermes = await riwayatUntukAi(kunci, { sesiBaru: false, tertunda: 1 });
   assert.deepEqual(hermes.map((b) => b.replace(/^\[[^\]]+\] /, "")), ["Pemilik nomor: Harga paket 50rb ya"]);
 });
 

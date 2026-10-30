@@ -4,15 +4,6 @@
  */
 
 export const ATURAN_ANGKA = {
-  laju_maks_balasan: {
-    label: "Maksimal balasan AI per chat",
-    satuan: "balasan",
-    bawaan: 10,
-    min: 1,
-    max: 100,
-    bantu: "Dalam satu jendela waktu di bawah. Lebih dari ini AI diam: melindungi kuota dari spam atau bot lawan yang membalas terus.",
-  },
-  laju_jendela_menit: { label: "Jendela batas laju", satuan: "menit", bawaan: 10, min: 1, max: 240, bantu: "Hitungan balasan per chat diulang dari nol setiap jendela ini." },
   maks_token_balasan: {
     label: "Panjang maksimal satu balasan",
     satuan: "token",
@@ -21,7 +12,6 @@ export const ATURAN_ANGKA = {
     max: 2000,
     bantu: "±0,75 kata per token. Pagar biaya bila model kebablasan; balasan WhatsApp normal ±110 token. Berlaku untuk Claude API.",
   },
-  sesi_baru_jam: { label: "Percakapan baru setelah pelanggan diam", satuan: "jam", bawaan: 12, min: 1, max: 168, bantu: "Setelah jeda ini AI menyapa lagi dan tidak membawa konteks obrolan lama." },
   peringatan_kuota_persen: {
     label: "Peringatan kuota hampir habis",
     satuan: "% sisa",
@@ -41,16 +31,6 @@ export const ATURAN_ANGKA = {
 } as const satisfies Record<string, { label: string; satuan: string; bawaan: number; min: number; max: number; bantu: string }>;
 
 export const ATURAN_SAKLAR = {
-  laju_aktif: {
-    label: "Aktifkan batas laju balasan",
-    bawaan: false,
-    bantu: "Nonaktif = AI membalas setiap pesan tanpa batas jumlah per chat.",
-  },
-  sesi_baru_aktif: {
-    label: "Aktifkan percakapan baru setelah pelanggan diam",
-    bawaan: false,
-    bantu: "Nonaktif = AI selalu melanjutkan obrolan lama, berapa lama pun pelanggan diam.",
-  },
   teruskan_diizinkan: {
     label: "Izinkan AI meneruskan pesan ke nomor pemilik",
     bawaan: true,

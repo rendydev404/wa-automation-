@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import { db, sekarang, setSetting } from "./db";
 import { catatPakai, tanpaIngatan, tanyaAiTerjaga } from "./ai";
 import { aiUntukAkun, catatBalasanLokal, sisaKuotaAi } from "./langganan";
-import { aturan, saklar } from "./aturan";
 import { susunSistem } from "./knowledge";
 import { bisaTeruskan, teruskanKePemilik } from "./penerusan";
 import type { TagTeruskan } from "./teruskan";
@@ -29,7 +28,7 @@ import { type EventWa, digitWa, kirimTeks, mengetik, padaEvent, tandaiDibaca } f
  *   4. Masa tunggu di (2) habis tanpa balasan manusia (tidak jadi membalas) -> AI mengambil alih.
  * Aturan anti-blokir: hanya membalas chat pribadi yang masuk, ada "mengetik", dibatasi per chat.
  *
- * Keadaan tiap chat (jeda, batas laju, nomor sesi Hermes) dipegang di memori selama chat itu aktif
+ * Keadaan tiap chat (jeda, nomor sesi Hermes) dipegang di memori selama chat itu aktif
  * dan ditulis ke tabel chat_state di latar. Dengan begitu keputusan serah-terima tetap seketika
  * dan tidak bergantung pada perjalanan pulang-pergi ke database; database hanya dibaca sekali saat
  * sebuah chat mulai aktif (lagi), mis. setelah server dimulai ulang.
@@ -156,28 +155,10 @@ function jedaChat(kunci: string, a: Antrean, detik: number): void {
 }
 
 /**
- * Batas laju & sesi dari aturan admin (src/lib/aturan.ts). Masing-masing punya saklar (bawaan nonaktif):
- * saklar mati = tanpa batas (Infinity), jadi AI membalas setiap pesan dan tidak pernah memulai sesi baru.
+ * Catat satu balasan; kembalikan nomor sesi Hermes. Tanpa batas jumlah balasan dan tanpa sesi baru karena diam
+ * lama: AI membalas setiap pesan dan obrolan selalu dilanjutkan (nomor sesi tetap, 1 untuk chat baru).
  */
-interface BatasGiliran {
-  maks: number;
-  jendelaDtk: number;
-  sesiBaruDtk: number;
-}
-
-async function batasGiliran(): Promise<BatasGiliran> {
-  const [laju, sesiBaru, maks, menit, jam] = await Promise.all([
-    saklar("laju_aktif"),
-    saklar("sesi_baru_aktif"),
-    aturan("laju_maks_balasan"),
-    aturan("laju_jendela_menit"),
-    aturan("sesi_baru_jam"),
-  ]);
-  return { maks: laju ? maks : Infinity, jendelaDtk: menit * 60, sesiBaruDtk: sesiBaru ? jam * 3600 : Infinity };
-}
-
-/** Catat satu balasan; kembalikan nomor sesi Hermes, atau null bila batas laju terlampaui. */
-function ambilGiliran(kunci: string, a: Antrean, batas: BatasGiliran): number | null {
+function ambilGiliran(kunci: string, a: Antrean): number {
   const t = sekarang();
   const b = a.chat;
   if (!b) {
@@ -185,13 +166,9 @@ function ambilGiliran(kunci: string, a: Antrean, batas: BatasGiliran): number | 
     simpanChat(kunci, a.chat);
     return 1;
   }
-  const jendelaBaru = t - b.jendela_awal > batas.jendelaDtk;
-  const n = jendelaBaru ? 1 : b.jendela_n + 1;
-  if (n > batas.maks) return null;
-  const sesi = t - b.last_at > batas.sesiBaruDtk ? b.sesi_ke + 1 : b.sesi_ke;
-  a.chat = { ...b, sesi_ke: sesi, last_at: t, jendela_awal: jendelaBaru ? t : b.jendela_awal, jendela_n: n };
+  a.chat = { ...b, last_at: t };
   simpanChat(kunci, a.chat);
-  return sesi;
+  return b.sesi_ke;
 }
 
 /** Rapikan keluaran model ke format WhatsApp. */
@@ -289,12 +266,7 @@ async function proses(kunci: string): Promise<void> {
       const asli = a.teks.splice(0);
       const pesan = asli.join("\n").slice(0, MAKS_PESAN_KARAKTER);
       const pemuatFoto: (() => Promise<Foto | null>)[] = a.foto.splice(0);
-      const batas = await batasGiliran();
-      const sesi = ambilGiliran(kunci, a, batas);
-      if (sesi === null) {
-        void mengetik(a.sesi, a.alamat, false);
-        return; // batas laju: diam
-      }
+      const sesi = ambilGiliran(kunci, a);
       const catatan = a.catatan.splice(0);
       const kueri = `${a.kueriLalu}\n${pesan}`;
       a.kueriLalu = pesan;
@@ -305,7 +277,7 @@ async function proses(kunci: string): Promise<void> {
         // Penyedia ditentukan per akun (mode "per_paket": gratis = Hermes, berbayar = Claude API, cadangan Hermes).
         const [ai, teruskan] = await Promise.all([aiUntukAkun(nomor.user_id), bisaTeruskan(nomor)]);
         const lengkap = tanpaIngatan(ai.penyedia);
-        const riwayat = st.tulis.then(() => riwayatUntukAi(kunci, { sesiBaru: sesi !== sesiLalu, tertunda, lengkap, jedaSesiDtk: batas.sesiBaruDtk }));
+        const riwayat = st.tulis.then(() => riwayatUntukAi(kunci, { sesiBaru: sesi !== sesiLalu, tertunda, lengkap }));
         // Foto baru diunduh sekarang (AI memang akan menjawab), bersamaan, langsung ke memori.
         const gambar = (await Promise.all(pemuatFoto.map((ambil) => ambil().catch(() => null)))).filter((f: Foto | null): f is Foto => !!f);
         const gagalFoto = pemuatFoto.length - gambar.length;
@@ -313,7 +285,7 @@ async function proses(kunci: string): Promise<void> {
         const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0, riwayatLengkap: lengkap, teruskan });
         // Sumber fakta untuk pemeriksa: pesan sistem + pesan pelanggan + seluruh chat sesi ini (Hermes hanya diberi
         // yang belum ia lihat, jadi sisanya dibaca terpisah supaya angka yang pernah disebut di chat tetap sah).
-        const sumber = [sistem, isiPesan, ...(lengkap ? [] : await riwayatUntukAi(kunci, { sesiBaru: false, tertunda, lengkap: true, jedaSesiDtk: batas.sesiBaruDtk }))].join("\n");
+        const sumber = [sistem, isiPesan, ...(lengkap ? [] : await riwayatUntukAi(kunci, { sesiBaru: false, tertunda, lengkap: true }))].join("\n");
         const hasil = await tanyaAiTerjaga({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, sumber, { teruskan });
         tag = teruskan ? hasil.teruskan : null;
         tulisLatar(() => catatPakai(a.numberId, hasil, gambar.length > 0));

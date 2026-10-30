@@ -14,8 +14,6 @@ const CONTOH_GLOBAL = [
 
 /** Kelompok tampilan; urutan sama dengan formulir. */
 const KELOMPOK: { judul: string; ket: string; angka: KunciAngka[]; saklar: KunciSaklar[] }[] = [
-  { judul: "Batas laju balasan", ket: "Melindungi kuota pelanggan dari spam dan percakapan antar-bot yang tidak ada habisnya.", angka: ["laju_maks_balasan", "laju_jendela_menit"], saklar: ["laju_aktif"] },
-  { judul: "Percakapan baru", ket: "Memulai obrolan dari awal bila pelanggan lama tidak membalas.", angka: ["sesi_baru_jam"], saklar: ["sesi_baru_aktif"] },
   { judul: "Biaya & panjang balasan", ket: "Pagar biaya per balasan di Claude API.", angka: ["maks_token_balasan"], saklar: [] },
   { judul: "Penerusan ke nomor pemilik", ket: "AI meringkas hal yang butuh manusia (pesanan siap diproses, keluhan, bukti bayar) lalu mengirimnya ke nomor pribadi pengguna.", angka: ["teruskan_maks_harian"], saklar: ["teruskan_diizinkan"] },
   { judul: "Pengingat di workspace pengguna", ket: "Banner di paling atas semua halaman pengguna.", angka: ["peringatan_kuota_persen"], saklar: ["banner_knowledge"] },
@@ -23,9 +21,6 @@ const KELOMPOK: { judul: string; ket: string; angka: KunciAngka[]; saklar: Kunci
 
 /** Angka yang hanya berlaku bila saklarnya aktif: diredupkan (tetap terkirim) saat saklar mati. */
 const IKUT_SAKLAR: Partial<Record<KunciAngka, KunciSaklar>> = {
-  laju_maks_balasan: "laju_aktif",
-  laju_jendela_menit: "laju_aktif",
-  sesi_baru_jam: "sesi_baru_aktif",
   teruskan_maks_harian: "teruskan_diizinkan",
 };
 
