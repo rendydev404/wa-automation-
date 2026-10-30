@@ -1,27 +1,26 @@
 import type { CSSProperties, ReactNode } from "react";
 import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { Avatar, C, FONT, Kaca, Latar, Logo, TitikLive, halus, lepas, mendarat, t } from "./dasar";
-import { HP, LayarBeranda, LayarKunci, Ponsel, WidgetLive } from "./ponsel";
+import { LayarBeranda, LayarKunci, POS_WA, Ponsel, Sentuh } from "./ponsel";
+import { type BarisChat, DaftarChat, LayarChat, type PesanWa, U } from "./wa";
 
 /**
- * Motion graphic 16 detik (1080 x 1920, 30 fps), mengikuti alur & gaya video referensi:
- *   1. iPhone 3D masuk dari gelap -> layar kunci (notifikasi pelanggan) -> berputar ke depan -> beranda
- *   2. kamera mendorong ke widget "AI sedang membalas" yang lepas dan melayang
- *   3. chip filter (pilihan pindah ke "Dibalas AI") + kartu statistik
- *   4. kartu hijau "AI AKTIF" + daftar percakapan yang bergulir cepat
- *   5. kartu percakapan: balasan AI diketik, tombol kirim ditekan
- *   6. teks kinetik
- *   7. logo + nama produk
- * Adegan saling tumpang-tindih; perpindahan memakai blur + skala (zoom menembus) seperti referensi.
+ * Motion graphic 25 detik (1080 x 1920, 30 fps), teks bahasa Inggris, alur & gaya mengikuti video referensi:
+ *   1. iPhone 3D masuk dari gelap -> layar kunci (notifikasi WhatsApp dari pelanggan) -> berputar ke depan -> beranda
+ *      iOS -> jari mengetuk WhatsApp -> aplikasi terbuka (animasi iOS)
+ *   2. daftar Chats WhatsApp: chat Rina masuk di atas, diketuk -> layar percakapan bergeser masuk
+ *   3. percakapan: AI membalas sambil mengutip pesan pelanggan, centang jadi biru, kartu "Replied by AI in 4s" dan
+ *      "Order forwarded" melayang di samping ponsel
+ *   4. kamera menembus ponsel ke dasbor: chip filter + statistik (termasuk spam yang diblokir)
+ *   5. teks kinetik  6. logo + nama produk
  */
 
-export const DURASI = 480;
+export const DURASI = 750;
 
 function Lapis({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", ...style }}>{children}</AbsoluteFill>;
 }
 
-/** Gaya keluar-masuk standar: blur + opasitas + skala. */
 function fx(o: { opacity: number; blur: number; scale?: number; x?: number; y?: number; extra?: string }): CSSProperties {
   return {
     opacity: o.opacity,
@@ -30,32 +29,93 @@ function fx(o: { opacity: number; blur: number; scale?: number; x?: number; y?: 
   };
 }
 
-// ---------------------------------------------------------------- 1. Ponsel
+// ---------------------------------------------------------------- Data WhatsApp
+
+const CHAT_LAIN: BarisChat[] = [
+  { h: "B", i: 1, nama: "Budi", isi: "Your order is on the way! 🛵", jam: "9:12", kirim: true },
+  { h: "D", i: 2, nama: "Dita", isi: "Saturday 10 AM, please", jam: "8:55", belum: 1 },
+  { h: "S", i: 3, nama: "Sari", isi: "📷 Photo", jam: "8:40" },
+  { h: "A", i: 4, nama: "Andi", isi: "Can I pay cash on delivery?", jam: "Yesterday", kirim: true },
+  { h: "M", i: 5, nama: "Maya", isi: "Thanks a lot! 🙌", jam: "Yesterday" },
+  { h: "F", i: 6, nama: "Fajar", isi: "3 boxes for Sunday", jam: "Tuesday", kirim: true },
+  { h: "N", i: 0, nama: "Nadia", isi: "Is the spicy one still available?", jam: "Monday" },
+];
+const CHAT_RINA: BarisChat = { h: "R", i: 0, nama: "Rina", isi: "Any combo deals? 🍗", jam: "9:41", belum: 2 };
+
+const BALAS_1 = "Hi Rina! 👋 We're open until 10 PM. Combo Deal: rice + grilled chicken + iced tea, just Rp25,000. Delivery or pick-up?";
+const BALAS_2 = "Got it! Delivery fee is Rp8,000, ready in about 30 min. Your order has been passed to our team ✅";
+
+// ---------------------------------------------------------------- 1-3. Ponsel (satu ponsel, kamera bergerak)
 
 function AdeganPonsel({ f }: { f: number }) {
-  if (f > 112) return null;
-  const putar = t(f, [0, 72], [1, 0], halus);
-  const dorong = t(f, [70, 104], [0, 1], lepas);
-  const skala = 0.7 + (1 - putar) * 0.24 + dorong * 1.5;
+  if (f > 496) return null;
+  const putar = t(f, [0, 84], [1, 0], halus);
   const melayang = Math.sin(f / 18) * 6 * putar;
-  // Titik tumpu = tengah widget (x 280, y 205 dari atas ponsel); saat didorong, titik itu dibawa ke tengah layar.
-  const geserY = dorong * (HP.tinggi / 2 - 205);
-  const beranda = t(f, [50, 64], [0, 1]);
+  const dekat = t(f, [150, 210], [0, 1], halus); // dorong saat WhatsApp terbuka
+  const chat = t(f, [238, 290], [0, 1], halus); // seluruh ponsel terlihat, sedikit lebih besar
+  const tembus = t(f, [468, 494], [0, 1], lepas); // kamera menembus ke dasbor
+  const skala = 0.74 + (1 - putar) * 0.18 + dekat * 0.2 + chat * 0.18 + tembus * 1.4;
+  const geserY = -dekat * 20 - chat * 30;
+
+  // Isi layar
+  const beranda = t(f, [86, 100], [0, 1]);
+  const tekan = Math.sin(t(f, [118, 134], [0, 1], (x) => x) * Math.PI);
+  const buka = t(f, [130, 156], [0, 1], mendarat);
+  const rinaMasuk = t(f, [174, 192], [0, 1], mendarat);
+  const sorot = Math.sin(t(f, [222, 240], [0, 1], (x) => x) * Math.PI);
+  const dorongChat = t(f, [236, 258], [0, 1], halus);
+  const ketik = f >= 335 && f < 352;
+
+  const pesan: PesanWa[] = [
+    { dari: "pelanggan", teks: "Hi! Are you open today?", jam: "9:41", muncul: 1, ekor: true },
+    { dari: "pelanggan", teks: "Any combo deals? 🍗", jam: "9:41", muncul: 1 },
+    { dari: "saya", teks: BALAS_1, jam: "9:41", muncul: t(f, [300, 314], [0, 1], mendarat), dibaca: f > 330, kutip: { nama: "Rina", teks: "Any combo deals? 🍗" }, ekor: true },
+    { dari: "pelanggan", teks: "Delivery please, Jl. Melati 5 🙏", jam: "9:42", muncul: t(f, [352, 366], [0, 1], mendarat), ekor: true },
+    { dari: "saya", teks: BALAS_2, jam: "9:42", muncul: t(f, [388, 402], [0, 1], mendarat), dibaca: f > 418, ekor: true },
+  ];
+
   return (
     <Lapis>
-      <div style={{ perspective: 2000, ...fx({ opacity: t(f, [0, 16], [0, 1]) * t(f, [90, 102], [1, 0]), blur: t(f, [0, 22], [18, 0]) + t(f, [84, 102], [0, 24]) }) }}>
+      <div style={{ perspective: 2000, ...fx({ opacity: t(f, [0, 16], [0, 1]) * (1 - tembus), blur: t(f, [0, 22], [18, 0]) + tembus * 26 }) }}>
         <div
           style={{
             transformStyle: "preserve-3d",
-            transformOrigin: `${HP.lebar / 2}px 205px`,
-            transform: `translateY(${putar * 140 + geserY + melayang}px) rotateY(${putar * -64}deg) rotateX(${putar * 26}deg) rotateZ(${putar * -16}deg) scale(${skala})`,
+            transform: `translateY(${putar * 140 + melayang + geserY}px) rotateY(${putar * -64}deg) rotateX(${putar * 26}deg) rotateZ(${putar * -16}deg) scale(${skala})`,
           }}
         >
           <Ponsel>
-            <LayarKunci notif={t(f, [24, 40], [0, 1], mendarat)} />
-            <div style={{ position: "absolute", inset: 0, opacity: beranda, transform: `scale(${1.06 - beranda * 0.06})` }}>
-              <LayarBeranda frame={f} />
-            </div>
+            <LayarKunci notif={t(f, [36, 54], [0, 1], mendarat)} />
+            {beranda > 0 && (
+              <div style={{ position: "absolute", inset: 0, opacity: beranda, transform: `scale(${1.06 - beranda * 0.06})` }}>
+                <LayarBeranda tekan={tekan} />
+              </div>
+            )}
+            {buka > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  overflow: "hidden",
+                  transformOrigin: `${POS_WA.x}px ${POS_WA.y}px`,
+                  transform: `scale(${0.12 + buka * 0.88})`,
+                  borderRadius: (1 - buka) * 120,
+                  opacity: t(f, [130, 140], [0, 1]),
+                }}
+              >
+                <div style={{ position: "absolute", inset: 0, transform: `translateX(${-dorongChat * 30}%)`, filter: dorongChat > 0 ? `brightness(${1 - dorongChat * 0.15})` : undefined }}>
+                  <DaftarChat baris={CHAT_LAIN} baru={CHAT_RINA} masuk={rinaMasuk} sorot={sorot} />
+                </div>
+                {dorongChat > 0 && (
+                  <LayarChat
+                    pesan={pesan}
+                    status={ketik ? "typing…" : "online"}
+                    style={{ transform: `translateX(${(1 - dorongChat) * 100}%)`, boxShadow: "-10px 0 30px rgba(0,0,0,0.15)" }}
+                  />
+                )}
+              </div>
+            )}
+            <Sentuh x={POS_WA.x} y={POS_WA.y} k={t(f, [114, 138], [0, 1], (x) => x)} />
+            <Sentuh x={150 * U} y={(226 + 46 + 38) * U} k={t(f, [218, 244], [0, 1], (x) => x)} />
           </Ponsel>
         </div>
       </div>
@@ -63,47 +123,65 @@ function AdeganPonsel({ f }: { f: number }) {
   );
 }
 
-// ---------------------------------------------------------------- 2. Widget melayang
+// ---------------------------------------------------------------- Kartu melayang di samping ponsel
 
-function AdeganWidget({ f }: { f: number }) {
-  const L = f - 92;
-  if (L < 0 || L > 46) return null;
-  const keluar = t(L, [28, 44], [0, 1], lepas);
+function Melayang({ f, dari, sampai, children, style }: { f: number; dari: number; sampai: number; children: ReactNode; style: CSSProperties }) {
+  if (f < dari || f > sampai + 12) return null;
+  const m = t(f, [dari, dari + 14], [0, 1], mendarat);
+  const k = t(f, [sampai, sampai + 12], [0, 1], lepas);
   return (
-    <Lapis>
-      <div style={{ perspective: 1800 }}>
-        <div
-          style={{
-            width: 860,
-            ...fx({
-              opacity: t(L, [2, 12], [0, 1]) * (1 - keluar),
-              blur: t(L, [2, 14], [22, 0]) + keluar * 26,
-              scale: t(L, [2, 18], [1.3, 1], mendarat) + keluar * 0.45,
-              y: t(L, [0, 30], [0, -24]),
-              extra: `rotateX(${t(L, [0, 30], [0, 7])}deg) rotateY(${t(L, [0, 30], [0, -6])}deg)`,
-            }),
-          }}
-        >
-          <WidgetLive frame={f} style={{ width: 860, boxSizing: "border-box" }} />
-        </div>
-      </div>
-    </Lapis>
+    <div style={{ position: "absolute", ...style, ...fx({ opacity: m * (1 - k), blur: (1 - m) * 10 + k * 12, scale: 0.85 + m * 0.15, y: (1 - m) * 30 + Math.sin(f / 22) * 6 }) }}>
+      <Kaca style={{ padding: "26px 32px", borderRadius: 36, background: "rgba(10,18,15,0.82)", display: "flex", alignItems: "center", gap: 18, color: C.fg }}>{children}</Kaca>
+    </div>
   );
 }
 
-// ---------------------------------------------------------------- 3. Chip + statistik
+function KartuMelayang({ f }: { f: number }) {
+  return (
+    <AbsoluteFill style={{ fontFamily: FONT }}>
+      <Melayang f={f} dari={268} sampai={300} style={{ left: 60, top: 40 }}>
+        <TitikLive frame={f} ukuran={18} />
+        <span style={{ fontSize: 34, fontWeight: 700 }}>AI is replying</span>
+        <span style={{ display: "flex", gap: 7 }}>
+          {[0, 1, 2].map((i) => (
+            <span key={i} style={{ width: 10, height: 10, borderRadius: 10, background: C.hijau, opacity: 0.4 + 0.6 * Math.max(0, Math.sin((f - i * 5) / 4)) }} />
+          ))}
+        </span>
+      </Melayang>
+      <Melayang f={f} dari={314} sampai={378} style={{ left: 60, top: 30 }}>
+        <span style={{ fontSize: 40 }}>⚡</span>
+        <span>
+          <div style={{ fontSize: 26, color: C.muted, fontWeight: 600 }}>Replied by AI in</div>
+          <div style={{ fontSize: 44, fontWeight: 800, color: C.hijau }}>4 seconds</div>
+        </span>
+      </Melayang>
+      <Melayang f={f} dari={404} sampai={470} style={{ left: 190, top: 1690, width: 700 }}>
+        <span style={{ alignSelf: "flex-start", fontSize: 40 }}>📌</span>
+        <span>
+          <div style={{ fontSize: 30, fontWeight: 800 }}>Order forwarded to owner</div>
+          <div style={{ fontSize: 24, color: C.muted, marginTop: 6, lineHeight: 1.4 }}>
+            Rina · Combo Deal x1
+            <br />
+            Delivery to Jl. Melati 5
+          </div>
+        </span>
+      </Melayang>
+    </AbsoluteFill>
+  );
+}
 
-const CHIP = ["Semua", "Dibalas AI", "Manusia"];
-const LEBAR_CHIP = [150, 228, 178];
+// ---------------------------------------------------------------- 4. Dasbor
+
+const CHIP = ["All", "AI replies", "Human"];
+const LEBAR_CHIP = [112, 208, 150];
 
 function BarisChip({ L, pilih }: { L: number; pilih: number }) {
-  // pilih: 0 = Semua, 1 = Dibalas AI (boleh pecahan selama berpindah)
   const kiri = (i: number) => LEBAR_CHIP.slice(0, i).reduce((a, b) => a + b + 16, 0);
   const x = kiri(0) + (kiri(1) - kiri(0)) * pilih;
   const w = LEBAR_CHIP[0] + (LEBAR_CHIP[1] - LEBAR_CHIP[0]) * pilih;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
-      <Avatar huruf="A" i={3} ukuran={78} cincin="rgba(255,255,255,0.15)" style={{ opacity: t(L, [0, 10], [0, 1]) }} />
+      <Logo ukuran={78} />
       <div style={{ position: "relative", display: "flex", gap: 16 }}>
         <div style={{ position: "absolute", left: x, top: 0, width: w, height: 76, borderRadius: 40, background: C.hijau, boxShadow: "0 10px 40px -8px rgba(61,220,151,0.6)" }} />
         {CHIP.map((c, i) => {
@@ -135,35 +213,37 @@ function BarisChip({ L, pilih }: { L: number; pilih: number }) {
 }
 
 const STAT = [
-  { label: "Pesan masuk", nilai: 68, akhiran: "", warna: "#6c8fd6" },
-  { label: "Dibalas AI", nilai: 50, akhiran: "", warna: C.hijau },
-  { label: "Rata-rata balas", nilai: 4, akhiran: " dtk", warna: "#f5b041" },
-  { label: "Pelanggan", nilai: 128, akhiran: "", warna: "#c084fc" },
+  { label: "Messages in", nilai: 68, akhiran: "", warna: "#6c8fd6" },
+  { label: "Replied by AI", nilai: 50, akhiran: "", warna: C.hijau },
+  { label: "Avg. reply", nilai: 4, akhiran: " sec", warna: "#f5b041" },
+  { label: "Spam blocked", nilai: 7, akhiran: "", warna: "#f87171" },
 ];
 
-function AdeganStatistik({ f }: { f: number }) {
-  const L = f - 124;
-  if (L < 0 || L > 76) return null;
-  const pilih = t(L, [24, 38], [0, 1], halus);
-  const keluar = t(L, [56, 72], [0, 1], lepas);
+function AdeganDasbor({ f }: { f: number }) {
+  const L = f - 478;
+  if (L < 0 || L > 124) return null;
+  const pilih = t(L, [30, 46], [0, 1], halus);
+  const keluar = t(L, [104, 120], [0, 1], lepas);
   return (
     <Lapis>
       <div
         style={{
           width: 900,
           ...fx({
-            opacity: t(L, [0, 14], [0, 1]) * t(L, [62, 74], [1, 0]),
-            blur: t(L, [0, 14], [16, 0]) + keluar * 16,
-            scale: t(L, [0, 20], [0.9, 1], mendarat),
-            x: t(L, [0, 72], [30, -30], halus),
-            y: keluar * -520,
+            opacity: t(L, [4, 18], [0, 1]) * (1 - keluar),
+            blur: t(L, [4, 20], [22, 0]) + keluar * 20,
+            scale: t(L, [4, 24], [0.8, 1], mendarat) * (1 + keluar * 0.3),
+            x: t(L, [0, 120], [30, -30], halus),
           }),
         }}
       >
+        <div style={{ color: C.fg, fontSize: 52, fontWeight: 800, letterSpacing: -1, marginBottom: 34, ...fx({ opacity: t(L, [6, 18], [0, 1]), blur: 0, y: t(L, [6, 22], [30, 0], mendarat) }) }}>
+          Today at a glance
+        </div>
         <BarisChip L={L} pilih={pilih} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 26, marginTop: 44 }}>
           {STAT.map((s, i) => {
-            const m = t(L, [8 + i * 4, 26 + i * 4], [0, 1], mendarat);
+            const m = t(L, [12 + i * 4, 30 + i * 4], [0, 1], mendarat);
             const sorot = i === 1 ? pilih : 0;
             return (
               <Kaca
@@ -180,178 +260,28 @@ function AdeganStatistik({ f }: { f: number }) {
                   {s.label}
                 </div>
                 <div style={{ color: C.fg, fontSize: 96, fontWeight: 800, letterSpacing: -2, marginTop: 10, fontVariantNumeric: "tabular-nums" }}>
-                  {Math.round(t(L, [12 + i * 4, 44], [0, s.nilai], mendarat))}
+                  {Math.round(t(L, [16 + i * 4, 52], [0, s.nilai], mendarat))}
                   <span style={{ fontSize: 44, color: C.muted }}>{s.akhiran}</span>
                 </div>
               </Kaca>
             );
           })}
         </div>
-      </div>
-    </Lapis>
-  );
-}
-
-// ---------------------------------------------------------------- 4. AI aktif + daftar percakapan
-
-const DAFTAR = [
-  { h: "R", nama: "Rina", isi: "Kak masih buka? Ada paket hemat?", ai: true },
-  { h: "B", nama: "Budi", isi: "Ongkir ke Depok berapa ya?", ai: true },
-  { h: "D", nama: "Dita", isi: "Jadwal Sabtu jam 10 masih ada?", ai: true },
-  { h: "S", nama: "Sari", isi: "Sudah transfer ya kak 🙏", ai: false },
-  { h: "A", nama: "Andi", isi: "Bisa COD ga kak?", ai: true },
-  { h: "M", nama: "Maya", isi: "Menu yang paling laris apa?", ai: true },
-  { h: "F", nama: "Fajar", isi: "Pesan 3 box untuk arisan", ai: true },
-];
-
-function AdeganDaftar({ f }: { f: number }) {
-  const L = f - 182;
-  if (L < 0 || L > 72) return null;
-  const masuk = t(L, [0, 16], [0, 1], mendarat);
-  const gulir = t(L, [26, 62], [0, 1], lepas);
-  const laju = t(L, [36, 50], [0, 1]) * t(L, [60, 68], [1, 0]);
-  return (
-    <Lapis>
-      <div style={{ width: 900, ...fx({ opacity: masuk * t(L, [58, 70], [1, 0]), blur: (1 - masuk) * 16 + t(L, [56, 70], [0, 12]), y: (1 - masuk) * 520 }) }}>
-        <div style={{ ...fx({ opacity: 1, blur: 0, y: gulir * -380 }) }}>
-          <div
-            style={{
-              borderRadius: 44,
-              padding: "34px 36px",
-              background: "linear-gradient(135deg, rgba(29,185,104,0.55), rgba(15,122,92,0.45))",
-              border: "2px solid rgba(61,220,151,0.55)",
-              boxShadow: "0 30px 120px -20px rgba(61,220,151,0.45)",
-              color: C.fg,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 26, fontWeight: 800, letterSpacing: 2, color: "#bff7dc" }}>
-              <TitikLive frame={f} ukuran={16} /> AI AKTIF
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 22 }}>
-              <div style={{ display: "flex", alignItems: "center" }}>
-                {["R", "B", "D", "A", "M"].map((h, i) => {
-                  const p = t(L, [6 + i * 2, 16 + i * 2], [0, 1], mendarat);
-                  return <Avatar key={h} huruf={h} i={i} ukuran={78} cincin="#1a6b4c" style={{ marginLeft: i ? -18 : 0, transform: `scale(${p})`, opacity: p }} />;
-                })}
-                <span style={{ marginLeft: 16, fontSize: 30, fontWeight: 700 }}>+12</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 24px", borderRadius: 40, border: "2px solid rgba(255,255,255,0.5)", fontSize: 28, fontWeight: 700 }}>
-                <TitikLive frame={f} ukuran={14} /> 3 chat aktif
-              </div>
-            </div>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", margin: "48px 8px 22px", fontSize: 34, fontWeight: 700, color: C.fg }}>
-            Percakapan terbaru <span style={{ color: C.muted, fontSize: 28, fontWeight: 600 }}>Lihat semua</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 18, filter: laju > 0.05 ? `blur(${laju * 9}px)` : undefined }}>
-            {DAFTAR.map((d, i) => {
-              const m = t(L, [10 + i * 3, 24 + i * 3], [0, 1], mendarat);
-              return (
-                <Kaca key={d.nama} style={{ display: "flex", alignItems: "center", gap: 24, padding: "24px 28px", borderRadius: 36, ...fx({ opacity: m, blur: 0, x: (1 - m) * 60 }) }}>
-                  <Avatar huruf={d.h} i={i} ukuran={84} cincin="transparent" />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 32, fontWeight: 700, color: C.fg }}>{d.nama}</div>
-                    <div style={{ fontSize: 26, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.isi}</div>
-                  </div>
-                  <span style={{ padding: "8px 18px", borderRadius: 20, fontSize: 22, fontWeight: 800, background: d.ai ? "rgba(61,220,151,0.18)" : "rgba(245,176,65,0.18)", color: d.ai ? C.hijau : "#f5b041" }}>
-                    {d.ai ? "AI" : "Anda"}
-                  </span>
-                </Kaca>
-              );
-            })}
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 30, padding: "24px 30px", borderRadius: 36, background: "linear-gradient(135deg, rgba(29,185,104,0.5), rgba(15,122,92,0.4))", border: "2px solid rgba(61,220,151,0.5)", color: C.fg, fontSize: 30, fontWeight: 700, ...fx({ opacity: t(L, [40, 54], [0, 1]), blur: 0, y: t(L, [40, 58], [40, 0], mendarat) }) }}>
+          <TitikLive frame={f} ukuran={16} /> AI ACTIVE · 3 chats right now
+          <span style={{ marginLeft: "auto", display: "flex" }}>
+            {["R", "B", "D"].map((h, i) => (
+              <Avatar key={h} huruf={h} i={i} ukuran={58} cincin="#1a6b4c" style={{ marginLeft: i ? -14 : 0 }} />
+            ))}
+          </span>
         </div>
       </div>
     </Lapis>
   );
 }
 
-// ---------------------------------------------------------------- 5. Kartu percakapan + kirim
+// ---------------------------------------------------------------- 5. Teks kinetik
 
-const BALASAN = "Halo Kak! Buka sampai 22.00 ✨ Paket Hemat Rp25.000, mau diantar?";
-
-function AdeganKirim({ f }: { f: number }) {
-  const { fps } = useVideoConfig();
-  const L = f - 240;
-  if (L < 0 || L > 64) return null;
-  const masuk = t(L, [0, 16], [0, 1], mendarat);
-  const huruf = Math.round(t(L, [12, 40], [0, BALASAN.length], (x) => x));
-  const zoom = t(L, [36, 52], [0, 1], halus);
-  const tekan = spring({ frame: L - 46, fps, config: { damping: 9, stiffness: 220 } });
-  const tombol = L < 46 ? 1 : 0.82 + tekan * 0.18 + Math.sin(Math.min(1, tekan) * Math.PI) * 0.12;
-  const cincin = t(L, [46, 60], [0, 1], mendarat);
-  const keluar = t(L, [54, 64], [0, 1], lepas);
-  return (
-    <Lapis>
-      <div
-        style={{
-          width: 900,
-          transformOrigin: "820px 760px",
-          ...fx({
-            opacity: masuk * (1 - keluar),
-            blur: (1 - masuk) * 16 + keluar * 18,
-            scale: (0.92 + masuk * 0.08) * (1 + zoom * 0.75) * (1 + keluar * 0.3),
-            x: zoom * -180,
-            y: zoom * -120,
-          }),
-        }}
-      >
-        <Kaca style={{ padding: "40px 40px 36px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
-            <Avatar huruf="R" i={0} ukuran={92} cincin="transparent" />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 36, fontWeight: 800, color: C.fg }}>Rina</div>
-              <div style={{ fontSize: 26, color: C.muted }}>Dapur Bu Rini · baru saja</div>
-            </div>
-            <span style={{ display: "flex", alignItems: "center", gap: 10, color: C.hijau, fontSize: 24, fontWeight: 800 }}>
-              <TitikLive frame={f} ukuran={12} /> AI
-            </span>
-          </div>
-          <div style={{ color: C.muted, fontSize: 24, fontWeight: 700, margin: "34px 0 14px", letterSpacing: 1 }}>PESAN PELANGGAN</div>
-          <div style={{ display: "inline-block", padding: "22px 28px", borderRadius: "30px 30px 30px 10px", background: "rgba(255,255,255,0.08)", color: C.fg, fontSize: 32 }}>
-            Kak masih buka? Ada paket hemat? 🍗
-          </div>
-          <div style={{ display: "flex", gap: 14, margin: "24px 0 0" }}>
-            {["❤️ 2", "⚡ AI 4 dtk"].map((r, i) => (
-              <span key={r} style={{ padding: "8px 18px", borderRadius: 20, fontSize: 22, fontWeight: 700, background: i ? "rgba(61,220,151,0.16)" : "rgba(255,255,255,0.08)", color: i ? C.hijau : C.fg }}>
-                {r}
-              </span>
-            ))}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 34 }}>
-            <div style={{ flex: 1, minHeight: 96, padding: "18px 28px", borderRadius: 34, background: "rgba(255,255,255,0.07)", border: `2px solid ${C.garis}`, color: C.fg, fontSize: 30, lineHeight: 1.35 }}>
-              {BALASAN.slice(0, huruf)}
-              <span style={{ opacity: huruf < BALASAN.length || f % 16 < 8 ? 1 : 0, color: C.hijau }}>|</span>
-            </div>
-            <div style={{ position: "relative", width: 104, height: 104 }}>
-              <div style={{ position: "absolute", inset: 0, borderRadius: 104, border: `4px solid ${C.hijau}`, opacity: 1 - cincin, transform: `scale(${1 + cincin * 1.2})` }} />
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  borderRadius: 104,
-                  background: C.hijau,
-                  display: "grid",
-                  placeItems: "center",
-                  transform: `scale(${tombol})`,
-                  boxShadow: `0 0 ${30 + cincin * 60}px rgba(61,220,151,${0.45 + 0.4 * Math.sin(cincin * Math.PI)})`,
-                }}
-              >
-                <svg width="50" height="50" viewBox="0 0 24 24" fill="#06231a">
-                  <path d="M12 3 4 20l8-4 8 4z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-        </Kaca>
-      </div>
-    </Lapis>
-  );
-}
-
-// ---------------------------------------------------------------- 6. Teks kinetik
-
-/** Kata yang masuk dengan jarak huruf melebar lalu merapat (gaya referensi), tiap huruf menyala bergiliran. */
 function Kata({ teks, L, mulai, warna = C.fg }: { teks: string; L: number; mulai: number; warna?: string }) {
   const rapat = t(L, [mulai, mulai + 16], [0.42, 0], mendarat);
   return (
@@ -365,7 +295,7 @@ function Kata({ teks, L, mulai, warna = C.fg }: { teks: string; L: number; mulai
   );
 }
 
-function Baris({ L, dari, sampai, baris, ukuran = 84 }: { L: number; dari: number; sampai: number; baris: ReactNode[]; ukuran?: number }) {
+function Baris({ L, dari, sampai, baris, ukuran = 88 }: { L: number; dari: number; sampai: number; baris: ReactNode[]; ukuran?: number }) {
   if (L < dari || L > sampai + 10) return null;
   const k = t(L, [sampai, sampai + 10], [0, 1], lepas);
   return (
@@ -382,8 +312,8 @@ function Baris({ L, dari, sampai, baris, ukuran = 84 }: { L: number; dari: numbe
 }
 
 function AdeganTeks({ f }: { f: number }) {
-  const L = f - 302;
-  if (L < 0 || L > 86) return null;
+  const L = f - 594;
+  if (L < 0 || L > 84) return null;
   return (
     <>
       <Baris
@@ -392,7 +322,7 @@ function AdeganTeks({ f }: { f: number }) {
         sampai={26}
         baris={[
           <>
-            <Kata teks="Pelanggan" L={L} mulai={0} />
+            <Kata teks="Customers" L={L} mulai={0} />
             <span style={{ display: "inline-flex" }}>
               {["R", "B", "D"].map((h, i) => {
                 const p = t(L, [8 + i * 2, 16 + i * 2], [0, 1], mendarat);
@@ -401,45 +331,45 @@ function AdeganTeks({ f }: { f: number }) {
             </span>
           </>,
           <>
-            <Kata teks="dibalas" L={L} mulai={10} />
-            <Kata teks="otomatis." L={L} mulai={15} warna={C.hijau} />
+            <Kata teks="answered" L={L} mulai={10} />
+            <Kata teks="instantly." L={L} mulai={15} warna={C.hijau} />
           </>,
         ]}
       />
-      <Baris L={L} dari={36} sampai={52} ukuran={92} baris={[<Kata key="a" teks="Ambil alih" L={L} mulai={36} />, <Kata key="b" teks="kapan saja." L={L} mulai={41} warna={C.hijau} />]} />
-      <Baris L={L} dari={62} sampai={76} ukuran={104} baris={[<Kata key="a" teks="Dalam hitungan" L={L} mulai={62} />, <Kata key="b" teks="detik." L={L} mulai={67} warna={C.hijau} />]} />
+      <Baris L={L} dari={34} sampai={50} ukuran={100} baris={[<Kata key="a" teks="Take over" L={L} mulai={34} />, <Kata key="b" teks="anytime." L={L} mulai={39} warna={C.hijau} />]} />
+      <Baris L={L} dari={58} sampai={72} ukuran={100} baris={[<Kata key="a" teks="Even while" L={L} mulai={58} />, <Kata key="b" teks="you sleep." L={L} mulai={63} warna={C.hijau} />]} />
     </>
   );
 }
 
-// ---------------------------------------------------------------- 7. Logo
+// ---------------------------------------------------------------- 6. Logo
 
 function AdeganLogo({ f }: { f: number }) {
   const { fps } = useVideoConfig();
-  const L = f - 384;
+  const L = f - 674;
   if (L < 0) return null;
   const muncul = spring({ frame: L, fps, config: { damping: 13, stiffness: 120 } });
-  const buka = t(L, [16, 36], [0, 1], halus);
-  const LEBAR_TEKS = 780;
-  const sup = t(L, [32, 42], [0, 1], mendarat);
-  const tag = t(L, [40, 54], [0, 1], mendarat);
+  const buka = t(L, [12, 30], [0, 1], halus);
+  const LEBAR_TEKS = 600;
+  const sup = t(L, [26, 36], [0, 1], mendarat);
+  const tag = t(L, [32, 46], [0, 1], mendarat);
   return (
-    <Lapis style={{ opacity: t(L, [88, 96], [1, 0]) }}>
+    <Lapis style={{ opacity: t(L, [70, 76], [1, 0]) }}>
       <div style={{ display: "flex", alignItems: "center", transform: `translateX(${(1 - buka) * (LEBAR_TEKS / 2 + 13)}px)` }}>
         <div style={{ transform: `scale(${muncul})`, opacity: Math.min(1, muncul * 1.4) }}>
           <Logo ukuran={184} />
         </div>
         <div style={{ position: "relative", marginLeft: 26, width: LEBAR_TEKS * buka, overflow: "hidden", whiteSpace: "nowrap", height: 210, display: "flex", alignItems: "center" }}>
           <div style={{ color: C.fg, fontSize: 86, fontWeight: 800, letterSpacing: -2, lineHeight: 1.02, transform: `translateX(${(1 - buka) * -80}px)` }}>
-            Asisten
-            <br />
             WhatsApp
+            <span style={{ display: "inline-block", verticalAlign: "top", marginLeft: 14, marginTop: 6, padding: "4px 14px", borderRadius: 14, background: C.hijau, color: "#06231a", fontSize: 36, fontWeight: 800, letterSpacing: 0, lineHeight: 1.2, opacity: sup, transform: `scale(${0.6 + sup * 0.4})` }}>AI</span>
+            <br />
+            Automation
           </div>
-          <span style={{ position: "absolute", left: 400, top: 22, padding: "4px 14px", borderRadius: 14, background: C.hijau, color: "#06231a", fontSize: 36, fontWeight: 800, opacity: sup, transform: `scale(${0.6 + sup * 0.4})` }}>AI</span>
         </div>
       </div>
       <div style={{ position: "absolute", top: 1130, left: 90, right: 90, textAlign: "center", ...fx({ opacity: tag, blur: (1 - tag) * 8, y: (1 - tag) * 20 }) }}>
-        <div style={{ color: C.fg, fontSize: 44, fontWeight: 700, lineHeight: 1.3 }}>Pelanggan dibalas 24/7, Anda tetap pegang kendali.</div>
+        <div style={{ color: C.fg, fontSize: 46, fontWeight: 700, lineHeight: 1.3 }}>Your 24/7 AI customer service<br />on WhatsApp.</div>
         <div style={{ color: C.hijau, fontSize: 40, fontWeight: 700, marginTop: 18, letterSpacing: 1 }}>wa.sukapost.tech</div>
       </div>
     </Lapis>
@@ -450,12 +380,10 @@ export function Promo() {
   const f = useCurrentFrame();
   return (
     <AbsoluteFill style={{ fontFamily: FONT, background: C.latar, overflow: "hidden" }}>
-      <Latar frame={f} hijau={t(f, [96, 150], [0, 1])} />
+      <Latar frame={f} hijau={t(f, [130, 240], [0, 1])} />
       <AdeganPonsel f={f} />
-      <AdeganWidget f={f} />
-      <AdeganStatistik f={f} />
-      <AdeganDaftar f={f} />
-      <AdeganKirim f={f} />
+      <KartuMelayang f={f} />
+      <AdeganDasbor f={f} />
       <AdeganTeks f={f} />
       <AdeganLogo f={f} />
     </AbsoluteFill>

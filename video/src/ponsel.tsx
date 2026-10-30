@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Avatar, C, Logo, TitikLive } from "./dasar";
+import { IkonApp, type JenisIkon } from "./ikon";
+import { FONT_IOS, U } from "./wa";
 
 /** iPhone 12 (71,5 x 146,7 mm). Ketebalan dibuat dari lapisan bingkai yang ditumpuk di sumbu Z. */
 export const HP = { lebar: 560, tinggi: 1149, sudut: 86, bezel: 18, sudutLayar: 66 };
@@ -59,140 +60,165 @@ function Wallpaper() {
   );
 }
 
-function BilahStatus({ gelap = false }: { gelap?: boolean }) {
-  const w = gelap ? "#000" : "#fff";
+const pt = (n: number) => n * U;
+
+function BilahStatusTerang() {
   return (
-    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 52, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 34px 0 48px", color: w, fontSize: 21, fontWeight: 600, zIndex: 2 }}>
-      <span>09.41</span>
-      <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <svg width="22" height="14" viewBox="0 0 34 22">{[0, 1, 2, 3].map((k) => <rect key={k} x={k * 9} y={16 - k * 5} width="6.5" height={6 + k * 5} rx="1.6" fill={w} />)}</svg>
-        <svg width="30" height="14" viewBox="0 0 50 23"><rect x="1" y="1" width="42" height="21" rx="6.5" fill="none" stroke={w} strokeOpacity="0.5" strokeWidth="2" /><rect x="4" y="4" width="32" height="15" rx="4" fill={w} /></svg>
+    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: pt(47), display: "flex", alignItems: "center", justifyContent: "space-between", padding: `${pt(6)}px ${pt(26)}px 0 ${pt(36)}px`, color: "#fff", fontSize: pt(17), fontWeight: 600, zIndex: 2, fontFamily: FONT_IOS }}>
+      <span>9:41</span>
+      <span style={{ display: "flex", gap: pt(5), alignItems: "center" }}>
+        <svg width={pt(17)} height={pt(11)} viewBox="0 0 34 22">{[0, 1, 2, 3].map((k) => <rect key={k} x={k * 9} y={16 - k * 5} width="6.5" height={6 + k * 5} rx="1.6" fill="#fff" />)}</svg>
+        <svg width={pt(16)} height={pt(11)} viewBox="0 0 30 22"><path d="M15 21.5 10.6 17a6.3 6.3 0 0 1 8.8 0zM6.4 12.8a12.2 12.2 0 0 1 17.2 0l-2.6 2.6a8.6 8.6 0 0 0-12 0zM2 8.4a18.4 18.4 0 0 1 26 0l-2.6 2.6a14.7 14.7 0 0 0-20.8 0z" fill="#fff" /></svg>
+        <svg width={pt(25)} height={pt(12)} viewBox="0 0 50 23"><rect x="1" y="1" width="42" height="21" rx="6.5" fill="none" stroke="#fff" strokeOpacity="0.5" strokeWidth="2" /><rect x="4" y="4" width="32" height="15" rx="4" fill="#fff" /></svg>
       </span>
     </div>
   );
 }
 
-/** Layar kunci: jam besar + notifikasi chat pelanggan (muncul saat `notif` 0..1). */
+/** Layar kunci iOS: tanggal, jam besar, notifikasi WhatsApp dari pelanggan (muncul saat `notif` 0..1). */
 export function LayarKunci({ notif }: { notif: number }) {
   return (
-    <div style={{ position: "absolute", inset: 0 }}>
+    <div style={{ position: "absolute", inset: 0, isolation: "isolate", fontFamily: FONT_IOS }}>
       <Wallpaper />
-      <BilahStatus />
-      <div style={{ position: "absolute", top: 120, width: "100%", textAlign: "center", color: "#fff" }}>
-        <div style={{ fontSize: 26, fontWeight: 600, opacity: 0.85 }}>Kamis, 30 Oktober</div>
-        <div style={{ fontSize: 132, fontWeight: 600, lineHeight: 1, letterSpacing: -3, marginTop: 6 }}>09.41</div>
+      <BilahStatusTerang />
+      <div style={{ position: "absolute", top: pt(70), width: "100%", textAlign: "center", color: "#fff" }}>
+        <div style={{ fontSize: pt(21), fontWeight: 600, opacity: 0.9 }}>Thursday 30 October</div>
+        <div style={{ fontSize: pt(96), fontWeight: 700, lineHeight: 1, letterSpacing: -2, marginTop: pt(2) }}>9:41</div>
       </div>
       <div
         style={{
           position: "absolute",
-          left: 22,
-          right: 22,
-          top: 380,
-          padding: "18px 20px",
-          borderRadius: 30,
-          background: "rgba(30,38,35,0.62)",
+          left: pt(10),
+          right: pt(10),
+          top: pt(300),
+          padding: `${pt(12)}px ${pt(14)}px`,
+          borderRadius: pt(22),
+          background: "rgba(245,245,245,0.78)",
           backdropFilter: "blur(20px)",
           display: "flex",
-          gap: 14,
-          color: "#fff",
+          gap: pt(10),
+          alignItems: "flex-start",
+          color: "#000",
           opacity: notif,
-          transform: `translateY(${(1 - notif) * -40}px) scale(${0.9 + notif * 0.1})`,
+          transform: `translateY(${(1 - notif) * pt(40)}px) scale(${0.92 + notif * 0.08})`,
         }}
       >
-        <Logo ukuran={46} />
+        <IkonApp jenis="whatsapp" ukuran={pt(38)} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 700 }}>
-            <span>Rina · Pelanggan</span>
-            <span style={{ opacity: 0.6, fontWeight: 500 }}>sekarang</span>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: pt(15), fontWeight: 600 }}>
+            <span>Rina</span>
+            <span style={{ color: "#6e6e73", fontWeight: 400, fontSize: pt(13) }}>now</span>
           </div>
-          <div style={{ fontSize: 19, opacity: 0.9, marginTop: 3 }}>Kak masih buka? Ada paket hemat?</div>
-          <div style={{ fontSize: 16, color: C.hijau, marginTop: 6, fontWeight: 700 }}>✓ AI sudah membalas</div>
+          <div style={{ fontSize: pt(15), lineHeight: 1.3 }}>Hi! Are you open today? Any combo deals? 🍗</div>
         </div>
       </div>
-      <div style={{ position: "absolute", bottom: 14, left: "50%", width: 180, height: 6, marginLeft: -90, borderRadius: 3, background: "#fff", opacity: 0.85 }} />
+      {/* Senter & kamera, indikator beranda */}
+      {[{ left: pt(46) }, { right: pt(46) }].map((p, i) => (
+        <div key={i} style={{ position: "absolute", bottom: pt(50), ...p, width: pt(50), height: pt(50), borderRadius: pt(25), background: "rgba(0,0,0,0.35)", backdropFilter: "blur(12px)" }} />
+      ))}
+      <div style={{ position: "absolute", bottom: pt(8), left: "50%", width: pt(134), height: pt(5), marginLeft: -pt(67), borderRadius: pt(3), background: "#fff" }} />
     </div>
   );
 }
 
-const IKON = [
-  ["#ff9f0a", "Kalender"],
-  ["#34c759", "Asisten WA"],
-  ["#5e5ce6", "Foto"],
-  ["#0a84ff", "Peta"],
-  ["#ff375f", "Musik"],
-  ["#64d2ff", "Cuaca"],
-  ["#ffd60a", "Catatan"],
-  ["#30d158", "Toko"],
-  ["#bf5af2", "Kamera"],
-  ["#ff453a", "Video"],
-  ["#8e8e93", "Setelan"],
-  ["#0a84ff", "Mail"],
-] as const;
+const KISI: JenisIkon[][] = [
+  ["facetime", "foto", "kamera", "mail"],
+  ["jam", "peta", "catatan", "appstore"],
+  ["setelan", "whatsapp", "kalender", "cuaca"],
+];
+const NAMA: Record<JenisIkon, string> = {
+  facetime: "FaceTime",
+  foto: "Photos",
+  kamera: "Camera",
+  mail: "Mail",
+  jam: "Clock",
+  peta: "Maps",
+  catatan: "Notes",
+  appstore: "App Store",
+  setelan: "Settings",
+  whatsapp: "WhatsApp",
+  kalender: "Calendar",
+  cuaca: "Weather",
+  telepon: "Phone",
+  safari: "Safari",
+  pesan: "Messages",
+  musik: "Music",
+};
+const KOLOM_X = [30, 120, 210, 300];
+const BARIS_Y = [240, 332, 424];
+/** Titik tengah ikon WhatsApp di layar (px), dipakai untuk sentuhan jari dan animasi aplikasi terbuka. */
+export const POS_WA = { x: pt(KOLOM_X[1] + 30), y: pt(BARIS_Y[2] + 30) };
 
-/** Layar beranda: widget "AI membalas" + kisi aplikasi. */
-export function LayarBeranda({ frame }: { frame: number }) {
+/** Layar beranda iOS: widget Cuaca & Kalender, kisi aplikasi, titik halaman, dok. `tekan` 0..1 = ikon WhatsApp ditekan. */
+export function LayarBeranda({ tekan = 0 }: { tekan?: number }) {
   return (
-    <div style={{ position: "absolute", inset: 0 }}>
+    <div style={{ position: "absolute", inset: 0, isolation: "isolate", fontFamily: FONT_IOS }}>
       <Wallpaper />
-      <BilahStatus />
-      <WidgetLive frame={frame} style={{ position: "absolute", top: 74, left: 22, right: 22 }} kecil />
-      <div style={{ position: "absolute", top: 330, left: 30, right: 30, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", rowGap: 30, columnGap: 18 }}>
-        {IKON.map(([w, n], i) => (
-          <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-            {n === "Asisten WA" ? (
-              <Logo ukuran={96} />
-            ) : (
-              <div style={{ width: 96, height: 96, borderRadius: 26, background: `linear-gradient(160deg, ${w}, ${w}bb)`, display: "grid", placeItems: "center" }}>
-                <div style={{ width: 40, height: 40, borderRadius: i % 3 === 0 ? 40 : 10, border: "5px solid rgba(255,255,255,0.9)" }} />
-              </div>
-            )}
-            <span style={{ color: "#fff", fontSize: 17, fontWeight: 500 }}>{n}</span>
-          </div>
-        ))}
+      <BilahStatusTerang />
+      <div style={{ position: "absolute", top: pt(62), left: pt(24), width: pt(155), height: pt(155), borderRadius: pt(22), background: "linear-gradient(180deg, #2f7fe9, #5ab3f6)", color: "#fff", padding: pt(14), boxSizing: "border-box" }}>
+        <div style={{ fontSize: pt(15), fontWeight: 600 }}>Jakarta ➤</div>
+        <div style={{ fontSize: pt(44), fontWeight: 300, lineHeight: 1.05 }}>31°</div>
+        <div style={{ position: "absolute", bottom: pt(14), left: pt(14), fontSize: pt(13), fontWeight: 600 }}>
+          ☀️<br />
+          Sunny
+          <br />
+          <span style={{ fontWeight: 500 }}>H:33° L:25°</span>
+        </div>
       </div>
-      <div style={{ position: "absolute", bottom: 26, left: 22, right: 22, height: 128, borderRadius: 44, background: "rgba(255,255,255,0.14)", backdropFilter: "blur(20px)", display: "flex", justifyContent: "space-around", alignItems: "center" }}>
-        {["#34c759", "#0a84ff", "#ff9f0a", "#5e5ce6"].map((w, i) => (
-          <div key={i} style={{ width: 92, height: 92, borderRadius: 26, background: `linear-gradient(160deg, ${w}, ${w}bb)` }} />
+      <div style={{ position: "absolute", top: pt(62), left: pt(211), width: pt(155), height: pt(155), borderRadius: pt(22), background: "#fff", color: "#000", padding: pt(14), boxSizing: "border-box" }}>
+        <div style={{ fontSize: pt(12), fontWeight: 700, color: "#ff3b30" }}>THURSDAY</div>
+        <div style={{ fontSize: pt(44), fontWeight: 300, lineHeight: 1.05 }}>30</div>
+        <div style={{ marginTop: pt(10), borderLeft: `${pt(3)}px solid #34c759`, paddingLeft: pt(6), fontSize: pt(12), fontWeight: 600 }}>
+          Weekend promo
+          <div style={{ color: "#8e8e93", fontWeight: 500 }}>10:00 – 22:00</div>
+        </div>
+      </div>
+      {KISI.map((baris, r) =>
+        baris.map((j, c) => {
+          const wa = j === "whatsapp";
+          return (
+            <div key={j} style={{ position: "absolute", left: pt(KOLOM_X[c] - 8), top: pt(BARIS_Y[r]), width: pt(76), display: "flex", flexDirection: "column", alignItems: "center", gap: pt(5) }}>
+              <div style={{ transform: wa ? `scale(${1 - tekan * 0.12})` : undefined, filter: wa && tekan > 0 ? `brightness(${1 - tekan * 0.35})` : undefined }}>
+                <IkonApp jenis={j} ukuran={pt(60)} badge={wa ? 2 : undefined} />
+              </div>
+              <span style={{ color: "#fff", fontSize: pt(12), fontWeight: 500, textShadow: "0 1px 2px rgba(0,0,0,0.3)" }}>{NAMA[j]}</span>
+            </div>
+          );
+        }),
+      )}
+      <div style={{ position: "absolute", top: pt(728), left: "50%", transform: "translateX(-50%)", display: "flex", gap: pt(8) }}>
+        <span style={{ width: pt(7), height: pt(7), borderRadius: pt(4), background: "#fff" }} />
+        <span style={{ width: pt(7), height: pt(7), borderRadius: pt(4), background: "rgba(255,255,255,0.4)" }} />
+      </div>
+      <div style={{ position: "absolute", bottom: pt(12), left: pt(12), right: pt(12), height: pt(92), borderRadius: pt(32), background: "rgba(255,255,255,0.22)", backdropFilter: "blur(20px)", display: "flex", justifyContent: "space-around", alignItems: "center" }}>
+        {(["telepon", "safari", "pesan", "musik"] as JenisIkon[]).map((j) => (
+          <IkonApp key={j} jenis={j} ukuran={pt(60)} />
         ))}
       </div>
     </div>
   );
 }
 
-/** Widget "AI membalas · LIVE" (di layar beranda kecil; dilepas jadi kartu melayang di adegan 2). */
-export function WidgetLive({ frame, style, kecil = false }: { frame: number; style?: React.CSSProperties; kecil?: boolean }) {
-  const s = kecil ? 1 : 1.7;
+/** Sentuhan jari (lingkaran putih seperti rekaman layar dengan "show touches"). */
+export function Sentuh({ x, y, k }: { x: number; y: number; k: number }) {
+  if (k <= 0 || k >= 1) return null;
+  const tekan = Math.sin(k * Math.PI);
   return (
     <div
       style={{
-        padding: `${20 * s}px ${22 * s}px`,
-        borderRadius: 34 * s,
-        background: "linear-gradient(140deg, rgba(25,40,70,0.78), rgba(14,24,22,0.82))",
-        border: `${1.5 * s}px solid rgba(255,255,255,0.12)`,
-        backdropFilter: "blur(24px)",
-        color: "#fff",
-        boxShadow: kecil ? "none" : "0 60px 120px -30px rgba(0,0,0,0.85)",
-        ...style,
+        position: "absolute",
+        left: x - pt(26),
+        top: y - pt(26),
+        width: pt(52),
+        height: pt(52),
+        borderRadius: pt(26),
+        background: "rgba(255,255,255,0.55)",
+        border: `${pt(2)}px solid rgba(255,255,255,0.9)`,
+        boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+        opacity: tekan,
+        transform: `scale(${0.7 + tekan * 0.3})`,
+        zIndex: 20,
       }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 17 * s, fontWeight: 700 }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 8 * s }}>
-          <Logo ukuran={26 * s} /> Asisten WA
-        </span>
-        <span style={{ display: "flex", alignItems: "center", gap: 7 * s, color: C.hijau, fontSize: 15 * s }}>
-          <TitikLive frame={frame} ukuran={10 * s} /> LIVE
-        </span>
-      </div>
-      <div style={{ fontSize: 25 * s, fontWeight: 700, marginTop: 12 * s, letterSpacing: -0.3 }}>AI sedang membalas</div>
-      <div style={{ fontSize: 17 * s, opacity: 0.65, marginTop: 2 * s }}>Pelanggan dijawab saat Anda sibuk</div>
-      <div style={{ display: "flex", alignItems: "center", marginTop: 16 * s, gap: 14 * s }}>
-        <div style={{ display: "flex" }}>
-          {["R", "B", "D", "S"].map((h, i) => (
-            <Avatar key={h} huruf={h} i={i} ukuran={36 * s} cincin="#14201c" style={{ marginLeft: i ? -10 * s : 0 }} />
-          ))}
-        </div>
-        <span style={{ fontSize: 18 * s, fontWeight: 600 }}>4 chat dibalas barusan</span>
-      </div>
-    </div>
+    />
   );
 }

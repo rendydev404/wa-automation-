@@ -92,7 +92,7 @@ export function Avatar({ huruf, i, ukuran = 64, cincin = C.latar, style }: { hur
   );
 }
 
-/** Logo Asisten WhatsApp: gelembung chat di kotak hijau (sama dengan logo di situs). */
+/** Logo WhatsApp Automation: gelembung chat di kotak hijau (sama dengan logo di situs). */
 export function Logo({ ukuran }: { ukuran: number }) {
   return (
     <div
