@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Skrip uji mandiri (dijalankan langsung dengan Node, bukan bagian dari app):
     "uji/**",
+    // Proyek video Remotion terpisah (punya package.json sendiri, tidak ikut build app):
+    "video/**",
   ]),
 ]);
 

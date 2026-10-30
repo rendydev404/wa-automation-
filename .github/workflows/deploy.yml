@@ -13,6 +13,7 @@ on:
       - "**.md"
       - "knowledge-cs/**"
       - "hermes/**"
+      - "video/**"
   workflow_dispatch:
 
 # Satu deploy pada satu waktu; push berikutnya menunggu, tidak membatalkan deploy yang sedang jalan.
