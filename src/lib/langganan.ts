@@ -235,6 +235,13 @@ export async function riwayatTransaksi(opsi: { userId?: number; batas?: number }
   ];
 }
 
+/** Satu transaksi milik pengguna ini (undefined bila tidak ada atau milik orang lain). */
+export async function transaksiMilik(userId: number, orderId: string): Promise<Transaksi | undefined> {
+  const sql = await db();
+  const [t] = await sql<Transaksi[]>`SELECT ${sql.unsafe(KOLOM_TRX)} FROM transaksi WHERE order_id = ${orderId} AND user_id = ${userId}`;
+  return t;
+}
+
 /** Buat tagihan paket di Midtrans Snap; mengembalikan halaman pembayaran. */
 export async function mulaiBayar(k: KonfigMidtrans, user: { id: number; email: string; nama: string }, paket: Paket, asalApp: string): Promise<string> {
   if (!paket.aktif || paket.harga < 1) throw new MidtransError("Paket ini tidak bisa dibeli."); // harga 0 = hanya diberikan admin
@@ -248,7 +255,7 @@ export async function mulaiBayar(k: KonfigMidtrans, user: { id: number; email: s
     jumlah: paket.harga,
     item: { id: paket.kode, nama: `Paket ${paket.nama} (${paket.durasi_hari} hari)` },
     pelanggan: { nama: user.nama || user.email.split("@")[0], email: user.email },
-    selesaiUrl: `${asalApp}/langganan?order=${encodeURIComponent(orderId)}`,
+    selesaiUrl: `${asalApp}/langganan/selesai?order=${encodeURIComponent(orderId)}`,
   });
   await sql`UPDATE transaksi SET snap_token = ${snap.token}, redirect_url = ${snap.redirectUrl} WHERE order_id = ${orderId}`;
   return snap.redirectUrl;

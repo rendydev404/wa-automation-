@@ -155,7 +155,7 @@ globalThis.fetch = async (url, o) => {
 };
 
 let orderId;
-await cek("bayar paket: tagihan tercatat 'menunggu', Snap dipanggil dengan nominal & Basic auth server key, kembali ke /langganan", async () => {
+await cek("bayar paket: tagihan tercatat 'menunggu', Snap dipanggil dengan nominal & Basic auth server key, kembali ke /langganan/selesai", async () => {
   const url = await L.mulaiBayar(k, { id: budi.id, email: "budi@uji.test", nama: "Budi" }, starter, "https://wa.uji");
   assert.equal(url, "https://app.midtrans.com/snap/v4/redirection/tok-uji");
   const snap = panggilan.find((p) => p.url.includes("/snap/v1/"));
@@ -163,7 +163,11 @@ await cek("bayar paket: tagihan tercatat 'menunggu', Snap dipanggil dengan nomin
   assert.equal(snap.body.transaction_details.gross_amount, 99000);
   orderId = snap.body.transaction_details.order_id;
   assert.match(orderId, new RegExp(`^WA-${budi.id}-\\d+-[0-9a-f]{6}$`));
-  assert.equal(snap.body.callbacks.finish, `https://wa.uji/langganan?order=${encodeURIComponent(orderId)}`);
+  assert.equal(snap.body.callbacks.finish, `https://wa.uji/langganan/selesai?order=${encodeURIComponent(orderId)}`);
+  // Halaman hasil bayar hanya membuka transaksi milik pengguna itu sendiri.
+  assert.equal((await L.transaksiMilik(budi.id, orderId)).order_id, orderId);
+  assert.equal(await L.transaksiMilik(budi.id + 9999, orderId), undefined);
+  assert.equal(await L.transaksiMilik(budi.id, 'WA-0-0-abc'), undefined);
   const [t] = await sql`SELECT status, jumlah, snap_token FROM transaksi WHERE order_id = ${orderId}`;
   assert.deepEqual({ ...t }, { status: "menunggu", jumlah: 99000, snap_token: "tok-uji" });
 });
