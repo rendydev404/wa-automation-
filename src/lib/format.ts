@@ -8,6 +8,9 @@ export function formatNomor(waId: string): string {
 
 export const angka = (n: number): string => n.toLocaleString("id-ID");
 
+/** Histori percakapan disimpan sekian hari; pesan yang lebih lama dihapus otomatis (lihat percakapan.ts). */
+export const UMUR_HISTORI_HARI = 30;
+
 const fmtTanggal = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", year: "numeric" });
 const fmtJam = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", hour12: false });
 const fmtHari = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" });

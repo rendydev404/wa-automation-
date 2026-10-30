@@ -1,5 +1,6 @@
 "use client";
 
+import { UMUR_HISTORI_HARI } from "@/lib/format";
 import type { LangkahTur } from "./tur";
 
 /** Isi tur panduan. Bahasa sehari-hari, tanpa istilah teknis: ditujukan untuk pemilik usaha yang baru pertama kali. */
@@ -107,7 +108,7 @@ export const TUR_NOMOR: LangkahTur[] = [
   {
     sasaran: "histori",
     judul: "Riwayat percakapan",
-    isi: <p>Semua chat tercatat di sini: mana yang dibalas AI dan mana yang kamu balas sendiri.</p>,
+    isi: <p>Semua chat {UMUR_HISTORI_HARI} hari terakhir tercatat di sini: mana yang dibalas AI dan mana yang kamu balas sendiri. Yang lebih lama terhapus otomatis.</p>,
   },
 ];
 

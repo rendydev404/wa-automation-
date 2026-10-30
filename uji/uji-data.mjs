@@ -443,6 +443,29 @@ await cek("hapus histori: satu percakapan atau semua milik satu nomor; isi pesan
   assert.deepEqual(await hitung(lain), lainSebelum);
 });
 
+await cek("histori lebih dari 30 hari terhapus otomatis: percakapan basi utuh, pesan lama di percakapan aktif + penghitungnya", async () => {
+  const hari = 86400;
+  const tulis = (k, peran, teks, waktu) => P.catatPesan({ numberId: nTengah, kunci: k, peran, teks, waktu });
+  await tulis("basi", 0, "halo dulu sekali", kini - 40 * hari);
+  await tulis("basi", 1, "siap kak", kini - 40 * hari + 5);
+  await tulis("aktif", 0, "tanya lama", kini - 31 * hari);
+  await tulis("aktif", 2, "jawab lama", kini - 31 * hari + 5);
+  await tulis("aktif", 0, "tanya baru", kini - 2 * hari);
+  await tulis("aktif", 1, "jawab baru", kini - 2 * hari + 5);
+  const lain = nomorBanyak.find((n) => n.id !== nTengah).id;
+  const lainSebelum = (await sql`SELECT count(*)::int AS n FROM pesan_chat m JOIN percakapan q ON q.id = m.percakapan_id WHERE q.number_id = ${lain}`)[0].n;
+
+  assert.deepEqual(await P.hapusHistoriKedaluwarsa(kini), { percakapan: 1, pesan: 2 });
+  assert.deepEqual(await P.ringkasanPercakapan(nTengah), { total_percakapan: 1, total_masuk: 1, total_bot: 1, total_manusia: 0 });
+  const { daftar } = await P.daftarPercakapan(nTengah);
+  assert.equal(daftar[0].cuplikan, "jawab baru");
+  assert.deepEqual((await P.ambilPesanPercakapan(nTengah, daftar[0].id)).pesan.map((m) => m.teks), ["tanya baru", "jawab baru"]);
+  assert.equal((await sql`SELECT count(*)::int AS n FROM pesan_chat m JOIN percakapan q ON q.id = m.percakapan_id WHERE q.number_id = ${lain}`)[0].n, lainSebelum);
+  assert.deepEqual(await P.hapusHistoriKedaluwarsa(kini), { percakapan: 0, pesan: 0 }); // kedua kali: tidak ada yang tersisa
+  const r = await rencana("pesan kedaluwarsa", "SELECT id FROM pesan_chat WHERE waktu < $1 LIMIT 5000", [kini - 30 * hari]);
+  assert.match(r, /pesan_chat_waktu_idx/);
+});
+
 console.log(`\nLOLOS ${lolos} pemeriksaan`);
 await sql.end({ timeout: 2 });
 await pg.berhenti();

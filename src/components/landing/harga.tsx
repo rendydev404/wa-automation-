@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { Check, Sparkles } from "lucide-react";
-import { angka } from "@/lib/format";
+import { angka, UMUR_HISTORI_HARI } from "@/lib/format";
 import { daftarPaket, kuotaBalasanGratis } from "@/lib/langganan";
 
 /**
@@ -35,7 +35,7 @@ export async function HargaLanding() {
             <span className="text-[14px] font-semibold text-muted"> / {p.durasi_hari} hari</span>
           </p>
           <ul className="mt-5 flex-1 space-y-2.5 text-[14px]">
-            {[`${angka(p.kuota_nomor)} nomor WhatsApp`, `${angka(p.kuota_balasan)} balasan AI`, "Base knowledge & belajar dari balasanmu", "Histori percakapan & statistik"].map((x) => (
+            {[`${angka(p.kuota_nomor)} nomor WhatsApp`, `${angka(p.kuota_balasan)} balasan AI`, "Base knowledge & belajar dari balasanmu", `Histori percakapan ${UMUR_HISTORI_HARI} hari & statistik`].map((x) => (
               <li key={x} className="flex gap-2">
                 <Check className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden /> {x}
               </li>

@@ -5,6 +5,7 @@ import { ArrowRight, BookOpenText, Camera, Check, GraduationCap, Hand, History, 
 import { DemoAlur, DemoChat } from "@/components/landing/demo";
 import { HargaLanding } from "@/components/landing/harga";
 import { Kalkulator } from "@/components/landing/kalkulator";
+import { UMUR_HISTORI_HARI } from "@/lib/format";
 
 /** Landing page publik: seluruhnya statis (prerender), animasi Remotion dimuat terpisah di sisi klien. */
 
@@ -19,7 +20,7 @@ const FITUR = [
   { ikon: Hand, judul: "Anda tetap pegang kendali", teks: "Membalas sendiri dari HP? AI otomatis diam di chat itu, lalu melanjutkan setelah jeda yang Anda atur." },
   { ikon: GraduationCap, judul: "Belajar dari balasan Anda", teks: "Cara Anda menjawab pelanggan dipelajari, jadi balasan AI makin mirip gaya usaha Anda." },
   { ikon: Camera, judul: "Mengerti foto pelanggan", teks: "Pelanggan kirim foto produk atau bukti transfer? AI bisa melihat dan menanggapinya." },
-  { ikon: History, judul: "Histori percakapan", teks: "Semua chat tercatat rapi: siapa yang membalas (AI atau Anda), dan bisa dicari kapan saja." },
+  { ikon: History, judul: "Histori percakapan", teks: `Chat ${UMUR_HISTORI_HARI} hari terakhir tercatat rapi: siapa yang membalas (AI atau Anda), dan bisa dicari kapan saja.` },
   { ikon: Smartphone, judul: "Tanpa ganti nomor", teks: "Pakai nomor WhatsApp yang sudah ada. Tersambung sebagai perangkat tertaut, HP tetap bisa dipakai." },
 ];
 

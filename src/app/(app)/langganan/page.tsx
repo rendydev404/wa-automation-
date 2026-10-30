@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Check, CreditCard, Sparkles } from "lucide-react";
 import { Meter } from "@/components/stat";
-import { angka, tanggal } from "@/lib/format";
+import { angka, tanggal, UMUR_HISTORI_HARI } from "@/lib/format";
 import { balasanTerpakai, daftarPaket, hakAkun, riwayatTransaksi } from "@/lib/langganan";
 import { konfigMidtrans } from "@/lib/midtrans";
 import { nomorMilik } from "@/lib/numbers";
@@ -113,7 +113,7 @@ async function Paket() {
               <span className="text-[13px] font-semibold text-muted"> / {p.durasi_hari} hari</span>
             </p>
             <ul className="mt-4 flex-1 space-y-2 text-[13.5px]">
-              {[`${angka(p.kuota_nomor)} nomor WhatsApp`, `${angka(p.kuota_balasan)} balasan AI`, "Base knowledge & belajar dari balasanmu", "Histori percakapan"].map((x) => (
+              {[`${angka(p.kuota_nomor)} nomor WhatsApp`, `${angka(p.kuota_balasan)} balasan AI`, "Base knowledge & belajar dari balasanmu", `Histori percakapan ${UMUR_HISTORI_HARI} hari`].map((x) => (
                 <li key={x} className="flex gap-2">
                   <Check className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden /> {x}
                 </li>

@@ -1,5 +1,6 @@
 import "server-only";
 import { db, sekarang } from "./db";
+import { UMUR_HISTORI_HARI } from "./format";
 
 /**
  * Histori percakapan per nomor WhatsApp.
@@ -13,6 +14,7 @@ import { db, sekarang } from "./db";
  *      dengan satu indeks komposit `(percakapan_id, id DESC)` dan dibaca memakai kursor `id` (tanpa OFFSET).
  *   3. Setiap pesan dicatat lewat satu pernyataan CTE tunggal (`INSERT ... ON CONFLICT ... RETURNING id`
  *      diikuti `INSERT INTO pesan_chat`), dijalankan di latar belakang sehingga tidak menahan proses chat.
+ *   4. Histori hanya disimpan `UMUR_HISTORI_HARI` hari: `hapusHistoriKedaluwarsa` berjalan berkala (lihat instrumentation.ts).
  */
 
 /** 0 = pelanggan, 1 = bot AI, 2 = manusia (HP pemilik nomor). */
@@ -319,4 +321,65 @@ export async function hapusPercakapan(numberId: number, percakapanId?: number): 
       ? await sql`DELETE FROM percakapan WHERE number_id = ${numberId}`
       : await sql`DELETE FROM percakapan WHERE id = ${percakapanId} AND number_id = ${numberId}`;
   return hasil.count;
+}
+
+const HAPUS_PER_PUTARAN = 5_000;
+
+/**
+ * Hapus histori yang lebih lama dari `UMUR_HISTORI_HARI` hari (semua nomor):
+ *   1. Percakapan yang pesan terakhirnya pun sudah kedaluwarsa dihapus utuh (isinya ikut lewat ON DELETE CASCADE).
+ *   2. Pesan lama di percakapan yang masih berjalan dihapus per putaran (lewat pesan_chat_waktu_idx), dan penghitung
+ *      `masuk_n`/`bot_n`/`manusia_n` dikurangi dalam pernyataan yang sama supaya tetap cocok dengan isinya.
+ * Statistik harian (tabel stats), pelajaran AI, dan keadaan chat tidak disentuh.
+ */
+export async function hapusHistoriKedaluwarsa(kini = sekarang()): Promise<{ percakapan: number; pesan: number }> {
+  const batas = kini - UMUR_HISTORI_HARI * 86400;
+  const sql = await db();
+  const utuh = await sql`DELETE FROM percakapan WHERE terakhir_pada < ${batas}`;
+  let pesan = 0;
+  for (;;) {
+    const [r] = await sql<{ n: number }[]>`
+      WITH h AS (
+        DELETE FROM pesan_chat
+         WHERE id IN (SELECT id FROM pesan_chat WHERE waktu < ${batas} LIMIT ${HAPUS_PER_PUTARAN})
+        RETURNING percakapan_id, peran
+      ), k AS (
+        SELECT percakapan_id,
+               count(*) FILTER (WHERE peran = 0) AS masuk,
+               count(*) FILTER (WHERE peran = 1) AS bot,
+               count(*) FILTER (WHERE peran = 2) AS manusia,
+               count(*) AS n
+          FROM h
+         GROUP BY percakapan_id
+      ), u AS (
+        UPDATE percakapan p SET
+          masuk_n   = GREATEST(0, p.masuk_n   - k.masuk),
+          bot_n     = GREATEST(0, p.bot_n     - k.bot),
+          manusia_n = GREATEST(0, p.manusia_n - k.manusia)
+          FROM k
+         WHERE p.id = k.percakapan_id
+      )
+      SELECT COALESCE(SUM(n), 0)::int AS n FROM k`;
+    pesan += r.n;
+    if (r.n < HAPUS_PER_PUTARAN) break;
+  }
+  return { percakapan: utuh.count, pesan };
+}
+
+const PEMBERSIHAN_AWAL_MS = 60_000;
+const PEMBERSIHAN_SELANG_MS = 6 * 3600_000;
+const gBersih = globalThis as unknown as { __waBersihHistori?: ReturnType<typeof setInterval> };
+
+/** Jalankan `hapusHistoriKedaluwarsa` semenit setelah server mulai, lalu tiap 6 jam (sekali per proses). */
+export function mulaiPembersihanHistori(): void {
+  if (gBersih.__waBersihHistori) return;
+  const jalan = () =>
+    void hapusHistoriKedaluwarsa()
+      .then((h) => {
+        if (h.percakapan || h.pesan) console.log(`[histori] dihapus (lebih dari ${UMUR_HISTORI_HARI} hari): ${h.percakapan} percakapan, ${h.pesan} pesan`);
+      })
+      .catch((e) => console.error("[histori] gagal membersihkan:", e instanceof Error ? e.message : e));
+  setTimeout(jalan, PEMBERSIHAN_AWAL_MS).unref?.();
+  gBersih.__waBersihHistori = setInterval(jalan, PEMBERSIHAN_SELANG_MS);
+  gBersih.__waBersihHistori.unref?.();
 }

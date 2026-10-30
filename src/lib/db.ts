@@ -296,6 +296,11 @@ const MIGRASI: string[] = [
 
   CREATE INDEX stats_tanggal_idx ON stats (tanggal);
   `,
+  // v10: histori percakapan disimpan UMUR_HISTORI_HARI hari. Pembersihan berkala mencari pesan lama lewat indeks ini
+  // (tanpa memindai seluruh pesan_chat); percakapan cukup dipindai langsung karena hanya 1 baris per lawan bicara.
+  `
+  CREATE INDEX pesan_chat_waktu_idx ON pesan_chat (waktu);
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

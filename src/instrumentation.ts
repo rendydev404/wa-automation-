@@ -16,6 +16,9 @@ export async function register() {
     // Sinkron data Suka Shawarma: satu tarikan awal + pemeriksaan pengaman berkala (hanya bila dikonfigurasi).
     const { mulaiSinkron } = await import("@/lib/sinkron");
     mulaiSinkron();
+    // Histori percakapan yang lebih lama dari 30 hari dihapus berkala.
+    const { mulaiPembersihanHistori } = await import("@/lib/percakapan");
+    mulaiPembersihanHistori();
   } catch (e) {
     console.error("[wa] gagal memulai gerbang WhatsApp:", e);
   }

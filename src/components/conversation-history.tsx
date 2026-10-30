@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { hapusPercakapanAction } from "@/app/actions";
-import { angka, formatNomor, jamWib, kunciHariWib, tanggal, waktuSingkatWib } from "@/lib/format";
+import { angka, formatNomor, jamWib, kunciHariWib, tanggal, UMUR_HISTORI_HARI, waktuSingkatWib } from "@/lib/format";
 import type { FilterPercakapan, ItemPercakapan, ItemPesan, PeranPesan, RingkasanPercakapan } from "@/lib/percakapan";
 import { Pill, TombolKonfirmasi } from "./ui";
 
@@ -337,6 +337,10 @@ export function HistoriPercakapan({
                 ? "Belum ada percakapan yang tercatat di nomor ini. Pesan pelanggan, balasan AI, dan balasan manusia dari HP akan muncul terstruktur di sini."
                 : `${angka(ringkasan.total_masuk)} pesan pelanggan · ${angka(ringkasan.total_bot)} balasan AI · ${angka(ringkasan.total_manusia)} balasan manusia`}
             </p>
+            <p className="hint mt-1 flex items-center gap-1.5">
+              <Clock className="size-3.5 shrink-0" aria-hidden />
+              Riwayat chat disimpan {UMUR_HISTORI_HARI} hari. Pesan yang lebih lama terhapus otomatis.
+            </p>
           </div>
         </div>
 
@@ -571,6 +575,11 @@ export function HistoriPercakapan({
                 ref={wadahPesanRef}
                 className="flex h-[62svh] min-h-80 flex-col gap-2.5 overflow-y-auto px-3 py-4 sm:px-5 md:h-auto md:min-h-0 md:flex-1"
               >
+                {!adaSebelumnya && !memuatPesan && pesan.length > 0 && (
+                  <p className="mb-1 text-center text-[11.5px] text-faint">
+                    Pesan yang lebih lama dari {UMUR_HISTORI_HARI} hari terhapus otomatis.
+                  </p>
+                )}
                 {adaSebelumnya && (
                   <div className="mb-1 flex justify-center">
                     <button
