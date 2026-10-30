@@ -261,7 +261,7 @@ await cek("acuan harga tersimpan (bawaan: margin 60%, pakai 100%, kartu, Haiku 5
   const a = await L.acuanHarga();
   assert.deepEqual({ ...a, kurs: undefined }, { margin: 60, pemakaian: 100, metode: "kartu", biayaServerNomor: 0, kurs: undefined, model: "claude-haiku-5-5" });
   const acuan = { ...a, kurs: 16500 };
-  const berubah = await L.terapkanSimulasi(acuan, "kunci-kuota");
+  const { berubah } = await L.terapkanSimulasi(acuan, "kunci-kuota");
   assert.deepEqual(
     berubah.map((b) => [b.nama, b.sesudah]),
     [
@@ -271,17 +271,27 @@ await cek("acuan harga tersimpan (bawaan: margin 60%, pakai 100%, kartu, Haiku 5
     ]
   );
   assert.equal(berubah[0].sebelum, "Rp99.000 · 1.000 balasan · 1 nomor");
-  assert.deepEqual(await L.terapkanSimulasi(acuan, "kunci-kuota"), []); // sudah sesuai: tidak ada perubahan
-  assert.deepEqual(await L.terapkanSimulasi(acuan, "kunci-harga"), []); // dua arah rumus konsisten
+  assert.deepEqual((await L.terapkanSimulasi(acuan, "kunci-kuota")).berubah, []); // sudah sesuai: tidak ada perubahan
+  assert.deepEqual((await L.terapkanSimulasi(acuan, "kunci-harga")).berubah, []); // dua arah rumus konsisten
   // Harga dikunci, margin turun ke 50%: kuota balasan naik, harga tetap
-  const naik = await L.terapkanSimulasi({ ...acuan, margin: 50 }, "kunci-harga");
+  const { berubah: naik } = await L.terapkanSimulasi({ ...acuan, margin: 50 }, "kunci-harga");
   assert.equal(naik.length, 3);
   const starterBaru = (await L.daftarPaket({ semua: true })).find((p) => p.kode === "starter");
   assert.equal(starterBaru.harga, 45000);
   assert.ok(starterBaru.kuota_balasan > 1000);
+  // Simulasi hanya saran: paket yang tidak mungkin mencapai margin dilewati (tidak diubah, tidak menggagalkan paket lain).
   const sebelum = await L.daftarPaket({ semua: true });
-  await assert.rejects(L.terapkanSimulasi({ ...acuan, margin: 90, metode: "va" }, "kunci-harga"), /terlalu rendah/);
-  assert.deepEqual(await L.daftarPaket({ semua: true }), sebelum); // gagal = tidak ada paket yang berubah
+  const kodeStarter = (daftar) => daftar.find((p) => p.kode === "starter");
+  const lewat = await L.terapkanSimulasi({ ...acuan, margin: 90, metode: "va" }, "kunci-harga");
+  assert.ok(lewat.dilewati.some((d) => d.nama === "Starter" && /terlalu rendah/.test(d.alasan)), "Starter dilaporkan dilewati");
+  assert.deepEqual(kodeStarter(await L.daftarPaket({ semua: true })), kodeStarter(sebelum)); // dilewati = tidak berubah
+  for (const p of sebelum) await L.simpanPaket(p); // pulihkan keadaan sebelum tes berikutnya
+  // Hanya paket yang dipilih admin yang dihitung ulang; yang lain tetap seperti yang ia atur.
+  const pro = sebelum.find((p) => p.kode === "pro");
+  const sebagian = await L.terapkanSimulasi({ ...acuan, margin: 40 }, "kunci-harga", new Set([pro.id]));
+  assert.deepEqual(sebagian.berubah.map((b) => b.nama), ["Pro"]);
+  assert.deepEqual(kodeStarter(await L.daftarPaket({ semua: true })), kodeStarter(sebelum));
+  for (const p of sebelum) await L.simpanPaket(p);
   await setSetting("margin_target", "80");
   assert.equal((await L.acuanHarga()).margin, 80);
 });

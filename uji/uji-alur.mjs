@@ -69,7 +69,7 @@ process.env.HERMES_API_URL = `http://127.0.0.1:${server.address().port}`;
 process.env.HERMES_API_KEY = "uji";
 
 const B = await lib("node_modules/baileys/lib/index.js");
-const { db, getSetting } = await lib("src/lib/db.ts");
+const { db, getSetting, setSetting: simpanSetting } = await lib("src/lib/db.ts");
 const wa = await lib("src/lib/wa.ts");
 const bridge = await lib("src/lib/bridge.ts"); // mendaftarkan diri sebagai penerima event
 const { tambahNomor, nomorById, setBotAktif } = await lib("src/lib/numbers.ts");
@@ -844,7 +844,7 @@ await cek("ukuran: pencarian pelajaran & isi chat untuk AI tetap cepat (30 nomor
   const rata = (performance.now() - t) / 20;
   const { riwayatUntukAi } = await lib("src/lib/percakapan.ts");
   const t2 = performance.now();
-  for (let i = 0; i < 20; i++) await riwayatUntukAi(kunciChat(A.sesi, P2), { sesiBaru: true, tertunda: 0 });
+  for (let i = 0; i < 20; i++) await riwayatUntukAi(kunciChat(A.sesi, P2), { sesiBaru: true, tertunda: 0, jedaSesiDtk: 12 * 3600 });
   const rata2 = (performance.now() - t2) / 20;
   console.log(`        (${baris.length} baris: rencana ${ms} ms; konteksPelajaran ${rata.toFixed(2)} ms; riwayatUntukAi ${rata2.toFixed(2)} ms per panggilan)`);
   console.log(`        ${rencana.filter((r) => /Scan|Execution/.test(r)).map((r) => r.trim()).join("\n        ")}`);
@@ -990,6 +990,30 @@ await cek("manusia sedang memegang chat: foto pelanggan tidak diunduh sama sekal
 // =====================================================================================
 bagian("E. Batas dan galat");
 
+// Batas laju & sesi baru punya saklar (aturan admin) dan bawaannya MATI: tanpa batas, obrolan selalu dilanjutkan.
+await cek("saklar batas laju mati (bawaan): balasan ke-11 tetap dijawab, tidak didiamkan", async () => {
+  const P = "555000500@lid";
+  await sql`INSERT INTO chat_state(kunci, sesi_ke, last_at, jendela_awal, jendela_n) VALUES (${kunciChat(A.sesi, P)}, 3, ${kini()}, ${kini()}, 10)`;
+  const n0 = hermes.panggilan.length;
+  tiba(sA, pesan(P, "tanpa batas"));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
+  await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
+});
+
+await cek("saklar sesi baru mati (bawaan): diam >12 jam tetap melanjutkan nomor sesi Hermes yang sama", async () => {
+  const P = "555000499@lid";
+  await sql`INSERT INTO chat_state(kunci, sesi_ke, last_at, jendela_awal, jendela_n) VALUES (${kunciChat(A.sesi, P)}, 4, ${kini() - 13 * 3600}, ${kini() - 13 * 3600}, 2)`;
+  const n0 = hermes.panggilan.length;
+  tiba(sA, pesan(P, "halo lagi"));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
+  assert.equal(hermes.panggilan.at(-1).sesi, `wa-${kunciChat(A.sesi, P).slice(0, 24)}-4`);
+  await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
+  assert.equal((await chatDb(A.sesi, P)).sesi_ke, 4);
+});
+
+await simpanSetting("laju_aktif", "1");
+await simpanSetting("sesi_baru_aktif", "1");
+
 await cek("batas laju per chat (10 balasan / 10 menit): yang ke-11 didiamkan (keadaan dari database)", async () => {
   const P = "555000501@lid";
   // chat ini belum ada di memori: jembatan harus memuat hitungannya dari database
@@ -1016,6 +1040,10 @@ await cek("percakapan lama dilanjutkan dengan nomor sesi Hermes yang tersimpan; 
   assert.equal(b.sesi_ke, 5);
   assert.equal(b.jendela_n, 1);
 });
+
+// Kembali ke bawaan (mati) untuk pemeriksaan berikutnya.
+await simpanSetting("laju_aktif", "0");
+await simpanSetting("sesi_baru_aktif", "0");
 
 await cek("AI gagal sekali: pesan dicoba lagi lalu terjawab sekali", async () => {
   const P = "555000502@lid";

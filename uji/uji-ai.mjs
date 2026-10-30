@@ -55,16 +55,24 @@ const jawabClaude = (teks, usage = { input_tokens: 4000, output_tokens: 100, cac
 const KUNCI = "sk-ant-api03-" + "x".repeat(40);
 
 await cek("bawaan Hermes; Claude API hanya bila admin memilihnya DAN developer memasang ANTHROPIC_API_KEY di server", async () => {
-  assert.deepEqual(await AI.pengaturanAi(), { penyedia: "hermes", model: "claude-haiku-5-5", cadangan: "claude-sonnet-5-5" });
+  assert.deepEqual(await AI.pengaturanAi(), { penyedia: "hermes", mode: "hermes", model: "claude-haiku-5-5", cadangan: "claude-sonnet-5-5" });
   await setSetting("ai_penyedia", "anthropic");
   assert.equal((await AI.pengaturanAi()).penyedia, "hermes"); // belum ada kunci di server
   process.env.ANTHROPIC_API_KEY = KUNCI;
   assert.equal(AI.kunciAnthropic(), KUNCI);
   await setSetting("ai_model", "claude-sonnet-5-5");
   await setSetting("ai_cadangan", "bukan model!");
-  assert.deepEqual(await AI.pengaturanAi(), { penyedia: "anthropic", model: "claude-sonnet-5-5", cadangan: "claude-sonnet-5-5" });
+  assert.deepEqual(await AI.pengaturanAi(), { penyedia: "anthropic", mode: "anthropic", model: "claude-sonnet-5-5", cadangan: "claude-sonnet-5-5" });
   await setSetting("ai_cadangan", "");
   assert.equal((await AI.pengaturanAi()).cadangan, ""); // admin memilih tanpa cadangan
+  // Mode per paket: penyedia umum tetap Hermes (penyedia tiap akun ditentukan aiUntukAkun); butuh kunci seperti Claude API.
+  await setSetting("ai_penyedia", "per_paket");
+  const pp = await AI.pengaturanAi();
+  assert.deepEqual([pp.penyedia, pp.mode], ["hermes", "per_paket"]);
+  const kunciLama = process.env.ANTHROPIC_API_KEY;
+  delete process.env.ANTHROPIC_API_KEY;
+  assert.equal((await AI.pengaturanAi()).mode, "hermes"); // tanpa kunci di server: mode per paket tidak berlaku
+  process.env.ANTHROPIC_API_KEY = kunciLama;
   await setSetting("ai_penyedia", "hermes");
   assert.equal((await AI.pengaturanAi()).penyedia, "hermes");
   assert.equal(AI.tanpaIngatan("anthropic"), true);
@@ -175,13 +183,13 @@ await cek("riwayat lengkap (penyedia tanpa ingatan): seluruh sesi sampai jeda >1
   await tulis(1, "Halo Kak, ada yang bisa dibantu?", t - 590);
   await tulis(2, "Harga paket 50rb ya", t - 300);
   await tulis(0, "oke mau pesan", t - 10); // pesan yang sedang dijawab (tertunda)
-  const lengkap = await riwayatUntukAi(kunci, { sesiBaru: false, tertunda: 1, lengkap: true });
+  const lengkap = await riwayatUntukAi(kunci, { sesiBaru: false, tertunda: 1, lengkap: true, jedaSesiDtk: 12 * 3600 });
   assert.equal(lengkap.length, 3);
   assert.match(lengkap[0], /Pelanggan: halo$/);
   assert.match(lengkap[1], /Kamu \(AI\): Halo Kak/);
   assert.match(lengkap[2], /Pemilik nomor: Harga paket 50rb ya$/);
   // Mode Hermes tetap hanya yang belum dilihat AI (setelah balasan AI terakhir).
-  const hermes = await riwayatUntukAi(kunci, { sesiBaru: false, tertunda: 1 });
+  const hermes = await riwayatUntukAi(kunci, { sesiBaru: false, tertunda: 1, jedaSesiDtk: 12 * 3600 });
   assert.deepEqual(hermes.map((b) => b.replace(/^\[[^\]]+\] /, "")), ["Pemilik nomor: Harga paket 50rb ya"]);
 });
 
