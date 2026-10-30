@@ -90,7 +90,7 @@ async function Status() {
 async function Paket() {
   const user = await requireUser();
   const [paket, k, hak] = await Promise.all([daftarPaket(), konfigMidtrans(), hakAkun(user)]);
-  const dijual = paket.filter((p) => p.harga >= 1000);
+  const dijual = paket.filter((p) => p.harga > 0);
   if (!dijual.length) return null;
   return (
     <section aria-labelledby="judul-paket">

@@ -17,7 +17,7 @@ export async function HargaLanding() {
   } catch {
     return null;
   }
-  const dijual = paket.filter((p) => p.harga >= 1000);
+  const dijual = paket.filter((p) => p.harga > 0);
   if (!dijual.length) return null;
   return (
     <div className="mt-12 grid gap-4 md:grid-cols-2 xl:grid-cols-3">

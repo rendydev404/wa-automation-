@@ -16,6 +16,9 @@
  */
 export const TAMBAHAN_BIAYA_BALASAN = 0.05;
 
+/** Batas atas harga paket: batas kolom integer di database. Selain itu harga bebas diatur admin (0 = tidak dijual). */
+export const MAKS_HARGA_PAKET = 2_000_000_000;
+
 /** Tarif umum Midtrans per transaksi (sesuaikan bila kontrak merchant berbeda). */
 export const METODE_BAYAR = {
   qris: { label: "QRIS", persen: 0.007, tetap: 0 },

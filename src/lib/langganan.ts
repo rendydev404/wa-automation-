@@ -237,7 +237,7 @@ export async function riwayatTransaksi(opsi: { userId?: number; batas?: number }
 
 /** Buat tagihan paket di Midtrans Snap; mengembalikan halaman pembayaran. */
 export async function mulaiBayar(k: KonfigMidtrans, user: { id: number; email: string; nama: string }, paket: Paket, asalApp: string): Promise<string> {
-  if (!paket.aktif || paket.harga < 1000) throw new MidtransError("Paket ini tidak bisa dibeli.");
+  if (!paket.aktif || paket.harga < 1) throw new MidtransError("Paket ini tidak bisa dibeli."); // harga 0 = hanya diberikan admin
   const orderId = `WA-${user.id}-${sekarang()}-${randomBytes(3).toString("hex")}`;
   const sql = await db();
   await sql`
@@ -380,39 +380,53 @@ export async function pemakaianNyata(): Promise<PemakaianNyata> {
 export type ModeSimulasi = "kunci-harga" | "kunci-kuota";
 
 /**
- * Terapkan hasil simulasi ke semua paket berbayar, dengan rumus yang sama dengan pratinjau (src/lib/harga.ts):
+ * Terapkan hasil simulasi ke paket berbayar yang dipilih (`ids`; kosong/tanpa = semua), dengan rumus yang sama
+ * dengan pratinjau (src/lib/harga.ts):
  * - kunci-kuota: harga dihitung ulang dari kuota balasan; kuota nomor dari pemakaian nyata.
  * - kunci-harga: harga tetap; kuota balasan & nomor dihitung supaya margin target tercapai.
+ * Simulasi hanya saran: paket yang tidak mungkin mencapai margin target (mis. harga uji Rp1.000) tidak diubah dan
+ * dilaporkan di `dilewati`, tidak menggagalkan paket lain. Harga paket tetap bebas diatur admin.
  */
-export async function terapkanSimulasi(a: AcuanTersimpan, mode: ModeSimulasi = "kunci-kuota"): Promise<{ nama: string; sebelum: string; sesudah: string }[]> {
+export async function terapkanSimulasi(
+  a: AcuanTersimpan,
+  mode: ModeSimulasi = "kunci-kuota",
+  ids?: ReadonlySet<number>
+): Promise<{ berubah: { nama: string; sebelum: string; sesudah: string }[]; dilewati: { nama: string; alasan: string }[] }> {
   const usd = perkiraanPerBalasan(a.model);
   if (usd === null) throw new Error("Tarif model acuan belum diketahui.");
   const acuan = { biayaBalasanUsd: usd, kurs: a.kurs, margin: a.margin / 100, pemakaian: a.pemakaian / 100, metode: a.metode, biayaServerNomor: a.biayaServerNomor };
   const { balasanPerNomorBulan: r } = await pemakaianNyata();
   const ringkas = (p: Pick<Paket, "harga" | "kuota_balasan" | "kuota_nomor">) => `Rp${p.harga.toLocaleString("id-ID")} · ${p.kuota_balasan.toLocaleString("id-ID")} balasan · ${p.kuota_nomor} nomor`;
   const berubah: { nama: string; sebelum: string; sesudah: string }[] = [];
+  const dilewati: { nama: string; alasan: string }[] = [];
   const semua = await daftarPaket({ semua: true });
   const simpan: Paket[] = [];
   for (const p of semua) {
     if (p.harga <= 0) continue; // paket gratis/khusus admin tidak disentuh
+    if (ids && !ids.has(p.id)) continue; // tidak dipilih admin: harga & kuotanya tetap seperti yang ia atur
     let baru: Paket;
     if (mode === "kunci-harga") {
       const k = kuotaDariHarga(p.harga, p.durasi_hari, acuan, r);
-      if (k.kuotaBalasan <= 0) throw new Error(`Harga paket ${p.nama} terlalu rendah untuk margin ${a.margin}%.`);
+      if (k.kuotaBalasan <= 0) {
+        dilewati.push({ nama: p.nama, alasan: `harga ${`Rp${p.harga.toLocaleString("id-ID")}`} terlalu rendah untuk margin ${a.margin}%` });
+        continue;
+      }
       baru = { ...p, kuota_balasan: k.kuotaBalasan, kuota_nomor: k.kuotaNomor };
     } else {
       const kuotaNomor = nomorDariKuota(p.kuota_balasan, p.durasi_hari, r);
       const { hargaSaran } = hitungHarga({ ...p, kuota_nomor: kuotaNomor }, acuan);
-      if (hargaSaran === null) throw new Error("Margin + biaya bayar mencapai 100%: turunkan margin.");
+      if (hargaSaran === null) {
+        dilewati.push({ nama: p.nama, alasan: "margin + biaya bayar mencapai 100%" });
+        continue;
+      }
       baru = { ...p, harga: hargaSaran, kuota_nomor: kuotaNomor };
     }
     if (baru.harga !== p.harga || baru.kuota_balasan !== p.kuota_balasan || baru.kuota_nomor !== p.kuota_nomor) simpan.push(baru);
   }
-  // Semua dihitung dulu: satu paket gagal = tidak ada yang berubah
   for (const baru of simpan) {
     const lama = semua.find((p) => p.id === baru.id)!;
     await simpanPaket(baru);
     berubah.push({ nama: baru.nama, sebelum: ringkas(lama), sesudah: ringkas(baru) });
   }
-  return berubah;
+  return { berubah, dilewati };
 }

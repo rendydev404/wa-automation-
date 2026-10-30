@@ -49,7 +49,10 @@ function simulasikan(p: PaketSimulasi, a: AcuanHarga, mode: Mode, r: number) {
     const saran = hitungHarga({ ...p, kuota_nomor: kuotaNomor }, a).hargaSaran;
     baru = { ...p, harga: saran ?? p.harga, kuota_nomor: kuotaNomor };
   }
-  return { baru, h: hitungHarga(baru, a), sekarang: hitungHarga(p, a), mustahil: mode === "kunci-harga" ? baru.kuota_balasan <= 0 : hitungHarga(p, a).hargaSaran === null };
+  const mustahil = mode === "kunci-harga" ? baru.kuota_balasan <= 0 : hitungHarga(p, a).hargaSaran === null;
+  // Tidak mungkin mencapai margin target: paket tetap seperti yang admin atur (server melewatinya, tidak menggagalkan).
+  if (mustahil) baru = p;
+  return { baru, h: hitungHarga(baru, a), sekarang: hitungHarga(p, a), mustahil };
 }
 
 function Berubah({ lama, baru, f }: { lama: number; baru: number; f: (n: number) => string }) {
@@ -82,6 +85,15 @@ export function SimulasiHarga({
   const [biayaServer, setBiayaServer] = useState(acuan.biayaServerNomor);
   const [kurs, setKurs] = useState(acuan.kurs);
   const [idModel, setIdModel] = useState(model.some((m) => m.id === acuan.model) ? acuan.model : (model[0]?.id ?? ""));
+  // Paket yang ikut diterapkan; yang tidak dicentang tidak disentuh (harga & kuotanya tetap seperti yang admin atur).
+  const [ikut, setIkut] = useState<Set<number>>(() => new Set(paket.filter((p) => p.harga > 0).map((p) => p.id)));
+  const ubahIkut = (id: number, nyala: boolean) =>
+    setIkut((s) => {
+      const n = new Set(s);
+      if (nyala) n.add(id);
+      else n.delete(id);
+      return n;
+    });
   const usd = model.find((m) => m.id === idModel)?.usd ?? 0;
   const a: AcuanHarga = { biayaBalasanUsd: usd, kurs, margin: margin / 100, pemakaian: pemakaian / 100, metode, biayaServerNomor: biayaServer };
   const r = nyata.balasanPerNomorBulan;
@@ -91,6 +103,9 @@ export function SimulasiHarga({
   return (
     <form action={aksi} className="space-y-5">
       <input type="hidden" name="mode" value={mode} />
+      {[...ikut].map((id) => (
+        <input key={id} type="hidden" name="ikut" value={id} />
+      ))}
 
       <div className="rounded-xl border border-line bg-subtle/40 p-4 text-[12.5px] text-muted">
         <p className="font-semibold text-fg">Data nyata 30 hari terakhir</p>
@@ -176,18 +191,27 @@ export function SimulasiHarga({
         <p className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold tracking-wide text-muted uppercase">
           <Sparkles className="size-3.5 text-accent" aria-hidden /> Pratinjau paket (seperti dilihat pelanggan)
         </p>
+        <p className="mb-3 text-[12px] text-muted">
+          Simulasi hanya saran. Harga tiap paket bebas kamu atur sendiri di &quot;Rincian paket&quot; di bawah. Centang paket yang mau ikut dihitung ulang; yang tidak dicentang tidak disentuh.
+        </p>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {baris.map(({ p, baru, h, mustahil }) => (
             <div key={p.id} className={`rounded-2xl border p-4 ${p.unggulan ? "border-accent/50 bg-accent-soft/20" : "border-line bg-surface"}`}>
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[14px] font-bold">{p.nama}</p>
-                {p.unggulan && <span className="rounded-md bg-accent-soft px-1.5 py-0.5 text-[10.5px] font-semibold text-accent">unggulan</span>}
+                <span className="flex items-center gap-2">
+                  {p.unggulan && <span className="rounded-md bg-accent-soft px-1.5 py-0.5 text-[10.5px] font-semibold text-accent">unggulan</span>}
+                  <label className="flex cursor-pointer items-center gap-1 text-[11.5px] font-medium text-muted">
+                    <input type="checkbox" checked={ikut.has(p.id)} onChange={(e) => ubahIkut(p.id, e.target.checked)} className="size-3.5 accent-[var(--c-accent)]" />
+                    ikut
+                  </label>
+                </span>
               </div>
-              {mustahil ? (
-                <p className="mt-3 text-[12.5px] font-semibold text-danger">
-                  {mode === "kunci-harga" ? `Harga ${rp(p.harga)} terlalu rendah untuk margin ${margin}%.` : "Margin + biaya bayar mencapai 100%: turunkan margin."}
+              {mustahil && (
+                <p className="mt-2 text-[12px] font-medium text-warning">
+                  {mode === "kunci-harga" ? `Harga ${rp(p.harga)} di bawah margin ${margin}%` : "Margin + biaya bayar mencapai 100%"}: paket ini tidak diubah, tetap dijual seperti yang kamu atur.
                 </p>
-              ) : (
+              )}
                 <>
                   <p className="mt-2 text-[22px] font-extrabold tracking-tight tabular-nums">
                     <Berubah lama={p.harga} baru={baru.harga} f={rp} />
@@ -222,7 +246,6 @@ export function SimulasiHarga({
                     </span>
                   </div>
                 </>
-              )}
             </div>
           ))}
         </div>
@@ -271,11 +294,11 @@ export function SimulasiHarga({
           value="1"
           className="btn btn-primary"
           onClick={(e) => {
-            const teks = mode === "kunci-harga" ? `kuota balasan & nomor semua paket berbayar dihitung ulang (harga tetap)` : `harga & jumlah nomor semua paket berbayar dihitung ulang (kuota balasan tetap)`;
+            const teks = mode === "kunci-harga" ? `kuota balasan & nomor paket yang dicentang dihitung ulang (harga tetap)` : `harga & jumlah nomor paket yang dicentang dihitung ulang (kuota balasan tetap)`;
             if (!window.confirm(`Terapkan simulasi margin ${margin}%: ${teks}? Pelanggan yang sedang aktif tidak terpengaruh.`)) e.preventDefault();
           }}
         >
-          Terapkan ke semua paket <ArrowRight className="size-4" aria-hidden />
+          Terapkan ke paket yang dicentang <ArrowRight className="size-4" aria-hidden />
         </button>
         <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
       </div>

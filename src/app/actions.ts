@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { nomorUntuk } from "@/lib/akses";
 import { kunciAnthropic, perkiraanPerBalasan } from "@/lib/ai";
-import { METODE_BAYAR } from "@/lib/harga";
+import { MAKS_HARGA_PAKET, METODE_BAYAR } from "@/lib/harga";
 import { authConfigured } from "@/lib/auth";
 import { asalAplikasi, ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
 import { sekarang, setSetting } from "@/lib/db";
@@ -555,7 +555,7 @@ export async function bayarPaketAction(paketId: number): Promise<Hasil & { url?:
   const k = await konfigMidtrans();
   if (!k) return { ok: false, pesan: "Pembayaran belum diaktifkan admin." };
   const paket = Number.isInteger(paketId) ? await paketById(paketId) : undefined;
-  if (!paket || !paket.aktif || paket.harga < 1000) return { ok: false, pesan: "Paket tidak ditemukan." };
+  if (!paket || !paket.aktif || paket.harga < 1) return { ok: false, pesan: "Paket tidak ditemukan." };
   try {
     return { ok: true, url: await mulaiBayar(k, user, paket, await asalAplikasi()) };
   } catch (e) {
@@ -600,7 +600,8 @@ export async function adminPaketAction(_lalu: Hasil | null, form: FormData): Pro
     urutan: angkaForm("urutan"),
   };
   if (nama.length < 2) return { ok: false, pesan: "Nama paket wajib diisi." };
-  if (!(p.harga === 0 || p.harga >= 1000) || p.harga > 100_000_000) return { ok: false, pesan: "Harga minimal Rp1.000 (atau 0 untuk paket yang hanya diberikan admin)." };
+  // Harga bebas diatur admin; hanya dijaga agar muat di kolom database. 0 = paket yang hanya diberikan admin (tidak dijual).
+  if (p.harga > MAKS_HARGA_PAKET) return { ok: false, pesan: `Harga maksimal Rp${MAKS_HARGA_PAKET.toLocaleString("id-ID")}.` };
   if (!(p.durasi_hari >= 1 && p.durasi_hari <= 3660)) return { ok: false, pesan: "Durasi 1–3660 hari." };
   if (p.kuota_nomor > 1000 || p.kuota_balasan > 10_000_000) return { ok: false, pesan: "Kuota terlalu besar." };
   try {
@@ -672,15 +673,25 @@ export async function adminHargaAction(_lalu: Hasil | null, form: FormData): Pro
     return { ok: true, pesan: "Acuan harga tersimpan." };
   }
   const mode = form.get("mode") === "kunci-harga" ? "kunci-harga" : "kunci-kuota";
-  let berubah;
+  // Paket yang dicentang admin; paket tanpa centang tetap persis seperti yang ia atur.
+  const ids = new Set(form.getAll("ikut").map(Number).filter((n) => Number.isInteger(n) && n > 0));
+  if (!ids.size) return { ok: false, pesan: "Centang minimal satu paket yang mau diterapkan." };
+  let hasil;
   try {
-    berubah = await terapkanSimulasi({ ...a, metode: a.metode as keyof typeof METODE_BAYAR }, mode);
+    hasil = await terapkanSimulasi({ ...a, metode: a.metode as keyof typeof METODE_BAYAR }, mode, ids);
   } catch (e) {
     return { ok: false, pesan: e instanceof Error ? e.message : "Gagal menerapkan simulasi." };
   }
-  await catatLog(admin, "terapkan simulasi paket", null, `${acuanTeks}, ${mode}; ${berubah.map((b) => `${b.nama}: ${b.sebelum} -> ${b.sesudah}`).join("; ") || "tidak ada perubahan"}`);
+  const { berubah, dilewati } = hasil;
+  await catatLog(
+    admin,
+    "terapkan simulasi paket",
+    null,
+    `${acuanTeks}, ${mode}; ${berubah.map((b) => `${b.nama}: ${b.sebelum} -> ${b.sesudah}`).join("; ") || "tidak ada perubahan"}${dilewati.length ? `; dilewati: ${dilewati.map((d) => `${d.nama} (${d.alasan})`).join(", ")}` : ""}`
+  );
   revalidatePath("/admin", "layout");
   revalidatePath("/langganan");
   revalidatePath("/");
-  return { ok: true, pesan: berubah.length ? `Paket diperbarui: ${berubah.map((b) => `${b.nama} → ${b.sesudah}`).join("; ")}.` : "Semua paket sudah sesuai simulasi." };
+  const lewat = dilewati.length ? ` Tidak diubah: ${dilewati.map((d) => `${d.nama} (${d.alasan})`).join("; ")}.` : "";
+  return { ok: true, pesan: (berubah.length ? `Paket diperbarui: ${berubah.map((b) => `${b.nama} → ${b.sesudah}`).join("; ")}.` : "Paket yang dipilih sudah sesuai simulasi.") + lewat };
 }
