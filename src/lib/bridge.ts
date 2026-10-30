@@ -1,8 +1,8 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { db, sekarang, setSetting } from "./db";
-import { catatPakai, pengaturanAi, tanpaIngatan, tanyaAiTerjaga } from "./ai";
-import { catatBalasanLokal, sisaKuotaAi } from "./langganan";
+import { catatPakai, tanpaIngatan, tanyaAiTerjaga } from "./ai";
+import { aiUntukAkun, catatBalasanLokal, sisaKuotaAi } from "./langganan";
 import { aturan, saklar } from "./aturan";
 import { susunSistem } from "./knowledge";
 import { bisaTeruskan, teruskanKePemilik } from "./penerusan";
@@ -302,7 +302,9 @@ async function proses(kunci: string): Promise<void> {
         // Isi chat yang tidak dilihat AI (balasan manusia, pesan selagi AI diam) dibaca dari histori,
         // bersamaan dengan knowledge. Tulis histori yang masih antre ditunggu dulu supaya ikut terbaca.
         // Penyedia tanpa ingatan sesi (Claude API) diberi seluruh percakapan sesi ini, bukan hanya yang belum dilihat.
-        const [lengkap, teruskan] = await Promise.all([pengaturanAi().then((p) => tanpaIngatan(p.penyedia)), bisaTeruskan(nomor)]);
+        // Penyedia ditentukan per akun (mode "per_paket": gratis = Hermes, berbayar = Claude API, cadangan Hermes).
+        const [ai, teruskan] = await Promise.all([aiUntukAkun(nomor.user_id), bisaTeruskan(nomor)]);
+        const lengkap = tanpaIngatan(ai.penyedia);
         const riwayat = st.tulis.then(() => riwayatUntukAi(kunci, { sesiBaru: sesi !== sesiLalu, tertunda, lengkap, jedaSesiDtk: batas.sesiBaruDtk }));
         // Foto baru diunduh sekarang (AI memang akan menjawab), bersamaan, langsung ke memori.
         const gambar = (await Promise.all(pemuatFoto.map((ambil) => ambil().catch(() => null)))).filter((f: Foto | null): f is Foto => !!f);
@@ -312,7 +314,7 @@ async function proses(kunci: string): Promise<void> {
         // Sumber fakta untuk pemeriksa: pesan sistem + pesan pelanggan + seluruh chat sesi ini (Hermes hanya diberi
         // yang belum ia lihat, jadi sisanya dibaca terpisah supaya angka yang pernah disebut di chat tetap sah).
         const sumber = [sistem, isiPesan, ...(lengkap ? [] : await riwayatUntukAi(kunci, { sesiBaru: false, tertunda, lengkap: true, jedaSesiDtk: batas.sesiBaruDtk }))].join("\n");
-        const hasil = await tanyaAiTerjaga({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar }, sumber, { teruskan });
+        const hasil = await tanyaAiTerjaga({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, sumber, { teruskan });
         tag = teruskan ? hasil.teruskan : null;
         tulisLatar(() => catatPakai(a.numberId, hasil, gambar.length > 0));
         if (nomor.user_id !== null) catatBalasanLokal(nomor.user_id);

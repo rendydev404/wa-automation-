@@ -241,7 +241,7 @@ export function FormAi({
   daftarModel,
   biaya,
 }: {
-  penyedia: "hermes" | "anthropic";
+  penyedia: "hermes" | "anthropic" | "per_paket";
   model: string;
   cadangan: string;
   adaKunci: boolean;
@@ -259,20 +259,34 @@ export function FormAi({
   const pilihan = (nilai: string) => (opsi.some((m) => m.id === nilai) || !nilai ? opsi : [{ id: nilai, nama: nilai }, ...opsi]);
   return (
     <form action={aksi} className="space-y-4">
-      <fieldset className="grid grid-cols-2 gap-2">
+      <fieldset className="grid gap-2 sm:grid-cols-3">
         <legend className="label">Penyedia untuk semua nomor</legend>
-        {(["hermes", "anthropic"] as const).map((p) => (
+        {(["hermes", "anthropic", "per_paket"] as const).map((p) => (
           <label
             key={p}
-            className={`rounded-xl border px-3 py-2.5 text-[13px] font-semibold transition-colors ${pilih === p ? "border-accent bg-accent-soft text-accent" : "border-line hover:bg-subtle"} ${p === "anthropic" && !adaKunci ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+            className={`rounded-xl border px-3 py-2.5 text-[13px] font-semibold transition-colors ${pilih === p ? "border-accent bg-accent-soft text-accent" : "border-line hover:bg-subtle"} ${p !== "hermes" && !adaKunci ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
           >
-            <input type="radio" name="penyedia" value={p} checked={pilih === p} onChange={() => setPilih(p)} disabled={p === "anthropic" && !adaKunci} className="sr-only" />
-            {p === "hermes" ? "Hermes (utama)" : "Claude API (Anthropic)"}
+            <input type="radio" name="penyedia" value={p} checked={pilih === p} onChange={() => setPilih(p)} disabled={p !== "hermes" && !adaKunci} className="sr-only" />
+            {p === "hermes" ? "Hermes (utama)" : p === "anthropic" ? "Claude API (Anthropic)" : "Otomatis menurut paket"}
           </label>
         ))}
       </fieldset>
-      {!adaKunci && <p className="text-[12px] text-muted">Claude API bisa dipilih setelah developer memasang ANTHROPIC_API_KEY di server.</p>}
-      <div className={pilih === "anthropic" ? "space-y-3" : "hidden"}>
+      {!adaKunci && <p className="text-[12px] text-muted">Claude API dan mode otomatis bisa dipilih setelah developer memasang ANTHROPIC_API_KEY di server.</p>}
+      {pilih === "per_paket" && (
+        <ul className="space-y-1.5 rounded-xl bg-subtle/60 p-3 text-[12.5px] text-muted">
+          <li>
+            <span className="font-semibold text-fg">Akun trial / gratis</span> (tanpa paket aktif): dijawab Hermes.
+          </li>
+          <li>
+            <span className="font-semibold text-fg">Akun berbayar</span> (paket masih aktif): dijawab Claude API dengan model di bawah.
+          </li>
+          <li>
+            <span className="font-semibold text-fg">Cadangan:</span> bila Claude gagal atau sedang sibuk, dicoba model cadangan dulu, lalu Hermes. Pelanggan tidak sampai tidak dibalas.
+          </li>
+          <li>Paket yang habis masa aktifnya otomatis kembali ke Hermes (perubahan terbaca dalam ±1 menit).</li>
+        </ul>
+      )}
+      <div className={pilih !== "hermes" ? "space-y-3" : "hidden"}>
         <div>
           <label htmlFor="model-ai" className="label">
             Model utama

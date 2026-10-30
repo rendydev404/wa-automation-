@@ -11,19 +11,25 @@ import type { Foto } from "./types";
  * Satu pintu ke AI, apa pun penyedianya:
  * - "hermes" (utama, bawaan): profil Hermes `cs`; menyimpan riwayat sesi sendiri, SOUL ada di profilnya.
  * - "anthropic": Claude API langsung (Messages API). Tanpa ingatan: SOUL dan riwayat chat dikirim tiap giliran.
- * Admin memilih penyedia, model utama & cadangan di /admin ("Mesin AI"; settings ai_penyedia / ai_model /
+ * Admin memilih mode, model utama & cadangan di /admin ("Mesin AI"; settings ai_penyedia / ai_model /
  * ai_cadangan), berlaku langsung tanpa restart. API key TIDAK lewat dashboard: dipasang developer di .env server
  * (ANTHROPIC_API_KEY), jadi rahasia tidak pernah tersimpan di database maupun lewat browser.
+ * Mode "per_paket": akun tanpa paket aktif (trial/gratis) dijawab Hermes; akun berbayar dijawab Claude API
+ * (model utama, lalu cadangan) dan bila Claude tetap gagal, Hermes. Penyedia per akun: aiUntukAkun (langganan.ts).
  */
 
 export type Penyedia = "hermes" | "anthropic";
+/** Pilihan admin: satu penyedia untuk semua nomor, atau dibagi menurut status paket akun. */
+export type ModeAi = Penyedia | "per_paket";
 
 export const MODEL_BAWAAN = "claude-haiku-5-5";
 export const CADANGAN_BAWAAN = "claude-sonnet-5-5";
 const ID_MODEL = /^claude-[a-z0-9.-]+$/i;
 
 export interface PengaturanAi {
+  /** Penyedia umum; pada mode per_paket = Hermes (penyedia tiap akun ditentukan aiUntukAkun). */
   penyedia: Penyedia;
+  mode: ModeAi;
   model: string;
   cadangan: string;
 }
@@ -36,10 +42,11 @@ export function kunciAnthropic(): string | null {
 export async function pengaturanAi(): Promise<PengaturanAi> {
   const [p, m, c] = await Promise.all([getSetting("ai_penyedia"), getSetting("ai_model"), getSetting("ai_cadangan")]);
   const k = kunciAnthropic();
-  // Bawaan Hermes. Anthropic hanya bila admin memilihnya DAN kuncinya ada; tanpa Hermes terpasang (dev) dan ada kunci: Anthropic.
+  // Bawaan Hermes. Anthropic (juga per_paket) hanya bila admin memilihnya DAN kuncinya ada; tanpa Hermes terpasang (dev) dan ada kunci: Anthropic.
   const pilih = p || process.env.AI_PENYEDIA || "hermes";
-  const penyedia: Penyedia = pilih === "anthropic" && k ? "anthropic" : !hermesTerkonfigurasi() && k ? "anthropic" : "hermes";
-  return { penyedia, model: m && ID_MODEL.test(m) ? m : MODEL_BAWAAN, cadangan: c === "" ? "" : c && ID_MODEL.test(c) ? c : CADANGAN_BAWAAN };
+  const mode: ModeAi = !hermesTerkonfigurasi() && k ? "anthropic" : k && (pilih === "anthropic" || pilih === "per_paket") ? pilih : "hermes";
+  const penyedia: Penyedia = mode === "anthropic" ? "anthropic" : "hermes";
+  return { penyedia, mode, model: m && ID_MODEL.test(m) ? m : MODEL_BAWAAN, cadangan: c === "" ? "" : c && ID_MODEL.test(c) ? c : CADANGAN_BAWAAN };
 }
 
 export interface JawabanAi {
@@ -60,8 +67,10 @@ export interface PermintaanAi {
   pesan: string;
   gambar?: Foto[];
   timeoutMs?: number;
-  /** Paksa penyedia/model tertentu (uji perbandingan model); bawaan = pengaturan admin. */
+  /** Paksa penyedia/model tertentu (uji perbandingan model, atau penyedia akun dari aiUntukAkun); bawaan = pengaturan admin. */
   paksa?: Partial<PengaturanAi>;
+  /** Claude API gagal (setelah model cadangan): jawab dengan Hermes alih-alih tidak membalas. Dipakai mode per_paket. */
+  cadanganHermes?: boolean;
 }
 
 /** Penyedia tanpa ingatan sesi: pemanggil wajib menyertakan riwayat chat lengkap di pesan sistem. */
@@ -69,11 +78,19 @@ export const tanpaIngatan = (p: Penyedia): boolean => p === "anthropic";
 
 export async function tanyaAi(r: PermintaanAi): Promise<JawabanAi> {
   const atur = { ...(await pengaturanAi()), ...r.paksa };
-  if (atur.penyedia === "hermes") {
-    const j = await tanyaHermes(r);
-    return { teks: j.teks, ms: j.ms, penyedia: "hermes", model: null, tokenMasuk: j.tokenMasuk, tokenKeluar: null, biayaUsd: null };
+  if (atur.penyedia === "hermes") return jawabHermes(r);
+  try {
+    return await tanyaAnthropic(r, atur.model, atur.cadangan);
+  } catch (e) {
+    if (!r.cadanganHermes || !hermesTerkonfigurasi()) throw e;
+    console.warn(`[ai] Claude API gagal (${e instanceof Error ? e.message : e}), memakai Hermes sebagai cadangan`);
+    return jawabHermes(r);
   }
-  return tanyaAnthropic(r, atur.model, atur.cadangan);
+}
+
+async function jawabHermes(r: PermintaanAi): Promise<JawabanAi> {
+  const j = await tanyaHermes(r);
+  return { teks: j.teks, ms: j.ms, penyedia: "hermes", model: null, tokenMasuk: j.tokenMasuk, tokenKeluar: null, biayaUsd: null };
 }
 
 // ---------- Anthropic (Claude API) ----------

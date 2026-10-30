@@ -511,18 +511,28 @@ export async function adminAturanAction(_lalu: Hasil | null, form: FormData): Pr
 /** Penyedia & model AI untuk semua nomor. Berlaku langsung (dibaca tiap giliran), tanpa restart/deploy. */
 export async function adminAiAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   const admin = await requireAdmin();
-  const penyedia = form.get("penyedia") === "anthropic" ? "anthropic" : "hermes";
+  const dipilih = form.get("penyedia");
+  const penyedia = dipilih === "anthropic" || dipilih === "per_paket" ? dipilih : "hermes";
   const model = String(form.get("model") ?? "").trim();
   const cadangan = String(form.get("cadangan") ?? "").trim();
   const sah = /^claude-[a-z0-9.-]+$/i;
-  if (penyedia === "anthropic" && !kunciAnthropic()) return { ok: false, pesan: "API key Anthropic belum dipasang developer di server (ANTHROPIC_API_KEY)." };
+  if (penyedia !== "hermes" && !kunciAnthropic()) return { ok: false, pesan: "API key Anthropic belum dipasang developer di server (ANTHROPIC_API_KEY)." };
   if (!sah.test(model) || (cadangan && !sah.test(cadangan))) return { ok: false, pesan: "Nama model tidak valid (contoh: claude-haiku-5-5)." };
   await setSetting("ai_penyedia", penyedia);
   await setSetting("ai_model", model);
   await setSetting("ai_cadangan", cadangan);
-  await catatLog(admin, "ubah mesin AI", null, `${penyedia}${penyedia === "anthropic" ? ` · ${model}${cadangan ? ` (cadangan ${cadangan})` : ""}` : ""}`);
+  const rincian = `${model}${cadangan ? ` (cadangan ${cadangan})` : ""}`;
+  await catatLog(admin, "ubah mesin AI", null, penyedia === "hermes" ? "hermes" : penyedia === "anthropic" ? `anthropic · ${rincian}` : `per paket: gratis hermes, berbayar ${rincian}, lalu hermes`);
   revalidatePath("/admin", "layout");
-  return { ok: true, pesan: penyedia === "anthropic" ? `Semua nomor kini memakai Claude API (${model}).` : "Semua nomor kini memakai Hermes." };
+  return {
+    ok: true,
+    pesan:
+      penyedia === "anthropic"
+        ? `Semua nomor kini memakai Claude API (${model}).`
+        : penyedia === "per_paket"
+          ? `Akun gratis memakai Hermes; akun berbayar memakai Claude API (${model}), cadangan Hermes.`
+          : "Semua nomor kini memakai Hermes.",
+  };
 }
 
 

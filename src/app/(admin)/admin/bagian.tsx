@@ -61,7 +61,10 @@ export async function MesinAi() {
         <Bot className="size-4 text-accent" aria-hidden /> Mesin AI
       </h2>
       <p className="mt-0.5 text-[13px] text-muted">
-        Sekarang: <span className="font-semibold text-fg">{atur.penyedia === "anthropic" ? `Claude API · ${atur.model}` : "Hermes"}</span>
+        Sekarang:{" "}
+        <span className="font-semibold text-fg">
+          {atur.mode === "anthropic" ? `Claude API · ${atur.model}` : atur.mode === "per_paket" ? `Otomatis: gratis Hermes, berbayar Claude API · ${atur.model} (cadangan Hermes)` : "Hermes"}
+        </span>
       </p>
       <p className={`mt-1 text-[12.5px] ${kunci && daftarModel === null ? "text-danger" : "text-muted"}`}>
         API key Anthropic:{" "}
@@ -69,7 +72,7 @@ export async function MesinAi() {
       </p>
       <div className="mt-4">
         <FormAi
-          penyedia={atur.penyedia}
+          penyedia={atur.mode}
           model={atur.model}
           cadangan={atur.cadangan}
           adaKunci={!!kunci}

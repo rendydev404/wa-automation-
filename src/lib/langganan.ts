@@ -1,7 +1,7 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { type Tx, db, getSetting, sekarang, transaksi as transaksiDb } from "./db";
-import { MODEL_BAWAAN, kursUsd, pengaturanAi, perkiraanPerBalasan } from "./ai";
+import { MODEL_BAWAAN, type Penyedia, kursUsd, pengaturanAi, perkiraanPerBalasan } from "./ai";
 import { METODE_BAYAR, type MetodeBayar, hitungHarga, kuotaDariHarga, nomorDariKuota } from "./harga";
 import { type KonfigMidtrans, MidtransError, type StatusBayar, buatSnap, petaStatus, statusMidtrans } from "./midtrans";
 
@@ -170,8 +170,39 @@ export function catatBalasanLokal(userId: number): void {
 
 /** Setelah pembayaran / perubahan langganan: hitung ulang di pesan berikutnya. */
 export function segarkanKuota(userId?: number): void {
-  if (userId === undefined) cacheKuota.clear();
-  else cacheKuota.delete(userId);
+  if (userId === undefined) {
+    cacheKuota.clear();
+    cacheBerbayar.clear();
+  } else {
+    cacheKuota.delete(userId);
+    cacheBerbayar.delete(userId);
+  }
+}
+
+// ---------- Penyedia AI menurut paket ----------
+
+const gb = globalThis as unknown as { __waBerbayar?: Map<number, { at: number; ok: boolean }> };
+const cacheBerbayar = (gb.__waBerbayar ??= new Map());
+
+/** Akun punya langganan aktif? Dipegang di memori 60 dtk per akun, jadi tiap pesan WhatsApp tidak menambah query. */
+async function akunBerbayar(userId: number): Promise<boolean> {
+  const c = cacheBerbayar.get(userId);
+  if (c && Date.now() - c.at < 60_000) return c.ok;
+  const ok = !!(await langgananAktif(userId));
+  cacheBerbayar.set(userId, { at: Date.now(), ok });
+  return ok;
+}
+
+/**
+ * Penyedia AI untuk satu akun. Mode "per_paket" (admin, /admin/ai): tanpa langganan aktif = Hermes; berlangganan =
+ * Claude API, dan `cadanganHermes` menyuruh tanyaAi memakai Hermes bila Claude gagal. Mode lain: sama untuk semua akun.
+ * `userId` null (nomor tanpa pemilik) = tanpa paket.
+ */
+export async function aiUntukAkun(userId: number | null): Promise<{ penyedia: Penyedia; cadanganHermes: boolean }> {
+  const atur = await pengaturanAi();
+  if (atur.mode !== "per_paket") return { penyedia: atur.penyedia, cadanganHermes: false };
+  const berbayar = userId !== null && (await akunBerbayar(userId));
+  return { penyedia: berbayar ? "anthropic" : "hermes", cadanganHermes: berbayar };
 }
 
 // ---------- Transaksi ----------
