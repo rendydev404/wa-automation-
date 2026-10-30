@@ -1,11 +1,10 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Check, CreditCard, Sparkles } from "lucide-react";
-import { Meter } from "@/components/stat";
+import { KartuLangganan } from "@/components/kartu-langganan";
 import { angka, tanggal, UMUR_HISTORI_HARI } from "@/lib/format";
-import { balasanTerpakai, daftarPaket, hakAkun, riwayatTransaksi } from "@/lib/langganan";
+import { daftarPaket, hakAkun, riwayatTransaksi } from "@/lib/langganan";
 import { konfigMidtrans } from "@/lib/midtrans";
-import { nomorMilik } from "@/lib/numbers";
 import { requireUser } from "@/lib/session";
 import { HasilBayar, TombolBayar } from "./bayar";
 
@@ -30,7 +29,7 @@ export default function HalamanLangganan(props: PageProps<"/langganan">) {
         <Kembali searchParams={props.searchParams} />
       </Suspense>
       <Suspense fallback={<div aria-hidden className="card h-40 animate-denyut" />}>
-        <Status />
+        <KartuLangganan />
       </Suspense>
       <Suspense fallback={<div aria-hidden className="grid gap-4 md:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="card h-80 animate-denyut" />)}</div>}>
         <Paket />
@@ -46,45 +45,6 @@ export default function HalamanLangganan(props: PageProps<"/langganan">) {
 async function Kembali({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const order = (await searchParams).order;
   return typeof order === "string" && /^WA-\d+-\d+-[0-9a-f]+$/.test(order) ? <HasilBayar orderId={order} /> : null;
-}
-
-async function Status() {
-  const user = await requireUser();
-  const hak = await hakAkun(user);
-  const [terpakai, nomor] = await Promise.all([hak.balasan === null ? Promise.resolve(0) : balasanTerpakai(user.id, hak.periodeMulai), nomorMilik(user.id)]);
-  const persenBalasan = hak.balasan ? Math.min(100, Math.round((terpakai / hak.balasan) * 100)) : 0;
-  const habis = hak.balasan !== null && terpakai >= hak.balasan;
-  return (
-    <section className="card grid gap-6 p-6 md:grid-cols-3">
-      <div>
-        <p className="text-[12.5px] font-semibold text-muted">Paket sekarang</p>
-        <p className="mt-1 text-2xl font-bold">{hak.paket}</p>
-        <p className="mt-1 text-[13px] text-muted">
-          {hak.sampai ? `Aktif sampai ${tanggal(hak.sampai)}` : hak.paket === "Admin" ? "Tanpa batas" : "Kuota gratis, berulang tiap awal bulan"}
-        </p>
-      </div>
-      <div>
-        <p className="text-[12.5px] font-semibold text-muted">Balasan AI {hak.sampai ? "masa ini" : "bulan ini"}</p>
-        <p className="mt-1 text-2xl font-bold tabular-nums">
-          {angka(terpakai)}
-          <span className="text-base text-muted"> / {hak.balasan === null ? "∞" : angka(hak.balasan)}</span>
-        </p>
-        {hak.balasan !== null && (
-          <div className="mt-2">
-            <Meter persen={persenBalasan} label="Pemakaian kuota balasan AI" />
-          </div>
-        )}
-        {habis && <p className="mt-2 text-[12.5px] font-semibold text-danger">Kuota habis: AI berhenti membalas sampai paket diperpanjang.</p>}
-      </div>
-      <div>
-        <p className="text-[12.5px] font-semibold text-muted">Nomor WhatsApp</p>
-        <p className="mt-1 text-2xl font-bold tabular-nums">
-          {nomor.length}
-          <span className="text-base text-muted"> / {hak.nomor === null ? "∞" : hak.nomor}</span>
-        </p>
-      </div>
-    </section>
-  );
 }
 
 async function Paket() {

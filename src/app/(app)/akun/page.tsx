@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { BannerKuota } from "@/components/banner-akun";
+import { KartuLangganan } from "@/components/kartu-langganan";
 import { tanggal } from "@/lib/format";
 import { nomorMilik } from "@/lib/numbers";
 import { penggunaById } from "@/lib/pengguna";
@@ -19,6 +20,9 @@ export default function HalamanAkun() {
         <h1 className="text-2xl font-bold tracking-tight sm:text-[28px]">Akun saya</h1>
         <p className="mt-1 text-muted">Profil, keamanan login, dan kuota nomor WhatsApp Anda.</p>
       </div>
+      <Suspense fallback={<div aria-hidden className="card h-36 animate-denyut" />}>
+        <KartuLangganan tautan />
+      </Suspense>
       <Suspense fallback={<div aria-hidden className="card h-96 animate-denyut" />}>
         <Isi />
       </Suspense>

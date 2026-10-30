@@ -37,11 +37,18 @@ export function Sparkline({
 }
 
 /** Bilah persentase: isi aksen, jalur = langkah lebih terang dari rona yang sama. */
-export function Meter({ persen, label }: { persen: number; label: string }) {
+const NADA_METER = {
+  normal: ["bg-accent-soft", "bg-accent"],
+  waspada: ["bg-warning-soft", "bg-warning"],
+  bahaya: ["bg-danger-soft", "bg-danger"],
+} as const;
+
+export function Meter({ persen, label, nada = "normal" }: { persen: number; label: string; nada?: keyof typeof NADA_METER }) {
   const p = Math.max(0, Math.min(100, persen));
+  const [jalur, isi] = NADA_METER[nada];
   return (
-    <div role="meter" aria-label={label} aria-valuenow={p} aria-valuemin={0} aria-valuemax={100} className="h-1.5 overflow-hidden rounded-full bg-accent-soft">
-      <div className="h-full rounded-full bg-accent transition-[width] duration-700" style={{ width: `${p}%` }} />
+    <div role="meter" aria-label={label} aria-valuenow={p} aria-valuemin={0} aria-valuemax={100} className={`h-1.5 overflow-hidden rounded-full ${jalur}`}>
+      <div className={`h-full rounded-full ${isi} transition-[width] duration-700`} style={{ width: `${p}%` }} />
     </div>
   );
 }

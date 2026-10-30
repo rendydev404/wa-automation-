@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import { Bot, Users } from "lucide-react";
 import { BannerKuota } from "@/components/banner-akun";
+import { KartuLangganan } from "@/components/kartu-langganan";
 import { GrafikAktivitas } from "@/components/grafik-aktivitas";
 import { NumbersList } from "@/components/numbers-list";
 import { KartuTerhubung, PanelSistem, PeringatanAi } from "@/components/ringkasan-langsung";
@@ -36,6 +37,9 @@ export default function Beranda() {
         </div>
       </div>
       <PeringatanAi />
+      <Suspense fallback={<div aria-hidden className="card h-36 animate-denyut" />}>
+        <KartuLangganan tautan />
+      </Suspense>
       <Suspense fallback={<KerangkaRingkasan />}>
         <Ringkasan />
       </Suspense>
