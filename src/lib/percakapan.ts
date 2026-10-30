@@ -248,9 +248,9 @@ const jamWib = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day:
  */
 /** Penyedia tanpa ingatan (Claude API): seluruh percakapan sesi ini, paling banyak 20 baris dan ±6.000 karakter. */
 const RIWAYAT_LENGKAP_MAKS = 6_000;
-const SESI_BARU_DTK = 12 * 3600; // sama dengan aturan sesi baru di bridge.ts
 
-export async function riwayatUntukAi(kunci: string, opsi: { sesiBaru: boolean; tertunda: number; lengkap?: boolean }): Promise<string[]> {
+/** `jedaSesiDtk`: jeda diam yang memulai sesi baru (aturan admin, lihat bridge.ts); Infinity = aturan sesi baru nonaktif. */
+export async function riwayatUntukAi(kunci: string, opsi: { sesiBaru: boolean; tertunda: number; lengkap?: boolean; jedaSesiDtk: number }): Promise<string[]> {
   const sql = await db();
   const baris = await sql<{ peran: PeranPesan; teks: string; waktu: number }[]>`
     SELECT peran, teks, waktu
@@ -263,9 +263,9 @@ export async function riwayatUntukAi(kunci: string, opsi: { sesiBaru: boolean; t
   for (let n = opsi.tertunda; n > 0 && akhir > 0 && urut[akhir - 1].peran === 0; n--) akhir--;
   let awal = 0;
   if (opsi.lengkap) {
-    // Mundur dari pesan terbaru sampai ada jeda diam >12 jam (awal sesi percakapan ini).
+    // Mundur dari pesan terbaru sampai ada jeda diam melebihi aturan sesi baru (awal sesi percakapan ini).
     awal = akhir;
-    for (let i = akhir - 1; i >= 0 && (i === akhir - 1 || urut[i + 1].waktu - urut[i].waktu <= SESI_BARU_DTK); i--) awal = i;
+    for (let i = akhir - 1; i >= 0 && (i === akhir - 1 || urut[i + 1].waktu - urut[i].waktu <= opsi.jedaSesiDtk); i--) awal = i;
   } else if (opsi.sesiBaru) awal = Math.max(0, akhir - RIWAYAT_SESI_BARU);
   else for (let i = akhir - 1; i >= 0; i--) if (urut[i].peran === 1) { awal = i + 1; break; }
 

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { db, sekarang, setSetting } from "./db";
 import { catatPakai, pengaturanAi, tanpaIngatan, tanyaAiTerjaga } from "./ai";
 import { catatBalasanLokal, sisaKuotaAi } from "./langganan";
-import { aturan } from "./aturan";
+import { aturan, saklar } from "./aturan";
 import { susunSistem } from "./knowledge";
 import { bisaTeruskan, teruskanKePemilik } from "./penerusan";
 import type { TagTeruskan } from "./teruskan";
@@ -155,7 +155,10 @@ function jedaChat(kunci: string, a: Antrean, detik: number): void {
   simpanChat(kunci, a.chat);
 }
 
-/** Batas laju & sesi dari aturan admin (src/lib/aturan.ts; bawaan 10 balasan per 10 menit, sesi baru setelah 12 jam). */
+/**
+ * Batas laju & sesi dari aturan admin (src/lib/aturan.ts). Masing-masing punya saklar (bawaan nonaktif):
+ * saklar mati = tanpa batas (Infinity), jadi AI membalas setiap pesan dan tidak pernah memulai sesi baru.
+ */
 interface BatasGiliran {
   maks: number;
   jendelaDtk: number;
@@ -163,8 +166,14 @@ interface BatasGiliran {
 }
 
 async function batasGiliran(): Promise<BatasGiliran> {
-  const [maks, menit, jam] = await Promise.all([aturan("laju_maks_balasan"), aturan("laju_jendela_menit"), aturan("sesi_baru_jam")]);
-  return { maks, jendelaDtk: menit * 60, sesiBaruDtk: jam * 3600 };
+  const [laju, sesiBaru, maks, menit, jam] = await Promise.all([
+    saklar("laju_aktif"),
+    saklar("sesi_baru_aktif"),
+    aturan("laju_maks_balasan"),
+    aturan("laju_jendela_menit"),
+    aturan("sesi_baru_jam"),
+  ]);
+  return { maks: laju ? maks : Infinity, jendelaDtk: menit * 60, sesiBaruDtk: sesiBaru ? jam * 3600 : Infinity };
 }
 
 /** Catat satu balasan; kembalikan nomor sesi Hermes, atau null bila batas laju terlampaui. */
@@ -280,7 +289,8 @@ async function proses(kunci: string): Promise<void> {
       const asli = a.teks.splice(0);
       const pesan = asli.join("\n").slice(0, MAKS_PESAN_KARAKTER);
       const pemuatFoto: (() => Promise<Foto | null>)[] = a.foto.splice(0);
-      const sesi = ambilGiliran(kunci, a, await batasGiliran());
+      const batas = await batasGiliran();
+      const sesi = ambilGiliran(kunci, a, batas);
       if (sesi === null) {
         void mengetik(a.sesi, a.alamat, false);
         return; // batas laju: diam
@@ -293,7 +303,7 @@ async function proses(kunci: string): Promise<void> {
         // bersamaan dengan knowledge. Tulis histori yang masih antre ditunggu dulu supaya ikut terbaca.
         // Penyedia tanpa ingatan sesi (Claude API) diberi seluruh percakapan sesi ini, bukan hanya yang belum dilihat.
         const [lengkap, teruskan] = await Promise.all([pengaturanAi().then((p) => tanpaIngatan(p.penyedia)), bisaTeruskan(nomor)]);
-        const riwayat = st.tulis.then(() => riwayatUntukAi(kunci, { sesiBaru: sesi !== sesiLalu, tertunda, lengkap }));
+        const riwayat = st.tulis.then(() => riwayatUntukAi(kunci, { sesiBaru: sesi !== sesiLalu, tertunda, lengkap, jedaSesiDtk: batas.sesiBaruDtk }));
         // Foto baru diunduh sekarang (AI memang akan menjawab), bersamaan, langsung ke memori.
         const gambar = (await Promise.all(pemuatFoto.map((ambil) => ambil().catch(() => null)))).filter((f: Foto | null): f is Foto => !!f);
         const gagalFoto = pemuatFoto.length - gambar.length;
@@ -301,7 +311,7 @@ async function proses(kunci: string): Promise<void> {
         const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0, riwayatLengkap: lengkap, teruskan });
         // Sumber fakta untuk pemeriksa: pesan sistem + pesan pelanggan + seluruh chat sesi ini (Hermes hanya diberi
         // yang belum ia lihat, jadi sisanya dibaca terpisah supaya angka yang pernah disebut di chat tetap sah).
-        const sumber = [sistem, isiPesan, ...(lengkap ? [] : await riwayatUntukAi(kunci, { sesiBaru: false, tertunda, lengkap: true }))].join("\n");
+        const sumber = [sistem, isiPesan, ...(lengkap ? [] : await riwayatUntukAi(kunci, { sesiBaru: false, tertunda, lengkap: true, jedaSesiDtk: batas.sesiBaruDtk }))].join("\n");
         const hasil = await tanyaAiTerjaga({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar }, sumber, { teruskan });
         tag = teruskan ? hasil.teruskan : null;
         tulisLatar(() => catatPakai(a.numberId, hasil, gambar.length > 0));

@@ -41,6 +41,16 @@ export const ATURAN_ANGKA = {
 } as const satisfies Record<string, { label: string; satuan: string; bawaan: number; min: number; max: number; bantu: string }>;
 
 export const ATURAN_SAKLAR = {
+  laju_aktif: {
+    label: "Aktifkan batas laju balasan",
+    bawaan: false,
+    bantu: "Nonaktif = AI membalas setiap pesan tanpa batas jumlah per chat.",
+  },
+  sesi_baru_aktif: {
+    label: "Aktifkan percakapan baru setelah pelanggan diam",
+    bawaan: false,
+    bantu: "Nonaktif = AI selalu melanjutkan obrolan lama, berapa lama pun pelanggan diam.",
+  },
   teruskan_diizinkan: {
     label: "Izinkan AI meneruskan pesan ke nomor pemilik",
     bawaan: true,

@@ -14,15 +14,24 @@ const CONTOH_GLOBAL = [
 
 /** Kelompok tampilan; urutan sama dengan formulir. */
 const KELOMPOK: { judul: string; ket: string; angka: KunciAngka[]; saklar: KunciSaklar[] }[] = [
-  { judul: "Batas laju balasan", ket: "Melindungi kuota pelanggan dari spam dan percakapan antar-bot yang tidak ada habisnya.", angka: ["laju_maks_balasan", "laju_jendela_menit", "sesi_baru_jam"], saklar: [] },
+  { judul: "Batas laju balasan", ket: "Melindungi kuota pelanggan dari spam dan percakapan antar-bot yang tidak ada habisnya.", angka: ["laju_maks_balasan", "laju_jendela_menit"], saklar: ["laju_aktif"] },
+  { judul: "Percakapan baru", ket: "Memulai obrolan dari awal bila pelanggan lama tidak membalas.", angka: ["sesi_baru_jam"], saklar: ["sesi_baru_aktif"] },
   { judul: "Biaya & panjang balasan", ket: "Pagar biaya per balasan di Claude API.", angka: ["maks_token_balasan"], saklar: [] },
   { judul: "Penerusan ke nomor pemilik", ket: "AI meringkas hal yang butuh manusia (pesanan siap diproses, keluhan, bukti bayar) lalu mengirimnya ke nomor pribadi pengguna.", angka: ["teruskan_maks_harian"], saklar: ["teruskan_diizinkan"] },
   { judul: "Pengingat di workspace pengguna", ket: "Banner di paling atas semua halaman pengguna.", angka: ["peringatan_kuota_persen"], saklar: ["banner_knowledge"] },
 ];
 
+/** Angka yang hanya berlaku bila saklarnya aktif: diredupkan (tetap terkirim) saat saklar mati. */
+const IKUT_SAKLAR: Partial<Record<KunciAngka, KunciSaklar>> = {
+  laju_maks_balasan: "laju_aktif",
+  laju_jendela_menit: "laju_aktif",
+  sesi_baru_jam: "sesi_baru_aktif",
+  teruskan_maks_harian: "teruskan_diizinkan",
+};
+
 export function FormAturan({ nilai }: { nilai: AturanSistem }) {
   const [hasil, aksi] = useActionState(adminAturanAction, null);
-  const [sak, setSak] = useState<Record<KunciSaklar, boolean>>({ teruskan_diizinkan: nilai.teruskan_diizinkan, banner_knowledge: nilai.banner_knowledge });
+  const [sak, setSak] = useState(() => Object.fromEntries((Object.keys(ATURAN_SAKLAR) as KunciSaklar[]).map((k) => [k, nilai[k]])) as Record<KunciSaklar, boolean>);
   const [global, setGlobal] = useState(nilai.aturan_global);
 
   return (
@@ -45,11 +54,13 @@ export function FormAturan({ nilai }: { nilai: AturanSistem }) {
             <div className="grid gap-3 sm:grid-cols-2">
               {k.angka.map((a) => {
                 const d = ATURAN_ANGKA[a];
+                const ikut = IKUT_SAKLAR[a];
+                const mati = ikut !== undefined && !sak[ikut];
                 return (
-                  <label key={a} className="block">
+                  <label key={a} className={`block transition-opacity ${mati ? "opacity-50" : ""}`}>
                     <span className="label">{d.label}</span>
                     <span className="flex items-center gap-2">
-                      <input name={a} type="number" min={d.min} max={d.max} defaultValue={nilai[a]} required className="field" />
+                      <input name={a} type="number" min={d.min} max={d.max} defaultValue={nilai[a]} required readOnly={mati} className="field" />
                       <span className="shrink-0 text-[12px] text-muted">{d.satuan}</span>
                     </span>
                     <span className="mt-1 block text-[11.5px] text-faint">
