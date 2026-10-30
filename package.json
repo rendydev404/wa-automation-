@@ -14,7 +14,7 @@
     "@remotion/player": "4.0.535",
     "baileys": "7.0.0-rc14",
     "lucide-react": "^1.56.0",
-    "next": "16.4.0",
+    "next": "16.4.3",
     "postgres": "3.4.9",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -30,7 +30,7 @@
     "@types/react-dom": "^19",
     "embedded-postgres": "15.18.0-beta.17",
     "eslint": "^9",
-    "eslint-config-next": "16.4.0",
+    "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
