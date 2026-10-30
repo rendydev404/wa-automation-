@@ -3,7 +3,9 @@
 import { useActionState, useState } from "react";
 import { ArrowRight, Lock, Sparkles } from "lucide-react";
 import { adminHargaAction } from "@/app/actions";
+import { KursInfo } from "@/components/kurs-info";
 import { Pesan, SubmitButton } from "@/components/ui";
+import type { InfoKurs } from "@/lib/kurs-def";
 import { type AcuanHarga, METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hitungHarga, kuotaDariHarga, nomorDariKuota } from "@/lib/harga";
 
 /**
@@ -70,12 +72,15 @@ export function SimulasiHarga({
   model,
   acuan,
   nyata,
+  kursInfo,
 }: {
   paket: PaketSimulasi[];
   /** Model yang bisa dipilih + biaya dasar per balasan (USD) dari tarif resmi & profil token nyata. */
   model: { id: string; nama: string; usd: number }[];
   acuan: { margin: number; pemakaian: number; metode: MetodeBayar; biayaServerNomor: number; kurs: number; model: string };
   nyata: DataNyata;
+  /** Kurs pasar otomatis (kurs.ts): hanya dibaca, tidak bisa diisi manual. */
+  kursInfo: InfoKurs;
 }) {
   const [hasil, aksi] = useActionState(adminHargaAction, null);
   const [mode, setMode] = useState<Mode>("kunci-kuota");
@@ -83,7 +88,7 @@ export function SimulasiHarga({
   const [pemakaian, setPemakaian] = useState(acuan.pemakaian);
   const [metode, setMetode] = useState<MetodeBayar>(acuan.metode);
   const [biayaServer, setBiayaServer] = useState(acuan.biayaServerNomor);
-  const [kurs, setKurs] = useState(acuan.kurs);
+  const kurs = kursInfo.kurs;
   const [idModel, setIdModel] = useState(model.some((m) => m.id === acuan.model) ? acuan.model : (model[0]?.id ?? ""));
   // Paket yang ikut diterapkan; yang tidak dicentang tidak disentuh (harga & kuotanya tetap seperti yang admin atur).
   const [ikut, setIkut] = useState<Set<number>>(() => new Set(paket.filter((p) => p.harga > 0).map((p) => p.id)));
@@ -181,10 +186,7 @@ export function SimulasiHarga({
           <span className="label">Biaya server per nomor per bulan (Rp)</span>
           <input type="number" name="biaya_server" min={0} max={1_000_000} value={biayaServer} onChange={(e) => setBiayaServer(Math.max(0, Number(e.target.value) || 0))} className="field" />
         </label>
-        <label className="block">
-          <span className="label">Kurs USD → Rp</span>
-          <input type="number" name="kurs" min={1000} max={100000} value={kurs} onChange={(e) => setKurs(Math.max(1000, Number(e.target.value) || 1000))} className="field" />
-        </label>
+        <KursInfo info={kursInfo} />
       </div>
 
       <div>

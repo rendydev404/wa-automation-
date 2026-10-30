@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { nomorUntuk } from "@/lib/akses";
-import { kunciAnthropic, perkiraanPerBalasan } from "@/lib/ai";
+import { kunciAnthropic, kursUsd, perkiraanPerBalasan } from "@/lib/ai";
 import { MAKS_HARGA_PAKET, METODE_BAYAR } from "@/lib/harga";
 import { authConfigured } from "@/lib/auth";
 import { asalAplikasi, ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
@@ -474,14 +474,11 @@ export async function adminPengaturanAction(_lalu: Hasil | null, form: FormData)
   const buka = form.get("pendaftaran") === "on";
   const kuota = Number(form.get("kuota_bawaan"));
   const balasan = Number(form.get("kuota_balasan_gratis"));
-  const kurs = Number(form.get("kurs_usd"));
   if (!(Number.isInteger(kuota) && kuota >= 0 && kuota <= 100)) return { ok: false, pesan: "Kuota bawaan harus 0–100 nomor." };
   if (!(Number.isInteger(balasan) && balasan >= 0 && balasan <= 1_000_000)) return { ok: false, pesan: "Kuota balasan gratis tidak valid." };
-  if (!(Number.isFinite(kurs) && kurs >= 1000 && kurs <= 100_000)) return { ok: false, pesan: "Kurs USD harus 1.000–100.000." };
   await setSetting("pendaftaran", buka ? "buka" : "tutup");
   await setSetting("kuota_bawaan", String(kuota));
   await setSetting("kuota_balasan_gratis", String(balasan));
-  await setSetting("kurs_usd", String(kurs));
   segarkanKuota();
   await catatLog(admin, "ubah pengaturan", null, `pendaftaran ${buka ? "dibuka" : "ditutup"}, kuota gratis ${kuota} nomor & ${balasan} balasan/bulan`);
   revalidatePath("/admin", "layout");
@@ -651,20 +648,18 @@ export async function adminHargaAction(_lalu: Hasil | null, form: FormData): Pro
     pemakaian: bulat("pemakaian"),
     metode: String(form.get("metode") ?? ""),
     biayaServerNomor: bulat("biaya_server"),
-    kurs: bulat("kurs"),
+    kurs: await kursUsd(), // kurs pasar otomatis (kurs.ts), bukan isian admin
     model: String(form.get("model") ?? ""),
   };
   if (!(Number.isInteger(a.margin) && a.margin >= 0 && a.margin <= 90)) return { ok: false, pesan: "Margin harus 0–90%." };
   if (!(Number.isInteger(a.pemakaian) && a.pemakaian >= 10 && a.pemakaian <= 100)) return { ok: false, pesan: "Pemakaian kuota 10–100%." };
   if (!(a.metode in METODE_BAYAR)) return { ok: false, pesan: "Metode bayar tidak dikenal." };
   if (!(Number.isFinite(a.biayaServerNomor) && a.biayaServerNomor >= 0 && a.biayaServerNomor <= 1_000_000)) return { ok: false, pesan: "Biaya server tidak valid." };
-  if (!(Number.isFinite(a.kurs) && a.kurs >= 1000 && a.kurs <= 100_000)) return { ok: false, pesan: "Kurs USD harus 1.000–100.000." };
   if (perkiraanPerBalasan(a.model) === null) return { ok: false, pesan: "Tarif model acuan belum diketahui." };
   await setSetting("margin_target", String(a.margin));
   await setSetting("pemakaian_acuan", String(a.pemakaian));
   await setSetting("metode_acuan", a.metode);
   await setSetting("biaya_server_nomor", String(Math.round(a.biayaServerNomor)));
-  await setSetting("kurs_usd", String(a.kurs));
   await setSetting("harga_model", a.model);
   const acuanTeks = `margin ${a.margin}%, pemakaian ${a.pemakaian}%, ${a.metode}, ${a.model}, kurs ${a.kurs}`;
   if (form.get("terapkan") !== "1") {

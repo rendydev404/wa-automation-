@@ -5,6 +5,9 @@ import { registerHooks } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Kurs USD→Rp memakai angka tetap supaya uji tidak bergantung pada jaringan; uji kurs.ts sendiri mematikannya.
+process.env.KURS_USD_TETAP ??= "16500";
+
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === "server-only") return { url: "data:text/javascript,export{}", shortCircuit: true };

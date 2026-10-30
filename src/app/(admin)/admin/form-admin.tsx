@@ -17,9 +17,11 @@ import {
   adminPutuskanWaAction,
   adminResetPasswordAction,
 } from "@/app/actions";
+import { KursInfo } from "@/components/kurs-info";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "@/components/ui";
+import type { InfoKurs } from "@/lib/kurs-def";
 
-export function FormPengaturan({ buka, kuota, balasan, kurs }: { buka: boolean; kuota: number; balasan: number; kurs: number }) {
+export function FormPengaturan({ buka, kuota, balasan, kurs }: { buka: boolean; kuota: number; balasan: number; kurs: InfoKurs }) {
   const [hasil, aksi] = useActionState(adminPengaturanAction, null);
   const [aktif, setAktif] = useState(buka);
   return (
@@ -44,12 +46,7 @@ export function FormPengaturan({ buka, kuota, balasan, kurs }: { buka: boolean; 
         </label>
         <input id="kuota_balasan_gratis" name="kuota_balasan_gratis" type="number" min={0} defaultValue={balasan} required className="field" />
       </div>
-      <div>
-        <label htmlFor="kurs_usd" className="label">
-          Kurs USD → Rp (untuk menampilkan biaya AI)
-        </label>
-        <input id="kurs_usd" name="kurs_usd" type="number" min={1000} max={100000} defaultValue={kurs} required className="field" />
-      </div>
+      <KursInfo info={kurs} />
       <div className="flex items-center gap-3">
         <SubmitButton>Simpan aturan</SubmitButton>
         <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>

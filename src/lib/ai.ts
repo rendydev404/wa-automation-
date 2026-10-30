@@ -139,11 +139,8 @@ export const PROFIL_BALASAN = { input_tokens: 7_500, cache_read_input_tokens: 4_
 /** Perkiraan biaya satu balasan (USD) untuk sebuah model; null bila tarifnya belum dicek. */
 export const perkiraanPerBalasan = (model: string): number | null => biayaAnthropic(model, PROFIL_BALASAN);
 
-/** Kurs Rupiah per USD untuk tampilan biaya (pengaturan admin "kurs_usd"; bawaan 16.500). */
-export async function kursUsd(): Promise<number> {
-  const v = Number(await getSetting("kurs_usd"));
-  return Number.isFinite(v) && v >= 1000 && v <= 100_000 ? v : 16_500;
-}
+/** Kurs Rupiah per USD dari data pasar (otomatis, lihat kurs.ts); dipakai untuk biaya AI dan harga paket. */
+export { kursUsd } from "./kurs";
 
 class GalatAnthropic extends Error {
   status: number;

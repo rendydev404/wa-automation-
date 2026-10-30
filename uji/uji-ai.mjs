@@ -23,7 +23,7 @@ delete process.env.AI_PENYEDIA;
 delete process.env.ANTHROPIC_API_KEY;
 const lib = (f) => import(pathToFileURL(path.join(akar, f)).href);
 
-const { db, setSetting, sekarang } = await lib("src/lib/db.ts");
+const { db, getSetting, setSetting, sekarang } = await lib("src/lib/db.ts");
 const AI = await lib("src/lib/ai.ts");
 const { tambahNomor } = await lib("src/lib/numbers.ts");
 const { catatPesan, riwayatUntukAi } = await lib("src/lib/percakapan.ts");
@@ -155,9 +155,7 @@ await cek("tarif resmi Anthropic per model (termasuk cache) & perkiraan per bala
   // Profil nyata: 7.500 input + 4.100 cache + 110 keluar
   dekat(AI.perkiraanPerBalasan("claude-haiku-5-5"), 0.000846); // ±Rp14 pada kurs 16.500
   dekat(AI.perkiraanPerBalasan("claude-sonnet-5-5"), 0.01651); // ±Rp272
-  assert.equal(await AI.kursUsd(), 16500);
-  await setSetting("kurs_usd", "16200");
-  assert.equal(await AI.kursUsd(), 16200);
+  assert.equal(await AI.kursUsd(), 16500); // KURS_USD_TETAP dari loader.mjs (tanpa jaringan)
 });
 
 const n = await tambahNomor("Uji AI");
@@ -173,6 +171,97 @@ await cek("pemakaian tercatat per nomor dan diringkas per model", async () => {
   const rencana = (await sql`EXPLAIN SELECT COUNT(*) FROM ai_pakai WHERE number_id = ${n.id} AND waktu >= ${sekarang() - 86400}`).map((x) => x["QUERY PLAN"]).join("\n");
   assert.match(rencana, /ai_pakai_nomor_waktu_idx/);
 });
+
+// ---------- Kurs USD → Rp: data pasar otomatis ----------
+const K = await lib("src/lib/kurs.ts");
+const keadaanKurs = () => globalThis.__waKurs;
+const resetKurs = async () => {
+  const s = keadaanKurs();
+  for (const k of Object.keys(s)) delete s[k]; // seperti proses baru (memori kosong)
+  await setSetting("kurs_usd_pasar", ""); // dan database kosong
+};
+/** Sumber kurs tiruan: peta potongan-URL -> () => [status, json]; tanpa entri = jaringan mati. */
+const tiruKurs = (peta) =>
+  (globalThis.fetch = async (url) => {
+    permintaan.push({ url: String(url) });
+    const k = Object.keys(peta).find((x) => String(url).includes(x));
+    if (!k) throw new Error("jaringan mati (uji)");
+    const [status, json] = peta[k]();
+    return new Response(JSON.stringify(json), { status });
+  });
+const denganKursPasar = async (fn) => {
+  const tetap = process.env.KURS_USD_TETAP;
+  delete process.env.KURS_USD_TETAP;
+  try {
+    await resetKurs();
+    await fn();
+  } finally {
+    globalThis.fetch = asli;
+    process.env.KURS_USD_TETAP = tetap;
+    await resetKurs();
+  }
+};
+const FRANKFURTER = () => [200, { amount: 1, base: "USD", date: "2026-10-29", rates: { IDR: 18143.4 } }];
+const ER_API = () => [200, { result: "success", time_last_update_unix: 1793318551, rates: { IDR: 18150.37 } }];
+
+await cek("kurs pasar: dari sumber utama, dibulatkan, satu permintaan untuk panggilan serentak, di-cache, tersimpan di database", () =>
+  denganKursPasar(async () => {
+    tiruKurs({ frankfurter: FRANKFURTER });
+    permintaan.length = 0;
+    const [i] = await Promise.all([K.infoKurs(), K.infoKurs(), K.infoKurs()]);
+    assert.equal(i.kurs, 18143);
+    assert.match(i.sumber, /Frankfurter/);
+    assert.equal(i.tanggal, "2026-10-29");
+    assert.deepEqual([i.basi, i.cadangan], [false, false]);
+    assert.equal(permintaan.length, 1, "tiga panggilan serentak = satu permintaan keluar");
+    await K.infoKurs();
+    assert.equal(permintaan.length, 1, "dalam 1 jam dipakai dari cache");
+    const simpan = JSON.parse(await getSetting("kurs_usd_pasar"));
+    assert.deepEqual([simpan.k, simpan.tgl], [18143, "2026-10-29"]);
+  })
+);
+
+await cek("kurs pasar: sumber utama menolak/rusak -> sumber kedua; angka di luar rentang wajar ditolak", () =>
+  denganKursPasar(async () => {
+    tiruKurs({ frankfurter: () => [200, { rates: { IDR: 5 }, date: "2026-10-29" }], "er-api": ER_API });
+    const i = await K.infoKurs();
+    assert.equal(i.kurs, 18150);
+    assert.match(i.sumber, /ExchangeRate/);
+    assert.equal(i.tanggal, "2026-10-30");
+    await resetKurs();
+    tiruKurs({ frankfurter: () => [500, {}], "er-api": () => [200, { result: "error" }] });
+    assert.equal((await K.infoKurs()).cadangan, true, "dua sumber tidak sah = belum ada data pasar");
+  })
+);
+
+await cek("kurs pasar: sumber mati setelah ada data = nilai pasar terakhir tetap dipakai (basi), tidak membanjiri sumber, tahan restart", () =>
+  denganKursPasar(async () => {
+    tiruKurs({ "er-api": ER_API });
+    assert.equal((await K.infoKurs()).kurs, 18150);
+    keadaanKurs().info.diambil -= 2 * 3600; // data sudah lewat 1 jam
+    tiruKurs({}); // jaringan mati
+    permintaan.length = 0;
+    const langsung = await K.infoKurs(); // nilai lama langsung dipakai, pembaruan jalan di latar
+    assert.equal(langsung.kurs, 18150);
+    await new Promise((r) => setTimeout(r, 80));
+    const sesudah = await K.infoKurs();
+    assert.deepEqual([sesudah.kurs, sesudah.basi, sesudah.cadangan], [18150, true, false]);
+    assert.equal(permintaan.length, 2, "tiap sumber dicoba sekali; tidak diulang sebelum 5 menit");
+    // server dimulai ulang & sumber masih mati: nilai pasar terakhir dimuat dari database
+    const s = keadaanKurs();
+    for (const k of Object.keys(s)) delete s[k];
+    const baru = await K.infoKurs();
+    assert.deepEqual([baru.kurs, baru.cadangan], [18150, false]);
+  })
+);
+
+await cek("kurs pasar: belum pernah berhasil sama sekali = perkiraan cadangan yang ditandai", () =>
+  denganKursPasar(async () => {
+    tiruKurs({});
+    const i = await K.infoKurs();
+    assert.deepEqual([i.kurs, i.cadangan], [K.KURS_CADANGAN, true]);
+  })
+);
 
 await cek("riwayat lengkap (penyedia tanpa ingatan): seluruh percakapan (tidak dipotong karena lama diam), tanpa pesan yang sedang dijawab", async () => {
   const kunci = "k".repeat(32);

@@ -9,7 +9,8 @@ import { acuanHarga, daftarPaket, kuotaBalasanGratis, pemakaianNyata, riwayatTra
 import { SimulasiHarga } from "./simulasi-harga";
 import { konfigMidtrans, kunciMidtransSah } from "@/lib/midtrans";
 import { asalAplikasi } from "@/lib/batas";
-import { kunciAnthropic, kursUsd, modelAnthropic, pengaturanAi, perkiraanPerBalasan, ringkasPakai } from "@/lib/ai";
+import { kunciAnthropic, modelAnthropic, pengaturanAi, perkiraanPerBalasan, ringkasPakai } from "@/lib/ai";
+import { infoKurs } from "@/lib/kurs";
 import { sekarang } from "@/lib/db";
 
 /** Bagian-bagian panel admin; tiap halaman di /admin/* menyusunnya. */
@@ -51,7 +52,8 @@ export async function Ringkasan() {
 export async function MesinAi() {
   await requireAdmin();
   const kunci = kunciAnthropic();
-  const [atur, pakai, KURS] = await Promise.all([pengaturanAi(), ringkasPakai(sekarang() - 7 * 86400), kursUsd()]);
+  const [atur, pakai, kursI] = await Promise.all([pengaturanAi(), ringkasPakai(sekarang() - 7 * 86400), infoKurs()]);
+  const KURS = kursI.kurs;
   // Daftar model resmi dari akun Anthropic (sekaligus bukti kuncinya masih berlaku).
   const daftarModel = kunci ? await modelAnthropic(kunci) : null;
   const total = pakai.reduce((a, p) => ({ n: a.n + p.balasan, usd: a.usd + p.biaya_usd }), { n: 0, usd: 0 });
@@ -87,6 +89,9 @@ export async function MesinAi() {
       </div>
       <div className="mt-5 border-t border-line pt-4">
         <p className="text-[12.5px] font-semibold">7 hari terakhir</p>
+        <p className="mt-0.5 text-[11.5px] text-faint">
+          Biaya dalam Rp memakai kurs pasar Rp{angka(KURS)}/USD ({kursI.cadangan ? "perkiraan cadangan" : kursI.sumber}).
+        </p>
         {pakai.length === 0 ? (
           <p className="mt-1 text-[12.5px] text-muted">Belum ada balasan AI tercatat.</p>
         ) : (
@@ -114,7 +119,7 @@ export async function MesinAi() {
 
 export async function Pengaturan() {
   await requireAdmin();
-  const [buka, kuota, balasan, kurs] = await Promise.all([pendaftaranDibuka(), kuotaBawaan(), kuotaBalasanGratis(), kursUsd()]);
+  const [buka, kuota, balasan, kurs] = await Promise.all([pendaftaranDibuka(), kuotaBawaan(), kuotaBalasanGratis(), infoKurs()]);
   return (
     <section className="card p-6">
       <h2 className="flex items-center gap-2 text-[15px] font-bold">
@@ -137,7 +142,7 @@ const MODEL_ACUAN = [
 
 export async function KelolaPaket() {
   await requireAdmin();
-  const [paket, acuan, nyata] = await Promise.all([daftarPaket({ semua: true }), acuanHarga(), pemakaianNyata()]);
+  const [paket, acuan, nyata, kursI] = await Promise.all([daftarPaket({ semua: true }), acuanHarga(), pemakaianNyata(), infoKurs()]);
   const modelAcuan = MODEL_ACUAN.flatMap((m) => {
     const usd = perkiraanPerBalasan(m.id);
     return usd === null ? [] : [{ ...m, usd }];
@@ -156,6 +161,7 @@ export async function KelolaPaket() {
             model={modelAcuan}
             acuan={acuan}
             nyata={nyata}
+            kursInfo={kursI}
           />
         </div>
       </details>
