@@ -133,7 +133,7 @@ export async function balasanTerpakai(userId: number, sejak: number): Promise<nu
   const sql = await db();
   const [r] = await sql<{ n: number }[]>`
     SELECT COUNT(*)::int AS n FROM numbers n JOIN ai_pakai a ON a.number_id = n.id AND a.waktu >= ${sejak}
-     WHERE n.user_id = ${userId}`;
+     WHERE n.user_id = ${userId} AND NOT a.abaikan`;
   return r.n;
 }
 

@@ -12,7 +12,7 @@ import { ATURAN_ANGKA, ATURAN_SAKLAR, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
 import { berikanPaket, hentikanLangganan, mulaiBayar, paketById, riwayatTransaksi, segarkanKuota, simpanPaket, terapkanSimulasi, terapkanStatus } from "@/lib/langganan";
 import { MidtransError, konfigMidtrans } from "@/lib/midtrans";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
-import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setTeruskan, tambahNomor, ubahNomor } from "@/lib/numbers";
+import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringSpam, setTeruskan, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { ujiTeruskan } from "@/lib/penerusan";
 import { cekPassword, verifyPassword } from "@/lib/password";
 import { type ItemPelajaran, daftarPelajaran, hapusPelajaran } from "@/lib/pelajaran";
@@ -35,7 +35,7 @@ import {
   tandaiTurSelesai,
   ubahNama,
 } from "@/lib/pengguna";
-import { hapusPercakapan } from "@/lib/percakapan";
+import { hapusPercakapan, tandaiBukanSpam } from "@/lib/percakapan";
 import { konfigurasi as konfigurasiSinkron, setNomorSinkron, statusSinkron } from "@/lib/sinkron";
 import {
   MAKS_GAGAL_LOGIN,
@@ -326,6 +326,21 @@ export async function hapusPercakapanAction(numberId: number, percakapanId?: num
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${numberId}`);
   return { ok: true, pesan: `${n} percakapan dihapus.` };
+}
+
+/** Pemilik menandai sebuah chat "bukan spam": AI tidak menyaring chat itu lagi (berlaku di pesan berikutnya). */
+export async function bukanSpamAction(numberId: number, percakapanId: number): Promise<Hasil> {
+  if (!(await nomorUntuk(await requireUser(), numberId))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  if (!Number.isInteger(percakapanId)) return { ok: false, pesan: "Percakapan tidak valid." };
+  if (!(await tandaiBukanSpam(numberId, percakapanId))) return { ok: false, pesan: "Percakapan tidak ditemukan." };
+  return { ok: true, pesan: "Ditandai bukan spam. Pesan berikutnya dari kontak ini dijawab AI seperti biasa." };
+}
+
+export async function setSaringSpamAction(id: number, aktif: boolean): Promise<Hasil> {
+  if (!(await nomorUntuk(await requireUser(), id))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  await setSaringSpam(id, aktif);
+  revalidatePath(`/nomor/${id}`);
+  return { ok: true };
 }
 
 // ---------- Belajar dari balasan manusia ----------

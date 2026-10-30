@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Loader2, RotateCcw, Send, X } from "lucide-react";
 
 interface Gelembung {
-  dari: "saya" | "bot" | "galat";
+  /** info = AI sengaja tidak membalas (spam); tidak ikut riwayat uji. */
+  dari: "saya" | "bot" | "galat" | "info";
   teks: string;
   meta?: string;
   foto?: string;
@@ -72,12 +73,14 @@ export function TestChat({ numberId }: { numberId: number }) {
           sesi: sesi.current,
           kueriLalu: lalu.current,
           // Percakapan uji sejauh ini: dipakai penyedia AI tanpa ingatan sesi (Claude API).
-          riwayat: pesan.filter((g) => g.dari !== "galat").slice(-12).map((g) => ({ ai: g.dari === "bot", teks: g.teks })),
+          riwayat: pesan.filter((g) => g.dari === "saya" || g.dari === "bot").slice(-12).map((g) => ({ ai: g.dari === "bot", teks: g.teks })),
           ...(lampiran ? { foto: lampiran } : {}),
         }),
       });
-      const d = (await res.json().catch(() => ({}))) as { teks?: string; ms?: number; mode?: keyof typeof MODE; pelajaran?: number; diblokir?: boolean; error?: string; teruskan?: { label: string; ringkasan: string } | null };
-      if (res.ok && d.teks) {
+      const d = (await res.json().catch(() => ({}))) as { teks?: string; ms?: number; mode?: keyof typeof MODE; pelajaran?: number; diblokir?: boolean; error?: string; teruskan?: { label: string; ringkasan: string } | null; abaikan?: string };
+      if (res.ok && d.abaikan) {
+        setPesan((p) => [...p, { dari: "info", teks: `Tidak dibalas: terdeteksi spam. ${d.abaikan}. Di WhatsApp pesan ini hanya tercatat di histori dengan tanda Spam.` }]);
+      } else if (res.ok && d.teks) {
         lalu.current = isi;
         const meta = `${((d.ms ?? 0) / 1000).toFixed(1).replace(".", ",")} dtk · ${MODE[d.mode ?? "kosong"]}${d.pelajaran ? ` · ${d.pelajaran} balasan admin` : ""}${d.diblokir ? " · kode diblokir" : ""}`;
         setPesan((p) => [...p, { dari: "bot", teks: d.teks!, meta, teruskan: d.teruskan }]);
@@ -117,7 +120,7 @@ export function TestChat({ numberId }: { numberId: number }) {
           <div key={i} className={`max-w-[85%] animate-masuk ${g.dari === "saya" ? "self-end" : "self-start"}`}>
             <div
               className={`rounded-2xl px-3.5 py-2 text-[13.5px] leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere] ${
-                g.dari === "saya" ? "rounded-br-md bg-accent text-on-accent" : g.dari === "bot" ? "rounded-bl-md border border-line bg-surface" : "bg-danger-soft text-danger"
+                g.dari === "saya" ? "rounded-br-md bg-accent text-on-accent" : g.dari === "bot" ? "rounded-bl-md border border-line bg-surface" : g.dari === "info" ? "border border-dashed border-line-strong bg-surface text-[12.5px] text-muted" : "bg-danger-soft text-danger"
               }`}
             >
               {g.foto && (

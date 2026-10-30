@@ -4,6 +4,7 @@ import { db, getSetting, sekarang } from "./db";
 import { hermesSehat, hermesTerkonfigurasi, tanyaHermes } from "./hermes";
 import { JAWABAN_AMAN, type Pelanggaran, pesanKoreksi, periksaJawaban } from "./pemeriksa";
 import { teksSoul } from "./soul";
+import { type JenisAbaikan, ambilAbaikan, buangTagAbaikan } from "./spam";
 import { type TagTeruskan, ambilTeruskan } from "./teruskan";
 import type { Foto } from "./types";
 
@@ -257,11 +258,12 @@ export async function aiSehat(): Promise<boolean> {
 // ---------- Pemakaian ----------
 
 /** Catat satu balasan AI yang berhasil (token & biaya per balasan) untuk kuota dan laporan biaya. */
-export async function catatPakai(numberId: number, j: JawabanAi, foto: boolean): Promise<void> {
+/** `abaikan` = AI menilai pesan itu spam dan tidak membalas: biaya tetap tercatat, kuota balasan pelanggan tidak terpotong. */
+export async function catatPakai(numberId: number, j: JawabanAi, foto: boolean, abaikan = false): Promise<void> {
   const sql = await db();
   await sql`
-    INSERT INTO ai_pakai(number_id, waktu, penyedia, model, token_masuk, token_keluar, biaya_usd, ms, foto)
-    VALUES (${numberId}, ${sekarang()}, ${j.penyedia}, ${j.model}, ${j.tokenMasuk}, ${j.tokenKeluar}, ${j.biayaUsd}, ${j.ms}, ${foto})`;
+    INSERT INTO ai_pakai(number_id, waktu, penyedia, model, token_masuk, token_keluar, biaya_usd, ms, foto, abaikan)
+    VALUES (${numberId}, ${sekarang()}, ${j.penyedia}, ${j.model}, ${j.tokenMasuk}, ${j.tokenKeluar}, ${j.biayaUsd}, ${j.ms}, ${foto}, ${abaikan})`;
 }
 
 export interface RingkasPakai {
@@ -295,6 +297,8 @@ export interface JawabanTerjaga extends JawabanAi {
   aman: boolean;
   /** Hal yang diteruskan ke pemilik (hanya bila opsi.teruskan); teks sudah bersih dari tag. */
   teruskan: TagTeruskan | null;
+  /** AI menilai pesan ini spam (hanya bila opsi.saringSpam): tidak ada yang dikirim, `teks` kosong. */
+  abaikan: { jenis: JenisAbaikan; alasan: string } | null;
 }
 
 /**
@@ -302,15 +306,19 @@ export interface JawabanTerjaga extends JawabanAi {
  * pesan lawan bicara, riwayat chat lengkap). Draf yang melanggar ditulis ulang sekali dengan umpan balik yang
  * spesifik; bila tetap melanggar, dikirim jawaban aman. Biaya, token, dan waktu kedua panggilan dijumlahkan.
  */
-export async function tanyaAiTerjaga(r: PermintaanAi, sumber: string, opsiJaga: { teruskan?: boolean } = {}): Promise<JawabanTerjaga> {
+export async function tanyaAiTerjaga(r: PermintaanAi, sumber: string, opsiJaga: { teruskan?: boolean; saringSpam?: boolean } = {}): Promise<JawabanTerjaga> {
   const j1 = await tanyaAi(r);
+  // Jawaban berupa tag <abaikan> saja: pesan dinilai spam. Tidak diperiksa/ditulis ulang karena tidak ada yang dikirim.
+  const abaikan = opsiJaga.saringSpam ? ambilAbaikan(j1.teks) : null;
+  if (abaikan) return { ...j1, teks: "", pelanggaran: [], ditulisUlang: false, aman: false, teruskan: null, abaikan };
+  j1.teks = buangTagAbaikan(j1.teks);
   const opsi = { adaFoto: !!r.gambar?.length, teruskan: !!opsiJaga.teruskan };
   // Tag teruskan dibuang dari teks pelanggan; penerusan dari draf yang lolos, atau dari draf mana pun bila jawaban
   // akhirnya JAWABAN_AMAN (pemilik tetap perlu tahu, dan jawaban aman memang menyerahkan ke pemilik).
   const pisah = (t: string) => (opsi.teruskan ? ambilTeruskan(t) : { teks: ambilTeruskan(t).teks, tag: null });
   const d1 = pisah(j1.teks);
   const p1 = periksaJawaban(j1.teks, sumber, opsi);
-  if (!p1.length) return { ...j1, teks: d1.teks, pelanggaran: [], ditulisUlang: false, aman: false, teruskan: d1.tag };
+  if (!p1.length) return { ...j1, teks: d1.teks, pelanggaran: [], ditulisUlang: false, aman: false, teruskan: d1.tag, abaikan: null };
 
   // Sesi Hermes terpisah supaya draf yang ditolak tidak masuk ingatan percakapan aslinya.
   const j2 = await tanyaAi({ ...r, sessionId: `${r.sessionId}-koreksi`, sistem: `${r.sistem}\n\n${pesanKoreksi(j1.teks, p1, opsi.teruskan)}` });
@@ -322,8 +330,9 @@ export async function tanyaAiTerjaga(r: PermintaanAi, sumber: string, opsiJaga: 
     tokenKeluar: tambah(j1.tokenKeluar, j2.tokenKeluar),
     biayaUsd: tambah(j1.biayaUsd, j2.biayaUsd),
   };
+  j2.teks = buangTagAbaikan(j2.teks);
   const d2 = pisah(j2.teks);
   const p2 = periksaJawaban(j2.teks, sumber, opsi);
-  if (!p2.length) return { ...gabung, teks: d2.teks, pelanggaran: p1, ditulisUlang: true, aman: false, teruskan: d2.tag };
-  return { ...gabung, teks: JAWABAN_AMAN, pelanggaran: p1, ditulisUlang: true, aman: true, teruskan: d2.tag ?? d1.tag };
+  if (!p2.length) return { ...gabung, teks: d2.teks, pelanggaran: p1, ditulisUlang: true, aman: false, teruskan: d2.tag, abaikan: null };
+  return { ...gabung, teks: JAWABAN_AMAN, pelanggaran: p1, ditulisUlang: true, aman: true, teruskan: d2.tag ?? d1.tag, abaikan: null };
 }

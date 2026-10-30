@@ -2,7 +2,7 @@
 
 import { useActionState, useOptimistic, useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
-import { hapusNomorAction, setBotAktifAction, setSinkronAction, ubahNomorAction } from "@/app/actions";
+import { hapusNomorAction, setBotAktifAction, setSaringSpamAction, setSinkronAction, ubahNomorAction } from "@/app/actions";
 import { LencanaSesi } from "./connection-card";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "./ui";
 import { useSesiNomor } from "./wa-status";
@@ -31,6 +31,36 @@ export function SaklarBot({ id, aktif: awal, label }: { id: number; aktif: boole
         }
       />
     </label>
+  );
+}
+
+function SaklarSpam({ id, aktif: awal }: { id: number; aktif: boolean }) {
+  const [aktif, setAktif] = useOptimistic(awal);
+  const [, mulai] = useTransition();
+  return (
+    <div className="space-y-2 rounded-xl bg-subtle/70 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[13px] font-bold">Abaikan spam & promosi judi</p>
+          <p className="mt-0.5 text-[12.5px] text-muted">{aktif ? "AI tidak membalas spam yang jelas" : "Semua pesan dibalas AI, termasuk spam"}</p>
+        </div>
+        <Saklar
+          aktif={aktif}
+          label="Abaikan spam dan promosi judi"
+          onUbah={(v) =>
+            mulai(async () => {
+              setAktif(v);
+              await setSaringSpamAction(id, v);
+            })
+          }
+        />
+      </div>
+      <p className="hint">
+        Promosi judi online dikenali dari pola katanya; spam lain (promosi yang tidak diminta, penipuan, ajakan asusila) dinilai AI. Bila ragu, AI
+        tetap membalas. Chat yang pernah Anda balas sendiri tidak pernah disaring. Pesan spam tetap tercatat di histori dengan tanda
+        &quot;Spam&quot;, dan bisa Anda tandai &quot;Bukan spam&quot;.
+      </p>
+    </div>
   );
 }
 
@@ -71,6 +101,7 @@ export function NumberSettings({
   tungguDetik,
   tungguBacaDetik,
   jedaDetik,
+  saringSpam,
 }: {
   id: number;
   label: string;
@@ -78,6 +109,7 @@ export function NumberSettings({
   tungguDetik: number;
   tungguBacaDetik: number;
   jedaDetik: number;
+  saringSpam: boolean;
 }) {
   const [hasil, aksi] = useActionState(ubahNomorAction, null);
   // Tampilkan dalam menit bila pas kelipatan 60 (mis. 1800 -> 30 menit), selain itu dalam detik.
@@ -118,7 +150,7 @@ export function NumberSettings({
                 name="tunggu_baca_detik"
                 type="number"
                 required
-                min={10}
+                min={2}
                 max={600}
                 step={1}
                 defaultValue={tungguBacaDetik}
@@ -158,9 +190,12 @@ export function NumberSettings({
           <p className="hint">
             Begitu chat dibuka di HP, AI langsung menahan diri; tidak jadi dibalas, AI mengambil alih. WhatsApp tidak memberi tahu saat Anda
             mengetik, jadi tandanya adalah pesan terbaca di HP — &quot;Laporan dibaca&quot; di WhatsApp nomor ini harus aktif. Lama AI diam bisa
-            diisi dalam detik atau menit (maks 24 jam); isi 0 bila AI hanya perlu mundur untuk pesan itu saja.
+            diisi dalam detik atau menit (maks 24 jam); isi 0 bila AI hanya perlu mundur untuk pesan itu saja. Pesan pelanggan yang masuk selagi AI
+            diam dan tidak Anda balas tetap dijawab AI begitu waktunya habis.
           </p>
         </fieldset>
+
+        <SaklarSpam id={id} aktif={saringSpam} />
 
         <div>
           <label htmlFor="instruksi" className="label">

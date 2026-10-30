@@ -9,6 +9,7 @@ import { JENIS_TERUSKAN } from "@/lib/teruskan";
 import { type Foto, MAKS_FOTO_BYTE } from "@/lib/types";
 import { sesiDanNomor } from "@/lib/akses";
 import { terlaluSering } from "@/lib/batas";
+import { alasanSpam, periksaSpam } from "@/lib/spam";
 
 /** Uji bot dari dashboard: jalur yang sama dengan WhatsApp (knowledge nomor + penyedia AI aktif), tanpa mengirim WA. */
 export async function POST(req: Request) {
@@ -37,6 +38,10 @@ export async function POST(req: Request) {
   if ((!teksPesan && !gambar.length) || teksPesan.length > 2000) return NextResponse.json({ error: "Pesan kosong atau terlalu panjang." }, { status: 400 });
   if (!/^[a-z0-9]{8,24}$/.test(sesi)) return NextResponse.json({ error: "Sesi uji tidak valid." }, { status: 400 });
   const pesan = gambar.length ? (teksPesan ? `${teksPesan}\n[Pelanggan melampirkan foto]` : "[Pelanggan mengirim foto]") : teksPesan;
+  // Penyaring spam sama dengan WhatsApp (chat uji = lawan bicara yang belum dikenal).
+  const saringSpam = nomor.saring_spam;
+  const lokal = saringSpam ? periksaSpam(teksPesan) : null;
+  if (lokal?.spam) return NextResponse.json({ teks: "", ms: 0, abaikan: `${alasanSpam(lokal)}, tanpa memanggil AI` });
 
   // Percakapan uji sejauh ini (dikirim browser). Penyedia tanpa ingatan (Claude API) menerimanya di pesan sistem;
   // untuk semua penyedia ia juga sumber fakta bagi pemeriksa jawaban.
@@ -51,9 +56,11 @@ export async function POST(req: Request) {
     riwayat: lengkap ? semuaRiwayat : [],
     riwayatLengkap: lengkap,
     teruskan,
+    saringSpam,
   });
   try {
-    const j = await tanyaAiTerjaga({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, [sistem, pesan, ...semuaRiwayat].join("\n"), { teruskan });
+    const j = await tanyaAiTerjaga({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, [sistem, pesan, ...semuaRiwayat].join("\n"), { teruskan, saringSpam });
+    if (j.abaikan) return NextResponse.json({ teks: "", ms: j.ms, abaikan: `Dinilai AI: ${j.abaikan.jenis}${j.abaikan.alasan ? ` (${j.abaikan.alasan})` : ""}` });
     // Penjaga yang sama dengan WhatsApp, supaya hasil uji mencerminkan yang benar-benar terkirim.
     const diblokir = adaKode(j.teks);
     const teks = diblokir ? TOLAK_KODE : formatWa(j.teks);

@@ -458,6 +458,29 @@ await cek("penyedia AI per akun dari admin menang atas mode umum; tanpa kunci di
   await setSetting("ai_penyedia", simpan);
 });
 
+await cek("penyaring spam lokal (uji/data-spam.json): 0 pesan pelanggan salah tandai, promosi judi tertangkap >= 95%", async () => {
+  const { readFileSync } = await import("node:fs");
+  const S = await lib("src/lib/spam.ts");
+  const d = JSON.parse(readFileSync(path.join(akar, "uji/data-spam.json"), "utf8"));
+  const salah = d.pelanggan.filter((t) => S.periksaSpam(t).spam);
+  assert.deepEqual(salah, [], "pesan pelanggan tidak boleh ada yang tertandai spam");
+  const kena = d.judi.filter((t) => S.periksaSpam(t).spam).length;
+  assert.ok(kena / d.judi.length >= 0.95, `tertangkap ${kena}/${d.judi.length}`);
+  // Spam bukan judi sengaja tidak diputuskan lokal (diserahkan ke AI yang tahu konteks usaha).
+  assert.deepEqual(d.lain.filter((t) => S.periksaSpam(t).spam), []);
+  console.log(`        (judi tertangkap ${kena}/${d.judi.length}; pelanggan salah tandai 0/${d.pelanggan.length})`);
+  // Ejaan samaran dinormalkan; angka+satuan tidak diubah.
+  assert.equal(S.normalisasi("𝐒𝐋𝐎𝐓 g4c0r").kata, "slot gacor");
+  assert.equal(S.normalisasi("s.l.o.t g a c o r").padat, "slotgacor");
+  assert.equal(S.normalisasi("deposit 100rb 4D").kata, "deposit 100rb 4d");
+  // Tag abaikan: hanya bila tag itu satu-satunya isi jawaban.
+  assert.deepEqual(S.ambilAbaikan('<abaikan jenis="judi">promosi slot</abaikan>'), { jenis: "judi", alasan: "promosi slot" });
+  assert.deepEqual(S.ambilAbaikan("<abaikan>x</abaikan>"), { jenis: "promosi", alasan: "x" });
+  assert.equal(S.ambilAbaikan('Halo kak!\n<abaikan jenis="judi">x</abaikan>'), null);
+  assert.equal(S.buangTagAbaikan('Halo kak!\n<abaikan jenis="judi">alasan untuk sistem</abaikan>'), "Halo kak!");
+  assert.equal(S.buangTagAbaikan("Halo kak!\n<abaikan>terpotong"), "Halo kak!");
+});
+
 await sql.end({ timeout: 2 });
 await pg.berhenti();
 console.log(`\nLOLOS ${lolos} uji modul AI`);

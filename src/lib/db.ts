@@ -306,6 +306,19 @@ const MIGRASI: string[] = [
   `
   ALTER TABLE users ADD COLUMN ai_penyedia text CHECK (ai_penyedia IN ('hermes', 'anthropic'));
   `,
+  // v12: serah-terima bawaan 5 detik (nomor baru); penyaring spam (src/lib/spam.ts).
+  //   numbers.saring_spam: penyaring aktif per nomor. percakapan.spam: 0 = biasa, 1 = pernah terdeteksi spam
+  //   (alasannya di spam_alasan), 2 = ditandai "bukan spam" oleh pemilik (tidak disaring lagi). ai_pakai.abaikan: panggilan
+  //   AI yang berakhir "abaikan" (spam) tetap tercatat biayanya tetapi tidak memotong kuota balasan pelanggan.
+  //   Semua ADD COLUMN berdefault konstan: hanya katalog, tanpa menulis ulang tabel.
+  `
+  ALTER TABLE numbers ALTER COLUMN tunggu_baca_detik SET DEFAULT 5;
+  ALTER TABLE numbers ALTER COLUMN jeda_detik SET DEFAULT 5;
+  ALTER TABLE numbers ADD COLUMN saring_spam boolean NOT NULL DEFAULT true;
+  ALTER TABLE percakapan ADD COLUMN spam smallint NOT NULL DEFAULT 0 CHECK (spam IN (0, 1, 2));
+  ALTER TABLE percakapan ADD COLUMN spam_alasan text;
+  ALTER TABLE ai_pakai ADD COLUMN abaikan boolean NOT NULL DEFAULT false;
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

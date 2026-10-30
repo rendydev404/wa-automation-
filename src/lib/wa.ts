@@ -45,6 +45,8 @@ export type EventWa =
       telepon?: string | null;
       /** Nama profil WA lawan bicara (pushName pesan masuk). */
       namaPengirim?: string | null;
+      /** Pesan masuk ini apa adanya, untuk dikutip (reply) oleh balasan AI. */
+      kutip?: WAMessage | null;
     }
   /** Pesan masuk di chat ini terbaca dari perangkat lain milik nomor (HP pemilik). */
   | { jenis: "dibaca"; sesi: string; chat: string };
@@ -302,6 +304,7 @@ async function pesanTiba(B: Baileys, s: Sesi, sock: WASocket, m: WAMessage): Pro
     waktu: B.toNumber(m.messageTimestamp),
     telepon: pn ? digitWa(pn) || null : null,
     namaPengirim: !m.key.fromMe && m.pushName ? m.pushName.trim().slice(0, 80) || null : null,
+    kutip: m.key.fromMe ? null : { key: m.key, message: m.message, messageTimestamp: m.messageTimestamp },
   });
 }
 
@@ -668,12 +671,13 @@ export function mengetik(nama: string, alamat: string, nyala: boolean): Promise<
  * Kirim teks. `padaId` dipanggil dengan id pesan SEBELUM pesan dikirim, supaya pemanggil bisa
  * mengenali pesan itu sebagai miliknya sendiri kapan pun gema-nya tiba.
  */
-export async function kirimTeks(nama: string, alamat: string, teks: string, padaId?: (id: string) => void): Promise<string> {
+/** Kirim teks; `kutip` = pesan yang dibalas (tampil sebagai reply di WhatsApp). */
+export async function kirimTeks(nama: string, alamat: string, teks: string, padaId?: (id: string) => void, kutip?: WAMessage | null): Promise<string> {
   const { sock } = aktif(nama);
   const B = await baileys();
   const id = B.generateMessageIDV2(sock.user?.id);
   padaId?.(id);
   // linkPreview: null -> server ini tidak pernah mengunduh tautan yang ada di dalam teks balasan.
-  await denganBatas(sock.sendMessage(alamat, { text: teks, linkPreview: null }, { messageId: id }), 25_000, "mengirim pesan");
+  await denganBatas(sock.sendMessage(alamat, { text: teks, linkPreview: null }, { messageId: id, ...(kutip ? { quoted: kutip } : {}) }), 25_000, "mengirim pesan");
   return id;
 }

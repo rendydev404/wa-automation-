@@ -104,7 +104,7 @@ function buatSoket(config) {
     signalRepository: { lidMapping: { getLIDForPN: async (pn) => petaLid.get(pn) ?? null } },
     async sendMessage(jid, isi, opsi) {
       if (s.gagalKirim) throw new Error("kirim gagal");
-      s.terkirim.push({ jid, isi, id: opsi.messageId, at: Date.now() });
+      s.terkirim.push({ jid, isi, id: opsi.messageId, kutip: opsi.quoted?.key?.id ?? null, at: Date.now() });
       s.urutan.push("kirim");
       return { key: { id: opsi.messageId } };
     },
@@ -454,6 +454,83 @@ await cek("balasan otomatis dimatikan: pesan dihitung tetapi tidak dijawab", asy
   assert.equal((await stat(A.id)).masuk, m0 + 1);
 });
 
+await cek("balasan AI mengutip (reply) pesan pelanggan terakhir yang dijawab", async () => {
+  const P = "555000320@lid";
+  const k0 = sA.terkirim.length;
+  tiba(sA, pesan(P, "kak buka jam berapa?", { id: "KUTIP1" }));
+  tiba(sA, pesan(P, "hari minggu juga?", { id: "KUTIP2" }));
+  await tunggu(() => sA.terkirim.length === k0 + 1, 5000);
+  assert.equal(sA.terkirim.at(-1).jid, P);
+  assert.equal(sA.terkirim.at(-1).kutip, "KUTIP2");
+});
+
+await cek("spam judi: tidak dijawab (tanpa memanggil AI), tidak ditandai dibaca, tercatat di histori dengan tanda Spam", async () => {
+  const P = "555000321@lid";
+  const n0 = hermes.panggilan.length;
+  const k0 = sA.terkirim.length;
+  const d0 = sA.dibaca.length;
+  tiba(sA, pesan(P, "SLOT GACOR hari ini!! bonus new member 100%, daftar sekarang bit.ly/gacor88 🔥🔥"));
+  tiba(sA, pesan(P, "s1ot g4c0r min depo 5rb, anti rungkad, wd cepat"));
+  await tidur(2600);
+  await bridge.tulisTuntas();
+  assert.equal(hermes.panggilan.length, n0);
+  assert.equal(sA.terkirim.length, k0);
+  assert.equal(sA.dibaca.length, d0);
+  const [r] = await sql`SELECT spam, spam_alasan, masuk_n FROM percakapan WHERE kunci = ${kunciChat(A.sesi, P)}`;
+  assert.equal(r.spam, 1);
+  assert.equal(r.masuk_n, 2);
+  assert.match(r.spam_alasan, /^Promosi judi online \(/);
+  // Pelanggan sungguhan dengan kata jebakan (jadwal slot, burung gacor, DP) tetap dijawab.
+  tiba(sA, pesan("555000322@lid", "kak slot jadwal besok masih ada? murai yang gacor juga ready? DP nya 50rb ya"));
+  await tunggu(() => sA.terkirim.length === k0 + 1 && sA.terkirim.at(-1).jid === "555000322@lid", 5000);
+});
+
+await cek("spam judi di chat yang pernah dibalas pemilik / ditandai bukan spam: tetap dijawab", async () => {
+  const P = "555000323@lid";
+  const n0 = hermes.panggilan.length;
+  const k0 = sA.terkirim.length;
+  tiba(sA, pesan(P, "Siap kak, ditunggu orderannya", { dariSaya: true })); // pemilik pernah membalas: kontak dikenal
+  await tunggu(() => chatMemori(A.sesi, P)?.jeda_sampai > 0, 3000);
+  chatMemori(A.sesi, P).jeda_sampai = 0;
+  tiba(sA, pesan(P, "kak ini ada info slot gacor maxwin, depo 10rb bisa wd, link: hoki88.xyz"));
+  await tunggu(() => sA.terkirim.length === k0 + 1, 5000);
+  // Ditandai bukan spam dari dashboard: penyaring lokal dan AI dilewati.
+  const P2b = "555000324@lid";
+  tiba(sA, pesan(P2b, "SLOT GACOR hari ini!! bonus new member 100%, daftar sekarang bit.ly/gacor88"));
+  await tidur(1500);
+  await bridge.tulisTuntas();
+  const { tandaiBukanSpam } = await lib("src/lib/percakapan.ts");
+  const [p] = await sql`SELECT id FROM percakapan WHERE kunci = ${kunciChat(A.sesi, P2b)}`;
+  assert.equal(await tandaiBukanSpam(A.id, p.id), 1);
+  tiba(sA, pesan(P2b, "SLOT GACOR lagi kak, maxwin x500, daftar sekarang bit.ly/gacor88"));
+  await tunggu(() => sA.terkirim.length === k0 + 2, 5000);
+  assert.equal(hermes.panggilan.length, n0 + 2);
+  assert.doesNotMatch(hermes.panggilan.at(-1).sistem, /<aturan_spam>/, "chat dipercaya: AI tidak diberi aturan spam");
+});
+
+await cek("spam yang dinilai AI (tag <abaikan>): tidak dikirim, tidak memotong kuota, tercatat; chat baru diberi aturan spam", async () => {
+  const P = "555000325@lid";
+  const k0 = sA.terkirim.length;
+  hermes.jawab = (p) => (/followers/.test(p.pesan) ? '<abaikan jenis="promosi">jual followers</abaikan>' : null);
+  tiba(sA, pesan(P, "Jual followers instagram aktif 1000 = 25rb, proses cepat"));
+  await tunggu(() => /followers/.test(hermes.panggilan.at(-1)?.pesan ?? ""), 5000);
+  await tidur(1800);
+  await bridge.tulisTuntas();
+  hermes.jawab = null;
+  assert.match(hermes.panggilan.at(-1).sistem, /<aturan_spam>/);
+  assert.equal(sA.terkirim.length, k0);
+  const [r] = await sql`SELECT spam, spam_alasan FROM percakapan WHERE kunci = ${kunciChat(A.sesi, P)}`;
+  assert.deepEqual({ ...r }, { spam: 1, spam_alasan: "Dinilai AI: promosi (jual followers)" });
+  const [u] = await sql`SELECT abaikan FROM ai_pakai WHERE number_id = ${A.id} ORDER BY id DESC LIMIT 1`;
+  assert.equal(u.abaikan, true);
+  // Tag dengan teks lain di sekitarnya = model ragu: jawabannya dikirim, tagnya dibuang.
+  hermes.jawab = () => 'Halo kak, ada yang bisa dibantu?\n<abaikan jenis="promosi">x</abaikan>';
+  tiba(sA, pesan(P, "halo"));
+  await tunggu(() => sA.terkirim.length === k0 + 1, 5000);
+  hermes.jawab = null;
+  assert.equal(sA.terkirim.at(-1).isi.text, "Halo kak, ada yang bisa dibantu?");
+});
+
 await cek("kuota balasan AI pemilik habis: pesan tercatat tetapi AI diam; kuota ditambah = AI membalas lagi", async () => {
   const L = await lib("src/lib/langganan.ts");
   const { setSetting } = await lib("src/lib/db.ts");
@@ -566,18 +643,19 @@ await cek("jeda bertahan walau server dimulai ulang (dimuat lagi dari database)"
   globalThis.__waBridge.antre.get(k).catatan = catatanLama;
 });
 
-await cek("jeda habis: AI lanjut dan tahu apa yang dibalas pemilik nomor", async () => {
+await cek("jeda habis: pesan yang masuk selama jeda dan tidak dibalas manusia ikut dijawab AI; AI tahu balasan pemilik", async () => {
   const n0 = hermes.panggilan.length;
   chatMemori(A.sesi, P2).jeda_sampai = 0;
   tiba(sA, pesan(P2, "jadi totalnya berapa?"));
   await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
   const h = hermes.panggilan.at(-1);
-  assert.equal(h.pesan, "jadi totalnya berapa?");
+  // "masih ada kak?" tiba selagi AI diam dan tidak dibalas manusia: tidak dibiarkan, dijawab bersama pesan baru.
+  assert.equal(h.pesan, "masih ada kak?\njadi totalnya berapa?");
   // Isi chat yang tidak dilihat AI, urut waktu: pesan yang sempat batal dijawab, balasan manusia, dan
-  // pesan pelanggan selagi AI diam (juga yang tiba setelah memori hilang). Pesan yang sedang dijawab tidak diulang.
+  // pesan pelanggan selagi AI diam. Pesan yang sedang dijawab tidak diulang.
   const blok = h.sistem.match(/<catatan_percakapan>([\s\S]*)<\/catatan_percakapan>/)?.[1] ?? "";
-  assert.match(blok, /Pelanggan: kak mau pesan\n.*Pemilik nomor: Siap kak, saya bantu ya\n.*Pelanggan: oke kak\n.*Pelanggan: masih ada kak\?/);
-  assert.doesNotMatch(blok, /jadi totalnya berapa/);
+  assert.match(blok, /Pelanggan: kak mau pesan\n.*Pemilik nomor: Siap kak, saya bantu ya\n.*Pelanggan: oke kak/);
+  assert.doesNotMatch(blok, /jadi totalnya berapa|masih ada kak/);
   assert.match(blok, /^\n.*belum ada di ingatanmu/);
   await tunggu(() => sA.terkirim.at(-1)?.jid === P2, 4000);
 });

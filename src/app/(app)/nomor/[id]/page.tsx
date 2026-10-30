@@ -213,6 +213,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               tungguDetik={nomor.tunggu_detik}
               tungguBacaDetik={nomor.tunggu_baca_detik}
               jedaDetik={nomor.jeda_detik}
+              saringSpam={nomor.saring_spam}
             />
           </div>
         </div>

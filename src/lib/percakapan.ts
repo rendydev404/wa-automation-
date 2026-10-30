@@ -33,6 +33,9 @@ export interface ItemPercakapan {
   manusia_n: number;
   terakhir_pada: number;
   jeda_sampai: number;
+  /** 0 = biasa, 1 = pernah terdeteksi spam (AI tidak membalas pesan itu), 2 = ditandai "bukan spam" oleh pemilik. */
+  spam: 0 | 1 | 2;
+  spam_alasan: string | null;
 }
 
 export interface ItemPesan {
@@ -144,7 +147,7 @@ export async function daftarPercakapan(
     // Jalur paling sering (buka halaman pertama tanpa filter): murni Index Scan berurutan pada percakapan_nomor_waktu_idx.
     baris = await sql<ItemPercakapan[]>`
       SELECT p.id, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir,
-             p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada,
+             p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, p.spam, p.spam_alasan,
              COALESCE(cs.jeda_sampai, 0) AS jeda_sampai
         FROM percakapan p
         LEFT JOIN chat_state cs ON cs.kunci = p.kunci
@@ -157,7 +160,7 @@ export async function daftarPercakapan(
     const polaDigit = digit ? `%${digit}%` : pola;
     baris = await sql<ItemPercakapan[]>`
       SELECT p.id, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir,
-             p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada,
+             p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, p.spam, p.spam_alasan,
              COALESCE(cs.jeda_sampai, 0) AS jeda_sampai
         FROM percakapan p
         LEFT JOIN chat_state cs ON cs.kunci = p.kunci
@@ -191,7 +194,7 @@ export async function ambilPesanPercakapan(
   const sql = await db();
   const [percakapan] = await sql<ItemPercakapan[]>`
     SELECT p.id, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir,
-           p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada,
+           p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, p.spam, p.spam_alasan,
            COALESCE(cs.jeda_sampai, 0) AS jeda_sampai
       FROM percakapan p
       LEFT JOIN chat_state cs ON cs.kunci = p.kunci
@@ -382,4 +385,29 @@ export function mulaiPembersihanHistori(): void {
   setTimeout(jalan, PEMBERSIHAN_AWAL_MS).unref?.();
   gBersih.__waBersihHistori = setInterval(jalan, PEMBERSIHAN_SELANG_MS);
   gBersih.__waBersihHistori.unref?.();
+}
+
+// ---------- Spam (src/lib/spam.ts) ----------
+
+/**
+ * Chat ini boleh disaring? Tidak bila pemilik nomor pernah membalasnya sendiri (lawan bicara yang dikenal) atau sudah
+ * menandainya "bukan spam". Satu baca lewat indeks unik `kunci`; chat yang belum tercatat = belum dipercaya.
+ */
+export async function chatDipercaya(kunci: string): Promise<boolean> {
+  const sql = await db();
+  const [r] = await sql<{ spam: number; manusia_n: number }[]>`SELECT spam, manusia_n FROM percakapan WHERE kunci = ${kunci}`;
+  return !!r && (r.spam === 2 || r.manusia_n > 0);
+}
+
+/** Catat bahwa chat ini menerima spam (alasan terbaru ditampilkan di histori). Tanda "bukan spam" dari pemilik tidak ditimpa. */
+export async function tandaiSpam(kunci: string, alasan: string): Promise<void> {
+  const sql = await db();
+  await sql`UPDATE percakapan SET spam = 1, spam_alasan = ${alasan.slice(0, 200)} WHERE kunci = ${kunci} AND spam <> 2`;
+}
+
+/** Pemilik menandai chat "bukan spam": tidak disaring lagi. Mengembalikan jumlah baris (0 = bukan milik nomor ini). */
+export async function tandaiBukanSpam(numberId: number, percakapanId: number): Promise<number> {
+  const sql = await db();
+  const r = await sql`UPDATE percakapan SET spam = 2 WHERE id = ${percakapanId} AND number_id = ${numberId}`;
+  return r.count;
 }

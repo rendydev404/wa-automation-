@@ -7,10 +7,12 @@ import { susunSistem } from "./knowledge";
 import { bisaTeruskan, teruskanKePemilik } from "./penerusan";
 import type { TagTeruskan } from "./teruskan";
 import { type Nomor, catatStat, catatTerhubung, nomorBySesi } from "./numbers";
-import { catatPesan, riwayatUntukAi } from "./percakapan";
+import { catatPesan, chatDipercaya, riwayatUntukAi, tandaiSpam } from "./percakapan";
+import { alasanSpam, periksaSpam } from "./spam";
 import { pelajariBalasan } from "./pelajaran";
 import { CATATAN_KODE_DIBLOKIR, TOLAK_KODE, adaKode } from "./penjaga";
 import type { Foto } from "./types";
+import type { WAMessage } from "baileys";
 import { type EventWa, digitWa, kirimTeks, mengetik, padaEvent, tandaiDibaca } from "./wa";
 
 /**
@@ -24,8 +26,12 @@ import { type EventWa, digitWa, kirimTeks, mengetik, padaEvent, tandaiDibaca } f
  *      WhatsApp tidak memberi tahu perangkat tertaut bahwa pemilik sedang mengetik; "chat dibuka"
  *      adalah satu-satunya tanda yang tersedia bahwa manusia sedang menangani.
  *   3. Manusia mengirim balasan -> jawaban AI dibatalkan dan AI diam di chat itu selama `jeda_detik`
- *      (0 = hanya untuk pesan itu).
+ *      (0 = hanya untuk pesan itu). Pesan pelanggan yang masuk selama itu tetap diantrekan: bila manusia
+ *      tidak membalasnya sampai jeda habis, AI yang menjawab (tidak ada pesan pelanggan yang dibiarkan).
  *   4. Masa tunggu di (2) habis tanpa balasan manusia (tidak jadi membalas) -> AI mengambil alih.
+ * Spam (src/lib/spam.ts): promosi judi yang jelas tidak diantrekan sama sekali; spam lain dinilai AI (tag <abaikan>).
+ * Keduanya tidak berlaku di chat yang pernah dibalas manusia atau ditandai "bukan spam", dan bisa dimatikan per nomor.
+ *   Pesan spam tetap tercatat di histori (dengan tanda spam) dan tidak ditandai dibaca, jadi pemilik tetap melihatnya.
  * Aturan anti-blokir: hanya membalas chat pribadi yang masuk, ada "mengetik", dibatasi per chat.
  *
  * Keadaan tiap chat (jeda, nomor sesi Hermes) dipegang di memori selama chat itu aktif
@@ -69,6 +75,8 @@ interface Antrean {
   foto: (() => Promise<Foto | null>)[];
   /** Id pesan pelanggan yang belum ditandai dibaca oleh bot. */
   belumDibaca: string[];
+  /** Pesan pelanggan terakhir yang belum dijawab; balasan AI mengutipnya (reply). */
+  kutip: WAMessage | null;
   timer: ReturnType<typeof setTimeout> | null;
   sedangProses: boolean;
   tungguMs: number;
@@ -147,6 +155,8 @@ function simpanChat(kunci: string, c: BarisChat): void {
 }
 
 const sedangDijeda = (a: Antrean): boolean => (a.chat?.jeda_sampai ?? 0) > sekarang();
+/** Sisa jeda chat ini dalam ms (0 bila tidak dijeda). */
+const sisaJedaMs = (a: Antrean): number => Math.max(0, (a.chat?.jeda_sampai ?? 0) * 1000 - Date.now());
 
 function jedaChat(kunci: string, a: Antrean, detik: number): void {
   const t = sekarang();
@@ -240,7 +250,9 @@ async function proses(kunci: string): Promise<void> {
     }
     // Selagi menunggu di atas, manusia bisa saja sudah membalas (antrean dikosongkan).
     if (a.generasi !== generasi || (!a.teks.length && !a.siap)) return;
-    if (sedangDijeda(a) || !nomor || !nomor.bot_aktif || !nomor.pemilik_aktif || (await kuotaHabis(nomor.user_id))) {
+    // Manusia sedang memegang chat: pesan tetap menunggu dan dijawab setelah jeda habis (lihat blok finally).
+    if (sedangDijeda(a)) return;
+    if (!nomor || !nomor.bot_aktif || !nomor.pemilik_aktif || (await kuotaHabis(nomor.user_id))) {
       a.teks.length = 0;
       a.foto.length = 0;
       a.siap = null;
@@ -248,6 +260,8 @@ async function proses(kunci: string): Promise<void> {
     }
 
     const mulai = Date.now();
+    // Balasan mengutip pesan terakhir yang sedang dijawab (bukan pesan yang tiba selagi AI berpikir).
+    const kutip = a.kutip;
     void mengetik(a.sesi, a.alamat, true);
 
     let jawaban: string;
@@ -275,20 +289,35 @@ async function proses(kunci: string): Promise<void> {
         // bersamaan dengan knowledge. Tulis histori yang masih antre ditunggu dulu supaya ikut terbaca.
         // Penyedia tanpa ingatan sesi (Claude API) diberi seluruh percakapan sesi ini, bukan hanya yang belum dilihat.
         // Penyedia ditentukan per akun (mode "per_paket": gratis = Hermes, berbayar = Claude API, cadangan Hermes).
-        const [ai, teruskan] = await Promise.all([aiUntukAkun(nomor.user_id), bisaTeruskan(nomor)]);
+        // Penyaring spam lewat AI hanya untuk chat yang belum dipercaya (lihat chatDipercaya); gagal membaca = jangan menyaring.
+        const [ai, teruskan, saringSpam] = await Promise.all([
+          aiUntukAkun(nomor.user_id),
+          bisaTeruskan(nomor),
+          nomor.saring_spam ? st.tulis.then(() => chatDipercaya(kunci)).then((p) => !p, () => false) : false,
+        ]);
         const lengkap = tanpaIngatan(ai.penyedia);
         const riwayat = st.tulis.then(() => riwayatUntukAi(kunci, { sesiBaru: sesi !== sesiLalu, tertunda, lengkap }));
         // Foto baru diunduh sekarang (AI memang akan menjawab), bersamaan, langsung ke memori.
         const gambar = (await Promise.all(pemuatFoto.map((ambil) => ambil().catch(() => null)))).filter((f: Foto | null): f is Foto => !!f);
         const gagalFoto = pemuatFoto.length - gambar.length;
         const isiPesan = gagalFoto ? `${pesan}\n[${gagalFoto} foto gagal dimuat sehingga tidak bisa kamu lihat; minta pelanggan mengirim ulang bila perlu]` : pesan;
-        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0, riwayatLengkap: lengkap, teruskan });
+        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0, riwayatLengkap: lengkap, teruskan, saringSpam });
         // Sumber fakta untuk pemeriksa: pesan sistem + pesan pelanggan + seluruh chat sesi ini (Hermes hanya diberi
         // yang belum ia lihat, jadi sisanya dibaca terpisah supaya angka yang pernah disebut di chat tetap sah).
         const sumber = [sistem, isiPesan, ...(lengkap ? [] : await riwayatUntukAi(kunci, { sesiBaru: false, tertunda, lengkap: true }))].join("\n");
-        const hasil = await tanyaAiTerjaga({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, sumber, { teruskan });
+        const hasil = await tanyaAiTerjaga({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, sumber, { teruskan, saringSpam });
+        tulisLatar(() => catatPakai(a.numberId, hasil, gambar.length > 0, !!hasil.abaikan));
+        if (hasil.abaikan) {
+          // Dinilai spam oleh AI: tidak dibalas, tidak ditandai dibaca, tidak memotong kuota; pemilik melihatnya di histori.
+          const alasan = `Dinilai AI: ${hasil.abaikan.jenis}${hasil.abaikan.alasan ? ` (${hasil.abaikan.alasan})` : ""}`;
+          console.info(`[bridge] pesan tidak dibalas, ${alasan} sesi=${a.sesi}`);
+          tulisLatar(() => tandaiSpam(kunci, alasan));
+          void mengetik(a.sesi, a.alamat, false);
+          a.belumDibaca.length = 0;
+          a.kutip = null;
+          return;
+        }
         tag = teruskan ? hasil.teruskan : null;
-        tulisLatar(() => catatPakai(a.numberId, hasil, gambar.length > 0));
         if (nomor.user_id !== null) catatBalasanLokal(nomor.user_id);
         if (hasil.pelanggaran.length) {
           console.warn(`[bridge] jawaban AI ditolak pemeriksa (${hasil.pelanggaran.map((p) => p.jenis).join(",")}) sesi=${a.sesi}${hasil.aman ? ", dikirim jawaban aman" : ", ditulis ulang"}`);
@@ -302,6 +331,7 @@ async function proses(kunci: string): Promise<void> {
           jawaban = TOLAK_KODE;
           catat(a, CATATAN_KODE_DIBLOKIR);
         } else jawaban = formatWa(mentah);
+        if (!jawaban) throw new Error("AI mengirim jawaban kosong");
       } catch (e) {
         galat(a, e);
         void mengetik(a.sesi, a.alamat, false);
@@ -341,7 +371,8 @@ async function proses(kunci: string): Promise<void> {
     await tandaiDibaca(a.sesi, a.alamat, a.belumDibaca.splice(0));
     try {
       // Id pesan dicatat sebelum pesan berangkat, jadi tidak mungkin dikira balasan manusia.
-      await kirimTeks(a.sesi, a.alamat, jawaban, (id) => ingat(st.terkirim, id, 500));
+      await kirimTeks(a.sesi, a.alamat, jawaban, (id) => ingat(st.terkirim, id, 500), kutip);
+      if (a.kutip === kutip) a.kutip = null;
       statistik(a.numberId, "dibalas");
       // Diteruskan ke pemilik hanya setelah jawabannya benar-benar sampai ke pelanggan ("sudah aku teruskan" jadi benar).
       if (tag) void teruskanKePemilik(nomor, { kunci, nama: a.namaPelanggan, telepon: a.teleponPelanggan }, tag, (id) => ingat(st.terkirim, id, 500));
@@ -358,8 +389,9 @@ async function proses(kunci: string): Promise<void> {
     // Masa tunggu setelah chat dibuka dihitung dari saat dibuka, bukan dari selesainya AI berpikir.
     const ulang = a.jedaUlangMs;
     a.jedaUlangMs = 0;
+    // Chat sedang dijeda: paling cepat setelah jedanya habis, lalu manusia masih diberi `tunggu` seperti biasa.
     if (a.teks.length || a.siap)
-      jadwalkan(kunci, a, ulang || (a.dibukaManusia ? Math.max(1_000, a.dibacaPada + a.tungguBacaMs - Date.now()) : a.tungguMs));
+      jadwalkan(kunci, a, ulang || sisaJedaMs(a) + (a.dibukaManusia ? Math.max(1_000, a.dibacaPada + a.tungguBacaMs - Date.now()) : a.tungguMs));
   }
 }
 
@@ -384,11 +416,12 @@ async function antreanUntuk(kunci: string, numberId: number, sesi: string, alama
     chat: chat ? { ...chat } : null,
     teks: [],
     belumDibaca: [],
+    kutip: null,
     foto: [],
     timer: null,
     sedangProses: false,
     tungguMs: 5000,
-    tungguBacaMs: 45000,
+    tungguBacaMs: 5000,
     generasi: 0,
     batalKarena: null,
     dibukaManusia: false,
@@ -422,7 +455,7 @@ function chatDibukaManusia(kunci: string): void {
     a.generasi += 1;
     a.batalKarena = "dibaca";
   } else {
-    jadwalkan(kunci, a, a.tungguBacaMs);
+    jadwalkan(kunci, a, sisaJedaMs(a) + a.tungguBacaMs);
   }
 }
 
@@ -493,6 +526,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
     a.teks.length = 0;
     a.foto.length = 0;
     a.belumDibaca.length = 0;
+    a.kutip = null;
     a.siap = null;
     a.dibukaManusia = false;
     a.aktifSampai = Date.now() + Math.max(600_000, nomor.jeda_detik * 1000);
@@ -505,13 +539,23 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   // Pemilik diblokir admin: pesan tetap tercatat, tapi AI tidak membalas.
   if (!nomor.bot_aktif || !nomor.pemilik_aktif) return;
 
+  // Promosi judi yang jelas: tidak diantrekan (tanpa memanggil AI), kecuali chat ini sudah dipercaya pemilik.
+  if (nomor.saring_spam && ev.teks) {
+    const h = periksaSpam(ev.teks);
+    // Balasan manusia yang masih antre ditulis harus ikut terbaca; gagal membaca = anggap dipercaya (jangan menyaring).
+    if (h.spam && !(await st.tulis.then(() => chatDipercaya(kunci)).catch(() => true))) {
+      console.info(`[bridge] pesan tidak dibalas, spam judi (skor ${h.skor}: ${h.sinyal.join(", ")}) sesi=${sesi}`);
+      tulisLatar(() => tandaiSpam(kunci, alasanSpam(h)));
+      return;
+    }
+  }
+
   let teks = ev.teks.trim();
   if (ev.foto) teks = teks ? `${teks}\n[Pelanggan melampirkan foto]` : "[Pelanggan mengirim foto]";
   else if (ev.lampiran) teks = teks ? `${teks}\n[Pelanggan juga melampirkan media yang tidak bisa kamu lihat]` : "[Pelanggan mengirim suara/berkas/stiker tanpa teks, yang tidak bisa kamu lihat]";
   if (!teks) return;
 
   const a = await antreanUntuk(kunci, nomor.id, sesi, ev.alamat);
-  if (sedangDijeda(a)) return; // manusia sedang memegang chat ini
   a.alamat = ev.alamat;
   a.namaPelanggan = ev.namaPengirim?.trim() || a.namaPelanggan;
   a.teleponPelanggan = telepon ?? a.teleponPelanggan;
@@ -529,10 +573,12 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   }
   a.belumDibaca.push(ev.id);
   if (a.belumDibaca.length > MAKS_BELUM_DIBACA) a.belumDibaca.shift();
+  a.kutip = ev.kutip ?? null;
   // Pesan baru: manusia diberi kesempatan dari awal. Bila chat masih terbuka di HP, tanda-baca untuk
   // pesan ini segera menyusul (atau baru saja tiba lebih dulu) dan masa tunggunya jadi yang panjang.
   a.dibukaManusia = Date.now() - a.dibacaPada < 3_000;
-  if (!a.sedangProses) jadwalkan(kunci, a, a.dibukaManusia ? a.tungguBacaMs : a.tungguMs);
+  // Manusia sedang memegang chat (jeda): pesan menunggu sampai jeda habis; dibalas manusia = antrean dikosongkan.
+  if (!a.sedangProses) jadwalkan(kunci, a, sisaJedaMs(a) + (a.dibukaManusia ? a.tungguBacaMs : a.tungguMs));
 }
 
 // Didaftarkan saat modul dimuat (lihat src/instrumentation.ts).

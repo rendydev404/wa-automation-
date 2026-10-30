@@ -12,12 +12,13 @@ import {
   MessagesSquare,
   RefreshCw,
   Search,
+  ShieldAlert,
   Smartphone,
   Trash2,
   User,
   X,
 } from "lucide-react";
-import { hapusPercakapanAction } from "@/app/actions";
+import { bukanSpamAction, hapusPercakapanAction } from "@/app/actions";
 import { angka, formatNomor, jamWib, kunciHariWib, tanggal, UMUR_HISTORI_HARI, waktuSingkatWib } from "@/lib/format";
 import type { FilterPercakapan, ItemPercakapan, ItemPesan, PeranPesan, RingkasanPercakapan } from "@/lib/percakapan";
 import { Pill, TombolKonfirmasi } from "./ui";
@@ -305,6 +306,17 @@ export function HistoriPercakapan({
     return h;
   }
 
+  const [menandai, setMenandai] = useState(false);
+  async function bukanSpam(id: number) {
+    setMenandai(true);
+    try {
+      const h = await bukanSpamAction(numberId, id);
+      if (h.ok) setDaftar((d) => d.map((p) => (p.id === id ? { ...p, spam: 2 } : p)));
+    } finally {
+      setMenandai(false);
+    }
+  }
+
   async function hapusSemua() {
     const h = await hapusPercakapanAction(numberId);
     if (h.ok) {
@@ -487,6 +499,11 @@ export function HistoriPercakapan({
                                 <Clock className="size-3" aria-hidden /> Dijeda manusia
                               </span>
                             )}
+                            {item.spam === 1 && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-danger-soft px-1.5 py-0.5 font-semibold text-danger">
+                                <ShieldAlert className="size-3" aria-hidden /> Spam
+                              </span>
+                            )}
                           </div>
                         </div>
                       </button>
@@ -539,6 +556,7 @@ export function HistoriPercakapan({
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate text-[14px] font-bold text-fg">{namaTampil(percakapanAktif)}</p>
                       {percakapanAktif.jeda_sampai > kini && <Pill nada="kuning">AI sedang jeda (ditangani manusia)</Pill>}
+                      {percakapanAktif.spam === 1 && <Pill nada="merah">Spam</Pill>}
                     </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
                       {percakapanAktif.telepon && (
@@ -569,6 +587,19 @@ export function HistoriPercakapan({
                   ikon={<Trash2 className="size-3.5" aria-hidden />}
                 />
               </div>
+
+              {percakapanAktif.spam === 1 && (
+                <div role="status" className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-danger-soft/60 px-4 py-2.5 text-[12.5px] sm:px-5">
+                  <p className="min-w-0 flex-1 text-fg">
+                    <span className="font-semibold text-danger">AI tidak membalas pesan spam di chat ini.</span>{" "}
+                    {percakapanAktif.spam_alasan && <span className="text-muted">{percakapanAktif.spam_alasan}.</span>}
+                  </p>
+                  <button type="button" onClick={() => void bukanSpam(percakapanAktif.id)} disabled={menandai} className="btn btn-ghost h-8 border border-line bg-surface px-3 text-xs">
+                    {menandai && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+                    Bukan spam, balas seperti biasa
+                  </button>
+                </div>
+              )}
 
               {/* Ruang Gelembung Pesan */}
               <div
