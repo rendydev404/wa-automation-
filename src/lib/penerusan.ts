@@ -1,6 +1,8 @@
 import "server-only";
 import { aturan, saklar } from "./aturan";
-import { db, sekarang } from "./db";
+import { db, getSetting, sekarang, setSetting } from "./db";
+import { angka } from "./format";
+import { balasanTerpakai, hakAkun } from "./langganan";
 import type { Nomor } from "./numbers";
 import { type JenisTeruskan, type TagTeruskan, pesanUntukPemilik } from "./teruskan";
 import { kirimTeks } from "./wa";
@@ -80,6 +82,56 @@ export async function teruskanKePemilik(
     await catat(nomor.id, pelanggan.kunci, label, tag, nomor.teruskan_ke, "gagal").catch(() => {});
     console.error(`[teruskan] gagal mengirim ke pemilik nomor ${nomor.id}: ${e instanceof Error ? e.message : e}`);
     return "gagal";
+  }
+}
+
+const sedangKabar = new Set<number>(); // pemilik yang notifikasi kuotanya sedang dikirim (pesan serentak tidak dobel)
+
+/**
+ * Kuota balasan AI pemilik nomor habis: kabari WhatsApp pribadinya (penerima penerusan) supaya segera memperpanjang
+ * atau menaikkan paket. Paling banyak sekali per periode kuota per akun (dicatat di settings, bertahan walau server
+ * dimulai ulang); periode baru (paket diperpanjang / bulan baru) yang habis lagi dikabari lagi. Dikirim dari nomor
+ * bisnis yang menerima pesan, hanya bila penerusan nomor itu aktif. Tercatat di riwayat penerusan nomor.
+ */
+export async function kabariKuotaHabis(
+  nomor: Pick<Nomor, "id" | "user_id" | "sesi" | "label" | "nama_wa" | "teruskan_ke" | "teruskan_aktif">,
+  padaId?: (id: string) => void
+): Promise<"terkirim" | "dilewati" | "gagal"> {
+  const userId = nomor.user_id;
+  // Penanda dipasang sebelum await apa pun: pesan serentak dari banyak pelanggan hanya memicu satu kabar.
+  if (userId === null || !nomor.teruskan_ke || sedangKabar.has(userId)) return "dilewati";
+  sedangKabar.add(userId);
+  try {
+    if (!(await bisaTeruskan(nomor))) return "dilewati";
+    const sql = await db();
+    const [u] = await sql<{ peran: string }[]>`SELECT peran FROM users WHERE id = ${userId}`;
+    if (!u) return "dilewati";
+    const hak = await hakAkun({ id: userId, peran: u.peran });
+    if (hak.balasan === null) return "dilewati";
+    const kunci = `kuota_habis_dikabari:${userId}`;
+    if ((await getSetting(kunci)) === String(hak.periodeMulai)) return "dilewati";
+    const terpakai = await balasanTerpakai(userId, hak.periodeMulai);
+    const app = process.env.APP_URL?.replace(/\/+$/, "");
+    const ringkasan = [
+      `Kuota balasan AI paket ${hak.paket} sudah habis (${angka(terpakai)} dari ${angka(hak.balasan)} terpakai).`,
+      "Mulai sekarang AI TIDAK membalas pesan pelanggan di semua nomor Anda. Pesan tetap masuk dan bisa Anda balas sendiri dari HP.",
+      `Segera perpanjang atau upgrade paket${app ? `: ${app}/langganan` : " di menu Langganan pada dashboard"}.`,
+    ].join("\n\n");
+    const tag: TagTeruskan = { jenis: "lainnya", ringkasan };
+    const teks = `⚠️ *Kuota balasan AI habis*\nNomor: ${nomor.label}${nomor.nama_wa ? ` (${nomor.nama_wa})` : ""}\n\n${ringkasan}`;
+    try {
+      await kirimTeks(nomor.sesi, `${nomor.teruskan_ke}@s.whatsapp.net`, teks, padaId);
+    } catch (e) {
+      await catat(nomor.id, "kuota", "Sistem: kuota habis", tag, nomor.teruskan_ke, "gagal").catch(() => {});
+      console.error(`[teruskan] notifikasi kuota habis gagal (nomor ${nomor.id}): ${e instanceof Error ? e.message : e}`);
+      return "gagal";
+    }
+    await setSetting(kunci, String(hak.periodeMulai));
+    await catat(nomor.id, "kuota", "Sistem: kuota habis", tag, nomor.teruskan_ke, "terkirim");
+    console.info(`[teruskan] kuota habis dikabarkan ke pemilik (akun ${userId}, nomor ${nomor.id})`);
+    return "terkirim";
+  } finally {
+    sedangKabar.delete(userId);
   }
 }
 

@@ -4,7 +4,7 @@ import { db, sekarang, setSetting } from "./db";
 import { catatPakai, tanpaIngatan, tanyaAiTerjaga } from "./ai";
 import { aiUntukAkun, catatBalasanLokal, sisaKuotaAi } from "./langganan";
 import { susunSistem } from "./knowledge";
-import { bisaTeruskan, teruskanKePemilik } from "./penerusan";
+import { bisaTeruskan, kabariKuotaHabis, teruskanKePemilik } from "./penerusan";
 import type { TagTeruskan } from "./teruskan";
 import { type Nomor, catatStat, catatTerhubung, nomorBySesi } from "./numbers";
 import { catatPesan, chatDipercaya, riwayatUntukAi, tandaiSpam } from "./percakapan";
@@ -252,7 +252,10 @@ async function proses(kunci: string): Promise<void> {
     if (a.generasi !== generasi || (!a.teks.length && !a.siap)) return;
     // Manusia sedang memegang chat: pesan tetap menunggu dan dijawab setelah jeda habis (lihat blok finally).
     if (sedangDijeda(a)) return;
-    if (!nomor || !nomor.bot_aktif || !nomor.pemilik_aktif || (await kuotaHabis(nomor.user_id))) {
+    const habis = !!nomor && nomor.bot_aktif && nomor.pemilik_aktif && (await kuotaHabis(nomor.user_id));
+    // Kuota habis: pemilik dikabari lewat WhatsApp pribadinya (sekali per periode kuota; lihat kabariKuotaHabis).
+    if (habis && nomor) void kabariKuotaHabis(nomor, (id) => ingat(st.terkirim, id, 500)).catch((e) => console.error("[bridge] kabar kuota habis:", e instanceof Error ? e.message : e));
+    if (!nomor || !nomor.bot_aktif || !nomor.pemilik_aktif || habis) {
       a.teks.length = 0;
       a.foto.length = 0;
       a.siap = null;
