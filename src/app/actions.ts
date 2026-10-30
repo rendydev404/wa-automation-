@@ -27,6 +27,7 @@ import {
   passwordHash,
   penggunaById,
   resetPassword,
+  setAiAkun,
   setBlokir,
   setKuota,
   setPeran,
@@ -380,6 +381,21 @@ export async function adminKuotaAction(_lalu: Hasil | null, form: FormData): Pro
   if (!id) return { ok: false, pesan: "Pengguna tidak valid." };
   if (kuota !== null && !(Number.isInteger(kuota) && kuota >= 0 && kuota <= 100)) return { ok: false, pesan: "Kuota harus 0–100 nomor (kosongkan = kuota bawaan)." };
   return jalankanAdmin(() => setKuota(admin, id, kuota), `/admin/pengguna/${id}`, "/admin");
+}
+
+export async function adminAiAkunAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const id = idSah(form.get("id"));
+  if (!id) return { ok: false, pesan: "Pengguna tidak valid." };
+  const dipilih = form.get("penyedia");
+  const penyedia = dipilih === "hermes" || dipilih === "anthropic" ? dipilih : null;
+  if (penyedia === "anthropic" && !kunciAnthropic()) return { ok: false, pesan: "API key Anthropic belum dipasang developer di server (ANTHROPIC_API_KEY)." };
+  return jalankanAdmin(async () => {
+    await setAiAkun(admin, id, penyedia);
+    return penyedia === null
+      ? "Akun ini kembali ikut pengaturan Mesin AI."
+      : `Semua nomor akun ini kini dijawab ${penyedia === "anthropic" ? "Claude API (cadangan Hermes)" : "Hermes"}.`;
+  }, `/admin/pengguna/${id}`, "/admin/pengguna");
 }
 
 export async function adminPeranAction(id: number, peran: "admin" | "user"): Promise<Hasil> {

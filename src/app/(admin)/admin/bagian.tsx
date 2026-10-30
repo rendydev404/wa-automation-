@@ -68,6 +68,7 @@ export async function MesinAi() {
           {atur.mode === "anthropic" ? `Claude API · ${atur.model}` : atur.mode === "per_paket" ? `Otomatis: gratis Hermes, berbayar Claude API · ${atur.model} (cadangan Hermes)` : "Hermes"}
         </span>
       </p>
+      <p className="mt-1 text-[12.5px] text-muted">Penyedia untuk akun tertentu bisa dipaksa dari halaman Pengguna (Kelola pengguna → Mesin AI akun); pilihan itu menang atas pengaturan di sini.</p>
       <p className={`mt-1 text-[12.5px] ${kunci && daftarModel === null ? "text-danger" : "text-muted"}`}>
         API key Anthropic:{" "}
         {!kunci ? "belum dipasang di server (developer: ANTHROPIC_API_KEY di .env)." : daftarModel === null ? "terpasang di server tapi ditolak/tak terjangkau, hubungi developer." : "terpasang di server ✓"}
@@ -327,6 +328,9 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
                       <span className="block truncate font-semibold">
                         {u.nama || "(tanpa nama)"}
                         {u.peran === "admin" && <span className="ml-2 rounded-md bg-accent-soft px-1.5 py-0.5 text-[10.5px] font-bold text-accent uppercase">Admin</span>}
+                        {u.ai_penyedia && (
+                          <span className="ml-2 rounded-md bg-subtle px-1.5 py-0.5 text-[10.5px] font-bold text-muted uppercase">{u.ai_penyedia === "anthropic" ? "Claude API" : "Hermes"}</span>
+                        )}
                       </span>
                       <span className="block truncate text-muted">{u.email}</span>
                     </span>

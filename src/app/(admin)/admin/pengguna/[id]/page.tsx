@@ -8,9 +8,10 @@ import { nomorMilik } from "@/lib/numbers";
 import { penggunaById } from "@/lib/pengguna";
 import { kuotaBawaan, requireAdmin } from "@/lib/session";
 import { infoSesi } from "@/lib/wa";
-import { AksiAkun, FormBerikanPaket, FormBlokir, FormKuota, HapusAkun, HentikanLangganan, PutuskanWa } from "../../form-admin";
+import { AksiAkun, FormAiAkun, FormBerikanPaket, FormBlokir, FormKuota, HapusAkun, HentikanLangganan, PutuskanWa } from "../../form-admin";
 import { angka } from "@/lib/format";
-import { balasanTerpakai, daftarPaket, hakAkun, langgananAktif } from "@/lib/langganan";
+import { kunciAnthropic, pengaturanAi } from "@/lib/ai";
+import { aiUntukAkun, balasanTerpakai, daftarPaket, hakAkun, langgananAktif } from "@/lib/langganan";
 
 export const metadata: Metadata = { title: "Kelola pengguna · Asisten WhatsApp" };
 
@@ -53,7 +54,21 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   const id = Number((await params).id);
   const u = Number.isInteger(id) && id > 0 ? await penggunaById(id) : undefined;
   if (!u) notFound();
-  const [nomor, bawaan, hak, aktif, paket] = await Promise.all([nomorMilik(id), kuotaBawaan(), hakAkun(u), langgananAktif(id), daftarPaket({ semua: true })]);
+  const [nomor, bawaan, hak, aktif, paket, atur, ai] = await Promise.all([
+    nomorMilik(id),
+    kuotaBawaan(),
+    hakAkun(u),
+    langgananAktif(id),
+    daftarPaket({ semua: true }),
+    pengaturanAi(),
+    aiUntukAkun(id),
+  ]);
+  const umum =
+    atur.mode === "anthropic"
+      ? `Claude API (${atur.model})`
+      : atur.mode === "per_paket"
+        ? `otomatis menurut paket (${aktif ? "berbayar: Claude API" : "tanpa paket: Hermes"})`
+        : "Hermes";
   const terpakai = hak.balasan === null ? 0 : await balasanTerpakai(id, hak.periodeMulai);
   const diriSendiri = u.id === admin.id;
 
@@ -148,6 +163,16 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               )}
             </section>
           )}
+          <section className="card p-6">
+            <h2 className="text-[15px] font-bold">Mesin AI akun</h2>
+            <p className="mt-0.5 text-[13px] text-muted">
+              Sekarang dijawab:{" "}
+              <span className="font-semibold text-fg">{ai.penyedia === "anthropic" ? `Claude API · ${atur.model}${ai.cadanganHermes ? " (cadangan Hermes)" : ""}` : "Hermes"}</span>
+            </p>
+            <div className="mt-4">
+              <FormAiAkun key={u.ai_penyedia ?? ""} id={u.id} penyedia={u.ai_penyedia} umum={umum} adaKunci={!!kunciAnthropic()} />
+            </div>
+          </section>
           {u.peran !== "admin" && (
             <section className="card p-6">
               <h2 className="text-[15px] font-bold">Kuota perangkat</h2>

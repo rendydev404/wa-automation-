@@ -428,6 +428,36 @@ await cek("templat base knowledge: semua jenis tersusun, harga resmi, data pesan
   assert.deepEqual(periksaJawaban("Mie Ayam Rp15.000 ya Kak.", t), []);
 });
 
+await cek("penyedia AI per akun dari admin menang atas mode umum; tanpa kunci di server kembali ke mode umum", async () => {
+  const L = await lib("src/lib/langganan.ts");
+  const PG = await lib("src/lib/pengguna.ts");
+  const [admin] = await sql`INSERT INTO users(email, nama, password_hash, peran, created_at) VALUES ('admin-ai@uji', 'Admin', 'x', 'admin', ${sekarang()}) RETURNING id, email`;
+  const [u] = await sql`INSERT INTO users(email, nama, password_hash, created_at) VALUES ('akun-ai@uji', 'Akun', 'x', ${sekarang()}) RETURNING id`;
+  const simpan = await getSetting("ai_penyedia");
+  const kunciLama = process.env.ANTHROPIC_API_KEY;
+
+  await setSetting("ai_penyedia", "per_paket"); // akun tanpa paket = Hermes
+  assert.deepEqual(await L.aiUntukAkun(u.id), { penyedia: "hermes", cadanganHermes: false });
+  await PG.setAiAkun(admin, u.id, "anthropic");
+  assert.equal((await PG.penggunaById(u.id)).ai_penyedia, "anthropic");
+  assert.deepEqual(await L.aiUntukAkun(u.id), { penyedia: "anthropic", cadanganHermes: true }); // cache dibersihkan: langsung berlaku
+  delete process.env.ANTHROPIC_API_KEY;
+  assert.deepEqual(await L.aiUntukAkun(u.id), { penyedia: "hermes", cadanganHermes: false }); // kunci dicabut: ikut mode umum
+  process.env.ANTHROPIC_API_KEY = kunciLama;
+
+  await setSetting("ai_penyedia", "anthropic"); // semua nomor Claude API, kecuali akun yang dipaksa Hermes
+  await PG.setAiAkun(admin, u.id, "hermes");
+  assert.deepEqual(await L.aiUntukAkun(u.id), { penyedia: "hermes", cadanganHermes: false });
+  await PG.setAiAkun(admin, u.id, null);
+  assert.deepEqual(await L.aiUntukAkun(u.id), { penyedia: "anthropic", cadanganHermes: false });
+  assert.deepEqual(await L.aiUntukAkun(null), { penyedia: "anthropic", cadanganHermes: false });
+
+  const log = await sql`SELECT detail FROM admin_log WHERE aksi = 'ubah mesin AI akun' ORDER BY id`;
+  assert.deepEqual(log.map((r) => r.detail), ["Claude API", "Hermes", "ikut pengaturan umum"]);
+  await assert.rejects(sql`UPDATE users SET ai_penyedia = 'openai' WHERE id = ${u.id}`); // hanya penyedia yang dikenal
+  await setSetting("ai_penyedia", simpan);
+});
+
 await sql.end({ timeout: 2 });
 await pg.berhenti();
 console.log(`\nLOLOS ${lolos} uji modul AI`);

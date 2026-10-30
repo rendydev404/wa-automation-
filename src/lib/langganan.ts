@@ -1,8 +1,9 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { type Tx, db, getSetting, sekarang, transaksi as transaksiDb } from "./db";
-import { MODEL_BAWAAN, type Penyedia, kursUsd, pengaturanAi, perkiraanPerBalasan } from "./ai";
+import { MODEL_BAWAAN, type Penyedia, kunciAnthropic, kursUsd, pengaturanAi, perkiraanPerBalasan } from "./ai";
 import { METODE_BAYAR, type MetodeBayar, hitungHarga, kuotaDariHarga, nomorDariKuota } from "./harga";
+import { hermesTerkonfigurasi } from "./hermes";
 import { type KonfigMidtrans, MidtransError, type StatusBayar, buatSnap, petaStatus, statusMidtrans } from "./midtrans";
 
 /**
@@ -193,12 +194,36 @@ async function akunBerbayar(userId: number): Promise<boolean> {
   return ok;
 }
 
+const ga = globalThis as unknown as { __waAiAkun?: Map<number, { at: number; p: Penyedia | null }> };
+const cacheAiAkun = (ga.__waAiAkun ??= new Map());
+
+/** Penyedia yang dipaksa admin untuk akun ini (users.ai_penyedia); dipegang di memori 60 dtk seperti status paket. */
+async function aiPaksaAkun(userId: number): Promise<Penyedia | null> {
+  const c = cacheAiAkun.get(userId);
+  if (c && Date.now() - c.at < 60_000) return c.p;
+  const sql = await db();
+  const [u] = await sql<{ ai_penyedia: Penyedia | null }[]>`SELECT ai_penyedia FROM users WHERE id = ${userId}`;
+  const p = u?.ai_penyedia ?? null;
+  cacheAiAkun.set(userId, { at: Date.now(), p });
+  return p;
+}
+
+/** Setelah admin mengubah penyedia AI akun: dibaca ulang di pesan berikutnya. */
+export function segarkanAiAkun(userId: number): void {
+  cacheAiAkun.delete(userId);
+}
+
 /**
- * Penyedia AI untuk satu akun. Mode "per_paket" (admin, /admin/ai): tanpa langganan aktif = Hermes; berlangganan =
+ * Penyedia AI untuk satu akun. Pilihan admin per akun (halaman pengguna) menang atas mode umum, selama penyedianya
+ * tersedia di server (Hermes terpasang / ANTHROPIC_API_KEY ada); Claude API per akun tetap bercadangan Hermes.
+ * Tanpa pilihan per akun, mode "per_paket" (admin, /admin/ai): tanpa langganan aktif = Hermes; berlangganan =
  * Claude API, dan `cadanganHermes` menyuruh tanyaAi memakai Hermes bila Claude gagal. Mode lain: sama untuk semua akun.
- * `userId` null (nomor tanpa pemilik) = tanpa paket.
+ * `userId` null (nomor tanpa pemilik) = tanpa paket dan tanpa pilihan per akun.
  */
 export async function aiUntukAkun(userId: number | null): Promise<{ penyedia: Penyedia; cadanganHermes: boolean }> {
+  const paksa = userId === null ? null : await aiPaksaAkun(userId);
+  if (paksa === "anthropic" && kunciAnthropic()) return { penyedia: "anthropic", cadanganHermes: true };
+  if (paksa === "hermes" && hermesTerkonfigurasi()) return { penyedia: "hermes", cadanganHermes: false };
   const atur = await pengaturanAi();
   if (atur.mode !== "per_paket") return { penyedia: atur.penyedia, cadanganHermes: false };
   const berbayar = userId !== null && (await akunBerbayar(userId));

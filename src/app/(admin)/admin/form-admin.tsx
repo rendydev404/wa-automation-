@@ -8,6 +8,7 @@ import {
   adminCabutSesiAction,
   adminHapusAction,
   adminAiAction,
+  adminAiAkunAction,
   adminBerikanPaketAction,
   adminHentikanLanggananAction,
   adminPaketAction,
@@ -95,6 +96,49 @@ export function FormKuota({ id, kuota, bawaan }: { id: number; kuota: number | n
       </div>
       <p className="text-[12px] text-muted">Kosongkan = ikut kuota bawaan. 0 = tidak boleh menambah nomor.</p>
       <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
+    </form>
+  );
+}
+
+const PILIHAN_AI_AKUN = [
+  { id: "", nama: "Ikuti Mesin AI" },
+  { id: "hermes", nama: "Hermes" },
+  { id: "anthropic", nama: "Claude API" },
+] as const;
+
+export function FormAiAkun({ id, penyedia, umum, adaKunci }: { id: number; penyedia: "hermes" | "anthropic" | null; umum: string; adaKunci: boolean }) {
+  const [hasil, aksi] = useActionState(adminAiAkunAction, null);
+  const [pilih, setPilih] = useState<string>(penyedia ?? "");
+  return (
+    <form action={aksi} className="space-y-3">
+      <input type="hidden" name="id" value={id} />
+      <fieldset className="grid grid-cols-3 gap-2">
+        <legend className="label">Penyedia AI untuk semua nomor akun ini</legend>
+        {PILIHAN_AI_AKUN.map((p) => {
+          const mati = p.id === "anthropic" && !adaKunci && penyedia !== "anthropic";
+          return (
+            <label
+              key={p.id}
+              className={`rounded-xl border px-2.5 py-2 text-center text-[12.5px] font-semibold transition-colors ${pilih === p.id ? "border-accent bg-accent-soft text-accent" : "border-line hover:bg-subtle"} ${mati ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+            >
+              <input type="radio" name="penyedia" value={p.id} checked={pilih === p.id} onChange={() => setPilih(p.id)} disabled={mati} className="sr-only" />
+              {p.nama}
+            </label>
+          );
+        })}
+      </fieldset>
+      <p className="text-[12px] text-muted">
+        {pilih === ""
+          ? `Mengikuti pengaturan umum di Mesin AI: ${umum}.`
+          : pilih === "anthropic"
+            ? "Selalu Claude API (model utama & cadangan dari Mesin AI), apa pun paketnya. Bila Claude gagal, Hermes yang menjawab."
+            : "Selalu Hermes, apa pun paketnya."}
+      </p>
+      {!adaKunci && <p className="text-[12px] text-muted">Claude API bisa dipilih setelah developer memasang ANTHROPIC_API_KEY di server.</p>}
+      <div className="flex items-center gap-3">
+        <SubmitButton>Simpan</SubmitButton>
+        <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
+      </div>
     </form>
   );
 }

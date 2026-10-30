@@ -301,6 +301,11 @@ const MIGRASI: string[] = [
   `
   CREATE INDEX pesan_chat_waktu_idx ON pesan_chat (waktu);
   `,
+  // v11: admin bisa memaksa penyedia AI untuk satu akun (mengalahkan mode di Mesin AI). NULL = ikut pengaturan umum.
+  // ADD COLUMN tanpa default hanya mengubah katalog (tanpa menulis ulang tabel users).
+  `
+  ALTER TABLE users ADD COLUMN ai_penyedia text CHECK (ai_penyedia IN ('hermes', 'anthropic'));
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

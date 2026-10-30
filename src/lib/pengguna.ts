@@ -1,6 +1,8 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
+import type { Penyedia } from "./ai";
 import { db, sekarang } from "./db";
+import { segarkanAiAkun } from "./langganan";
 import { segarkanNomor } from "./numbers";
 import { hashPassword } from "./password";
 import type { Peran, User } from "./session";
@@ -22,6 +24,7 @@ export interface BarisPengguna {
   created_at: number;
   punya_password: boolean; // false = akun dibuat lewat Google dan belum pernah memasang password
   google: boolean; // tertaut ke akun Google
+  ai_penyedia: Penyedia | null; // dipaksa admin untuk akun ini; null = ikut pengaturan Mesin AI
 }
 
 /** Penanda password_hash akun tanpa password (dibuat lewat Google): bukan format scrypt, jadi tidak pernah cocok. */
@@ -93,7 +96,7 @@ export async function daftarPengguna(opsi: { cari?: string; filter?: FilterPengg
   const pola = `%${cari.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   const f = opsi.filter ?? "semua";
   const baris = await sql<BarisPengguna[]>`
-    SELECT u.id, u.email, u.nama, u.peran, u.status, u.alasan_blokir, u.kuota_nomor, u.login_terakhir, u.created_at,
+    SELECT u.id, u.email, u.nama, u.peran, u.status, u.alasan_blokir, u.kuota_nomor, u.ai_penyedia, u.login_terakhir, u.created_at,
            u.password_hash NOT LIKE '!%' AS punya_password, u.google_sub IS NOT NULL AS google,
            COALESCE(n.jumlah, 0) AS jumlah_nomor
       FROM users u
@@ -109,7 +112,7 @@ export async function daftarPengguna(opsi: { cari?: string; filter?: FilterPengg
 export async function penggunaById(id: number): Promise<BarisPengguna | undefined> {
   const sql = await db();
   const [u] = await sql<BarisPengguna[]>`
-    SELECT u.id, u.email, u.nama, u.peran, u.status, u.alasan_blokir, u.kuota_nomor, u.login_terakhir, u.created_at,
+    SELECT u.id, u.email, u.nama, u.peran, u.status, u.alasan_blokir, u.kuota_nomor, u.ai_penyedia, u.login_terakhir, u.created_at,
            u.password_hash NOT LIKE '!%' AS punya_password, u.google_sub IS NOT NULL AS google,
            (SELECT COUNT(*) FROM numbers WHERE user_id = u.id) AS jumlah_nomor
       FROM users u WHERE u.id = ${id}`;
@@ -168,6 +171,15 @@ export async function setKuota(admin: User, id: number, kuota: number | null): P
   const sql = await db();
   await sql`UPDATE users SET kuota_nomor = ${kuota} WHERE id = ${id}`;
   await catatLog(admin, "ubah kuota", u.email, kuota === null ? "bawaan" : `${kuota} nomor`);
+}
+
+/** Paksa penyedia AI untuk semua nomor akun ini (null = ikut pengaturan Mesin AI); berlaku di pesan berikutnya. */
+export async function setAiAkun(admin: User, id: number, penyedia: Penyedia | null): Promise<void> {
+  const u = await wajib(id);
+  const sql = await db();
+  await sql`UPDATE users SET ai_penyedia = ${penyedia} WHERE id = ${id}`;
+  segarkanAiAkun(id);
+  await catatLog(admin, "ubah mesin AI akun", u.email, penyedia === null ? "ikut pengaturan umum" : penyedia === "anthropic" ? "Claude API" : "Hermes");
 }
 
 export async function setPeran(admin: User, id: number, peran: Peran): Promise<void> {
