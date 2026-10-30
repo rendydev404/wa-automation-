@@ -5,12 +5,14 @@ import dynamic from "next/dynamic";
 import { Bot, Coffee, QrCode, ShoppingBag, Stethoscope, Upload } from "lucide-react";
 import type { PropsChatDemo } from "@/remotion/chat-demo";
 
-/** Selagi pemutar Remotion dimuat: bingkai ponsel diam dengan ukuran yang sama (tanpa lompatan tata letak). */
+/** Selagi pemutar Remotion dimuat: siluet iPhone 12 dengan ukuran yang sama (tanpa lompatan tata letak). */
 function BingkaiTunggu() {
   return (
-    <div aria-hidden className="aspect-[720/1000] w-full px-[5.5%] py-[1.8%]">
-      <div className="h-full rounded-[44px] bg-black p-2.5">
-        <div className="h-full animate-denyut rounded-[36px] bg-[#efeae2]" />
+    <div aria-hidden className="aspect-[820/1640] w-full px-[3.2%] py-[2%]">
+      <div className="h-full rounded-[14.7%/7.2%] bg-[#2a2e33] p-[0.9%]">
+        <div className="h-full rounded-[14%/6.9%] bg-black p-[2.9%]">
+          <div className="h-full animate-denyut rounded-[11.8%/5.5%] bg-[#efeae2]" />
+        </div>
       </div>
     </div>
   );
@@ -93,7 +95,9 @@ export function DemoChat() {
       </div>
       {/* key: ganti skenario = komposisi diputar dari awal. */}
       <div role="tabpanel" aria-label={`Contoh percakapan ${s.data.nama}`}>
-        <PemutarChat key={s.kunci} skenario={s.data} />
+        <div className="mx-auto w-full max-w-[330px]">
+          <PemutarChat key={s.kunci} skenario={s.data} />
+        </div>
         <p className="sr-only">
           {s.data.pesan.map((p) => `${p.dari === "ai" ? "AI" : "Pelanggan"}: ${p.teks}`).join(" ")}
         </p>

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { Player, type PlayerRef } from "@remotion/player";
 import { ALUR_DURASI, ALUR_FPS, AlurDemo, PANJANG_BABAK } from "@/remotion/alur-demo";
-import { CHAT_FPS, ChatDemo, type PropsChatDemo, durasiChat } from "@/remotion/chat-demo";
+import { CHAT_FPS, CHAT_LEBAR, CHAT_TINGGI, ChatDemo, type PropsChatDemo, durasiChat } from "@/remotion/chat-demo";
 
 /**
  * Pemutar Remotion untuk landing page. Modul ini (beserta remotion & @remotion/player) dimuat terpisah
@@ -43,15 +43,15 @@ export function PemutarChat({ skenario }: { skenario: PropsChatDemo }) {
   usePutarSaatTerlihat(ref, wadah, !kurangi);
 
   return (
-    <div ref={wadah} className="aspect-[720/1000] w-full">
+    <div ref={wadah} className="w-full" style={{ aspectRatio: `${CHAT_LEBAR} / ${CHAT_TINGGI}` }}>
       <Player
         ref={ref}
         component={ChatDemo}
         inputProps={skenario}
         durationInFrames={durasi}
         fps={CHAT_FPS}
-        compositionWidth={720}
-        compositionHeight={1000}
+        compositionWidth={CHAT_LEBAR}
+        compositionHeight={CHAT_TINGGI}
         style={{ width: "100%", height: "100%" }}
         loop
         autoPlay={!kurangi}
