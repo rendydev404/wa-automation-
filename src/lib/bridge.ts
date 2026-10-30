@@ -6,7 +6,7 @@ import { aiUntukAkun, catatBalasanLokal, sisaKuotaAi } from "./langganan";
 import { susunSistem } from "./knowledge";
 import { bisaTeruskan, kabariKuotaHabis, teruskanKePemilik } from "./penerusan";
 import type { TagTeruskan } from "./teruskan";
-import { type Nomor, catatStat, catatTerhubung, nomorBySesi } from "./numbers";
+import { type Nomor, catatStat, catatTerhubung, nomorBySesi, siapDipakai } from "./numbers";
 import { catatPesan, chatDipercaya, riwayatUntukAi, tandaiSpam } from "./percakapan";
 import { alasanSpam, periksaSpam } from "./spam";
 import { pelajariBalasan } from "./pelajaran";
@@ -252,10 +252,10 @@ async function proses(kunci: string): Promise<void> {
     if (a.generasi !== generasi || (!a.teks.length && !a.siap)) return;
     // Manusia sedang memegang chat: pesan tetap menunggu dan dijawab setelah jeda habis (lihat blok finally).
     if (sedangDijeda(a)) return;
-    const habis = !!nomor && nomor.bot_aktif && nomor.pemilik_aktif && (await kuotaHabis(nomor.user_id));
+    const habis = !!nomor && nomor.bot_aktif && nomor.pemilik_aktif && siapDipakai(nomor) && (await kuotaHabis(nomor.user_id));
     // Kuota habis: pemilik dikabari lewat WhatsApp pribadinya (sekali per periode kuota; lihat kabariKuotaHabis).
     if (habis && nomor) void kabariKuotaHabis(nomor, (id) => ingat(st.terkirim, id, 500)).catch((e) => console.error("[bridge] kabar kuota habis:", e instanceof Error ? e.message : e));
-    if (!nomor || !nomor.bot_aktif || !nomor.pemilik_aktif || habis) {
+    if (!nomor || !nomor.bot_aktif || !nomor.pemilik_aktif || !siapDipakai(nomor) || habis) {
       a.teks.length = 0;
       a.foto.length = 0;
       a.siap = null;
@@ -539,8 +539,8 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
 
   statistik(nomor.id, "masuk");
   if (teksLog) tulisLatar(() => catatPesan({ numberId: nomor.id, kunci, peran: 0, teks: teksLog, waktu: ev.waktu || sekarang(), telepon, nama: ev.namaPengirim ?? null }));
-  // Pemilik diblokir admin: pesan tetap tercatat, tapi AI tidak membalas.
-  if (!nomor.bot_aktif || !nomor.pemilik_aktif) return;
+  // Pemilik diblokir admin atau nomor penerus belum diisi: pesan tetap tercatat, tapi AI tidak membalas.
+  if (!nomor.bot_aktif || !nomor.pemilik_aktif || !siapDipakai(nomor)) return;
 
   // Promosi judi yang jelas: tidak diantrekan (tanpa memanggil AI), kecuali chat ini sudah dipercaya pemilik.
   if (nomor.saring_spam && ev.teks) {

@@ -5,7 +5,8 @@ import { aiUntukAkun } from "@/lib/langganan";
 import { susunSistem } from "@/lib/knowledge";
 import { TOLAK_KODE, adaKode } from "@/lib/penjaga";
 import { bisaTeruskan } from "@/lib/penerusan";
-import { JENIS_TERUSKAN } from "@/lib/teruskan";
+import { siapDipakai } from "@/lib/numbers";
+import { JENIS_TERUSKAN, PERLU_PENERUS } from "@/lib/teruskan";
 import { type Foto, MAKS_FOTO_BYTE } from "@/lib/types";
 import { sesiDanNomor } from "@/lib/akses";
 import { terlaluSering } from "@/lib/batas";
@@ -28,6 +29,7 @@ export async function POST(req: Request) {
   const teksPesan = b?.pesan?.trim() ?? "";
   const sesi = b?.sesi ?? "";
   if (!nomor) return NextResponse.json({ error: "Nomor tidak ditemukan." }, { status: 404 });
+  if (!siapDipakai(nomor)) return NextResponse.json({ error: PERLU_PENERUS }, { status: 400 });
   // Foto uji (opsional): data URL gambar yang sudah diperkecil di browser, diperlakukan sama dengan foto dari WhatsApp.
   let gambar: Foto[] = [];
   if (b?.foto) {

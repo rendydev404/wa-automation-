@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { formatNomor, tanggal, waktuSingkatWib } from "@/lib/format";
-import { nomorMilik } from "@/lib/numbers";
+import { nomorMilik, siapDipakai } from "@/lib/numbers";
 import { penggunaById } from "@/lib/pengguna";
 import { kuotaBawaan, requireAdmin } from "@/lib/session";
 import { infoSesi } from "@/lib/wa";
@@ -126,7 +126,11 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                       </span>
                       <span className="flex shrink-0 items-center gap-2 text-[12px]">
                         <span className={`rounded-full px-2.5 py-1 font-semibold ${s.status === "WORKING" ? "bg-success-soft text-success" : "bg-subtle text-muted"}`}>{STATUS[s.status] ?? s.status}</span>
-                        <span className={`rounded-full px-2.5 py-1 font-semibold ${n.bot_aktif ? "bg-accent-soft text-accent" : "bg-subtle text-muted"}`}>{n.bot_aktif ? "AI aktif" : "AI mati"}</span>
+                        {siapDipakai(n) ? (
+                          <span className={`rounded-full px-2.5 py-1 font-semibold ${n.bot_aktif ? "bg-accent-soft text-accent" : "bg-subtle text-muted"}`}>{n.bot_aktif ? "AI aktif" : "AI mati"}</span>
+                        ) : (
+                          <span className="rounded-full bg-warning-soft px-2.5 py-1 font-semibold text-warning">Tanpa penerus</span>
+                        )}
                       </span>
                     </Link>
                   </li>

@@ -117,10 +117,11 @@ export function PanelTeruskan({
         <input type="hidden" name="number_id" value={numberId} />
         <label className="block">
           <span className="label flex items-center gap-1.5">
-            <Smartphone className="size-3.5" aria-hidden /> Nomor WhatsApp penerima (pribadi / admin toko)
+            <Smartphone className="size-3.5" aria-hidden /> Nomor WhatsApp penerima (pribadi / admin toko) <span className="text-danger">*wajib</span>
           </span>
           <input
             name="teruskan_ke"
+            required
             type="tel"
             inputMode="tel"
             defaultValue={teruskanKe ? `+${teruskanKe}` : ""}
@@ -129,7 +130,8 @@ export function PanelTeruskan({
             className="field tabular-nums"
           />
           <span className="mt-1 block text-[11.5px] text-faint">
-            Harus nomor yang berbeda dari nomor bisnis{waBisnis ? ` (+${waBisnis})` : ""}. Boleh nomor karyawan/admin yang memproses pesanan.
+            Wajib diisi: tanpa nomor ini AI tidak membalas di nomor bisnis ini. Harus nomor yang berbeda dari nomor bisnis{waBisnis ? ` (+${waBisnis})` : ""}. Boleh nomor
+            karyawan/admin yang memproses pesanan.
           </span>
         </label>
         <div className="flex items-center justify-between gap-4 rounded-lg bg-subtle/50 p-3">

@@ -11,17 +11,25 @@ export function LencanaTerhubung({ id }: { id: number }) {
   return <LencanaSesi status={useSesiNomor(id)?.status} />;
 }
 
-export function SaklarBot({ id, aktif: awal, label }: { id: number; aktif: boolean; label: string }) {
+/** `adaPenerus` = nomor penerus sudah diisi; tanpa itu AI tidak membalas walau saklarnya menyala (lihat siapDipakai). */
+export function SaklarBot({ id, aktif: awal, label, adaPenerus }: { id: number; aktif: boolean; label: string; adaPenerus: boolean }) {
   const [aktif, setAktif] = useOptimistic(awal);
   const [, mulai] = useTransition();
   return (
     <label className="flex w-full items-center justify-between gap-4">
       <span className="text-[13px] leading-tight">
         <span className="block font-semibold text-fg">Balasan otomatis</span>
-        <span className="block text-xs text-muted">{aktif ? "AI membalas chat masuk" : "AI tidak membalas"}</span>
+        {adaPenerus ? (
+          <span className="block text-xs text-muted">{aktif ? "AI membalas chat masuk" : "AI tidak membalas"}</span>
+        ) : (
+          <a href="#teruskan" className="block text-xs font-semibold text-warning hover:underline">
+            Isi nomor penerus dulu
+          </a>
+        )}
       </span>
       <Saklar
-        aktif={aktif}
+        aktif={aktif && adaPenerus}
+        disabled={!adaPenerus}
         label={`Balasan otomatis ${label}`}
         onUbah={(v) =>
           mulai(async () => {

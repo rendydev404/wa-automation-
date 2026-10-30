@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Bot, ChevronRight, FileText, MessageCircleMore, Users } from "lucide-react";
+import { Bot, ChevronRight, FileText, MessageCircleMore, TriangleAlert, Users } from "lucide-react";
 import { ConnectionCard } from "@/components/connection-card";
 import { HistoriPercakapan } from "@/components/conversation-history";
 import { KnowledgePanel } from "@/components/knowledge-panel";
@@ -13,11 +13,11 @@ import { TestChat } from "@/components/test-chat";
 import { PanelTeruskan } from "@/components/panel-teruskan";
 import { saklar } from "@/lib/aturan";
 import { riwayatTeruskan } from "@/lib/penerusan";
-import { JENIS_TERUSKAN } from "@/lib/teruskan";
+import { JENIS_TERUSKAN, PERLU_PENERUS } from "@/lib/teruskan";
 import { sekarang } from "@/lib/db";
 import { angka, formatNomor, tanggal, waktuSingkatWib } from "@/lib/format";
 import { BATAS_UTUH, daftarDokumen } from "@/lib/knowledge";
-import { statHarian, tanggalWib } from "@/lib/numbers";
+import { siapDipakai, statHarian, tanggalWib } from "@/lib/numbers";
 import { nomorUntuk } from "@/lib/akses";
 import { daftarPelajaran, jumlahPelajaran } from "@/lib/pelajaran";
 import { ambilPesanPercakapan, daftarPercakapan, ringkasanPercakapan } from "@/lib/percakapan";
@@ -103,9 +103,16 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
           </div>
         </div>
         <div className="card flex items-center px-4 py-3 sm:min-w-64" data-tur="saklar-bot">
-          <SaklarBot id={nomor.id} aktif={!!nomor.bot_aktif} label={nomor.label} />
+          <SaklarBot id={nomor.id} aktif={!!nomor.bot_aktif} label={nomor.label} adaPenerus={siapDipakai(nomor)} />
         </div>
       </header>
+
+      {!siapDipakai(nomor) && (
+        <a href="#teruskan" className="flex items-center gap-2.5 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-[13px] font-medium text-warning hover:underline">
+          <TriangleAlert className="size-4 shrink-0" aria-hidden />
+          {PERLU_PENERUS}
+        </a>
+      )}
 
       <section aria-label="Statistik nomor ini" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <KartuStat

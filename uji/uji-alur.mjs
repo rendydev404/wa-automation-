@@ -191,10 +191,13 @@ function pesan(jid, isi, o = {}) {
 const tiba = (s, ...m) => s.pancar("messages.upsert", { messages: m, type: "notify" });
 const dibaca = (s, jid, o = {}) => s.pancar("messages.update", [{ key: { remoteJid: jid, id: o.id ?? "X", fromMe: !!o.dariSaya }, update: { status: o.status ?? 4 } }]);
 
+/** Nomor penerus wajib diisi supaya AI membalas (siapDipakai); penerusannya sendiri mati kecuali dinyalakan uji. */
+const penerusUji = (id) => `62812990${String(id).padStart(5, "0")}`;
+
 async function nomorCepat(label) {
   const n = await tambahNomor(label);
   // 1 detik: di bawah batas dashboard (2 dtk), hanya supaya uji tidak lama
-  await sql`UPDATE numbers SET tunggu_detik = 1, tunggu_baca_detik = 3, jeda_detik = 1800 WHERE id = ${n.id}`;
+  await sql`UPDATE numbers SET tunggu_detik = 1, tunggu_baca_detik = 3, jeda_detik = 1800, teruskan_ke = ${penerusUji(n.id)} WHERE id = ${n.id}`;
   cacheNomorBasi();
   return n;
 }
@@ -563,7 +566,7 @@ await cek("kuota balasan AI pemilik habis: pesan tercatat tetapi AI diam; kuota 
   tiba(sA, pesan("555000316@lid", "p"));
   await tidur(2600);
   assert.equal(sA.terkirim.length, kirim0 + 1, "periode kuota yang sama tidak dikabari dua kali");
-  await sql`UPDATE numbers SET teruskan_ke = NULL, teruskan_aktif = false WHERE id = ${A.id}`;
+  await sql`UPDATE numbers SET teruskan_ke = ${penerusUji(A.id)}, teruskan_aktif = false WHERE id = ${A.id}`;
   cacheNomorBasi();
   await setSetting("kuota_balasan_gratis", "100");
   L.segarkanKuota();
@@ -626,8 +629,26 @@ await cek("teruskan mati: tag tetap dibuang dari balasan pelanggan dan TIDAK ada
   assert.equal(baru[0].isi.text, "Baik Kak, pesanannya aku rangkum ya.");
   assert.match(hermes.panggilan[n0].sistem, /Penerusan ke pemilik TIDAK aktif/);
   hermes.jawab = null;
-  await sql`UPDATE numbers SET teruskan_ke = NULL WHERE id = ${A.id}`;
+  await sql`UPDATE numbers SET teruskan_ke = ${penerusUji(A.id)} WHERE id = ${A.id}`;
   cacheNomorBasi();
+});
+
+await cek("nomor penerus wajib: tanpa nomor penerus pesan tetap tercatat tetapi AI diam; diisi lagi = AI membalas", async () => {
+  await sql`UPDATE numbers SET teruskan_ke = NULL, teruskan_aktif = false WHERE id = ${A.id}`;
+  cacheNomorBasi();
+  const n0 = hermes.panggilan.length;
+  const m0 = (await stat(A.id)).masuk;
+  const k0 = sA.terkirim.length;
+  tiba(sA, pesan("555000309@lid", "halo, buka?"));
+  await tidur(2600);
+  assert.equal(hermes.panggilan.length, n0, "AI tidak dipanggil tanpa nomor penerus");
+  assert.equal(sA.terkirim.length, k0, "tidak ada balasan");
+  assert.equal((await stat(A.id)).masuk, m0 + 1, "pesan tetap dihitung masuk");
+  await sql`UPDATE numbers SET teruskan_ke = ${penerusUji(A.id)} WHERE id = ${A.id}`;
+  cacheNomorBasi();
+  tiba(sA, pesan("555000310@lid", "halo lagi"));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000, "AI membalas setelah nomor penerus diisi");
+  await tunggu(() => sA.terkirim.length > k0, 4000, "balasan terkirim");
 });
 
 // =====================================================================================

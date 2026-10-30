@@ -12,8 +12,9 @@ import { ATURAN_ANGKA, ATURAN_SAKLAR, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
 import { berikanPaket, hentikanLangganan, mulaiBayar, paketById, riwayatTransaksi, segarkanKuota, simpanPaket, terapkanSimulasi, terapkanStatus } from "@/lib/langganan";
 import { MidtransError, konfigMidtrans } from "@/lib/midtrans";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
-import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringSpam, setTeruskan, tambahNomor, ubahNomor } from "@/lib/numbers";
+import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringSpam, setTeruskan, siapDipakai, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { ujiTeruskan } from "@/lib/penerusan";
+import { PERLU_PENERUS } from "@/lib/teruskan";
 import { cekPassword, verifyPassword } from "@/lib/password";
 import { type ItemPelajaran, daftarPelajaran, hapusPelajaran } from "@/lib/pelajaran";
 import {
@@ -224,7 +225,9 @@ export async function ubahNomorAction(_lalu: Hasil | null, form: FormData): Prom
 }
 
 export async function setBotAktifAction(id: number, aktif: boolean): Promise<Hasil> {
-  if (!(await nomorUntuk(await requireUser(), id))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  const nomor = await nomorUntuk(await requireUser(), id);
+  if (!nomor) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  if (aktif && !siapDipakai(nomor)) return { ok: false, pesan: PERLU_PENERUS };
   await setBotAktif(id, aktif);
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${id}`);
@@ -266,11 +269,13 @@ export async function teruskanAction(_lalu: Hasil | null, form: FormData): Promi
   if (!nomor) return { ok: false, pesan: "Nomor tidak ditemukan." };
   const mentah = String(form.get("teruskan_ke") ?? "").trim();
   const aktif = form.get("aktif") === "on";
-  const ke = mentah ? rapikanNomorWa(mentah) : null;
-  if (mentah && !ke) return { ok: false, pesan: "Nomor WhatsApp tidak valid. Contoh: 0812 3456 7890 atau +62 812 3456 7890." };
-  if (ke && ke === nomor.wa_id) return { ok: false, pesan: "Isi dengan nomor lain (WhatsApp pribadi Anda), bukan nomor bisnis yang dibalas AI ini." };
-  if (aktif && !ke) return { ok: false, pesan: "Isi nomor WhatsApp penerima dulu sebelum menyalakan penerusan." };
+  // Wajib diisi: tanpa nomor penerus, nomor bisnis tidak bisa dipakai (lihat siapDipakai).
+  if (!mentah) return { ok: false, pesan: "Nomor WhatsApp penerus wajib diisi. Tanpa nomor ini AI tidak membalas di nomor bisnis ini." };
+  const ke = rapikanNomorWa(mentah);
+  if (!ke) return { ok: false, pesan: "Nomor WhatsApp tidak valid. Contoh: 0812 3456 7890 atau +62 812 3456 7890." };
+  if (ke === nomor.wa_id) return { ok: false, pesan: "Isi dengan nomor lain (WhatsApp pribadi Anda), bukan nomor bisnis yang dibalas AI ini." };
   await setTeruskan(id, { ke, aktif });
+  revalidatePath("/dashboard");
   revalidatePath(`/nomor/${id}`);
   return { ok: true, pesan: aktif ? "Tersimpan. AI akan meneruskan hal penting ke nomor ini." : "Tersimpan. Penerusan dimatikan." };
 }

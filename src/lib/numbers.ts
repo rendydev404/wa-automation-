@@ -175,6 +175,12 @@ export async function ubahNomor(id: number, data: { label: string; instruksi: st
   basi();
 }
 
+/**
+ * Nomor penerus (teruskan_ke) wajib diisi: tanpa itu nomor tidak bisa dipakai (AI tidak membalas, uji bot ditolak),
+ * karena pesanan, bukti bayar, keluhan, dan kabar kuota habis tidak punya tujuan.
+ */
+export const siapDipakai = (n: Pick<Nomor, "teruskan_ke">): boolean => !!n.teruskan_ke;
+
 export async function setBotAktif(id: number, aktif: boolean): Promise<void> {
   const sql = await db();
   await sql`UPDATE numbers SET bot_aktif = ${aktif} WHERE id = ${id}`;

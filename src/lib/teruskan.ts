@@ -18,6 +18,9 @@ export type JenisTeruskan = keyof typeof JENIS_TERUSKAN;
 
 export const MAKS_RINGKASAN = 1200;
 
+/** Nomor penerus wajib: tanpa itu nomor tidak bisa dipakai (lihat siapDipakai di numbers.ts). */
+export const PERLU_PENERUS = "Isi nomor WhatsApp penerus dulu (bagian \"Teruskan ke WhatsApp Anda\"). Tanpa nomor itu AI tidak membalas di nomor ini.";
+
 /**
  * Aturan untuk AI di nomor yang penerusannya aktif. Isinya disusun dari kebiasaan CS manusia: kumpulkan data
  * dulu, konfirmasi, baru serahkan; pelanggan diberi tahu dengan jujur apa yang terjadi.

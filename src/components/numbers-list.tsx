@@ -2,7 +2,7 @@
 
 import { useOptimistic, useTransition } from "react";
 import Link from "next/link";
-import { ArrowUpRight, BookOpen, QrCode } from "lucide-react";
+import { ArrowUpRight, BellRing, BookOpen, QrCode } from "lucide-react";
 import { setBotAktifAction } from "@/app/actions";
 import { angka, formatNomor } from "@/lib/format";
 import { LencanaSesi } from "./connection-card";
@@ -16,6 +16,8 @@ export interface KartuNomor {
   wa_id: string | null;
   label: string;
   bot_aktif: boolean;
+  /** Nomor penerus sudah diisi; tanpa itu AI tidak membalas di nomor ini. */
+  ada_penerus: boolean;
   jumlah_dokumen: number;
   jumlah_karakter: number;
   dibalas_hari_ini: number;
@@ -113,11 +115,16 @@ function Kartu({ n }: { n: KartuNomor }) {
           <Link href={`/nomor/${n.id}`} className="flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline">
             <QrCode className="size-4" aria-hidden /> Scan QR untuk menautkan
           </Link>
+        ) : !n.ada_penerus ? (
+          <Link href={`/nomor/${n.id}#teruskan`} className="flex items-center gap-1.5 text-[13px] font-semibold text-warning hover:underline">
+            <BellRing className="size-4" aria-hidden /> Isi nomor penerus dulu
+          </Link>
         ) : (
           <span className="text-[13px] font-medium">{aktif ? "Balasan otomatis aktif" : "Balasan otomatis mati"}</span>
         )}
         <Saklar
-          aktif={aktif}
+          aktif={aktif && n.ada_penerus}
+          disabled={!n.ada_penerus}
           label={`Balasan otomatis ${n.label}`}
           onUbah={(v) =>
             mulai(async () => {
