@@ -5,6 +5,8 @@ import { KartuLangganan } from "@/components/kartu-langganan";
 import { angka, tanggal, UMUR_HISTORI_HARI } from "@/lib/format";
 import { daftarPaket, hakAkun, riwayatTransaksi } from "@/lib/langganan";
 import { konfigMidtrans } from "@/lib/midtrans";
+import { customTampil, paketCustom, tautanCustom } from "@/lib/paket-custom";
+import { KartuCustom } from "@/components/kartu-custom";
 import { requireUser } from "@/lib/session";
 import { HasilBayar, TombolBayar } from "./bayar";
 
@@ -49,9 +51,10 @@ async function Kembali({ searchParams }: { searchParams: Promise<Record<string, 
 
 async function Paket() {
   const user = await requireUser();
-  const [paket, k, hak] = await Promise.all([daftarPaket(), konfigMidtrans(), hakAkun(user)]);
+  const [paket, k, hak, custom] = await Promise.all([daftarPaket(), konfigMidtrans(), hakAkun(user), paketCustom()]);
   const dijual = paket.filter((p) => p.harga > 0);
-  if (!dijual.length) return null;
+  const adaCustom = customTampil(custom);
+  if (!dijual.length && !adaCustom) return null;
   return (
     <section aria-labelledby="judul-paket">
       <h2 id="judul-paket" className="text-[15px] font-bold">
@@ -84,6 +87,7 @@ async function Paket() {
             </div>
           </article>
         ))}
+        {adaCustom && <KartuCustom p={custom} href={tautanCustom(custom, `Email akun: ${user.email}`)} varian="app" />}
       </div>
       <p className="mt-3 text-[12.5px] text-muted">
         Bayar lewat QRIS, transfer bank (virtual account), e-wallet, atau kartu. Perpanjang paket yang sama = masa & kuota ditambahkan. Ganti paket = paket baru mulai hari itu.

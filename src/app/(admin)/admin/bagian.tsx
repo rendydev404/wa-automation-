@@ -4,7 +4,8 @@ import { KartuStat } from "@/components/stat";
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna, ringkasanAdmin } from "@/lib/pengguna";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
-import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, SalinTeks } from "./form-admin";
+import { FormAi, FormBuatAkun, FormPaket, FormPaketCustom, FormPengaturan, SalinTeks } from "./form-admin";
+import { customTampil, paketCustom } from "@/lib/paket-custom";
 import { acuanHarga, daftarPaket, kuotaBalasanGratis, pemakaianNyata, riwayatTransaksi } from "@/lib/langganan";
 import { SimulasiHarga } from "./simulasi-harga";
 import { konfigMidtrans, kunciMidtransSah } from "@/lib/midtrans";
@@ -143,7 +144,7 @@ const MODEL_ACUAN = [
 
 export async function KelolaPaket() {
   await requireAdmin();
-  const [paket, acuan, nyata, kursI] = await Promise.all([daftarPaket({ semua: true }), acuanHarga(), pemakaianNyata(), infoKurs()]);
+  const [paket, acuan, nyata, kursI, custom] = await Promise.all([daftarPaket({ semua: true }), acuanHarga(), pemakaianNyata(), infoKurs(), paketCustom()]);
   const modelAcuan = MODEL_ACUAN.flatMap((m) => {
     const usd = perkiraanPerBalasan(m.id);
     return usd === null ? [] : [{ ...m, usd }];
@@ -185,6 +186,19 @@ export async function KelolaPaket() {
             </details>
           </li>
         ))}
+        <li>
+          <details className="group">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-4 py-3 text-[13px] [&::-webkit-details-marker]:hidden">
+              <span className="font-semibold">
+                {custom.nama} <span className="ml-1 rounded-md bg-subtle px-1.5 py-0.5 text-[11px] text-muted">custom · {customTampil(custom) ? "tampil" : "tidak tampil"}</span>
+              </span>
+              <span className="text-muted">{custom.harga} · tombol chat WhatsApp admin</span>
+            </summary>
+            <div className="border-t border-line bg-subtle/40 p-4">
+              <FormPaketCustom p={custom} />
+            </div>
+          </details>
+        </li>
       </ul>
       <details className="mt-4">
         <summary className="cursor-pointer text-[13px] font-semibold text-accent">+ Buat paket baru</summary>

@@ -3,6 +3,8 @@ import { connection } from "next/server";
 import { Check, Sparkles } from "lucide-react";
 import { angka, UMUR_HISTORI_HARI } from "@/lib/format";
 import { daftarPaket, kuotaBalasanGratis } from "@/lib/langganan";
+import { customTampil, paketCustom, tautanCustom } from "@/lib/paket-custom";
+import { KartuCustom } from "../kartu-custom";
 
 /**
  * Daftar harga di landing page, langsung dari paket yang dikelola admin (harga di sini = harga yang bisa dibeli).
@@ -11,14 +13,15 @@ import { daftarPaket, kuotaBalasanGratis } from "@/lib/langganan";
  */
 export async function HargaLanding() {
   await connection();
-  let paket, gratis;
+  let paket, gratis, custom;
   try {
-    [paket, gratis] = await Promise.all([daftarPaket(), kuotaBalasanGratis()]);
+    [paket, gratis, custom] = await Promise.all([daftarPaket(), kuotaBalasanGratis(), paketCustom()]);
   } catch {
     return null;
   }
   const dijual = paket.filter((p) => p.harga > 0);
-  if (!dijual.length) return null;
+  const adaCustom = customTampil(custom);
+  if (!dijual.length && !adaCustom) return null;
   return (
     <div className="mt-12 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {dijual.map((p) => (
@@ -46,6 +49,7 @@ export async function HargaLanding() {
           </Link>
         </article>
       ))}
+      {adaCustom && <KartuCustom p={custom} href={tautanCustom(custom)} varian="landing" />}
       <p className="text-[13px] text-muted md:col-span-2 xl:col-span-3">
         Coba gratis dulu: setiap akun baru mendapat {angka(gratis)} balasan AI per bulan tanpa kartu kredit. Bayar lewat QRIS, transfer bank, e-wallet, atau kartu.
       </p>
