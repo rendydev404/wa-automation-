@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { SesiNomor, StatusWa } from "@/lib/types";
@@ -12,7 +12,17 @@ interface Nilai {
 
 const Ctx = createContext<Nilai>({ data: null, muatUlang: () => {} });
 
-export const useWaStatus = (): Nilai => useContext(Ctx);
+const tanpaLangganan = () => () => {};
+
+/**
+ * Bagian halaman yang di-stream belakangan (Suspense) bisa dihidrasi setelah status pertama tiba. Saat hidrasi
+ * data dianggap belum ada, sama dengan HTML dari server, lalu dirender ulang dengan data: tanpa galat hidrasi.
+ */
+export function useWaStatus(): Nilai {
+  const nilai = useContext(Ctx);
+  const terhidrasi = useSyncExternalStore(tanpaLangganan, () => true, () => false);
+  return terhidrasi || !nilai.data ? nilai : { ...nilai, data: null };
+}
 
 /** Status sesi WhatsApp satu nomor; `undefined` selama belum termuat. */
 export function useSesiNomor(id: number): SesiNomor | undefined {

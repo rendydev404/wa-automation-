@@ -16,6 +16,9 @@ export async function register() {
     // Sinkron data Suka Shawarma: satu tarikan awal + pemeriksaan pengaman berkala (hanya bila dikonfigurasi).
     const { mulaiSinkron } = await import("@/lib/sinkron");
     mulaiSinkron();
+    // Admin pertama dari env (instalasi baru) dibuat sebelum ada yang sempat mendaftar; gagal = dicoba lagi saat login/daftar.
+    const { pastikanAdminAwal } = await import("@/lib/session");
+    void pastikanAdminAwal().catch(() => {});
     // Histori percakapan yang lebih lama dari 30 hari dihapus berkala.
     const { mulaiPembersihanHistori } = await import("@/lib/percakapan");
     mulaiPembersihanHistori();

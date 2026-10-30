@@ -45,6 +45,7 @@ import {
   findUserByEmail,
   kuotaNomor,
   mulaiSesi,
+  pastikanAdminAwal,
   pendaftaranDibuka,
   requireAdmin,
   requireUser,
@@ -102,6 +103,7 @@ export async function daftarAction(_lalu: Hasil | null, form: FormData): Promise
   if (password !== String(form.get("ulang") ?? "")) return { ok: false, pesan: "Ulangi password tidak sama." };
   if (form.get("setuju") !== "on") return { ok: false, pesan: "Setujui aturan penggunaan dulu." };
 
+  await pastikanAdminAwal();
   const akun = await buatAkun({ email, nama, password });
   if (!akun) return { ok: false, pesan: "Email ini sudah terdaftar. Silakan masuk." };
   await catatLoginBerhasil(akun.id);

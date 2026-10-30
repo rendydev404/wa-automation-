@@ -41,11 +41,19 @@ async function seedAdmin(): Promise<void> {
 
 const g = globalThis as unknown as { __waSeed?: Promise<void> };
 
-export function findUserByEmail(email: string): Promise<UserRow | undefined> {
+/**
+ * Admin pertama dari env dibuat sekali, sebelum akun lain bisa terbentuk: dipanggil saat server mulai, saat login,
+ * dan sebelum pendaftaran (formulir & Google), supaya pendaftar pertama di instalasi baru tidak membuat app tanpa admin.
+ */
+export function pastikanAdminAwal(): Promise<void> {
   return (g.__waSeed ??= seedAdmin().catch((e) => {
-    g.__waSeed = undefined; // database belum siap: coba lagi di login berikutnya
+    g.__waSeed = undefined; // database belum siap: coba lagi di panggilan berikutnya
     throw e;
-  })).then(async () => {
+  }));
+}
+
+export function findUserByEmail(email: string): Promise<UserRow | undefined> {
+  return pastikanAdminAwal().then(async () => {
     const sql = await db();
     const [u] = await sql<UserRow[]>`SELECT ${sql.unsafe(KOLOM_ROW)} FROM users WHERE email = ${email}`;
     return u;

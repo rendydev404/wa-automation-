@@ -26,6 +26,10 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          // Diabaikan browser lewat HTTP biasa (dev); di produksi (HTTPS lewat Caddy) memaksa HTTPS setahun.
+          { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+          // Tanpa script-src: Next.js menyisipkan skrip inline. Yang dikunci: <base>, plugin, iframe, dan tujuan form.
+          { key: "Content-Security-Policy", value: "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'" },
         ],
       },
     ];

@@ -133,7 +133,7 @@ export function ChatDemo({ nama, inisial, pesan }: PropsChatDemo) {
           </div>
           {/* Kolom ketik */}
           <div style={{ position: "absolute", zIndex: 2, left: 0, right: 0, bottom: 0, padding: "16px 18px 26px", background: "#efeae2", display: "flex", gap: 12 }}>
-            <div style={{ flex: 1, height: 58, borderRadius: 58, background: "#fff", display: "flex", alignItems: "center", padding: "0 24px", color: "#9aa", fontSize: 21 }}>Ketik pesan</div>
+            <div style={{ flex: 1, height: 58, borderRadius: 58, background: "#fff", display: "flex", alignItems: "center", padding: "0 24px", color: "#667777", fontSize: 21 }}>Ketik pesan</div>
             <div style={{ width: 58, height: 58, borderRadius: 58, background: "#00a884" }} />
           </div>
         </div>

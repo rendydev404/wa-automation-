@@ -167,6 +167,8 @@ export function TestChat({ numberId }: { numberId: number }) {
           <input
             ref={inputFoto}
             type="file"
+            aria-label="Lampirkan foto"
+            tabIndex={-1}
             accept="image/jpeg,image/png,image/webp"
             className="sr-only"
             onChange={async (e) => {

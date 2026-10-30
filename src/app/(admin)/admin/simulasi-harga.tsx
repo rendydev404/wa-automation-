@@ -294,7 +294,7 @@ export function SimulasiHarga({
           type="submit"
           name="terapkan"
           value="1"
-          className="btn btn-primary"
+          className="btn btn-primary h-auto min-h-[2.375rem] max-w-full py-2 text-center whitespace-normal"
           onClick={(e) => {
             const teks = mode === "kunci-harga" ? `kuota balasan & nomor paket yang dicentang dihitung ulang (harga tetap)` : `harga & jumlah nomor paket yang dicentang dihitung ulang (kuota balasan tetap)`;
             if (!window.confirm(`Terapkan simulasi margin ${margin}%: ${teks}? Pelanggan yang sedang aktif tidak terpengaruh.`)) e.preventDefault();

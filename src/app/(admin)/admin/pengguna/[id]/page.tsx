@@ -170,7 +170,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               <span className="font-semibold text-fg">{ai.penyedia === "anthropic" ? `Claude API · ${atur.model}${ai.cadanganHermes ? " (cadangan Hermes)" : ""}` : "Hermes"}</span>
             </p>
             <div className="mt-4">
-              <FormAiAkun key={u.ai_penyedia ?? ""} id={u.id} penyedia={u.ai_penyedia} umum={umum} adaKunci={!!kunciAnthropic()} />
+              <FormAiAkun id={u.id} penyedia={u.ai_penyedia} umum={umum} adaKunci={!!kunciAnthropic()} />
             </div>
           </section>
           {u.peran !== "admin" && (

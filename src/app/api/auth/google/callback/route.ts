@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { COOKIE_GOOGLE, GoogleError, asal, googleSiap, selesaikanGoogle } from "@/lib/google";
 import { akunGoogle } from "@/lib/pengguna";
-import { catatLoginBerhasil, mulaiSesi, pendaftaranDibuka } from "@/lib/session";
+import { catatLoginBerhasil, mulaiSesi, pastikanAdminAwal, pendaftaranDibuka } from "@/lib/session";
 
 /** Kembali dari Google: verifikasi, cari/tautkan/buat akun, lalu mulai sesi login biasa. */
 export async function GET(req: Request) {
@@ -23,6 +23,7 @@ export async function GET(req: Request) {
   }
 
   const bolehDaftar = await pendaftaranDibuka();
+  await pastikanAdminAwal();
   const akun = await akunGoogle(identitas, bolehDaftar);
   if (!akun) return ke(`/login?galat=${bolehDaftar ? "gagal" : "tutup"}`);
   if (akun.status === "diblokir") return ke("/login?galat=blokir");

@@ -457,7 +457,7 @@ export function HentikanLangganan({ id }: { id: number }) {
 export function SalinTeks({ teks, label }: { teks: string; label: string }) {
   return (
     <div className="flex gap-2">
-      <code className="field flex-1 overflow-x-auto font-mono text-[12px] whitespace-nowrap select-all">{teks}</code>
+      <code tabIndex={0} className="field flex-1 overflow-x-auto font-mono text-[12px] whitespace-nowrap select-all">{teks}</code>
       <button type="button" className="btn btn-ghost border border-line" onClick={() => navigator.clipboard?.writeText(teks)} aria-label={label}>
         <Copy className="size-4" aria-hidden />
       </button>

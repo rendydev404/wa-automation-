@@ -90,6 +90,7 @@ Semua uji memakai PostgreSQL 15 sungguhan yang dijalankan sementara di mesin ini
 | `npm run uji` (±3 menit) | `uji-auth`: penyimpanan sesi login (13 pemeriksaan + rencana query + kecepatan). `uji-data`: pindahan dari SQLite, pencarian knowledge, rencana query pada 33 ribu potongan (17). `uji-alur`: koneksi, QR, serah-terima manusia ↔ AI, sambung ulang, logout, 12 nomor serentak, database putus (40). |
 | `node --import ./uji/loader.mjs uji/uji-next.mjs` | Server hasil `npm run build` lewat HTTP: impor otomatis dari SQLite, kecepatan endpoint, QR sungguhan untuk 12 nomor. |
 | `node --expose-gc --import ./uji/loader.mjs uji/uji-bocor.mjs` | 60 siklus sambung/putus sungguhan ke WhatsApp: heap dan timer harus kembali ke awal. |
+| `uji/iso25010/` | Evaluasi kualitas ISO/IEC 25010 lewat browser sungguhan (fungsional & keamanan E2E, aksesibilitas WCAG, responsif, beban). Hasil & cara pakai: `docs/evaluasi-iso-25010.md`. |
 
 ## Produksi (VPS 31.97.67.66)
 

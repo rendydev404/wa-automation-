@@ -13,7 +13,7 @@
 
   --c-fg: #15201b;
   --c-muted: #5c6862;
-  --c-faint: #8e9993;
+  --c-faint: #65706a; /* >= 4,5:1 di atas surface, canvas, subtle (WCAG AA) */
 
   --c-accent: #0f7a5c;
   --c-accent-hover: #0b6249;
@@ -22,7 +22,7 @@
 
   --c-success: #0f7a5c;
   --c-success-soft: #e4f3ed;
-  --c-warning: #a6690f;
+  --c-warning: #8f5a0c;
   --c-warning-soft: #fbf1dc;
   --c-danger: #c2364a;
   --c-danger-soft: #fbe9ec;

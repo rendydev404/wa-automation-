@@ -149,6 +149,8 @@ function Unggah({ numberId }: { numberId: number }) {
       <input
         ref={input}
         type="file"
+        aria-label="Pilih berkas knowledge"
+        tabIndex={-1}
         multiple
         accept=".pdf,.txt,.md,.csv,application/pdf,text/plain,text/markdown,text/csv"
         className="sr-only"

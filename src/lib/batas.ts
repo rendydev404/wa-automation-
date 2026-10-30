@@ -21,10 +21,15 @@ export function terlaluSering(kunci: string, maks: number, jendelaMs: number): b
   return p.n > maks;
 }
 
-/** IP klien dari proxy depan (Cloudflare / reverse proxy). */
+/**
+ * IP klien dari proxy depan. Caddy menulis ulang X-Forwarded-For untuk klien yang tidak dipercaya, jadi entri
+ * pertamanya asli. CF-Connecting-IP hanya dipakai bila app memang di belakang Cloudflare (IP_DARI_CLOUDFLARE=1):
+ * tanpa Cloudflare, header itu bisa dikirim siapa saja untuk melewati batas percobaan per IP.
+ */
 export async function ipKlien(): Promise<string> {
   const h = await headers();
-  return h.get("cf-connecting-ip") || h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
+  const cf = process.env.IP_DARI_CLOUDFLARE === "1" ? h.get("cf-connecting-ip") : null;
+  return cf || h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
 }
 
 export async function lewatHttps(): Promise<boolean> {
