@@ -545,6 +545,7 @@ await cek("kuota balasan AI pemilik habis: pesan tercatat tetapi AI diam; kuota 
   const n0 = hermes.panggilan.length;
   const m0 = (await stat(A.id)).masuk;
   const kirim0 = sA.terkirim.length;
+  const pakai0 = (await sql`SELECT COUNT(*)::int AS n FROM ai_pakai`)[0].n;
   tiba(sA, pesan("555000305@lid", "masih bisa dibalas?"));
   tiba(sA, pesan("555000315@lid", "halo kak"));
   await tidur(2600);
@@ -557,6 +558,8 @@ await cek("kuota balasan AI pemilik habis: pesan tercatat tetapi AI diam; kuota 
   assert.match(kabar[0].isi.text, /Kuota balasan AI habis[\s\S]*paket Gratis sudah habis \(\d+ dari 0 terpakai\)[\s\S]*perpanjang atau upgrade paket/);
   const [rk] = await sql`SELECT jenis, status, pelanggan FROM teruskan WHERE number_id = ${A.id} AND chat = 'kuota'`;
   assert.deepEqual({ ...rk }, { jenis: "lainnya", status: "terkirim", pelanggan: "Sistem: kuota habis" });
+  // Notifikasi dikirim langsung lewat WhatsApp tanpa AI: tidak tercatat sebagai pemakaian, kuota balasan tidak terpotong.
+  assert.equal((await sql`SELECT COUNT(*)::int AS n FROM ai_pakai`)[0].n, pakai0, "notifikasi tidak memakai kuota balasan AI");
   tiba(sA, pesan("555000316@lid", "p"));
   await tidur(2600);
   assert.equal(sA.terkirim.length, kirim0 + 1, "periode kuota yang sama tidak dikabari dua kali");
