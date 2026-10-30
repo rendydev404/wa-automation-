@@ -15,58 +15,65 @@ async function nomorTanpaKnowledge(userId: number): Promise<{ id: number; label:
 }
 
 /**
- * Banner di paling atas semua halaman workspace: pelanggan berbayar yang nomornya belum punya base knowledge, dan
- * kuota balasan AI yang hampir/sudah habis (ambang dari aturan admin). Dibaca di dalam Suspense: rangka tetap statis.
+ * Banner di paling atas semua halaman workspace: pelanggan berbayar yang nomornya belum punya base knowledge.
+ * Dibaca di dalam Suspense: rangka tetap statis.
  */
 export async function BannerAkun() {
   const user = await requireUser();
   if (user.peran === "admin") return null;
-  const [ingatkan, ambang, langganan] = await Promise.all([saklar("banner_knowledge"), aturan("peringatan_kuota_persen"), langgananAktif(user.id)]);
-  const [kosong, hak, sisa] = await Promise.all([
-    ingatkan && langganan ? nomorTanpaKnowledge(user.id) : Promise.resolve([]),
-    ambang > 0 ? hakAkun(user) : Promise.resolve(null),
-    ambang > 0 ? sisaKuotaAi(user.id) : Promise.resolve(null),
-  ]);
-  const kuotaTipis = hak?.balasan && sisa !== null && (sisa / hak.balasan) * 100 <= ambang;
-  if (!kosong.length && !kuotaTipis) return null;
+  const [ingatkan, langganan] = await Promise.all([saklar("banner_knowledge"), langgananAktif(user.id)]);
+  const kosong = ingatkan && langganan ? await nomorTanpaKnowledge(user.id) : [];
+  if (!kosong.length) return null;
 
   return (
-    <div className="mb-6 space-y-3">
-      {kosong.length > 0 && (
-        <div role="alert" className="flex flex-col gap-3 rounded-2xl border border-warning/40 bg-warning-soft px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-3">
-            <BookOpen className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden />
-            <div className="text-[13px]">
-              <p className="font-bold text-fg">Segera isi base knowledge {kosong.length === 1 ? `nomor ${kosong[0].label}` : `${kosong.length} nomor Anda`}</p>
-              <p className="text-muted">
-                Paket {langganan?.nama_paket} Anda sudah aktif, tapi AI belum tahu apa pun tentang usaha Anda, jadi ia hanya bisa bilang belum punya informasi. Pakai templat: tinggal
-                ganti nama produk, harga, jam, dan alamat (±5 menit).
-              </p>
-            </div>
-          </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            {kosong.slice(0, 3).map((n) => (
-              <Link key={n.id} href={`/nomor/${n.id}#knowledge`} className="btn btn-primary">
-                Isi {kosong.length > 1 ? n.label : "sekarang"}
-              </Link>
-            ))}
-          </div>
+    <div role="alert" className="mb-6 flex flex-col gap-3 rounded-2xl border border-warning/40 bg-warning-soft px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex gap-3">
+        <BookOpen className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden />
+        <div className="text-[13px]">
+          <p className="font-bold text-fg">Segera isi base knowledge {kosong.length === 1 ? `nomor ${kosong[0].label}` : `${kosong.length} nomor Anda`}</p>
+          <p className="text-muted">
+            Paket {langganan?.nama_paket} Anda sudah aktif, tapi AI belum tahu apa pun tentang usaha Anda, jadi ia hanya bisa bilang belum punya informasi. Pakai templat: tinggal
+            ganti nama produk, harga, jam, dan alamat (±5 menit).
+          </p>
         </div>
-      )}
-      {kuotaTipis && (
-        <div role="alert" className="flex flex-col gap-3 rounded-2xl border border-danger/30 bg-danger-soft px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-3">
-            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-danger" aria-hidden />
-            <div className="text-[13px]">
-              <p className="font-bold text-fg">{sisa === 0 ? "Kuota balasan AI habis: AI berhenti membalas" : `Kuota balasan AI tinggal ${sisa!.toLocaleString("id-ID")} dari ${hak!.balasan!.toLocaleString("id-ID")}`}</p>
-              <p className="text-muted">{sisa === 0 ? "Pesan pelanggan tetap masuk, tapi tidak dijawab AI sampai paket diperpanjang." : "Perpanjang atau naikkan paket supaya AI tidak berhenti di tengah jalan."}</p>
-            </div>
-          </div>
-          <Link href="/langganan" className="btn btn-primary shrink-0">
-            Lihat paket
+      </div>
+      <div className="flex shrink-0 flex-wrap gap-2">
+        {kosong.slice(0, 3).map((n) => (
+          <Link key={n.id} href={`/nomor/${n.id}#knowledge`} className="btn btn-primary">
+            Isi {kosong.length > 1 ? n.label : "sekarang"}
           </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Kuota balasan AI hampir/sudah habis (ambang dari aturan admin), dengan tombol ke halaman Langganan. Hanya dipasang di
+ * Ringkasan dan Akun saya: di halaman Langganan sendiri tombolnya tidak berguna (kuotanya sudah tampil di sana).
+ */
+export async function BannerKuota() {
+  const user = await requireUser();
+  if (user.peran === "admin") return null;
+  const ambang = await aturan("peringatan_kuota_persen");
+  if (ambang <= 0) return null;
+  const [hak, sisa] = await Promise.all([hakAkun(user), sisaKuotaAi(user.id)]);
+  if (!hak.balasan || sisa === null || (sisa / hak.balasan) * 100 > ambang) return null;
+
+  return (
+    <div role="alert" className="flex flex-col gap-3 rounded-2xl border border-danger/30 bg-danger-soft px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex gap-3">
+        <AlertTriangle className="mt-0.5 size-5 shrink-0 text-danger" aria-hidden />
+        <div className="text-[13px]">
+          <p className="font-bold text-fg">
+            {sisa === 0 ? "Kuota balasan AI habis: AI berhenti membalas" : `Kuota balasan AI tinggal ${sisa.toLocaleString("id-ID")} dari ${hak.balasan.toLocaleString("id-ID")}`}
+          </p>
+          <p className="text-muted">{sisa === 0 ? "Pesan pelanggan tetap masuk, tapi tidak dijawab AI sampai paket diperpanjang." : "Perpanjang atau naikkan paket supaya AI tidak berhenti di tengah jalan."}</p>
         </div>
-      )}
+      </div>
+      <Link href="/langganan" className="btn btn-primary shrink-0">
+        Lihat paket
+      </Link>
     </div>
   );
 }

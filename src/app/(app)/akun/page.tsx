@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { BannerKuota } from "@/components/banner-akun";
 import { tanggal } from "@/lib/format";
 import { nomorMilik } from "@/lib/numbers";
 import { penggunaById } from "@/lib/pengguna";
@@ -11,6 +12,9 @@ export const metadata: Metadata = { title: "Akun saya · Asisten WhatsApp" };
 export default function HalamanAkun() {
   return (
     <div className="space-y-6">
+      <Suspense fallback={null}>
+        <BannerKuota />
+      </Suspense>
       <div>
         <h1 className="text-2xl font-bold tracking-tight sm:text-[28px]">Akun saya</h1>
         <p className="mt-1 text-muted">Profil, keamanan login, dan kuota nomor WhatsApp Anda.</p>
