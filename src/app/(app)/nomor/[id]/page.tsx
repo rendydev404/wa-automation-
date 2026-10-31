@@ -23,6 +23,7 @@ import { siapDipakai, statHarian, tanggalWib } from "@/lib/numbers";
 import { nomorUntuk } from "@/lib/akses";
 import { daftarPelajaran, jumlahPelajaran } from "@/lib/pelajaran";
 import { ambilPesanPercakapan, daftarPercakapan, ringkasanPercakapan } from "@/lib/percakapan";
+import { ModalPenerus } from "@/components/modal-penerus";
 import { requireUser } from "@/lib/session";
 import { TUR_NOMOR } from "@/components/isi-tur";
 import { TurOtomatis } from "@/components/tur";
@@ -111,12 +112,17 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
         </div>
       </header>
 
-      {!siapDipakai(nomor) && (
-        <a href="#teruskan" className="flex items-center gap-2.5 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-[13px] font-medium text-warning hover:underline">
-          <TriangleAlert className="size-4 shrink-0" aria-hidden />
-          {PERLU_PENERUS}
-        </a>
-      )}
+      {!siapDipakai(nomor) &&
+        (nomor.user_id === user.id ? (
+          // Pemilik nomor: wajib mengisi dulu (modal tidak bisa ditutup).
+          <ModalPenerus numberId={nomor.id} label={nomor.label} waBisnis={nomor.wa_id} />
+        ) : (
+          // Admin yang melihat nomor milik pengguna lain: hanya pemberitahuan, tidak dikunci.
+          <a href="#teruskan" className="flex items-center gap-2.5 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-[13px] font-medium text-warning hover:underline">
+            <TriangleAlert className="size-4 shrink-0" aria-hidden />
+            {PERLU_PENERUS}
+          </a>
+        ))}
 
       <section aria-label="Statistik nomor ini" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <KartuStat
