@@ -103,10 +103,15 @@ async function Ringkasan() {
         />
       </section>
 
-      <div className="grid gap-4 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      {/* Kesehatan sistem (status mesin AI, galat) hanya untuk admin; pengguna biasa cukup melihat grafik aktivitasnya. */}
+      {user.peran === "admin" ? (
+        <div className="grid gap-4 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <GrafikAktivitas titik={tren} />
+          <PanelSistem botAktif={nomor.filter((n) => n.bot_aktif && siapDipakai(n)).length} total={nomor.length} dokumen={dokumen} karakter={karakter} />
+        </div>
+      ) : (
         <GrafikAktivitas titik={tren} />
-        <PanelSistem botAktif={nomor.filter((n) => n.bot_aktif && siapDipakai(n)).length} total={nomor.length} dokumen={dokumen} karakter={karakter} />
-      </div>
+      )}
 
       <NumbersList
         nomor={nomor.map((n) => ({
