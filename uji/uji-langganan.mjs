@@ -300,6 +300,154 @@ await cek("acuan harga tersimpan (bawaan: margin 60%, pakai 100%, kartu, Haiku 5
   assert.equal((await L.acuanHarga()).margin, 80);
 });
 
+console.log("== Paket Custom ==");
+const C = await lib("src/lib/paket-custom.ts");
+const KT = { usd: AI2.perkiraanPerBalasan("claude-haiku-5-5"), kurs: 16500, balasanPerNomorBulan: 900 };
+const spekC = { ...C.BAWAAN_CUSTOM, kuota_balasan: 10000, nomor_otomatis: false, kuota_nomor: 10, durasi_hari: 30, margin: 60, pembulatan: 1000, cantik: false, harga_manual: false, harga: 0, pemakaian: 100, metode: "kartu", biaya_server: 0 };
+
+await cek("paket Custom: kuota -> harga otomatis dari modal + margin (rumus sama dengan paket biasa); pembulatan & harga cantik tidak pernah di bawah harga pas", async () => {
+  const h = C.hitungCustom(spekC, KT);
+  assert.ok(Math.abs(h.rincian.modal - 146569.5) < 1e-6);
+  assert.equal(h.hargaOtomatis, 401000); // (146.569,5 + 2.000) / (1 - 0,6 - 0,029) = 400.457,9 -> 401.000 (= simulasi paket Pro)
+  assert.deepEqual([h.harga, h.status], [401000, "sehat"]);
+  assert.ok(h.rincian.margin >= 0.6);
+  assert.equal(C.hitungCustom({ ...spekC, pembulatan: 10000, cantik: true }, KT).hargaOtomatis, 409000);
+  assert.equal(C.hitungCustom({ ...spekC, pembulatan: 50000 }, KT).hargaOtomatis, 450000);
+  // Kuota 2x -> modal AI 2x -> harga ikut naik; margin turun -> harga turun
+  assert.ok(C.hitungCustom({ ...spekC, kuota_balasan: 20000 }, KT).hargaOtomatis > 790000);
+  assert.ok(C.hitungCustom({ ...spekC, margin: 40 }, KT).hargaOtomatis < 401000);
+  // Durasi 90 hari: biaya server sebanding durasi, harga setara 30 hari ikut dihitung
+  const tiga = C.hitungCustom({ ...spekC, durasi_hari: 90, biaya_server: 5000 }, KT);
+  assert.ok(Math.abs(tiga.rincian.modalServer - 10 * 5000 * 3) < 1e-9);
+  assert.ok(Math.abs(tiga.per30Hari - tiga.harga / 3) < 1e-6);
+  for (const [pas, l] of [[1_240_000, 10_000], [1_249_500, 10_000], [1_249_000, 10_000], [3_000, 100_000], [401, 5_000]]) {
+    const b = C.bulatkanHarga(pas, l, true);
+    assert.ok(b >= pas && (b + 1000) % l === 0, `${pas} -> ${b}`);
+  }
+  assert.equal(C.bulatkanHarga(1_240_000, 10_000, true), 1_249_000);
+  assert.equal(C.bulatkanHarga(1_249_500, 10_000, true), 1_259_000);
+  assert.equal(C.bulatkanHarga(1_249_500, 10_000, false), 1_250_000);
+  // Nomor otomatis dari pemakaian nyata (kuota ÷ balasan per nomor per bulan)
+  assert.equal(C.hitungCustom({ ...spekC, nomor_otomatis: true, kuota_balasan: 3500 }, KT).kuotaNomor, 4);
+  // Tarif model belum diketahui: tidak ada harga otomatis
+  assert.equal(C.hitungCustom(spekC, { ...KT, usd: null }).hargaOtomatis, null);
+});
+
+await cek("paket Custom: harga sendiri menimpa harga otomatis; untung, margin, rugi & di bawah target terdeteksi; anggaran pelanggan -> kuota", async () => {
+  const t = C.hitungCustom({ ...spekC, harga_manual: true, harga: 300000 }, KT);
+  assert.deepEqual([t.harga, t.hargaOtomatis, t.status], [300000, 401000, "tipis"]);
+  assert.ok(Math.abs(t.rincian.untung - (300000 - (300000 * 0.029 + 2000) - 146569.5)) < 1e-6);
+  assert.equal(C.hitungCustom({ ...spekC, harga_manual: true, harga: 150000 }, KT).status, "rugi");
+  const mahal = C.hitungCustom({ ...spekC, harga_manual: true, harga: 500000 }, KT);
+  assert.deepEqual([mahal.status, mahal.perBalasan], ["sehat", 50]);
+  // Kebalikan: anggaran = harga otomatis -> kuota kembali 10.000 (kelipatan 50, margin tetap tercapai)
+  assert.equal(C.kuotaDariAnggaran(401000, spekC, KT), 10000);
+  assert.equal(C.kuotaDariAnggaran(5000, spekC, KT), 0);
+  const oto = { ...spekC, nomor_otomatis: true, biaya_server: 3000 };
+  const q = C.kuotaDariAnggaran(1_000_000, oto, KT);
+  assert.ok(q > 0 && q % 50 === 0);
+  assert.ok(C.hitungCustom({ ...oto, kuota_balasan: q, harga_manual: true, harga: 1_000_000 }, KT).rincian.margin >= 0.59);
+});
+
+await cek("paket Custom versi lama (harga berupa teks) tetap tampil seperti dulu; isian rusak = bawaan; periksaCustom menolak angka tidak sah", async () => {
+  const lama = C.rapikanCustom({ aktif: true, nama: "Custom", deskripsi: "Untuk cabang", harga: "Hubungi kami", fitur: ["A", "B"], wa: "6281234567890", pesan: "Halo", tombol: "Chat" });
+  assert.deepEqual([lama.tampil_harga, lama.teks_harga, lama.tampil_kuota, lama.aksi, lama.harga, lama.kurs, lama.fitur], ["teks", "Hubungi kami", false, "wa", 0, 0, ["A", "B"]]);
+  assert.equal(C.customTampil(lama), true);
+  assert.deepEqual(C.rapikanCustom({ kuota_balasan: -5, margin: 99, metode: "bitcoin", pembulatan: 7, wa: "08123", harga: 1.5 }), C.BAWAAN_CUSTOM);
+  const sah = { ...C.BAWAAN_CUSTOM, nama: "Enterprise" };
+  assert.equal(typeof C.periksaCustom(sah), "object");
+  for (const [ubah, pola] of [
+    [{ durasi_hari: 0 }, /Durasi/],
+    [{ kuota_balasan: 1.5 }, /Kuota balasan/],
+    [{ margin: 95 }, /Margin/],
+    [{ harga_manual: true, harga: 0 }, /Harga sendiri/],
+    [{ nama: " " }, /Nama/],
+    [{ aktif: true, aksi: "wa", wa: "" }, /WhatsApp/],
+    [{ aktif: true, aksi: "bayar", tampil_harga: "teks", teks_harga: "" }, /Teks harga/],
+    [{ nomor_otomatis: false, kuota_nomor: 0 }, /nomor/],
+    [{ metode: "bitcoin" }, /Metode/],
+  ])
+    assert.match(C.periksaCustom({ ...sah, ...ubah }), pola, JSON.stringify(ubah));
+  // Pesan WhatsApp ke admin memuat rincian paket di kartu, lalu email akun
+  const isi = { ...sah, wa: "6281234567890", harga: 401000, kuota_nomor: 10, kuota_balasan: 10000 };
+  const teks = new URL(C.tautanCustom(isi, "Email akun: budi@uji.test")).searchParams.get("text");
+  assert.equal(teks, "Halo, saya tertarik dengan paket Custom WhatsApp Automation.\n\nPaket: Enterprise (10.000 balasan AI, 10 nomor WhatsApp, Rp401.000 / 30 hari)\nEmail akun: budi@uji.test");
+  assert.ok(C.tautanCustom(isi).startsWith("https://wa.me/6281234567890?text="));
+});
+
+await cek("paket Custom disimpan: dihitung ulang di server (angka dari browser diabaikan), dicerminkan ke tabel paket, tidak ikut paket biasa & simulasinya", async () => {
+  const isian = C.periksaCustom({ ...spekC, nama: "Enterprise", aktif: true, aksi: "bayar", tombol: "Pilih paket", harga: 1 });
+  const { p, h } = await C.simpanPaketCustom(isian);
+  assert.deepEqual([p.harga, p.kuota_nomor, p.kurs, h.status], [401000, 10, 16500, "sehat"]);
+  assert.ok(p.dihitung > 0);
+  assert.deepEqual(await C.paketCustom(), p);
+  const id = await C.idPaketCustom();
+  const baris = await L.paketById(id);
+  assert.deepEqual([baris.kode, baris.nama, baris.harga, baris.kuota_balasan, baris.kuota_nomor, baris.durasi_hari, baris.aktif], ["_custom", "Enterprise", 401000, 10000, 10, 30, true]);
+  assert.ok(!(await L.daftarPaket()).some((x) => x.kode === "_custom"), "tidak ikut daftar paket biasa");
+  assert.ok(!(await L.daftarPaket({ semua: true })).some((x) => x.kode === "_custom"));
+  assert.ok((await L.daftarPaket({ semua: true, custom: true })).some((x) => x.id === id), "ikut daftar 'Berikan paket'");
+  // Formulir & simulasi paket biasa tidak bisa mengubah baris Custom
+  await L.simpanPaket({ ...baris, harga: 1000 });
+  const sebelum = await L.daftarPaket({ semua: true });
+  await L.terapkanSimulasi({ ...(await L.acuanHarga()), kurs: 16500, margin: 10 }, "kunci-kuota");
+  for (const x of sebelum) await L.simpanPaket(x);
+  assert.equal((await L.paketById(id)).harga, 401000);
+  // Tombol chat WhatsApp: baris nonaktif (tidak bisa dibeli lewat Midtrans), tetap satu baris yang sama
+  await C.simpanPaketCustom(C.periksaCustom({ ...isian, aksi: "wa", wa: "6281234567890" }));
+  assert.equal((await L.paketById(id)).aktif, false);
+  assert.equal(await C.idPaketCustom(), id);
+  // Model tanpa tarif resmi: ditolak, yang tersimpan tidak berubah
+  await assert.rejects(C.simpanPaketCustom({ ...isian, model: "model-tak-dikenal" }), /Tarif model/);
+  assert.equal((await C.paketCustom()).aksi, "wa");
+});
+
+await cek("paket Custom dibayar/diberikan seperti paket biasa: kuota dari isi paket, nominal tagihan = harganya, diperpanjang bila sama", async () => {
+  await C.simpanPaketCustom(C.periksaCustom({ ...spekC, nama: "Enterprise", aktif: true, aksi: "bayar" }));
+  const id = await C.idPaketCustom();
+  await L.berikanPaket(lain.id, id);
+  const h = await L.hakAkun({ id: lain.id, peran: "user" });
+  assert.deepEqual([h.paket, h.nomor, h.balasan], ["Enterprise", 10, 10000]);
+  await L.berikanPaket(lain.id, id);
+  assert.equal((await L.hakAkun({ id: lain.id, peran: "user" })).balasan, 20000);
+  const fetchAsli = globalThis.fetch;
+  let snap;
+  globalThis.fetch = async (_url, o) => {
+    snap = JSON.parse(o.body);
+    return new Response(JSON.stringify({ token: "tok-custom", redirect_url: "https://app.midtrans.com/snap/v4/redirection/tok-custom" }), { status: 201 });
+  };
+  try {
+    await L.mulaiBayar(k, { id: lain.id, email: "lain@uji.test", nama: "Lain" }, await L.paketById(id), "https://wa.uji");
+  } finally {
+    globalThis.fetch = fetchAsli;
+  }
+  assert.equal(snap.transaction_details.gross_amount, 401000);
+  await L.hentikanLangganan(lain.id);
+});
+
+await cek("paket Custom mengikuti kurs: bergeser >=1% -> harga otomatis dihitung ulang sekali & tersimpan (juga di tabel paket); <1%, harga sendiri, atau saklar mati tidak", async () => {
+  const id = await C.idPaketCustom();
+  const tetap = process.env.KURS_USD_TETAP;
+  try {
+    process.env.KURS_USD_TETAP = "16600"; // 0,6%
+    assert.equal((await C.paketCustom()).harga, 401000);
+    process.env.KURS_USD_TETAP = "17000"; // 3%: modal AI 10.000 x 0,000846 x 17.000 x 1,05 -> harga 413.000
+    const [a, b] = await Promise.all([C.paketCustom(), C.paketCustom()]);
+    assert.deepEqual([a.harga, a.kurs, a.kuota_nomor, b.harga], [413000, 17000, 10, 413000]);
+    assert.equal((await L.paketById(id)).harga, 413000);
+    process.env.KURS_USD_TETAP = "16500";
+    await C.simpanPaketCustom(C.periksaCustom({ ...spekC, nama: "Enterprise", aktif: true, aksi: "bayar", harga_manual: true, harga: 777000 }));
+    process.env.KURS_USD_TETAP = "18000";
+    assert.equal((await C.paketCustom()).harga, 777000, "harga sendiri tidak pernah diubah otomatis");
+    process.env.KURS_USD_TETAP = "16500";
+    await C.simpanPaketCustom(C.periksaCustom({ ...spekC, nama: "Enterprise", ikut_kurs: false }));
+    process.env.KURS_USD_TETAP = "18000";
+    assert.equal((await C.paketCustom()).harga, 401000, "saklar 'mengikuti kurs' mati");
+  } finally {
+    process.env.KURS_USD_TETAP = tetap;
+  }
+});
+
 await cek("tur panduan: tercatat per akun, tidak dobel", async () => {
   assert.deepEqual(await P.turSelesai(budi.id), []);
   await P.tandaiTurSelesai(budi.id, "dashboard");

@@ -56,7 +56,8 @@ export interface HasilHarga {
   biayaBayar: number; // pada harga sekarang
   untung: number; // pada harga sekarang
   margin: number | null; // pada harga sekarang; null bila harga 0
-  hargaSaran: number | null; // null bila margin + biaya bayar >= 100%
+  hargaPas: number | null; // harga tepat di margin target sebelum dibulatkan; null bila margin + biaya bayar >= 100%
+  hargaSaran: number | null; // hargaPas dibulatkan ke atas ke Rp1.000
 }
 
 export function hitungHarga(p: PaketHarga, a: AcuanHarga): HasilHarga {
@@ -68,6 +69,7 @@ export function hitungHarga(p: PaketHarga, a: AcuanHarga): HasilHarga {
   const biayaBayar = p.harga > 0 ? p.harga * m.persen + m.tetap : 0;
   const untung = p.harga - biayaBayar - modal;
   const penyebut = 1 - a.margin - m.persen;
+  const hargaPas = penyebut > 0 ? (modal + m.tetap) / penyebut : null;
   return {
     biayaPerBalasan,
     modalAi,
@@ -76,7 +78,8 @@ export function hitungHarga(p: PaketHarga, a: AcuanHarga): HasilHarga {
     biayaBayar,
     untung,
     margin: p.harga > 0 ? untung / p.harga : null,
-    hargaSaran: penyebut > 0 ? Math.max(1_000, Math.ceil((modal + m.tetap) / penyebut / 1_000) * 1_000) : null,
+    hargaPas,
+    hargaSaran: hargaPas === null ? null : Math.max(1_000, Math.ceil(hargaPas / 1_000) * 1_000),
   };
 }
 

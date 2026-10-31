@@ -5,8 +5,8 @@ import { KartuLangganan } from "@/components/kartu-langganan";
 import { angka, tanggal, UMUR_HISTORI_HARI } from "@/lib/format";
 import { daftarPaket, hakAkun, riwayatTransaksi } from "@/lib/langganan";
 import { konfigMidtrans } from "@/lib/midtrans";
-import { customTampil, paketCustom, tautanCustom } from "@/lib/paket-custom";
-import { KartuCustom } from "@/components/kartu-custom";
+import { customTampil, idPaketCustom, paketCustom, tautanCustom } from "@/lib/paket-custom";
+import { KartuCustom, TombolWaCustom } from "@/components/kartu-custom";
 import { requireUser } from "@/lib/session";
 import { HasilBayar, TombolBayar } from "./bayar";
 
@@ -51,9 +51,9 @@ async function Kembali({ searchParams }: { searchParams: Promise<Record<string, 
 
 async function Paket() {
   const user = await requireUser();
-  const [paket, k, hak, custom] = await Promise.all([daftarPaket(), konfigMidtrans(), hakAkun(user), paketCustom()]);
+  const [paket, k, hak, custom, idCustom] = await Promise.all([daftarPaket(), konfigMidtrans(), hakAkun(user), paketCustom(), idPaketCustom()]);
   const dijual = paket.filter((p) => p.harga > 0);
-  const adaCustom = customTampil(custom);
+  const adaCustom = customTampil(custom) && (custom.aksi === "wa" || idCustom !== null);
   if (!dijual.length && !adaCustom) return null;
   return (
     <section aria-labelledby="judul-paket">
@@ -87,7 +87,19 @@ async function Paket() {
             </div>
           </article>
         ))}
-        {adaCustom && <KartuCustom p={custom} href={tautanCustom(custom, `Email akun: ${user.email}`)} varian="app" />}
+        {adaCustom && (
+          <KartuCustom
+            p={custom}
+            varian="app"
+            aksi={
+              custom.aksi === "bayar" && idCustom !== null ? (
+                <TombolBayar paketId={idCustom} label={hak.paket === custom.nama ? "Perpanjang" : custom.tombol} nonaktif={!k} />
+              ) : (
+                <TombolWaCustom href={tautanCustom(custom, `Email akun: ${user.email}`)} label={custom.tombol} />
+              )
+            }
+          />
+        )}
       </div>
       <p className="mt-3 text-[12.5px] text-muted">
         Bayar lewat QRIS, transfer bank (virtual account), e-wallet, atau kartu. Perpanjang paket yang sama = masa & kuota ditambahkan. Ganti paket = paket baru mulai hari itu.

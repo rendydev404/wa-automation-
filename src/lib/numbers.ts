@@ -199,17 +199,8 @@ export async function setBelajar(id: number, aktif: boolean): Promise<void> {
   basi();
 }
 
-/**
- * Nomor WhatsApp pribadi penerima pesan yang diteruskan AI. Format bebas (0812..., +62 812-..., 62812...) dirapikan
- * jadi digit berawalan kode negara; null = format tidak dikenali.
- */
-export function rapikanNomorWa(masukan: string): string | null {
-  let d = masukan.replace(/[^0-9+]/g, "");
-  if (d.startsWith("+")) d = d.slice(1);
-  else if (d.startsWith("0")) d = `62${d.slice(1)}`;
-  else if (d.startsWith("8")) d = `62${d}`;
-  return /^[1-9][0-9]{7,14}$/.test(d) ? d : null;
-}
+/** Nomor WhatsApp pribadi penerima pesan yang diteruskan AI dirapikan dengan aturan yang sama (format.ts, juga dipakai browser). */
+export { rapikanNomorWa } from "./format";
 
 export async function setTeruskan(id: number, data: { ke: string | null; aktif: boolean }): Promise<void> {
   const sql = await db();

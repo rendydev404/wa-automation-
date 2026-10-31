@@ -5,6 +5,7 @@ import { MODEL_BAWAAN, type Penyedia, kunciAnthropic, kursUsd, pengaturanAi, per
 import { METODE_BAYAR, type MetodeBayar, hitungHarga, kuotaDariHarga, nomorDariKuota } from "./harga";
 import { hermesTerkonfigurasi } from "./hermes";
 import { type KonfigMidtrans, MidtransError, type StatusBayar, buatSnap, petaStatus, statusMidtrans } from "./midtrans";
+import { KODE_CUSTOM } from "./paket-custom-def";
 
 /**
  * Paket langganan, masa aktif, transaksi Midtrans, dan kuota.
@@ -31,9 +32,18 @@ export interface Paket {
 
 const KOLOM_PAKET = "id, kode, nama, harga, durasi_hari, kuota_nomor, kuota_balasan, deskripsi, aktif, unggulan, urutan";
 
-export async function daftarPaket(opsi: { semua?: boolean } = {}): Promise<Paket[]> {
+/**
+ * Paket biasa. Baris cermin paket Custom (paket-custom.ts) tidak ikut, karena kartunya diatur sendiri; `custom: true`
+ * mengikutkannya (mis. daftar "Berikan paket" di halaman pengguna).
+ */
+export async function daftarPaket(opsi: { semua?: boolean; custom?: boolean } = {}): Promise<Paket[]> {
   const sql = await db();
-  return [...(await sql<Paket[]>`SELECT ${sql.unsafe(KOLOM_PAKET)} FROM paket WHERE ${opsi.semua ? sql`true` : sql`aktif`} ORDER BY urutan, harga, id`)];
+  return [
+    ...(await sql<Paket[]>`
+      SELECT ${sql.unsafe(KOLOM_PAKET)} FROM paket
+       WHERE ${opsi.semua ? sql`true` : sql`aktif`} AND ${opsi.custom ? sql`true` : sql`kode <> ${KODE_CUSTOM}`}
+       ORDER BY urutan, harga, id`),
+  ];
 }
 
 export async function paketById(id: number): Promise<Paket | undefined> {
@@ -45,10 +55,11 @@ export async function paketById(id: number): Promise<Paket | undefined> {
 export async function simpanPaket(p: Omit<Paket, "id"> & { id?: number }): Promise<number> {
   const sql = await db();
   if (p.id) {
+    // Baris paket Custom hanya diubah lewat paket-custom.ts (isinya cermin pengaturan Custom).
     await sql`
       UPDATE paket SET nama = ${p.nama}, harga = ${p.harga}, durasi_hari = ${p.durasi_hari}, kuota_nomor = ${p.kuota_nomor},
              kuota_balasan = ${p.kuota_balasan}, deskripsi = ${p.deskripsi}, aktif = ${p.aktif}, unggulan = ${p.unggulan}, urutan = ${p.urutan}
-       WHERE id = ${p.id}`;
+       WHERE id = ${p.id} AND kode <> ${KODE_CUSTOM}`;
     return p.id;
   }
   const [r] = await sql<{ id: number }[]>`

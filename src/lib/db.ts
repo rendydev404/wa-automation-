@@ -397,3 +397,15 @@ export async function setSetting(kunci: string, nilai: string): Promise<void> {
   g.__waPg!.setelan.set(kunci, nilai);
   await sql`INSERT INTO settings(kunci, nilai) VALUES (${kunci}, ${nilai}) ON CONFLICT (kunci) DO UPDATE SET nilai = EXCLUDED.nilai`;
 }
+
+/**
+ * Simpan satu pengaturan BERSAMA tulisan lain dalam satu transaksi (semua tersimpan atau tidak sama sekali). Memo baru
+ * diganti setelah transaksi berhasil; pembaca serentak tidak menimpanya karena getSetting hanya mengisi memo yang kosong.
+ */
+export async function setSettingBersama(kunci: string, nilai: string, lain: (tx: Tx) => Promise<void>): Promise<void> {
+  await transaksi(async (tx) => {
+    await tx`INSERT INTO settings(kunci, nilai) VALUES (${kunci}, ${nilai}) ON CONFLICT (kunci) DO UPDATE SET nilai = EXCLUDED.nilai`;
+    await lain(tx);
+  });
+  g.__waPg!.setelan.set(kunci, nilai);
+}

@@ -11,7 +11,7 @@ import { sekarang, setSetting } from "@/lib/db";
 import { ATURAN_ANGKA, ATURAN_SAKLAR, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
 import { berikanPaket, hentikanLangganan, mulaiBayar, paketById, riwayatTransaksi, segarkanKuota, simpanPaket, terapkanSimulasi, terapkanStatus } from "@/lib/langganan";
 import { MidtransError, konfigMidtrans } from "@/lib/midtrans";
-import { BATAS_CUSTOM, simpanPaketCustom } from "@/lib/paket-custom";
+import { GalatCustom, customTampil, periksaCustom, ringkasCustom, simpanPaketCustom } from "@/lib/paket-custom";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
 import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringSpam, setTeruskan, siapDipakai, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { ujiTeruskan } from "@/lib/penerusan";
@@ -652,37 +652,48 @@ export async function adminPaketAction(_lalu: Hasil | null, form: FormData): Pro
   return { ok: true, pesan: id ? "Paket diperbarui." : "Paket dibuat." };
 }
 
-/** Kartu paket "Custom" di daftar harga: ajakan chat WhatsApp ke admin, bukan paket yang dibeli lewat Midtrans. */
+/**
+ * Paket Custom (Paket & harga): seluruh isian dikirim sebagai JSON di kolom "data". Nomor WhatsApp dirapikan di sini,
+ * sisanya diperiksa periksaCustom; harga & jumlah nomor dihitung ulang di server (simpanPaketCustom).
+ */
 export async function adminPaketCustomAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   const admin = await requireAdmin();
-  const teks = (k: string, maks: number) => String(form.get(k) ?? "").trim().slice(0, maks);
-  const B = BATAS_CUSTOM;
-  const waMentah = teks("wa", 30);
-  const wa = waMentah ? rapikanNomorWa(waMentah) : null;
-  const p = {
-    aktif: form.get("aktif") === "on",
-    nama: teks("nama", B.nama),
-    deskripsi: teks("deskripsi", B.deskripsi),
-    harga: teks("harga", B.harga),
-    fitur: String(form.get("fitur") ?? "")
-      .split("\n")
-      .map((x) => x.trim().slice(0, B.panjangFitur))
-      .filter(Boolean)
-      .slice(0, B.fitur),
-    wa: wa ?? "",
-    pesan: teks("pesan", B.pesan),
-    tombol: teks("tombol", B.tombol) || "Hubungi kami",
-  };
-  if (p.nama.length < 2) return { ok: false, pesan: "Nama paket wajib diisi." };
-  if (!p.harga) return { ok: false, pesan: "Teks harga wajib diisi, mis. \"Hubungi kami\"." };
-  if (waMentah && !wa) return { ok: false, pesan: "Nomor WhatsApp tidak valid. Contoh: 0812 3456 7890 atau +62 812 3456 7890." };
-  if (p.aktif && !wa) return { ok: false, pesan: "Isi nomor WhatsApp admin dulu sebelum menampilkan paket Custom." };
-  await simpanPaketCustom(p);
-  await catatLog(admin, "ubah paket custom", null, `${p.aktif ? "tampil" : "disembunyikan"} · ${p.nama} · ${p.harga}`);
+  let mentah: unknown;
+  try {
+    mentah = JSON.parse(String(form.get("data") ?? ""));
+  } catch {
+    return { ok: false, pesan: "Isian tidak terbaca. Muat ulang halaman lalu coba lagi." };
+  }
+  const o = mentah && typeof mentah === "object" ? { ...(mentah as Record<string, unknown>) } : {};
+  const waMentah = typeof o.wa === "string" ? o.wa.trim().slice(0, 30) : "";
+  const wa = waMentah ? rapikanNomorWa(waMentah) : "";
+  if (wa === null) return { ok: false, pesan: "Nomor WhatsApp tidak valid. Contoh: 0812 3456 7890 atau +62 812 3456 7890." };
+  const isian = periksaCustom({ ...o, wa });
+  if (typeof isian === "string") return { ok: false, pesan: isian };
+  let hasil;
+  try {
+    hasil = await simpanPaketCustom(isian);
+  } catch (e) {
+    if (e instanceof GalatCustom) return { ok: false, pesan: e.message };
+    throw e;
+  }
+  const { p, h } = hasil;
+  const marginTeks = h.rincian.margin === null ? "–" : `${Math.round(h.rincian.margin * 100)}%`;
+  await catatLog(
+    admin,
+    "ubah paket custom",
+    null,
+    `${customTampil(p) ? "tampil" : "tidak tampil"} · ${ringkasCustom({ ...p, tampil_kuota: true, tampil_harga: "angka" })} · margin ${marginTeks} · harga ${p.harga_manual ? "sendiri" : "otomatis"} · kurs ${p.kurs} · ${p.aksi === "bayar" ? "bayar langsung" : "chat WhatsApp"}`
+  );
   revalidatePath("/admin", "layout");
   revalidatePath("/langganan");
   revalidatePath("/");
-  return { ok: true, pesan: p.aktif ? "Tersimpan. Paket Custom tampil di daftar harga." : "Tersimpan. Paket Custom disembunyikan." };
+  const tampil = customTampil(p) ? "Tampil di daftar harga." : p.aktif ? "Belum tampil: lengkapi tombolnya dulu." : "Belum ditampilkan di daftar harga.";
+  const rugi = h.status === "rugi" ? " Perhatian: harga di bawah modal (rugi)." : "";
+  return {
+    ok: true,
+    pesan: `Tersimpan: Rp${p.harga.toLocaleString("id-ID")} / ${p.durasi_hari} hari · ${p.kuota_balasan.toLocaleString("id-ID")} balasan · ${p.kuota_nomor.toLocaleString("id-ID")} nomor · margin ${marginTeks}. ${tampil}${rugi}`,
+  };
 }
 
 export async function adminBerikanPaketAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {

@@ -1,56 +1,96 @@
 import "server-only";
-import { getSetting, setSetting } from "./db";
+import { perkiraanPerBalasan } from "./ai";
+import { db, getSetting, sekarang, setSettingBersama } from "./db";
+import { MAKS_HARGA_PAKET } from "./harga";
+import { kursUsd } from "./kurs";
+import { pemakaianNyata } from "./langganan";
+import { AMBANG_KURS_CUSTOM, type HasilCustom, KODE_CUSTOM, type PaketCustom, customBisaDibeli, hitungCustom, rapikanCustom } from "./paket-custom-def";
+
+export * from "./paket-custom-def";
 
 /**
- * Kartu paket "Custom" di daftar harga (landing & halaman Langganan): bukan paket yang bisa dibeli, melainkan ajakan
- * menghubungi admin lewat WhatsApp untuk kebutuhan di luar paket biasa (banyak nomor, kuota besar, harga khusus).
- * Satu kartu saja, isinya diatur admin di Paket & harga dan disimpan sebagai JSON di settings.
+ * Penyimpanan paket Custom (rumusnya di paket-custom-def.ts). Isian admin disimpan sebagai JSON di settings, dan
+ * SEKALIGUS dicerminkan ke satu baris tabel paket (kode KODE_CUSTOM) dalam satu transaksi, supaya paket Custom bisa
+ * dibayar lewat Midtrans, diberikan admin dari halaman pengguna, dan diperpanjang seperti paket biasa. Baris itu tidak
+ * ikut daftar paket biasa (daftarPaket) dan tidak disentuh formulir maupun simulasi paket biasa.
  */
-export interface PaketCustom {
-  aktif: boolean;
-  nama: string;
-  deskripsi: string;
-  harga: string; // teks bebas, mis. "Hubungi kami" atau "Mulai Rp1 juta"
-  fitur: string[]; // satu poin per baris
-  wa: string; // nomor WhatsApp admin (digit berawalan kode negara)
-  pesan: string; // teks pembuka chat WhatsApp
-  tombol: string;
-}
 
 const KUNCI = "paket_custom";
 
-export const BAWAAN_CUSTOM: PaketCustom = {
-  aktif: false,
-  nama: "Custom",
-  deskripsi: "Untuk kebutuhan khusus: banyak cabang, kuota besar, atau harga khusus.",
-  harga: "Hubungi kami",
-  fitur: ["Jumlah nomor WhatsApp sesuai kebutuhan", "Kuota balasan AI sesuai kebutuhan", "Durasi & harga bisa dinegosiasikan", "Bantuan penyiapan base knowledge"],
-  wa: "",
-  pesan: "Halo, saya tertarik dengan paket Custom WhatsApp Automation.",
-  tombol: "Hubungi kami",
-};
+/** Urutan baris cermin di tabel paket: selalu setelah paket lain (kartunya juga tampil paling akhir). */
+const URUTAN_CUSTOM = 9999;
 
-export const BATAS_CUSTOM = { nama: 40, deskripsi: 200, harga: 40, fitur: 8, panjangFitur: 80, pesan: 300, tombol: 30 } as const;
+export class GalatCustom extends Error {}
 
-export async function paketCustom(): Promise<PaketCustom> {
-  const mentah = await getSetting(KUNCI);
-  if (!mentah) return BAWAAN_CUSTOM;
+async function tulis(p: PaketCustom): Promise<void> {
+  await setSettingBersama(KUNCI, JSON.stringify(p), async (tx) => {
+    await tx`
+      INSERT INTO paket(kode, nama, harga, durasi_hari, kuota_nomor, kuota_balasan, deskripsi, aktif, unggulan, urutan, created_at)
+      VALUES (${KODE_CUSTOM}, ${p.nama}, ${p.harga}, ${p.durasi_hari}, ${p.kuota_nomor}, ${p.kuota_balasan}, ${p.deskripsi}, ${customBisaDibeli(p)}, false, ${URUTAN_CUSTOM}, ${sekarang()})
+      ON CONFLICT (kode) DO UPDATE SET nama = EXCLUDED.nama, harga = EXCLUDED.harga, durasi_hari = EXCLUDED.durasi_hari, kuota_nomor = EXCLUDED.kuota_nomor,
+             kuota_balasan = EXCLUDED.kuota_balasan, deskripsi = EXCLUDED.deskripsi, aktif = EXCLUDED.aktif`;
+  });
+}
+
+const gs = globalThis as unknown as { __waCustomKurs?: Promise<PaketCustom | null> };
+
+/** Harga otomatis dihitung ulang dengan kurs baru (isi paket, termasuk jumlah nomor, tidak berubah). */
+async function ikutiKurs(p: PaketCustom, kurs: number): Promise<PaketCustom | null> {
   try {
-    return { ...BAWAAN_CUSTOM, ...(JSON.parse(mentah) as Partial<PaketCustom>) };
-  } catch {
-    return BAWAAN_CUSTOM;
+    const h = hitungCustom({ ...p, nomor_otomatis: false }, { usd: perkiraanPerBalasan(p.model), kurs, balasanPerNomorBulan: 0 });
+    if (h.hargaOtomatis === null || h.hargaOtomatis > MAKS_HARGA_PAKET) return null;
+    const baru: PaketCustom = { ...p, harga: h.hargaOtomatis, kurs, dihitung: sekarang() };
+    await tulis(baru);
+    if (baru.harga !== p.harga) console.log(`[paket-custom] harga mengikuti kurs Rp${p.kurs}→Rp${kurs}/USD: Rp${p.harga} → Rp${baru.harga}`);
+    return baru;
+  } catch (e) {
+    console.error(`[paket-custom] gagal mengikuti kurs: ${e instanceof Error ? e.message : e}`);
+    return null;
   }
 }
 
-export async function simpanPaketCustom(p: PaketCustom): Promise<void> {
-  await setSetting(KUNCI, JSON.stringify(p));
+/**
+ * Paket Custom yang berlaku. Bila admin mengizinkan harga mengikuti kurs (harga otomatis, `ikut_kurs`) dan kurs pasar
+ * sudah bergeser >= 1% dari kurs saat harga dihitung, harga dihitung ulang dan disimpan dulu (satu kali walau banyak
+ * permintaan serentak), jadi kartu dan tagihan Midtrans selalu memakai harga yang sama.
+ */
+export async function paketCustom(): Promise<PaketCustom> {
+  const mentah = await getSetting(KUNCI);
+  let d: unknown = null;
+  try {
+    d = mentah ? JSON.parse(mentah) : null;
+  } catch {
+    /* rusak = bawaan */
+  }
+  const p = rapikanCustom(d);
+  if (!p.ikut_kurs || p.harga_manual || p.kurs <= 0) return p;
+  const kurs = await kursUsd();
+  if (Math.abs(kurs - p.kurs) / p.kurs < AMBANG_KURS_CUSTOM) return p;
+  gs.__waCustomKurs ??= ikutiKurs(p, kurs).finally(() => {
+    gs.__waCustomKurs = undefined;
+  });
+  return (await gs.__waCustomKurs) ?? p;
 }
 
-/** Kartu tampil hanya bila dinyalakan admin dan nomor WhatsApp tujuannya terisi. */
-export const customTampil = (p: PaketCustom): boolean => p.aktif && !!p.wa;
+/**
+ * Simpan isian admin (sudah lolos periksaCustom). Harga & jumlah nomor dihitung ulang di server dengan kurs pasar dan
+ * pemakaian nyata saat ini, memakai rumus yang sama dengan pratinjau; angka hasil hitungan dari browser tidak dipakai.
+ */
+export async function simpanPaketCustom(isian: PaketCustom): Promise<{ p: PaketCustom; h: HasilCustom }> {
+  const usd = perkiraanPerBalasan(isian.model);
+  if (usd === null) throw new GalatCustom("Tarif model acuan belum diketahui.");
+  const [kurs, nyata] = await Promise.all([kursUsd(), pemakaianNyata()]);
+  const h = hitungCustom(isian, { usd, kurs, balasanPerNomorBulan: nyata.balasanPerNomorBulan });
+  if (!isian.harga_manual && h.hargaOtomatis === null) throw new GalatCustom(`Margin ${isian.margin}% + biaya pembayaran mencapai 100%: turunkan margin atau isi harga sendiri.`);
+  if (h.harga > MAKS_HARGA_PAKET) throw new GalatCustom(`Harga maksimal Rp${MAKS_HARGA_PAKET.toLocaleString("id-ID")}: kurangi kuota atau durasi.`);
+  const p: PaketCustom = { ...isian, kuota_nomor: h.kuotaNomor, harga: h.harga, kurs, dihitung: sekarang() };
+  await tulis(p);
+  return { p, h };
+}
 
-/** Tautan chat WhatsApp ke admin; `tambahan` (mis. email akun) ditempel di bawah pesan pembuka. */
-export function tautanCustom(p: PaketCustom, tambahan?: string): string {
-  const teks = [p.pesan.trim(), tambahan?.trim()].filter(Boolean).join("\n");
-  return `https://wa.me/${p.wa}${teks ? `?text=${encodeURIComponent(teks)}` : ""}`;
+/** Id baris paket Custom di tabel paket (untuk tombol bayar); null bila paket Custom belum pernah disimpan. */
+export async function idPaketCustom(): Promise<number | null> {
+  const sql = await db();
+  const [r] = await sql<{ id: number }[]>`SELECT id FROM paket WHERE kode = ${KODE_CUSTOM}`;
+  return r?.id ?? null;
 }

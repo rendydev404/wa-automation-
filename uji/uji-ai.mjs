@@ -203,8 +203,20 @@ const denganKursPasar = async (fn) => {
 };
 const FRANKFURTER = () => [200, { amount: 1, base: "USD", date: "2026-10-29", rates: { IDR: 18143.4 } }];
 const ER_API = () => [200, { result: "success", time_last_update_unix: 1793318551, rates: { IDR: 18150.37 } }];
+const COINBASE = (idr) => () => [200, { data: { currency: "USD", rates: { EUR: "0.92", IDR: idr } } }];
+/** Waktu berjalan sekian detik: semua cap waktu keadaan kurs dimundurkan (tanpa menunggu sungguhan). */
+const majukanWaktu = (detik) => {
+  const s = keadaanKurs();
+  if (s.info) s.info.diambil -= detik;
+  if (s.ronde !== undefined) s.ronde -= detik;
+  if (s.paksaPada !== undefined) s.paksaPada -= detik;
+  for (const b of Object.values(s.per ?? {})) {
+    b.diambil -= detik;
+    if (b.waktu !== null) b.waktu -= detik;
+  }
+};
 
-await cek("kurs pasar: dari sumber utama, dibulatkan, satu permintaan untuk panggilan serentak, di-cache, tersimpan di database", () =>
+await cek("kurs pasar: semua sumber ditanya bersamaan, dibulatkan, satu putaran untuk panggilan serentak, di-cache, tersimpan di database", () =>
   denganKursPasar(async () => {
     tiruKurs({ frankfurter: FRANKFURTER });
     permintaan.length = 0;
@@ -212,25 +224,89 @@ await cek("kurs pasar: dari sumber utama, dibulatkan, satu permintaan untuk pang
     assert.equal(i.kurs, 18143);
     assert.match(i.sumber, /Frankfurter/);
     assert.equal(i.tanggal, "2026-10-29");
-    assert.deepEqual([i.basi, i.cadangan], [false, false]);
-    assert.equal(permintaan.length, 1, "tiga panggilan serentak = satu permintaan keluar");
+    assert.deepEqual([i.basi, i.cadangan, i.langsung, i.waktuData], [false, false, false, null]);
+    assert.equal(permintaan.length, 3, "tiga panggilan serentak = satu putaran (tiap sumber sekali)");
     await K.infoKurs();
-    assert.equal(permintaan.length, 1, "dalam 1 jam dipakai dari cache");
+    assert.equal(permintaan.length, 3, "dalam 10 menit dipakai dari cache");
     const simpan = JSON.parse(await getSetting("kurs_usd_pasar"));
     assert.deepEqual([simpan.k, simpan.tgl], [18143, "2026-10-29"]);
   })
 );
 
-await cek("kurs pasar: sumber utama menolak/rusak -> sumber kedua; angka di luar rentang wajar ditolak", () =>
+await cek("kurs pasar: sumber menolak/rusak dilewati; angka di luar rentang wajar ditolak", () =>
   denganKursPasar(async () => {
-    tiruKurs({ frankfurter: () => [200, { rates: { IDR: 5 }, date: "2026-10-29" }], "er-api": ER_API });
+    tiruKurs({ frankfurter: () => [200, { rates: { IDR: 5 }, date: "2026-10-29" }], "er-api": ER_API, coinbase: () => [200, { data: { currency: "USD", rates: { IDR: "abc" } } }] });
     const i = await K.infoKurs();
     assert.equal(i.kurs, 18150);
     assert.match(i.sumber, /ExchangeRate/);
     assert.equal(i.tanggal, "2026-10-30");
+    assert.equal(i.waktuData, 1793318551);
+    assert.deepEqual(i.pembanding, []);
     await resetKurs();
-    tiruKurs({ frankfurter: () => [500, {}], "er-api": () => [200, { result: "error" }] });
-    assert.equal((await K.infoKurs()).cadangan, true, "dua sumber tidak sah = belum ada data pasar");
+    tiruKurs({ frankfurter: () => [500, {}], "er-api": () => [200, { result: "error" }], coinbase: () => [200, { errors: [{ id: "not_found" }] }] });
+    assert.equal((await K.infoKurs()).cadangan, true, "semua sumber tidak sah = belum ada data pasar");
+  })
+);
+
+await cek("kurs real-time: Coinbase dipakai bila sejalan dengan kurs referensi (dicek silang); pencilan dibuang; dua sumber berselisih = kurs referensi", () =>
+  denganKursPasar(async () => {
+    tiruKurs({ coinbase: COINBASE("18170.6"), frankfurter: FRANKFURTER, "er-api": ER_API });
+    const i = await K.infoKurs();
+    assert.equal(i.kurs, 18171);
+    assert.match(i.sumber, /Coinbase/);
+    assert.equal(i.langsung, true);
+    assert.ok(Math.abs(i.waktuData - sekarang()) <= 2, "kurs berjalan tanpa cap waktu = saat diambil");
+    assert.deepEqual(
+      i.pembanding.map((p) => [p.kurs, p.cocok]),
+      [
+        [18143, true],
+        [18150, true],
+      ]
+    );
+    // Coinbase menyimpang jauh (data rusak): dibuang, dipakai yang paling baru dari yang sejalan (ER-API lebih baru dari ECB).
+    await resetKurs();
+    tiruKurs({ coinbase: COINBASE("16000"), frankfurter: FRANKFURTER, "er-api": ER_API });
+    const j = await K.infoKurs();
+    assert.equal(j.kurs, 18150);
+    assert.match(j.sumber, /ExchangeRate/);
+    assert.deepEqual(j.pembanding.find((p) => p.kurs === 16000).cocok, false);
+    // Hanya dua sumber dan keduanya berselisih >3%: tidak bisa ditentukan mana yang benar -> kurs referensi ECB.
+    await resetKurs();
+    tiruKurs({ coinbase: COINBASE("16000"), frankfurter: FRANKFURTER });
+    assert.match((await K.infoKurs()).sumber, /Frankfurter/);
+  })
+);
+
+await cek("kurs real-time: tiap 10 menit hanya Coinbase yang ditanya ulang (kurs referensi harian paling sering tiap jam)", () =>
+  denganKursPasar(async () => {
+    tiruKurs({ coinbase: COINBASE("18170"), frankfurter: FRANKFURTER, "er-api": ER_API });
+    await K.infoKurs();
+    majukanWaktu(11 * 60);
+    tiruKurs({ coinbase: COINBASE("18190"), frankfurter: FRANKFURTER, "er-api": ER_API });
+    permintaan.length = 0;
+    const i = await K.infoKurs({ tunggu: true }); // kalkulator admin: menunggu putaran yang jatuh tempo
+    assert.equal(i.kurs, 18190);
+    assert.deepEqual(permintaan.map((p) => new URL(p.url).hostname), ["api.coinbase.com"]);
+    majukanWaktu(61 * 60);
+    permintaan.length = 0;
+    await K.infoKurs({ tunggu: true });
+    assert.equal(permintaan.length, 3, "lewat 1 jam: kurs referensi ikut ditanya ulang");
+  })
+);
+
+await cek("kurs: tombol Perbarui mengambil ulang dari semua sumber sekarang juga, paling sering sekali per 30 detik", () =>
+  denganKursPasar(async () => {
+    tiruKurs({ coinbase: COINBASE("18170"), frankfurter: FRANKFURTER, "er-api": ER_API });
+    await K.infoKurs();
+    tiruKurs({ coinbase: COINBASE("18200"), frankfurter: FRANKFURTER, "er-api": ER_API });
+    permintaan.length = 0;
+    assert.equal((await K.perbaruiKurs()).kurs, 18200);
+    assert.equal(permintaan.length, 3, "dipaksa: kurs referensi ikut ditanya walau belum 1 jam");
+    tiruKurs({ coinbase: COINBASE("18300"), frankfurter: FRANKFURTER, "er-api": ER_API });
+    assert.equal((await K.perbaruiKurs()).kurs, 18200, "kurang dari 30 detik: tidak mengambil ulang");
+    assert.equal(permintaan.length, 3);
+    majukanWaktu(31);
+    assert.equal((await K.perbaruiKurs()).kurs, 18300);
   })
 );
 
@@ -238,7 +314,7 @@ await cek("kurs pasar: sumber mati setelah ada data = nilai pasar terakhir tetap
   denganKursPasar(async () => {
     tiruKurs({ "er-api": ER_API });
     assert.equal((await K.infoKurs()).kurs, 18150);
-    keadaanKurs().info.diambil -= 2 * 3600; // data sudah lewat 1 jam
+    majukanWaktu(2 * 3600); // data sudah lewat 2 jam
     tiruKurs({}); // jaringan mati
     permintaan.length = 0;
     const langsung = await K.infoKurs(); // nilai lama langsung dipakai, pembaruan jalan di latar
@@ -246,20 +322,24 @@ await cek("kurs pasar: sumber mati setelah ada data = nilai pasar terakhir tetap
     await new Promise((r) => setTimeout(r, 80));
     const sesudah = await K.infoKurs();
     assert.deepEqual([sesudah.kurs, sesudah.basi, sesudah.cadangan], [18150, true, false]);
-    assert.equal(permintaan.length, 2, "tiap sumber dicoba sekali; tidak diulang sebelum 5 menit");
+    assert.equal(permintaan.length, 3, "tiap sumber dicoba sekali; tidak diulang sebelum 5 menit");
     // server dimulai ulang & sumber masih mati: nilai pasar terakhir dimuat dari database
     const s = keadaanKurs();
     for (const k of Object.keys(s)) delete s[k];
     const baru = await K.infoKurs();
     assert.deepEqual([baru.kurs, baru.cadangan], [18150, false]);
+    await new Promise((r) => setTimeout(r, 80)); // putaran latar (gagal) selesai sebelum keadaan dibersihkan
   })
 );
 
-await cek("kurs pasar: belum pernah berhasil sama sekali = perkiraan cadangan yang ditandai", () =>
+await cek("kurs pasar: belum pernah berhasil sama sekali = perkiraan cadangan yang ditandai, tanpa menunggu jaringan di tiap permintaan", () =>
   denganKursPasar(async () => {
     tiruKurs({});
     const i = await K.infoKurs();
     assert.deepEqual([i.kurs, i.cadangan], [K.KURS_CADANGAN, true]);
+    permintaan.length = 0;
+    assert.equal((await K.infoKurs()).cadangan, true);
+    assert.equal(permintaan.length, 0, "baru gagal: dicoba lagi paling cepat 5 menit kemudian");
   })
 );
 

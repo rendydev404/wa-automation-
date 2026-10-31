@@ -144,6 +144,17 @@ Membandingkan model dengan percakapan asli: `uji/banding-model.mjs` (cara pakai 
 Paket & pembayaran (`src/lib/langganan.ts`, `src/lib/midtrans.ts`), semuanya dikelola admin di `/admin`:
 - **Paket** (harga, durasi, kuota nomor, kuota balasan AI). Langganan menyimpan salinan kuota saat dibeli.
   Akun tanpa paket memakai kuota gratis bulanan (bulan kalender WIB). Admin tanpa batas.
+- **Paket Custom** (`src/lib/paket-custom-def.ts` rumus, `src/lib/paket-custom.ts` simpan; admin: Paket & harga →
+  Paket Custom): admin mengisi kuota balasan AI, durasi, dan nomor (otomatis dari pemakaian nyata atau manual);
+  harga otomatis = (modal AI + server + biaya tetap bayar) ÷ (1 − margin − persen bayar), dibulatkan (kelipatan,
+  opsi harga cantik …9.000) dan bisa ditimpa harga sendiri. Pratinjau di browser dan server memakai rumus yang
+  sama; server menghitung ulang saat menyimpan. Opsi "mengikuti kurs": harga otomatis dihitung ulang sendiri bila
+  kurs bergeser ≥1%. Kartunya membuka chat WhatsApp admin (pesan memuat rincian paket) atau dibayar langsung lewat
+  Midtrans: isiannya dicerminkan ke baris tabel `paket` berkode `_custom` (tidak ikut daftar & simulasi paket
+  biasa; bisa juga diberikan admin dari halaman pengguna).
+- **Kurs USD → Rp** (`src/lib/kurs.ts`): Coinbase (kurs pasar real-time) dicek silang dengan kurs referensi ECB
+  (Frankfurter) dan ExchangeRate-API; angka yang menyimpang >3% dibuang. Diperbarui tiap 10 menit (kurs referensi
+  harian paling sering tiap jam), tombol "Perbarui" di panel admin; kalkulator harga memantaunya lewat `/api/kurs`.
 - **Kuota balasan AI ditegakkan** di jembatan WhatsApp: habis = AI diam (pesan tetap tercatat), dicek dari
   memori dan disegarkan tiap 60 dtk, jadi tidak ada query tambahan per pesan.
 - **Midtrans Snap** (bawaan production): developer memasang `MIDTRANS_SERVER_KEY` (dan opsional

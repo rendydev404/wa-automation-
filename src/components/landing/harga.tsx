@@ -4,7 +4,7 @@ import { Check, Sparkles } from "lucide-react";
 import { angka, UMUR_HISTORI_HARI } from "@/lib/format";
 import { daftarPaket, kuotaBalasanGratis } from "@/lib/langganan";
 import { customTampil, paketCustom, tautanCustom } from "@/lib/paket-custom";
-import { KartuCustom } from "../kartu-custom";
+import { KartuCustom, TombolWaCustom } from "../kartu-custom";
 
 /**
  * Daftar harga di landing page, langsung dari paket yang dikelola admin (harga di sini = harga yang bisa dibeli).
@@ -49,7 +49,21 @@ export async function HargaLanding() {
           </Link>
         </article>
       ))}
-      {adaCustom && <KartuCustom p={custom} href={tautanCustom(custom)} varian="landing" />}
+      {adaCustom && (
+        <KartuCustom
+          p={custom}
+          varian="landing"
+          aksi={
+            custom.aksi === "bayar" ? (
+              <Link href="/daftar" className="btn btn-ghost w-full justify-center border border-line">
+                {custom.tombol}
+              </Link>
+            ) : (
+              <TombolWaCustom href={tautanCustom(custom)} label={custom.tombol} />
+            )
+          }
+        />
+      )}
       <p className="text-[13px] text-muted md:col-span-2 xl:col-span-3">
         Coba gratis dulu: setiap akun baru mendapat {angka(gratis)} balasan AI per bulan tanpa kartu kredit. Bayar lewat QRIS, transfer bank, e-wallet, atau kartu.
       </p>

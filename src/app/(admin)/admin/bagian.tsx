@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { Bot, ChevronRight, CreditCard, Package, Phone, ShieldCheck, UserCheck, UserPlus, UserX, Users } from "lucide-react";
+import { ArrowDown, Bot, ChevronRight, CreditCard, Package, Phone, ShieldCheck, Sparkles, UserCheck, UserPlus, UserX, Users } from "lucide-react";
 import { KartuStat } from "@/components/stat";
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna, ringkasanAdmin } from "@/lib/pengguna";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
-import { FormAi, FormBuatAkun, FormPaket, FormPaketCustom, FormPengaturan, SalinTeks } from "./form-admin";
-import { customTampil, paketCustom } from "@/lib/paket-custom";
+import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, SalinTeks } from "./form-admin";
+import { customTampil, hargaAngka, paketCustom } from "@/lib/paket-custom";
+import { PembangunCustom } from "./paket-custom";
 import { acuanHarga, daftarPaket, kuotaBalasanGratis, pemakaianNyata, riwayatTransaksi } from "@/lib/langganan";
 import { SimulasiHarga } from "./simulasi-harga";
 import { konfigMidtrans, kunciMidtransSah } from "@/lib/midtrans";
@@ -187,17 +188,15 @@ export async function KelolaPaket() {
           </li>
         ))}
         <li>
-          <details className="group">
-            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-4 py-3 text-[13px] [&::-webkit-details-marker]:hidden">
-              <span className="font-semibold">
-                {custom.nama} <span className="ml-1 rounded-md bg-subtle px-1.5 py-0.5 text-[11px] text-muted">custom · {customTampil(custom) ? "tampil" : "tidak tampil"}</span>
-              </span>
-              <span className="text-muted">{custom.harga} · tombol chat WhatsApp admin</span>
-            </summary>
-            <div className="border-t border-line bg-subtle/40 p-4">
-              <FormPaketCustom p={custom} />
-            </div>
-          </details>
+          <a href="#paket-custom" className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-[13px] transition-colors hover:bg-subtle/50">
+            <span className="font-semibold">
+              {custom.nama} <span className="ml-1 rounded-md bg-accent-soft px-1.5 py-0.5 text-[11px] text-accent">custom · {customTampil(custom) ? "tampil" : "tidak tampil"}</span>
+            </span>
+            <span className="flex items-center gap-1.5 text-muted tabular-nums">
+              {custom.kurs > 0 ? `Rp${angka(custom.harga)} · ${custom.durasi_hari} hari · ${angka(custom.kuota_nomor)} nomor · ${angka(custom.kuota_balasan)} balasan` : "belum dihitung"}
+              {!hargaAngka(custom) && ` · kartu: "${custom.teks_harga}"`} <ArrowDown className="size-3.5" aria-hidden /> atur di bawah
+            </span>
+          </a>
         </li>
       </ul>
       <details className="mt-4">
@@ -206,6 +205,46 @@ export async function KelolaPaket() {
           <FormPaket />
         </div>
       </details>
+    </section>
+  );
+}
+
+/** Paket Custom: kuota → harga otomatis (margin & asumsi biaya bisa diatur, harga bisa ditimpa), lihat paket-custom.tsx. */
+export async function KelolaPaketCustom() {
+  await requireAdmin();
+  const [custom, acuan, nyata, kursI, paket, midtrans] = await Promise.all([paketCustom(), acuanHarga(), pemakaianNyata(), infoKurs(), daftarPaket(), konfigMidtrans()]);
+  const model = MODEL_ACUAN.flatMap((m) => {
+    const usd = perkiraanPerBalasan(m.id);
+    return usd === null ? [] : [{ ...m, usd }];
+  });
+  // Model tersimpan yang tidak ada di daftar acuan (mis. diganti di versi lama) tetap bisa dipilih bila tarifnya diketahui.
+  const usdTersimpan = perkiraanPerBalasan(custom.model);
+  if (usdTersimpan !== null && !model.some((m) => m.id === custom.model)) model.push({ id: custom.model, nama: custom.model, usd: usdTersimpan });
+  const tampil = customTampil(custom);
+  return (
+    <section id="paket-custom" className="card scroll-mt-24 p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="max-w-2xl">
+          <h2 className="flex items-center gap-2 text-[15px] font-bold">
+            <Sparkles className="size-4 text-accent" aria-hidden /> Paket Custom
+          </h2>
+          <p className="mt-0.5 text-[13px] text-muted">
+            Isi kuota balasan AI, harga dihitung otomatis dari modal nyata + margin pilihanmu, lalu timpa sendiri bila perlu. Kurs USD diambil langsung dari data pasar dan diperbarui otomatis.
+          </p>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${tampil ? "bg-success-soft text-success" : "bg-subtle text-muted"}`}>{tampil ? "Tampil di daftar harga" : "Tidak tampil"}</span>
+      </div>
+      <div className="mt-5">
+        <PembangunCustom
+          awal={custom}
+          acuan={{ margin: acuan.margin, pemakaian: acuan.pemakaian, metode: acuan.metode, biayaServerNomor: acuan.biayaServerNomor, model: model.some((m) => m.id === acuan.model) ? acuan.model : (model[0]?.id ?? acuan.model) }}
+          model={model}
+          nyata={nyata}
+          kursInfo={kursI}
+          paketLain={paket.filter((p) => p.harga > 0).map((p) => ({ nama: p.nama, harga: p.harga, durasi_hari: p.durasi_hari, kuota_balasan: p.kuota_balasan }))}
+          midtrans={!!midtrans}
+        />
+      </div>
     </section>
   );
 }

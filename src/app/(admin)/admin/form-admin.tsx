@@ -12,7 +12,6 @@ import {
   adminBerikanPaketAction,
   adminHentikanLanggananAction,
   adminPaketAction,
-  adminPaketCustomAction,
   adminKuotaAction,
   adminPengaturanAction,
   adminPeranAction,
@@ -22,6 +21,7 @@ import {
 import { KursInfo } from "@/components/kurs-info";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "@/components/ui";
 import type { InfoKurs } from "@/lib/kurs-def";
+import { KODE_CUSTOM } from "@/lib/paket-custom-def";
 
 export function FormPengaturan({ buka, kuota, balasan, kurs }: { buka: boolean; kuota: number; balasan: number; kurs: InfoKurs }) {
   const [hasil, aksi] = useActionState(adminPengaturanAction, null);
@@ -415,59 +415,9 @@ export function FormPaket({ paket }: { paket?: PaketForm }) {
   );
 }
 
-export interface PaketCustomForm {
-  aktif: boolean;
-  nama: string;
-  deskripsi: string;
-  harga: string;
-  fitur: string[];
-  wa: string;
-  pesan: string;
-  tombol: string;
-}
-
-/** Kartu "Custom" di daftar harga: tombolnya membuka chat WhatsApp ke admin (kebutuhan di luar paket biasa). */
-export function FormPaketCustom({ p }: { p: PaketCustomForm }) {
-  const [hasil, aksi] = useActionState(adminPaketCustomAction, null);
-  const [aktif, setAktif] = useState(p.aktif);
-  const kolom = "field text-[13px]";
-  return (
-    <form action={aksi} className="space-y-3">
-      <div className="flex items-center justify-between gap-4 rounded-lg bg-subtle/50 p-3">
-        <div>
-          <p className="text-[13px] font-semibold">Tampilkan paket Custom</p>
-          <p className="text-[12px] text-muted">{aktif ? "Tampil di landing page & halaman Langganan, setelah paket lain." : "Tidak tampil."}</p>
-        </div>
-        <Saklar aktif={aktif} onUbah={setAktif} label="Tampilkan paket Custom" />
-        {aktif && <input type="hidden" name="aktif" value="on" />}
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <input name="nama" aria-label="Nama paket" placeholder="Nama paket" defaultValue={p.nama} required maxLength={40} className={kolom} />
-        <input name="harga" aria-label="Teks harga" placeholder="Teks harga, mis. Hubungi kami" defaultValue={p.harga} required maxLength={40} className={kolom} />
-        <input name="wa" type="tel" inputMode="tel" aria-label="Nomor WhatsApp admin" placeholder="WhatsApp admin, 0812 3456 7890" defaultValue={p.wa ? `+${p.wa}` : ""} className={`${kolom} tabular-nums`} />
-        <input name="tombol" aria-label="Teks tombol" placeholder="Teks tombol" defaultValue={p.tombol} maxLength={30} className={kolom} />
-      </div>
-      <input name="deskripsi" aria-label="Deskripsi singkat" placeholder="Deskripsi singkat" defaultValue={p.deskripsi} maxLength={200} className={kolom} />
-      <label className="block">
-        <span className="label">Keunggulan (satu per baris, maks. 8)</span>
-        <textarea name="fitur" rows={4} defaultValue={p.fitur.join("\n")} className={kolom} />
-      </label>
-      <label className="block">
-        <span className="label">Pesan pembuka chat WhatsApp</span>
-        <textarea name="pesan" rows={2} defaultValue={p.pesan} maxLength={300} className={kolom} />
-        <span className="mt-1 block text-[11.5px] text-faint">Dari halaman Langganan, email akun pelanggan ikut ditempel otomatis.</span>
-      </label>
-      <div className="flex items-center gap-3">
-        <SubmitButton>Simpan paket Custom</SubmitButton>
-        <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
-      </div>
-    </form>
-  );
-}
-
 // ---------- Langganan per pengguna ----------
 
-export function FormBerikanPaket({ id, paket }: { id: number; paket: { id: number; nama: string; durasi_hari: number }[] }) {
+export function FormBerikanPaket({ id, paket }: { id: number; paket: { id: number; kode: string; nama: string; durasi_hari: number }[] }) {
   const [hasil, aksi] = useActionState(adminBerikanPaketAction, null);
   return (
     <form action={aksi} className="space-y-3">
@@ -476,7 +426,8 @@ export function FormBerikanPaket({ id, paket }: { id: number; paket: { id: numbe
         <select name="paket" aria-label="Paket" required className="field">
           {paket.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.nama} ({p.durasi_hari} hari)
+              {p.nama} ({p.kode === KODE_CUSTOM ? "Custom · " : ""}
+              {p.durasi_hari} hari)
             </option>
           ))}
         </select>

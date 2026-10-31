@@ -59,7 +59,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
     kuotaBawaan(),
     hakAkun(u),
     langgananAktif(id),
-    daftarPaket({ semua: true }),
+    daftarPaket({ semua: true, custom: true }),
     pengaturanAi(),
     aiUntukAkun(id),
   ]);
