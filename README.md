@@ -1,4 +1,4 @@
-# Asisten WhatsApp
+# BalasCepet.com
 
 Dashboard untuk mengelola banyak nomor WhatsApp dan base knowledge-nya, plus jembatan yang
 meneruskan chat masuk ke AI (Hermes, profil `cs`) dan mengirim balasannya saat pemilik nomor tidak

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { MessageCircle } from "lucide-react";
+import { MEREK } from "@/lib/merek";
 
 /** Rangka halaman masuk/daftar: panel merek gelap di kiri (desktop), kartu formulir di kanan. */
 export function KartuAuth({ judul, sub, children, kaki }: { judul: string; sub: string; children: ReactNode; kaki: ReactNode }) {
@@ -13,7 +14,7 @@ export function KartuAuth({ judul, sub, children, kaki }: { judul: string; sub: 
           <span className="grid size-9 place-items-center rounded-xl bg-ink-signal text-ink">
             <MessageCircle className="size-5" strokeWidth={2.4} aria-hidden />
           </span>
-          <span className="text-[16px] font-bold tracking-tight">Asisten WhatsApp</span>
+          <span className="text-[16px] font-bold tracking-tight">{MEREK}</span>
         </Link>
         <div className="relative max-w-md">
           <p className="text-[28px] leading-tight font-bold tracking-tight">Balas pelanggan dalam hitungan detik, bahkan saat Anda tidur.</p>

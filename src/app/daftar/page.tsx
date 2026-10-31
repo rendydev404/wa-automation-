@@ -6,8 +6,9 @@ import { KartuAuth } from "@/components/kartu-auth";
 import { TombolGoogle } from "@/components/tombol-google";
 import { getUser, pendaftaranDibuka } from "@/lib/session";
 import { DaftarForm } from "./daftar-form";
+import { MEREK } from "@/lib/merek";
 
-export const metadata: Metadata = { title: "Daftar · Asisten WhatsApp" };
+export const metadata: Metadata = { title: `Daftar · ${MEREK}` };
 
 /** Sudah login? ke dashboard. Pendaftaran ditutup admin? tampilkan pemberitahuan, bukan formulir. */
 async function Isi() {

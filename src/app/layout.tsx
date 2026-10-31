@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import { MEREK } from "@/lib/merek";
 
 const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta",
@@ -9,7 +10,7 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Asisten WhatsApp",
+  title: MEREK,
   description: "Kelola nomor WhatsApp dan base knowledge asisten AI-nya.",
   robots: { index: false, follow: false },
 };

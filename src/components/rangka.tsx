@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Menu, MessageCircle, X } from "lucide-react";
+import { MEREK } from "@/lib/merek";
 
 function Merek({ beranda, label }: { beranda: string; label: string }) {
   return (
@@ -24,7 +25,7 @@ export function Rangka({
   sidebar,
   children,
   beranda = "/dashboard",
-  label = "Asisten WhatsApp",
+  label = MEREK,
 }: {
   sidebar: ReactNode;
   children: ReactNode;

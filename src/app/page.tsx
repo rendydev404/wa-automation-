@@ -6,11 +6,12 @@ import { DemoAlur, DemoChat } from "@/components/landing/demo";
 import { HargaLanding } from "@/components/landing/harga";
 import { Kalkulator } from "@/components/landing/kalkulator";
 import { UMUR_HISTORI_HARI } from "@/lib/format";
+import { MEREK } from "@/lib/merek";
 
 /** Landing page publik: seluruhnya statis (prerender), animasi Remotion dimuat terpisah di sisi klien. */
 
 export const metadata: Metadata = {
-  title: "Asisten WhatsApp · AI yang membalas pelanggan Anda 24/7",
+  title: `${MEREK} · AI yang membalas pelanggan Anda 24/7`,
   description: "Sambungkan WhatsApp dengan scan QR, beri pengetahuan usaha Anda, dan biarkan AI membalas pelanggan dalam hitungan detik.",
   robots: { index: true, follow: true },
 };
@@ -52,7 +53,7 @@ export default function Landing() {
             <span className="grid size-9 place-items-center rounded-xl bg-ink-signal text-ink">
               <MessageCircle className="size-5" strokeWidth={2.4} aria-hidden />
             </span>
-            <span className="text-[16px] font-bold tracking-tight">Asisten WhatsApp</span>
+            <span className="text-[16px] font-bold tracking-tight">{MEREK}</span>
           </Link>
           <nav aria-label="Navigasi landing" className="hidden items-center gap-7 text-[13.5px] font-semibold text-ink-muted md:flex">
             <a href="#fitur" className="transition-colors hover:text-ink-fg">
@@ -247,7 +248,7 @@ export default function Landing() {
 
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-[1200px] flex-col items-center justify-between gap-3 px-4 py-8 text-[13px] text-muted sm:flex-row sm:px-6">
-          <p>© Asisten WhatsApp</p>
+          <p>© {MEREK}</p>
           <div className="flex gap-5">
             <Link href="/login" className="hover:text-fg">
               Masuk

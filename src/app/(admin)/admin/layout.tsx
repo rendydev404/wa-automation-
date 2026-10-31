@@ -5,8 +5,9 @@ import { logoutAction } from "@/app/actions";
 import { Rangka } from "@/components/rangka";
 import { requireAdmin } from "@/lib/session";
 import { NavAdmin } from "./nav-admin";
+import { MEREK } from "@/lib/merek";
 
-export const metadata: Metadata = { title: "Panel admin · Asisten WhatsApp" };
+export const metadata: Metadata = { title: `Panel admin · ${MEREK}` };
 export const viewport: Viewport = { themeColor: "#0b1813" };
 
 /** Pemeriksa akses: bukan admin = 404 (keberadaan panel tidak dibocorkan). Di dalam Suspense supaya rangka tetap statis. */

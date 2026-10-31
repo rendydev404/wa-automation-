@@ -7,8 +7,9 @@ import { type Transaksi, langgananAktif, terapkanStatus, transaksiMilik } from "
 import { konfigMidtrans } from "@/lib/midtrans";
 import { requireUser } from "@/lib/session";
 import { PantauBayar } from "./pantau";
+import { MEREK } from "@/lib/merek";
 
-export const metadata: Metadata = { title: "Status pembayaran · Asisten WhatsApp" };
+export const metadata: Metadata = { title: `Status pembayaran · ${MEREK}` };
 
 const METODE: Record<string, string> = {
   gopay: "GoPay",

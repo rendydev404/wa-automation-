@@ -7,8 +7,9 @@ import { KartuAuth } from "@/components/kartu-auth";
 import { TombolGoogle } from "@/components/tombol-google";
 import { getUser } from "@/lib/session";
 import { LoginForm } from "./login-form";
+import { MEREK } from "@/lib/merek";
 
-export const metadata: Metadata = { title: "Masuk · Asisten WhatsApp" };
+export const metadata: Metadata = { title: `Masuk · ${MEREK}` };
 
 /** Sudah login (sesi benar-benar sah di database)? Langsung ke dashboard. */
 async function SudahMasuk() {

@@ -1,7 +1,7 @@
 {
   "name": "wa-motion",
   "private": true,
-  "description": "Video motion graphic promosi WhatsApp Automation (Remotion, 25 dtk, bahasa Inggris). Terpisah dari app: tidak ikut build/deploy.",
+  "description": "Video motion graphic promosi BalasCepet.com (Remotion, 25 dtk, bahasa Inggris). Terpisah dari app: tidak ikut build/deploy.",
   "scripts": {
     "studio": "remotion studio src/index.ts",
     "render": "remotion render src/index.ts Promo out/whatsapp-automation-promo.mp4 --codec=h264 --crf=16"

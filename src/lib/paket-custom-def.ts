@@ -1,4 +1,5 @@
 import { angka } from "./format";
+import { MEREK } from "./merek";
 import { type AcuanHarga, type HasilHarga, MAKS_HARGA_PAKET, METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hitungHarga, kuotaDariHarga, nomorDariKuota } from "./harga";
 
 /**
@@ -88,7 +89,7 @@ export const BAWAAN_CUSTOM: PaketCustom = {
   tampil_kuota: true,
   aksi: "wa",
   wa: "",
-  pesan: "Halo, saya tertarik dengan paket Custom WhatsApp Automation.",
+  pesan: `Halo, saya tertarik dengan paket Custom ${MEREK}.`,
   tombol: "Hubungi kami",
   kuota_balasan: 25_000,
   nomor_otomatis: true,

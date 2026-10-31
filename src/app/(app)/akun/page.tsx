@@ -7,8 +7,9 @@ import { nomorMilik } from "@/lib/numbers";
 import { penggunaById } from "@/lib/pengguna";
 import { kuotaNomor, requireUser } from "@/lib/session";
 import { FormKeluarSemua, FormPassword, FormProfil } from "./form-akun";
+import { MEREK } from "@/lib/merek";
 
-export const metadata: Metadata = { title: "Akun saya · Asisten WhatsApp" };
+export const metadata: Metadata = { title: `Akun saya · ${MEREK}` };
 
 export default function HalamanAkun() {
   return (

@@ -9,8 +9,9 @@ import { customTampil, idPaketCustom, paketCustom, tautanCustom } from "@/lib/pa
 import { KartuCustom, TombolWaCustom } from "@/components/kartu-custom";
 import { requireUser } from "@/lib/session";
 import { HasilBayar, TombolBayar } from "./bayar";
+import { MEREK } from "@/lib/merek";
 
-export const metadata: Metadata = { title: "Langganan · Asisten WhatsApp" };
+export const metadata: Metadata = { title: `Langganan · ${MEREK}` };
 
 const STATUS: Record<string, { label: string; kelas: string }> = {
   menunggu: { label: "Menunggu pembayaran", kelas: "bg-warning-soft text-warning" },

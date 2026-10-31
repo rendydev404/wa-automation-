@@ -12,8 +12,9 @@ import { AksiAkun, FormAiAkun, FormBerikanPaket, FormBlokir, FormKuota, HapusAku
 import { angka } from "@/lib/format";
 import { kunciAnthropic, pengaturanAi } from "@/lib/ai";
 import { aiUntukAkun, balasanTerpakai, daftarPaket, hakAkun, langgananAktif } from "@/lib/langganan";
+import { MEREK } from "@/lib/merek";
 
-export const metadata: Metadata = { title: "Kelola pengguna · Asisten WhatsApp" };
+export const metadata: Metadata = { title: `Kelola pengguna · ${MEREK}` };
 
 const STATUS: Record<string, string> = {
   WORKING: "Terhubung",
