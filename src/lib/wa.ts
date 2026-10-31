@@ -681,3 +681,13 @@ export async function kirimTeks(nama: string, alamat: string, teks: string, pada
   await denganBatas(sock.sendMessage(alamat, { text: teks, linkPreview: null }, { messageId: id, ...(kutip ? { quoted: kutip } : {}) }), 25_000, "mengirim pesan");
   return id;
 }
+
+/** Kirim satu gambar (foto produk katalog) dengan keterangan; `padaId` seperti kirimTeks. */
+export async function kirimGambar(nama: string, alamat: string, gambar: Buffer, mime: string, caption: string, padaId?: (id: string) => void): Promise<string> {
+  const { sock } = aktif(nama);
+  const B = await baileys();
+  const id = B.generateMessageIDV2(sock.user?.id);
+  padaId?.(id);
+  await denganBatas(sock.sendMessage(alamat, { image: gambar, mimetype: mime, caption }, { messageId: id }), 45_000, "mengirim foto");
+  return id;
+}

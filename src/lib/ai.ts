@@ -7,6 +7,7 @@ import { teksSoul } from "./soul";
 import { tarifModel } from "./tarif";
 import { type JenisAbaikan, ambilAbaikan, buangTagAbaikan } from "./spam";
 import { type TagTeruskan, ambilTeruskan } from "./teruskan";
+import { type KirimProduk, ambilKirimProduk } from "./katalog-def";
 import type { Foto } from "./types";
 
 /**
@@ -148,17 +149,31 @@ class GalatAnthropic extends Error {
 /** Sibuk / batas laju / galat server / jaringan: layak dicoba dengan model cadangan. */
 const layakCadangan = (e: unknown) => !(e instanceof GalatAnthropic) || e.status === 429 || e.status === 529 || e.status >= 500;
 
+/**
+ * Penalaran per model. Balasan WhatsApp tidak butuh penalaran: dimatikan (diukur pada pertanyaan asli,
+ * claude-haiku-5.5: waktu balas 3,1 -> 1,5 dtk, mutu setara). Tetapi cara mematikannya berbeda per generasi, dan
+ * mengirim cara yang salah = HTTP 400:
+ *   - Opus 5.5, Fable, Mythos: penalaran tidak bisa dimatikan -> parameter dihilangkan, effort "low" (cepat & hemat);
+ *     token penalaran ikut max_tokens, jadi batasnya ditambah.
+ *   - Sonnet 5.5: { type: "disabled" } ditolak; padanannya { type: "between_tools" }.
+ *   - Model lain (Haiku 5.5, Opus 5, Sonnet 5, 4.x): { type: "disabled" }.
+ * Parameter sampling (temperature/top_p/top_k) TIDAK dikirim: model generasi baru menolaknya (HTTP 400).
+ */
+export function opsiPenalaran(model: string, maksToken: number): Record<string, unknown> {
+  const m = model.replace(/-\d{8}$/, "");
+  if (/^claude-(?:opus-5-5|fable-|mythos-)/.test(m)) return { max_tokens: maksToken + 3000, output_config: { effort: "low" } };
+  if (m === "claude-sonnet-5-5") return { max_tokens: maksToken, thinking: { type: "between_tools" } };
+  return { max_tokens: maksToken, thinking: { type: "disabled" } };
+}
+
 async function panggilAnthropic(kunci: string, model: string, r: PermintaanAi) {
   const res = await fetch(`${API}/messages`, {
     method: "POST",
     headers: { "x-api-key": kunci, "anthropic-version": VERSI_API, "content-type": "application/json" },
     body: JSON.stringify({
       model,
-      // Balasan WhatsApp pendek; pagar biaya bila model "kebablasan" (aturan admin, bawaan 700)
-      max_tokens: await aturan("maks_token_balasan"),
-      // Penalaran dimatikan: diukur pada pertanyaan asli (claude-haiku-5.5), waktu balas 3,1 -> 1,5 dtk, mutu setara.
-      thinking: { type: "disabled" },
-      temperature: 0.4,
+      // Balasan WhatsApp pendek; max_tokens = pagar biaya bila model "kebablasan" (aturan admin, bawaan 700).
+      ...opsiPenalaran(model, await aturan("maks_token_balasan")),
       // SOUL selalu sama persis di setiap panggilan: di-cache Anthropic (input yang di-cache 10x lebih murah).
       system: [
         { type: "text", text: teksSoul(), cache_control: { type: "ephemeral" } },
@@ -300,6 +315,8 @@ export interface JawabanTerjaga extends JawabanAi {
   aman: boolean;
   /** Hal yang diteruskan ke pemilik (hanya bila opsi.teruskan); teks sudah bersih dari tag. */
   teruskan: TagTeruskan | null;
+  /** Produk katalog yang dikirim setelah jawaban (hanya bila opsi.katalog); teks sudah bersih dari tag. */
+  kirimProduk: KirimProduk | null;
   /** AI menilai pesan ini spam (hanya bila opsi.saringSpam): tidak ada yang dikirim, `teks` kosong. */
   abaikan: { jenis: JenisAbaikan; alasan: string } | null;
 }
@@ -309,22 +326,31 @@ export interface JawabanTerjaga extends JawabanAi {
  * pesan lawan bicara, riwayat chat lengkap). Draf yang melanggar ditulis ulang sekali dengan umpan balik yang
  * spesifik; bila tetap melanggar, dikirim jawaban aman. Biaya, token, dan waktu kedua panggilan dijumlahkan.
  */
-export async function tanyaAiTerjaga(r: PermintaanAi, sumber: string, opsiJaga: { teruskan?: boolean; saringSpam?: boolean } = {}): Promise<JawabanTerjaga> {
+export async function tanyaAiTerjaga(
+  r: PermintaanAi,
+  sumber: string,
+  opsiJaga: { teruskan?: boolean; saringSpam?: boolean; katalog?: boolean; gaya?: boolean } = {}
+): Promise<JawabanTerjaga> {
   const j1 = await tanyaAi(r);
   // Jawaban berupa tag <abaikan> saja: pesan dinilai spam. Tidak diperiksa/ditulis ulang karena tidak ada yang dikirim.
   const abaikan = opsiJaga.saringSpam ? ambilAbaikan(j1.teks) : null;
-  if (abaikan) return { ...j1, teks: "", pelanggaran: [], ditulisUlang: false, aman: false, teruskan: null, abaikan };
+  if (abaikan) return { ...j1, teks: "", pelanggaran: [], ditulisUlang: false, aman: false, teruskan: null, kirimProduk: null, abaikan };
   j1.teks = buangTagAbaikan(j1.teks);
-  const opsi = { adaFoto: !!r.gambar?.length, teruskan: !!opsiJaga.teruskan };
-  // Tag teruskan dibuang dari teks pelanggan; penerusan dari draf yang lolos, atau dari draf mana pun bila jawaban
-  // akhirnya JAWABAN_AMAN (pemilik tetap perlu tahu, dan jawaban aman memang menyerahkan ke pemilik).
-  const pisah = (t: string) => (opsi.teruskan ? ambilTeruskan(t) : { teks: ambilTeruskan(t).teks, tag: null });
+  // `gaya`: pemeriksaan gaya robot memakai pesan pelanggan (ditanya "ini bot?" = boleh menjawab jujur).
+  const opsi = { adaFoto: !!r.gambar?.length, teruskan: !!opsiJaga.teruskan, katalog: !!opsiJaga.katalog, ...(opsiJaga.gaya ? { pesanPelanggan: r.pesan } : {}) };
+  // Tag teruskan & kirim katalog dibuang dari teks pelanggan; penerusan dari draf yang lolos, atau dari draf mana pun
+  // bila jawaban akhirnya JAWABAN_AMAN (pemilik tetap perlu tahu, dan jawaban aman memang menyerahkan ke pemilik).
+  const pisah = (t: string) => {
+    const k = ambilKirimProduk(t);
+    const d = ambilTeruskan(k.teks);
+    return { teks: d.teks, tag: opsi.teruskan ? d.tag : null, produk: opsi.katalog ? k.produk : null };
+  };
   const d1 = pisah(j1.teks);
   const p1 = periksaJawaban(j1.teks, sumber, opsi);
-  if (!p1.length) return { ...j1, teks: d1.teks, pelanggaran: [], ditulisUlang: false, aman: false, teruskan: d1.tag, abaikan: null };
+  if (!p1.length) return { ...j1, teks: d1.teks, pelanggaran: [], ditulisUlang: false, aman: false, teruskan: d1.tag, kirimProduk: d1.produk, abaikan: null };
 
   // Sesi Hermes terpisah supaya draf yang ditolak tidak masuk ingatan percakapan aslinya.
-  const j2 = await tanyaAi({ ...r, sessionId: `${r.sessionId}-koreksi`, sistem: `${r.sistem}\n\n${pesanKoreksi(j1.teks, p1, opsi.teruskan)}` });
+  const j2 = await tanyaAi({ ...r, sessionId: `${r.sessionId}-koreksi`, sistem: `${r.sistem}\n\n${pesanKoreksi(j1.teks, p1, opsi.teruskan, opsi.katalog)}` });
   const tambah = (a: number | null, b: number | null) => (a === null && b === null ? null : (a ?? 0) + (b ?? 0));
   const gabung = {
     ...j2,
@@ -335,7 +361,8 @@ export async function tanyaAiTerjaga(r: PermintaanAi, sumber: string, opsiJaga: 
   };
   j2.teks = buangTagAbaikan(j2.teks);
   const d2 = pisah(j2.teks);
-  const p2 = periksaJawaban(j2.teks, sumber, opsi);
-  if (!p2.length) return { ...gabung, teks: d2.teks, pelanggaran: p1, ditulisUlang: true, aman: false, teruskan: d2.tag, abaikan: null };
-  return { ...gabung, teks: JAWABAN_AMAN, pelanggaran: p1, ditulisUlang: true, aman: true, teruskan: d2.tag ?? d1.tag, abaikan: null };
+  // Sisa pelanggaran hanya soal gaya (masih terdengar robot): tulisan ulang tetap lebih baik daripada jawaban aman.
+  const p2 = periksaJawaban(j2.teks, sumber, opsi).filter((x) => x.jenis !== "robotik");
+  if (!p2.length) return { ...gabung, teks: d2.teks, pelanggaran: p1, ditulisUlang: true, aman: false, teruskan: d2.tag, kirimProduk: d2.produk, abaikan: null };
+  return { ...gabung, teks: JAWABAN_AMAN, pelanggaran: p1, ditulisUlang: true, aman: true, teruskan: d2.tag ?? d1.tag, kirimProduk: null, abaikan: null };
 }

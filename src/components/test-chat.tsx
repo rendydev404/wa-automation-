@@ -77,13 +77,16 @@ export function TestChat({ numberId }: { numberId: number }) {
           ...(lampiran ? { foto: lampiran } : {}),
         }),
       });
-      const d = (await res.json().catch(() => ({}))) as { teks?: string; ms?: number; mode?: keyof typeof MODE; pelajaran?: number; diblokir?: boolean; error?: string; teruskan?: { label: string; ringkasan: string } | null; abaikan?: string };
+      const d = (await res.json().catch(() => ({}))) as { teks?: string; ms?: number; mode?: keyof typeof MODE; pelajaran?: number; diblokir?: boolean; error?: string; teruskan?: { label: string; ringkasan: string } | null; abaikan?: string; katalog?: { daftar: string; foto: { id: number; caption: string }[] } | null };
       if (res.ok && d.abaikan) {
         setPesan((p) => [...p, { dari: "info", teks: `Tidak dibalas: terdeteksi spam. ${d.abaikan}. Di WhatsApp pesan ini hanya tercatat di histori dengan tanda Spam.` }]);
       } else if (res.ok && d.teks) {
         lalu.current = isi;
         const meta = `${((d.ms ?? 0) / 1000).toFixed(1).replace(".", ",")} dtk · ${MODE[d.mode ?? "kosong"]}${d.pelajaran ? ` · ${d.pelajaran} balasan admin` : ""}${d.diblokir ? " · kode diblokir" : ""}`;
-        setPesan((p) => [...p, { dari: "bot", teks: d.teks!, meta, teruskan: d.teruskan }]);
+        // Katalog: di WhatsApp dikirim sebagai pesan terpisah setelah jawaban (daftar, lalu foto + nama + harga).
+        const kat = d.katalog;
+        const kiriman: Gelembung[] = kat ? [...(kat.daftar ? [{ dari: "bot" as const, teks: kat.daftar }] : []), ...kat.foto.map((f) => ({ dari: "bot" as const, teks: f.caption, foto: `/api/katalog/foto?id=${f.id}` }))] : [];
+        setPesan((p) => [...p, { dari: "bot", teks: d.teks!, meta, teruskan: d.teruskan }, ...kiriman]);
       } else setPesan((p) => [...p, { dari: "galat", teks: d.error ?? `Gagal (HTTP ${res.status}).` }]);
     } catch {
       setPesan((p) => [...p, { dari: "galat", teks: "Koneksi terputus." }]);
@@ -124,8 +127,8 @@ export function TestChat({ numberId }: { numberId: number }) {
               }`}
             >
               {g.foto && (
-                // eslint-disable-next-line @next/next/no-img-element -- data URL lokal, bukan aset yang perlu dioptimasi
-                <img src={g.foto} alt="Foto uji" className={`max-h-48 rounded-lg object-cover ${g.teks ? "mb-1.5" : ""}`} />
+                // eslint-disable-next-line @next/next/no-img-element -- data URL lokal / foto katalog privat, bukan aset yang perlu dioptimasi
+                <img src={g.foto} alt={g.dari === "bot" ? "Foto produk" : "Foto uji"} className={`max-h-48 rounded-lg object-cover ${g.teks ? "mb-1.5" : ""}`} />
               )}
               {g.dari === "bot" ? <TeksWa teks={g.teks} /> : g.teks}
             </div>

@@ -11,6 +11,14 @@ import { type Foto, MAKS_FOTO_BYTE } from "@/lib/types";
 import { sesiDanNomor } from "@/lib/akses";
 import { terlaluSering } from "@/lib/batas";
 import { alasanSpam, periksaSpam } from "@/lib/spam";
+import { type KirimProduk, type Produk, captionProduk, daftarProduk, katalogBoleh, perluDaftar, pilihUntukKirim, teksKatalog } from "@/lib/katalog";
+
+/** Yang akan terkirim di WhatsApp untuk tag katalog, dalam bentuk yang bisa ditampilkan Uji bot. */
+function kirimanUji(katalog: Produk[], tag: KirimProduk | null, jawaban: string) {
+  if (!tag) return null;
+  const p = pilihUntukKirim(katalog, tag);
+  return { daftar: p.daftarTeks && perluDaftar(jawaban, katalog) ? teksKatalog(katalog) : "", foto: p.foto.map((x) => ({ id: x.id, caption: captionProduk(x) })) };
+}
 
 /** Uji bot dari dashboard: jalur yang sama dengan WhatsApp (knowledge nomor + penyedia AI aktif), tanpa mengirim WA. */
 export async function POST(req: Request) {
@@ -48,7 +56,11 @@ export async function POST(req: Request) {
   // Percakapan uji sejauh ini (dikirim browser). Penyedia tanpa ingatan (Claude API) menerimanya di pesan sistem;
   // untuk semua penyedia ia juga sumber fakta bagi pemeriksa jawaban.
   // Penyedia sama seperti balasan WhatsApp nomor ini (menurut paket pemilik nomor bila mode "per_paket").
-  const [ai, teruskan] = await Promise.all([aiUntukAkun(nomor.user_id), bisaTeruskan(nomor)]);
+  const [ai, teruskan, katalog] = await Promise.all([
+    aiUntukAkun(nomor.user_id),
+    bisaTeruskan(nomor),
+    katalogBoleh(nomor.user_id).then((ok) => (ok || user.peran === "admin" ? daftarProduk(nomor.id) : [])),
+  ]);
   const lengkap = tanpaIngatan(ai.penyedia);
   const semuaRiwayat = Array.isArray(b?.riwayat)
     ? b.riwayat.slice(-12).map((m) => `${m.ai ? "Kamu (AI)" : "Pelanggan"}: ${String(m.teks ?? "").replace(/\s*\n\s*/g, " / ").slice(0, 500)}`)
@@ -59,9 +71,10 @@ export async function POST(req: Request) {
     riwayatLengkap: lengkap,
     teruskan,
     saringSpam,
+    katalog,
   });
   try {
-    const j = await tanyaAiTerjaga({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, [sistem, pesan, ...semuaRiwayat].join("\n"), { teruskan, saringSpam });
+    const j = await tanyaAiTerjaga({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, [sistem, pesan, ...semuaRiwayat].join("\n"), { teruskan, saringSpam, katalog: katalog.length > 0, gaya: true });
     if (j.abaikan) return NextResponse.json({ teks: "", ms: j.ms, abaikan: `Dinilai AI: ${j.abaikan.jenis}${j.abaikan.alasan ? ` (${j.abaikan.alasan})` : ""}` });
     // Penjaga yang sama dengan WhatsApp, supaya hasil uji mencerminkan yang benar-benar terkirim.
     const diblokir = adaKode(j.teks);
@@ -80,6 +93,8 @@ export async function POST(req: Request) {
       aman: j.aman,
       // Di WhatsApp ini dikirim ke nomor pribadi pemilik; di uji hanya ditampilkan.
       teruskan: j.teruskan ? { label: JENIS_TERUSKAN[j.teruskan.jenis].label, ringkasan: j.teruskan.ringkasan } : null,
+      // Di WhatsApp ini dikirim sebagai pesan terpisah setelah jawaban: daftar katalog dan/atau foto produk.
+      katalog: kirimanUji(katalog, j.kirimProduk, teks),
     });
   } catch (e) {
     return NextResponse.json({ error: `AI tidak menjawab: ${e instanceof Error ? e.message : "galat"}` }, { status: 502 });

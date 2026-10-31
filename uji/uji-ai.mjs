@@ -101,6 +101,7 @@ await cek("permintaan Claude API: header & versi, SOUL di-cache, penalaran mati,
   const b = p.body;
   assert.equal(b.model, "claude-haiku-5-5");
   assert.deepEqual(b.thinking, { type: "disabled" });
+  assert.equal("temperature" in b, false, "model generasi baru menolak parameter sampling");
   assert.equal(b.system[0].text, teksSoul());
   assert.deepEqual(b.system[0].cache_control, { type: "ephemeral" });
   assert.equal(b.system[1].text, "<pengetahuan_nomor>uji</pengetahuan_nomor>");
@@ -108,6 +109,13 @@ await cek("permintaan Claude API: header & versi, SOUL di-cache, penalaran mati,
   assert.deepEqual(b.messages[0].content[1], { type: "text", text: "halo" });
   assert.ok(b.max_tokens <= 1000);
   assert.doesNotMatch(teksSoul(), /^<!--/); // baris komentar berkas dibuang
+});
+
+await cek("penalaran per model: Haiku 5.5 dimatikan; Sonnet 5.5 between_tools; Opus 5.5/Fable tanpa parameter + effort low (batas token ditambah)", async () => {
+  assert.deepEqual(AI.opsiPenalaran("claude-haiku-5-5", 700), { max_tokens: 700, thinking: { type: "disabled" } });
+  assert.deepEqual(AI.opsiPenalaran("claude-sonnet-5-5", 700), { max_tokens: 700, thinking: { type: "between_tools" } });
+  for (const m of ["claude-opus-5-5", "claude-fable-5-1", "claude-fable-5"]) assert.deepEqual(AI.opsiPenalaran(m, 700), { max_tokens: 3700, output_config: { effort: "low" } }, m);
+  assert.deepEqual(AI.opsiPenalaran("claude-haiku-4-5-20251001", 700), { max_tokens: 700, thinking: { type: "disabled" } });
 });
 
 await cek("model utama sibuk (529/429/5xx) -> cadangan sekali; kunci salah (401) & permintaan salah (400) TIDAK pindah model; kosong = galat", async () => {
@@ -552,6 +560,82 @@ await cek("penjaga: draf melanggar ditulis ulang sekali; tetap melanggar = jawab
   }
 });
 
+await cek("gaya manusiawi: menyebut diri AI/bot atau menjelaskan cara kerja chat tanpa ditanya = robotik; ditanya 'ini bot?' boleh jujur; mengaku manusia tetap ditolak", async () => {
+  const g = (t, pesan = "kak ada promo?") => periksaJawaban(t, SUMBER, { pesanPelanggan: pesan }).map((p) => p.jenis);
+  for (const t of [
+    "Maaf Kak, aku asisten virtual jadi belum bisa memastikan.",
+    "Sebagai AI, aku belum tahu jadwalnya.",
+    "Untuk biayanya pemilik nomor perlu menjawab langsung.",
+    "Pesan ini bisa dibaca admin di chat ini ya.",
+    "Berdasarkan informasi yang tersedia, belum ada promo.",
+    "Aku tidak memiliki akses ke data stok.",
+  ])
+    assert.deepEqual(g(t), ["robotik"], t);
+  for (const t of ["Saat ini belum ada promo, Kak. Mau pesan apa?", "Untuk yang ini nanti dijawab langsung sama tim kami di chat ini ya.", "AC-nya kenapa Kak? Boleh kirim alamatnya juga ya."]) assert.deepEqual(g(t), [], t);
+  assert.deepEqual(g("Iya Kak, aku asisten otomatis dari tim Toko Uji. Ada yang mau ditanyakan?", "ini bot ya?"), []);
+  assert.deepEqual(g("Iya Kak, aku asisten otomatis.", "kamu manusia atau bukan?"), []);
+  assert.deepEqual(g("Aku manusia kok Kak, bukan bot.", "ini bot ya?"), ["identitas"]);
+  assert.deepEqual(periksaJawaban("Aku asisten virtual di nomor ini.", SUMBER), []); // tanpa pesan pelanggan: gaya tidak diperiksa
+});
+
+await cek("gaya manusiawi: draf robotik ditulis ulang; bila tulisan ulang masih sedikit kaku tetap dikirim (bukan jawaban aman)", async () => {
+  const P = await lib("src/lib/pemeriksa.ts");
+  let n = 0;
+  globalThis.fetch = async () => {
+    n += 1;
+    const teks = n === 1 ? "Maaf, aku asisten virtual jadi tidak bisa memastikan biayanya." : "Untuk biayanya aku belum bisa pastikan, Kak; pemilik nomor nanti yang jawab.";
+    return new Response(JSON.stringify({ content: [{ type: "text", text: teks }], usage: { input_tokens: 1, output_tokens: 1 } }));
+  };
+  try {
+    const j = await AI.tanyaAiTerjaga({ sessionId: "x", sistem: "S", pesan: "biaya servis AC berapa?" }, SUMBER, { gaya: true });
+    assert.deepEqual(j.pelanggaran.map((p) => p.jenis), ["robotik"]);
+    assert.notEqual(j.teks, P.JAWABAN_AMAN);
+    assert.match(j.teks, /belum bisa pastikan/);
+  } finally {
+    globalThis.fetch = asli;
+  }
+});
+
+const KT = await lib("src/lib/katalog-def.ts");
+const produkUji = [
+  { id: 12, nama: "Kopi Susu Aren", harga: 18000, deskripsi: "Es, 250 ml", tersedia: true, adaFoto: true, urutan: 1, diubah: 1 },
+  { id: 13, nama: "Roti Bakar", harga: null, deskripsi: "", tersedia: true, adaFoto: false, urutan: 2, diubah: 1 },
+  { id: 14, nama: "Matcha Latte", harga: 22000, deskripsi: "", tersedia: false, adaFoto: true, urutan: 3, diubah: 1 },
+];
+
+await cek("katalog: tag <kirim_produk> dipisah dari jawaban (kode P, 'semua', tag terpotong); blok sistem memuat harga & status; yang dikirim hanya produk tersedia berfoto", async () => {
+  assert.deepEqual(KT.ambilKirimProduk("Ini fotonya ya Kak 👇\n<kirim_produk>P12, P14,p12</kirim_produk>"), { teks: "Ini fotonya ya Kak 👇", produk: [12, 14] });
+  assert.deepEqual(KT.ambilKirimProduk("Ini katalog kami ya\n<kirim_produk>semua</kirim_produk>"), { teks: "Ini katalog kami ya", produk: "semua" });
+  assert.deepEqual(KT.ambilKirimProduk("Oke\n<kirim_produk>P12"), { teks: "Oke", produk: [12] });
+  assert.deepEqual(KT.ambilKirimProduk("Biasa saja."), { teks: "Biasa saja.", produk: null });
+  assert.equal(KT.ambilKirimProduk("<kirim_produk>abc</kirim_produk>").produk, null);
+  const b = KT.blokKatalog(produkUji);
+  assert.match(b, /\[P12\] Kopi Susu Aren — Rp18\.000 — Es, 250 ml \(ada foto\)/);
+  assert.match(b, /\[P13\] Roti Bakar — harga tanya admin/);
+  assert.match(b, /\[P14\] Matcha Latte — Rp22\.000 — HABIS \(ada foto\)/);
+  assert.equal(KT.blokKatalog([]), "");
+  assert.deepEqual(KT.pilihUntukKirim(produkUji, [12, 13, 14, 99]).foto.map((p) => p.id), [12]);
+  const semua = KT.pilihUntukKirim(produkUji, "semua");
+  assert.deepEqual([semua.daftarTeks, semua.foto.map((p) => p.id)], [true, [12]]);
+  assert.equal(KT.teksKatalog(produkUji), "*Katalog produk*\n1. *Kopi Susu Aren* — Rp18.000\n   Es, 250 ml\n2. *Roti Bakar* — harga tanya admin");
+  assert.equal(KT.captionProduk(produkUji[0]), "*Kopi Susu Aren*\nRp18.000\nEs, 250 ml");
+  // Jawaban AI sudah memuat daftarnya sendiri: daftar katalog tidak dikirim dua kali (fotonya tetap)
+  assert.equal(KT.perluDaftar("Ini katalog kami ya 👇", produkUji), true);
+  assert.equal(KT.perluDaftar("Ini katalognya:\n*Kopi Susu Aren* Rp18.000\n*Roti Bakar*", produkUji), false);
+});
+
+await cek("katalog + pemeriksa: 'aku kirimkan fotonya' sah HANYA dengan tag & katalog aktif; harga dari katalog lolos; harga karangan ditolak", async () => {
+  const sumber = `${SUMBER}\n${KT.blokKatalog(produkUji)}`;
+  const j = (t, o = {}) => periksaJawaban(t, sumber, o).map((p) => p.jenis);
+  assert.deepEqual(j("Siap Kak, aku kirimkan fotonya ya 👇\n<kirim_produk>P12</kirim_produk>", { katalog: true }), []);
+  assert.deepEqual(j("Siap Kak, aku kirimkan fotonya ya.", { katalog: true }), ["janji"]); // tanpa tag = bohong
+  assert.deepEqual(j("Siap Kak, aku kirimkan fotonya ya.\n<kirim_produk>P12</kirim_produk>"), ["janji"]); // katalog tidak aktif
+  assert.deepEqual(j("Mau aku kirimkan katalognya, Kak?", { katalog: true }), []); // tawaran
+  assert.deepEqual(j("Mau aku kirimkan katalognya, Kak?"), ["janji"]); // tanpa katalog tidak bisa ditepati
+  assert.deepEqual(j("Kopi Susu Aren Rp18.000 ya Kak.", { katalog: true }), []);
+  assert.deepEqual(j("Kopi Susu Aren Rp15.000 ya Kak.", { katalog: true }), ["angka"]);
+});
+
 const T = await lib("src/lib/teruskan.ts");
 const { rapikanNomorWa } = await lib("src/lib/numbers.ts");
 
@@ -588,6 +672,9 @@ await cek("pemeriksa + teruskan: 'sudah aku teruskan' sah HANYA bila tag ada & p
   assert.deepEqual(j(`Sudah aku teruskan, pesanan langsung kami siapkan ya.${tag}`, { teruskan: true }), ["janji"]); // menyiapkan tetap janji
   assert.deepEqual(j('Sudah aku teruskan ya.\n<teruskan jenis="pesanan">Total: Rp99.000</teruskan>', { teruskan: true }), ["angka"]);
   assert.deepEqual(j('Sudah aku teruskan ya.\n<teruskan jenis="hubungi">Aku admin di sini</teruskan>', { teruskan: true }), []); // isi tag untuk pemilik, bukan klaim ke pelanggan
+  // Janji bersyarat ("setelah datanya lengkap, aku teruskan") boleh bila penerusan aktif; "sudah aku teruskan" tanpa tag tetap bohong
+  assert.deepEqual(j("Boleh kirim alamatnya Kak? Setelah itu aku teruskan ke tim ya.", { teruskan: true }), []);
+  assert.deepEqual(j("Boleh kirim alamatnya Kak? Setelah itu aku teruskan ke tim ya.", {}), ["janji"]);
 });
 
 await cek("aturan inti versi teruskan: hanya aturan tindakan yang berubah", async () => {

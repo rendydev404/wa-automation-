@@ -6,6 +6,7 @@ import { aiUntukAkun, catatBalasanLokal, sisaKuotaAi } from "./langganan";
 import { susunSistem } from "./knowledge";
 import { bisaTeruskan, kabariKuotaHabis, teruskanKePemilik } from "./penerusan";
 import type { TagTeruskan } from "./teruskan";
+import { type KirimProduk, bahanKirim, captionProduk, daftarProduk, katalogBoleh, perluDaftar, teksKatalog } from "./katalog";
 import { type Nomor, catatStat, catatTerhubung, nomorBySesi, siapDipakai } from "./numbers";
 import { catatPesan, chatDipercaya, riwayatUntukAi, tandaiSpam } from "./percakapan";
 import { alasanSpam, periksaSpam } from "./spam";
@@ -13,7 +14,7 @@ import { pelajariBalasan } from "./pelajaran";
 import { CATATAN_KODE_DIBLOKIR, TOLAK_KODE, adaKode } from "./penjaga";
 import type { Foto } from "./types";
 import type { WAMessage } from "baileys";
-import { type EventWa, digitWa, kirimTeks, mengetik, padaEvent, tandaiDibaca } from "./wa";
+import { type EventWa, digitWa, kirimGambar, kirimTeks, mengetik, padaEvent, tandaiDibaca } from "./wa";
 
 /**
  * Jembatan WhatsApp (src/lib/wa.ts) -> Hermes -> WhatsApp.
@@ -91,6 +92,8 @@ interface Antrean {
   siap: string | null;
   /** Hal yang akan diteruskan ke pemilik bersama jawaban `siap` (dikirim hanya bila jawaban itu terkirim). */
   siapTeruskan: TagTeruskan | null;
+  /** Produk katalog yang dikirim bersama jawaban `siap`. */
+  siapProduk: KirimProduk | null;
   /** Nama & nomor pelanggan terakhir di chat ini, untuk pesan yang diteruskan ke pemilik. */
   namaPelanggan: string | null;
   teleponPelanggan: string | null;
@@ -200,6 +203,32 @@ function jadwalkan(kunci: string, a: Antrean, ms: number): void {
   a.timer = setTimeout(() => void proses(kunci), ms);
 }
 
+/**
+ * Kirim katalog/foto produk yang diminta AI lewat tag <kirim_produk>, setelah jawabannya terkirim: daftar lengkap
+ * (untuk "semua"), lalu foto satu per satu dengan nama & harga, berjeda seperti orang mengirim. Hanya produk yang ada
+ * di katalog nomor ini, tersedia, dan punya foto. Tercatat di histori sebagai balasan AI supaya giliran berikutnya tahu.
+ */
+async function kirimKatalog(a: Antrean, kunci: string, tag: KirimProduk, jawaban: string): Promise<void> {
+  try {
+    const b = await bahanKirim(a.numberId, tag);
+    const terkirim: string[] = [];
+    const daftar = b.daftarTeks && perluDaftar(jawaban, b.daftar) ? teksKatalog(b.daftar) : "";
+    if (daftar) {
+      await tidur(700);
+      await kirimTeks(a.sesi, a.alamat, daftar, (id) => ingat(st.terkirim, id, 500));
+      terkirim.push(daftar);
+    }
+    for (const p of b.foto) {
+      await tidur(900);
+      await kirimGambar(a.sesi, a.alamat, p.data, p.mime, captionProduk(p), (id) => ingat(st.terkirim, id, 500));
+      terkirim.push(`[Foto produk] ${captionProduk(p).replace(/\n/g, " · ")}`);
+    }
+    if (terkirim.length) tulisLatar(() => catatPesan({ numberId: a.numberId, kunci, peran: 1, teks: terkirim.join("\n"), waktu: sekarang() }));
+  } catch (e) {
+    console.warn(`[bridge] katalog gagal dikirim sesi=${a.sesi}: ${e instanceof Error ? e.message : e}`);
+  }
+}
+
 function catat(a: Antrean, isi: string): void {
   a.catatan.push(isi);
   if (a.catatan.length > MAKS_CATATAN) a.catatan.shift();
@@ -269,15 +298,19 @@ async function proses(kunci: string): Promise<void> {
 
     let jawaban: string;
     let tag: TagTeruskan | null = null;
+    let produk: KirimProduk | null = null;
     if (a.siap && !a.teks.length) {
       // Jawaban sudah disusun sebelum manusia membuka chat, dan ia tidak jadi membalas: kirim itu.
       jawaban = a.siap;
       tag = a.siapTeruskan;
+      produk = a.siapProduk;
       a.siap = null;
       a.siapTeruskan = null;
+      a.siapProduk = null;
     } else {
       a.siap = null;
       a.siapTeruskan = null;
+      a.siapProduk = null;
       const tertunda = a.teks.length;
       const sesiLalu = a.chat?.sesi_ke ?? 0;
       const asli = a.teks.splice(0);
@@ -293,10 +326,12 @@ async function proses(kunci: string): Promise<void> {
         // Penyedia tanpa ingatan sesi (Claude API) diberi seluruh percakapan sesi ini, bukan hanya yang belum dilihat.
         // Penyedia ditentukan per akun (mode "per_paket": gratis = Hermes, berbayar = Claude API, cadangan Hermes).
         // Penyaring spam lewat AI hanya untuk chat yang belum dipercaya (lihat chatDipercaya); gagal membaca = jangan menyaring.
-        const [ai, teruskan, saringSpam] = await Promise.all([
+        // Katalog produk hanya untuk akun berbayar (dan admin); daftarnya dibaca tanpa foto.
+        const [ai, teruskan, saringSpam, katalog] = await Promise.all([
           aiUntukAkun(nomor.user_id),
           bisaTeruskan(nomor),
           nomor.saring_spam ? st.tulis.then(() => chatDipercaya(kunci)).then((p) => !p, () => false) : false,
+          katalogBoleh(nomor.user_id).then((ok) => (ok ? daftarProduk(nomor.id) : []), () => []),
         ]);
         const lengkap = tanpaIngatan(ai.penyedia);
         const riwayat = st.tulis.then(() => riwayatUntukAi(kunci, { sesiBaru: sesi !== sesiLalu, tertunda, lengkap }));
@@ -304,11 +339,11 @@ async function proses(kunci: string): Promise<void> {
         const gambar = (await Promise.all(pemuatFoto.map((ambil) => ambil().catch(() => null)))).filter((f: Foto | null): f is Foto => !!f);
         const gagalFoto = pemuatFoto.length - gambar.length;
         const isiPesan = gagalFoto ? `${pesan}\n[${gagalFoto} foto gagal dimuat sehingga tidak bisa kamu lihat; minta pelanggan mengirim ulang bila perlu]` : pesan;
-        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0, riwayatLengkap: lengkap, teruskan, saringSpam });
+        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0, riwayatLengkap: lengkap, teruskan, saringSpam, katalog });
         // Sumber fakta untuk pemeriksa: pesan sistem + pesan pelanggan + seluruh chat sesi ini (Hermes hanya diberi
         // yang belum ia lihat, jadi sisanya dibaca terpisah supaya angka yang pernah disebut di chat tetap sah).
         const sumber = [sistem, isiPesan, ...(lengkap ? [] : await riwayatUntukAi(kunci, { sesiBaru: false, tertunda, lengkap: true }))].join("\n");
-        const hasil = await tanyaAiTerjaga({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, sumber, { teruskan, saringSpam });
+        const hasil = await tanyaAiTerjaga({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, sumber, { teruskan, saringSpam, katalog: katalog.length > 0, gaya: true });
         tulisLatar(() => catatPakai(a.numberId, hasil, gambar.length > 0, !!hasil.abaikan));
         if (hasil.abaikan) {
           // Dinilai spam oleh AI: tidak dibalas, tidak ditandai dibaca, tidak memotong kuota; pemilik melihatnya di histori.
@@ -321,6 +356,7 @@ async function proses(kunci: string): Promise<void> {
           return;
         }
         tag = teruskan ? hasil.teruskan : null;
+        produk = katalog.length ? hasil.kirimProduk : null;
         if (nomor.user_id !== null) catatBalasanLokal(nomor.user_id);
         if (hasil.pelanggaran.length) {
           console.warn(`[bridge] jawaban AI ditolak pemeriksa (${hasil.pelanggaran.map((p) => p.jenis).join(",")}) sesi=${a.sesi}${hasil.aman ? ", dikirim jawaban aman" : ", ditulis ulang"}`);
@@ -364,6 +400,7 @@ async function proses(kunci: string): Promise<void> {
       if (a.batalKarena === "dibaca" && !sedangDijeda(a)) {
         a.siap = jawaban; // ditahan; lihat blok finally
         a.siapTeruskan = tag;
+        a.siapProduk = produk;
       }
       else catat(a, "Jawaban yang kamu susun untuk pesan sebelumnya TIDAK terkirim, karena pemilik nomor membalas sendiri.");
       return;
@@ -380,6 +417,7 @@ async function proses(kunci: string): Promise<void> {
       // Diteruskan ke pemilik hanya setelah jawabannya benar-benar sampai ke pelanggan ("sudah aku teruskan" jadi benar).
       if (tag) void teruskanKePemilik(nomor, { kunci, nama: a.namaPelanggan, telepon: a.teleponPelanggan }, tag, (id) => ingat(st.terkirim, id, 500));
       tulisLatar(() => catatPesan({ numberId: a.numberId, kunci, peran: 1, teks: jawaban, waktu: sekarang() }));
+      if (produk) await kirimKatalog(a, kunci, produk, jawaban);
     } catch (e) {
       galat(a, e);
     }
@@ -431,6 +469,7 @@ async function antreanUntuk(kunci: string, numberId: number, sesi: string, alama
     dibacaPada: 0,
     siap: null,
     siapTeruskan: null,
+    siapProduk: null,
     namaPelanggan: null,
     teleponPelanggan: null,
     catatan: [],

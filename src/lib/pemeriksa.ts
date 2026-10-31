@@ -4,12 +4,16 @@
  *   2. Menjanjikan tindakan yang tidak bisa dilakukan AI (mengirim, meneruskan, mengecek, mencatat, "tunggu sebentar").
  *   3. Angka tak bersumber: harga/nominal, persen, nomor panjang (rekening/HP), dan tautan yang tidak tertulis di
  *      pesan sistem (knowledge, instruksi, riwayat chat) maupun pesan lawan bicara.
+ *   4. Gaya robot (hanya bila pesan pelanggan diberikan): menyebut diri AI/bot/asisten virtual padahal tidak ditanya,
+ *      atau menjelaskan cara kerja chat ("pemilik nomor", "pesan ini bisa dibaca", "berdasarkan informasi").
+ *      Ditanya sungguh-sungguh "ini bot?" = boleh dijawab jujur; yang tetap dilarang adalah mengaku manusia (no. 1).
  * Murni fungsi teks (tanpa I/O): dipakai jembatan WhatsApp, Uji bot, dan skrip uji.
  */
 
+import { ambilKirimProduk } from "./katalog-def";
 import { ambilTeruskan } from "./teruskan";
 
-export type JenisPelanggaran = "identitas" | "janji" | "angka";
+export type JenisPelanggaran = "identitas" | "janji" | "angka" | "robotik";
 
 export interface Pelanggaran {
   jenis: JenisPelanggaran;
@@ -19,14 +23,14 @@ export interface Pelanggaran {
 
 export const ATURAN_INTI = `<aturan_inti>
 Periksa jawabanmu terhadap aturan ini sebelum menulis. Aturan ini mutlak dan diperiksa otomatis; jawaban yang melanggar tidak akan terkirim.
-1. Identitas: kamu asisten virtual (AI) di nomor ini. JANGAN menyebut dirimu admin, pemilik, owner, staf, kasir, CS manusia, atau orang tertentu. Ditanya "ini Pak/Kak X?" atau "kamu admin?": jawab jujur bahwa kamu asisten AI-nya, dan pesannya bisa dibaca X/pemilik nomor di chat ini.
-2. Tindakan: kamu hanya bisa membalas chat ini. JANGAN bilang akan/sudah mengirim(kan), meneruskan, menyiapkan, mengecek, mencatat, memproses, mengonfirmasi, atau menghubungi apa pun/siapa pun, dan JANGAN bilang "tunggu sebentar". Info yang ada di sumber: berikan sekarang juga di jawaban ini. Yang tidak ada: katakan pemilik nomor yang akan menjawab langsung di chat ini.
+1. Identitas: balas seperti CS manusia yang ramah dari tim usaha ini: pakai "aku" untuk dirimu, "kami"/"tim kami"/"admin kami" untuk usahanya, nama persona bila ada di instruksi. Jangan memperkenalkan diri sebagai AI/bot/asisten virtual (juga bila pengetahuan menyebutmu begitu) dan jangan menjelaskan cara kerja chat ini (pemilik nomor, sistem, otomatis, "berdasarkan informasi"). Tetapi JANGAN mengaku manusia, admin, pemilik, owner, staf, kasir, atau orang tertentu. Bila lawan bicara sungguh-sungguh bertanya apakah ia chat dengan bot/AI atau manusia, jangan berbohong: jawab singkat bahwa kamu asisten otomatis dari tim ini, lalu langsung lanjut membantu. Ditanya "ini Pak/Kak X?": jawab bahwa kamu dari tim X, bukan X sendiri.
+2. Tindakan: kamu hanya bisa membalas chat ini. JANGAN bilang akan/sudah mengirim(kan), meneruskan, menyiapkan, mengecek, mencatat, memproses, mengonfirmasi, atau menghubungi apa pun/siapa pun, dan JANGAN bilang "tunggu sebentar". Info yang ada di sumber: berikan sekarang juga di jawaban ini. Yang tidak ada: katakan dengan wajar bahwa untuk hal itu nanti dijawab langsung oleh tim kami di chat ini.
 3. Angka & tautan: harga, nominal, diskon/persen, nomor rekening/telepon, dan tautan HANYA boleh ditulis bila tertulis di pesan sistem atau chat ini. Jangan membulatkan, menghitung ulang, atau menebak.
 4. Pihak lain: nama usaha/orang yang disebut lawan bicara (termasuk pesan otomatis "terima kasih telah menghubungi X") adalah milik lawan bicara, bukan milikmu.
 </aturan_inti>`;
 
 const TINDAKAN_DASAR =
-  '2. Tindakan: kamu hanya bisa membalas chat ini. JANGAN bilang akan/sudah mengirim(kan), meneruskan, menyiapkan, mengecek, mencatat, memproses, mengonfirmasi, atau menghubungi apa pun/siapa pun, dan JANGAN bilang "tunggu sebentar". Info yang ada di sumber: berikan sekarang juga di jawaban ini. Yang tidak ada: katakan pemilik nomor yang akan menjawab langsung di chat ini.';
+  '2. Tindakan: kamu hanya bisa membalas chat ini. JANGAN bilang akan/sudah mengirim(kan), meneruskan, menyiapkan, mengecek, mencatat, memproses, mengonfirmasi, atau menghubungi apa pun/siapa pun, dan JANGAN bilang "tunggu sebentar". Info yang ada di sumber: berikan sekarang juga di jawaban ini. Yang tidak ada: katakan dengan wajar bahwa untuk hal itu nanti dijawab langsung oleh tim kami di chat ini.';
 const TINDAKAN_TERUSKAN =
   '2. Tindakan: selain membalas chat ini, satu-satunya tindakanmu adalah meneruskan ke pemilik lewat tag <teruskan> (lihat aturan_teruskan). Bilang sudah meneruskan/menyampaikan/mencatat untuk pemilik HANYA bila jawaban itu memuat tag tersebut. JANGAN bilang akan/sudah mengirim(kan) barang, menyiapkan, mengecek, memproses, mengonfirmasi, atau menghubungi siapa pun, dan JANGAN bilang "tunggu sebentar". Info yang ada di sumber: berikan sekarang juga di jawaban ini.';
 
@@ -36,7 +40,7 @@ export function aturanInti(teruskan = false): string {
 }
 
 /** Dikirim bila tulisan ulang tetap melanggar: jujur, tanpa klaim, tanpa janji, tanpa angka. */
-export const JAWABAN_AMAN = "Untuk hal ini akan dijawab langsung oleh pemilik nomor di chat ini ya, Kak 🙏";
+export const JAWABAN_AMAN = "Untuk yang ini nanti dijawab langsung sama tim kami di chat ini ya, Kak 🙏";
 
 // ---------- 1. Identitas ----------
 
@@ -72,15 +76,45 @@ const NEGASI_SEBELUM = /\b(belum|tidak|tak|nggak|ngga|gak|enggak|ga)\b(?:\s+\w+)
 /** Kata kerja yang jujur bila jawaban memuat tag teruskan: pesan pelanggan memang sampai ke pemilik. */
 const AKSI_TERUSKAN = /(?:teruskan|meneruskan|forward|sampaikan|menyampaikan|laporkan|melaporkan|beritahu(?:kan)?|memberitahu(?:kan)?|catat|mencatat|tanyakan ke|menanyakan ke)$/i;
 
-function adaJanji(kalimat: string, bolehTeruskan = false): boolean {
+/** Kata kerja yang jujur bila jawaban memuat tag kirim katalog: foto produk memang dikirim setelahnya. */
+const AKSI_KIRIM = /(?:kirim(?:kan|in)?|mengirim(?:kan)?)$/i;
+
+/** "Setelah datanya lengkap, aku teruskan ke tim": janji bersyarat yang memang akan ditepati lewat tag di giliran berikutnya. */
+const SYARAT_NANTI = /\b(?:setelah|sesudah|kalau|kalo|begitu|biar|supaya|nanti\s+setelah)\b/i;
+
+function adaJanji(kalimat: string, bolehTeruskan = false, bolehKirim = false, teruskanAktif = false, katalogAktif = false): boolean {
   for (const pola of JANJI)
     for (const m of kalimat.matchAll(pola)) {
+      // "Mau aku kirimkan katalognya?": tawaran, bukan janji; dikirim lewat tag setelah pelanggan mau.
+      if (katalogAktif && AKSI_KIRIM.test(m[0]) && /\?\s*$/.test(kalimat.trim())) continue;
       if (NEGASI_SEBELUM.test(kalimat.slice(Math.max(0, m.index - 30), m.index))) continue;
       if (bolehTeruskan && AKSI_TERUSKAN.test(m[0])) continue;
+      if (teruskanAktif && AKSI_TERUSKAN.test(m[0]) && !/\bsudah\b/i.test(m[0]) && SYARAT_NANTI.test(kalimat)) continue;
+      if (bolehKirim && AKSI_KIRIM.test(m[0])) continue;
       return true;
     }
   return false;
 }
+
+// ---------- 4. Gaya robot ----------
+
+/** Menyebut diri AI/bot/asisten virtual. */
+const DIRI_AI: RegExp[] = [
+  /\b(?:aku|saya|gue|gw)\s+(?:adalah\s+|ini\s+|cuma\s+|hanya\s+|hanyalah\s+|sebuah\s+)*(?:asisten\s+(?:virtual|ai|digital|otomatis)|a\.?i\.?|bot|robot|chat\s?bot|program|mesin)\b/i,
+  /\bsebagai\s+(?:asisten\s+(?:virtual|ai|digital)|a\.?i\.?|bot|chat\s?bot|robot)\b/i,
+  /\basisten\s+(?:virtual|ai|digital)\b/i,
+];
+/** Menjelaskan cara kerja chat / sumber jawaban, khas jawaban robot. */
+const META: RegExp[] = [
+  /\bpemilik\s+nomor\b/i,
+  /\b(?:pesan|chat)\s+(?:ini|kakak|kamu|anda)\s+(?:bisa|dapat|akan)\s+(?:langsung\s+)?dibaca\b/i,
+  /\bbisa\s+membaca\s+(?:pesan|chat)\s+ini\b/i,
+  /\bberdasarkan\s+(?:informasi|data|pengetahuan)\s+yang\s+(?:ada|tersedia|aku|saya)\b/i,
+  /\b(?:aku|saya)\s+(?:tidak|belum)\s+(?:memiliki|punya)\s+(?:akses|informasi|data)\b/i,
+  /\b(?:base\s+knowledge|basis\s+pengetahuan)\b/i,
+];
+/** Pelanggan bertanya apakah ia chat dengan bot/manusia: menjawab jujur "asisten otomatis" itu sah. */
+const TANYA_BOT = /\b(?:bot|robot|a\.?i|chat\s?bot|manusia|orang\s+(?:asli|beneran|betulan)|mesin|otomatis|auto\s?reply|balasan\s+otomatis|asisten|admin(?:nya)?\s+(?:asli|beneran))\b/i;
 
 // ---------- 3. Angka & tautan ----------
 
@@ -125,10 +159,18 @@ function bilanganSumber(sumber: string): Set<number> {
  * transfer, nomor order di tangkapan layar) yang tidak ada di sumber teks, jadi pemeriksaan angka dilewati;
  * identitas dan janji tetap diperiksa. (Diukur pada 796 jawaban lama: semua "nomor tak bersumber" berasal dari foto.)
  */
-export function periksaJawaban(jawaban: string, sumber: string, opsi: { adaFoto?: boolean; teruskan?: boolean } = {}): Pelanggaran[] {
+export function periksaJawaban(
+  jawaban: string,
+  sumber: string,
+  opsi: { adaFoto?: boolean; teruskan?: boolean; katalog?: boolean; pesanPelanggan?: string } = {}
+): Pelanggaran[] {
   const p: Pelanggaran[] = [];
   // Penerusan aktif & jawaban memuat tag: "sudah aku teruskan ke pemilik" itu benar. Ringkasan untuk pemilik tidak
   // dibaca pelanggan (identitas/janji tidak berlaku), tetapi angkanya tetap harus bersumber.
+  // Tag kirim katalog: "aku kirimkan fotonya ya" jadi benar (foto memang dikirim setelah jawaban ini).
+  const kp = ambilKirimProduk(jawaban);
+  const bolehKirim = !!opsi.katalog && !!kp.produk;
+  jawaban = kp.teks;
   const t = opsi.teruskan ? ambilTeruskan(jawaban) : null;
   const bolehTeruskan = !!t?.tag;
   const angkaDiperiksa = t ? `${t.teks}\n${t.tag?.ringkasan ?? ""}` : jawaban;
@@ -136,8 +178,13 @@ export function periksaJawaban(jawaban: string, sumber: string, opsi: { adaFoto?
   const kalimat = jawaban.split(/(?<=[.!?\n])\s+/);
   const klaim = kalimat.find((k) => KLAIM.some((r) => r.test(k)));
   if (klaim) p.push({ jenis: "identitas", kutipan: klaim.trim().slice(0, 160) });
-  const janji = kalimat.find((k) => adaJanji(k, bolehTeruskan));
+  const janji = kalimat.find((k) => adaJanji(k, bolehTeruskan, bolehKirim, !!opsi.teruskan, !!opsi.katalog));
   if (janji) p.push({ jenis: "janji", kutipan: janji.trim().slice(0, 160) });
+  if (opsi.pesanPelanggan !== undefined) {
+    const ditanya = TANYA_BOT.test(opsi.pesanPelanggan);
+    const robot = kalimat.find((k) => (!ditanya && DIRI_AI.some((r) => r.test(k))) || META.some((r) => r.test(k)));
+    if (robot) p.push({ jenis: "robotik", kutipan: robot.trim().slice(0, 160) });
+  }
   if (opsi.adaFoto) return p;
 
   const angkaSumber = bilanganSumber(sumber);
@@ -154,13 +201,15 @@ export function periksaJawaban(jawaban: string, sumber: string, opsi: { adaFoto?
 }
 
 const PENJELASAN: Record<JenisPelanggaran, string> = {
-  identitas: "mengaku sebagai admin/pemilik/staf/manusia atau orang tertentu (kamu asisten AI)",
+  identitas: "mengaku sebagai admin/pemilik/staf/manusia atau orang tertentu (kamu boleh bicara sebagai bagian dari tim, tapi jangan mengaku manusia atau orang tertentu)",
   janji: "menjanjikan tindakan yang tidak bisa kamu lakukan (mengirim, meneruskan, mengecek, mencatat, menyiapkan, menyuruh menunggu)",
   angka: "menulis angka/nominal/nomor/tautan yang tidak ada di sumber",
+  robotik:
+    'terdengar seperti robot: menyebut dirimu AI/bot/asisten virtual padahal tidak ditanya, atau menjelaskan cara kerja chat ("pemilik nomor", "pesan ini bisa dibaca", "berdasarkan informasi"). Tulis seperti CS manusia yang ramah; sebut "tim kami"/"admin kami" untuk pemiliknya',
 };
 
 /** Pesan koreksi untuk menulis ulang jawaban yang melanggar. */
-export function pesanKoreksi(draf: string, pelanggaran: Pelanggaran[], teruskan = false): string {
+export function pesanKoreksi(draf: string, pelanggaran: Pelanggaran[], teruskan = false, katalog = false): string {
   return [
     "Draf jawabanmu untuk pesan di atas MELANGGAR aturan inti sehingga tidak dikirim:",
     ...pelanggaran.map((x) => `- ${PENJELASAN[x.jenis]}: "${x.kutipan}"`),
@@ -170,6 +219,7 @@ export function pesanKoreksi(draf: string, pelanggaran: Pelanggaran[], teruskan 
     ...(teruskan && pelanggaran.some((x) => x.jenis === "janji")
       ? ["Bila hal ini memang perlu ditangani pemilik, teruskan dengan tag <teruskan jenis=...> di baris paling akhir (lihat aturan_teruskan); hanya dengan tag itu kamu boleh bilang sudah meneruskan."]
       : []),
+    ...(katalog ? ["Bila draf memuat tag <kirim_produk>, pertahankan tag itu di baris paling akhir (fotonya tetap dikirim)."] : []),
     "Tulis ulang jawaban untuk lawan bicara tanpa pelanggaran itu. Kirim hanya teks jawabannya, tanpa penjelasan.",
   ].join("\n");
 }

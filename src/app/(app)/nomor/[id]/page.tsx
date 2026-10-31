@@ -11,6 +11,8 @@ import { HapusNomor, LencanaTerhubung, NumberSettings, SaklarBot, SaklarSinkron 
 import { KartuStat, Meter, Sparkline } from "@/components/stat";
 import { TestChat } from "@/components/test-chat";
 import { PanelTeruskan } from "@/components/panel-teruskan";
+import { PanelKatalog } from "@/components/panel-katalog";
+import { daftarProduk, katalogBoleh } from "@/lib/katalog";
 import { saklar } from "@/lib/aturan";
 import { riwayatTeruskan } from "@/lib/penerusan";
 import { JENIS_TERUSKAN, PERLU_PENERUS } from "@/lib/teruskan";
@@ -67,7 +69,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   const admin = user.peran === "admin";
 
   const hari = hariTerakhir(tanggalWib(), 7);
-  const [dokumen, sinkronIds, statusSs, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran, tur, diteruskan, teruskanDiizinkan] = await Promise.all([
+  const [dokumen, sinkronIds, statusSs, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran, tur, diteruskan, teruskanDiizinkan, produk, katalogAktif] = await Promise.all([
     daftarDokumen(id),
     admin ? nomorSinkron() : Promise.resolve([] as number[]),
     admin ? statusSinkron() : Promise.resolve(null),
@@ -79,6 +81,8 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
     turSelesai(user.id),
     riwayatTeruskan(id, 10),
     saklar("teruskan_diizinkan"),
+    daftarProduk(id),
+    admin ? Promise.resolve(true) : katalogBoleh(nomor.user_id),
   ]);
   const chatPertama = daftarChat.daftar[0] ? await ambilPesanPercakapan(id, daftarChat.daftar[0].id) : null;
   const total = dokumen.reduce((n, d) => n + d.jumlah_karakter, 0);
@@ -179,6 +183,9 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               tanggal: tanggal(d.created_at),
             }))}
           />
+          <div id="katalog">
+            <PanelKatalog numberId={nomor.id} produk={produk} boleh={katalogAktif} />
+          </div>
           <PanelPelajaran
             key={`${totalPelajaran}-${pelajaran.daftar[0]?.id ?? 0}-${nomor.belajar}`}
             numberId={nomor.id}
@@ -197,7 +204,6 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             <PanelTeruskan
               numberId={nomor.id}
               teruskanKe={nomor.teruskan_ke}
-              aktif={nomor.teruskan_aktif}
               diizinkan={teruskanDiizinkan}
               waBisnis={nomor.wa_id}
               riwayat={diteruskan.map((r) => ({

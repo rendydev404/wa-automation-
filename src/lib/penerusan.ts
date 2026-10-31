@@ -29,8 +29,12 @@ export interface BarisTeruskan {
 }
 
 /** Penerusan ke nomor ini bisa dipakai sekarang (aktif, tujuan terpasang, diizinkan admin)? */
-export async function bisaTeruskan(n: Pick<Nomor, "teruskan_aktif" | "teruskan_ke">): Promise<boolean> {
-  return n.teruskan_aktif && !!n.teruskan_ke && (await saklar("teruskan_diizinkan"));
+/**
+ * Nomor penerus wajib diisi (siapDipakai), jadi penerusan selalu aktif begitu nomornya ada: pesanan, keluhan, bukti
+ * bayar, dan permintaan bicara dengan orang selalu sampai ke pemilik. Hanya saklar sistem admin yang bisa mematikannya.
+ */
+export async function bisaTeruskan(n: Pick<Nomor, "teruskan_ke">): Promise<boolean> {
+  return !!n.teruskan_ke && (await saklar("teruskan_diizinkan"));
 }
 
 const g = globalThis as unknown as { __waTeruskan?: Map<string, number> };

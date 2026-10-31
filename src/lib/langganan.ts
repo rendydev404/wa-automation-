@@ -197,7 +197,7 @@ const gb = globalThis as unknown as { __waBerbayar?: Map<number, { at: number; o
 const cacheBerbayar = (gb.__waBerbayar ??= new Map());
 
 /** Akun punya langganan aktif? Dipegang di memori 60 dtk per akun, jadi tiap pesan WhatsApp tidak menambah query. */
-async function akunBerbayar(userId: number): Promise<boolean> {
+export async function akunBerbayar(userId: number): Promise<boolean> {
   const c = cacheBerbayar.get(userId);
   if (c && Date.now() - c.at < 60_000) return c.ok;
   const ok = !!(await langgananAktif(userId));

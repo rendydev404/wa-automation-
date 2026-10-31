@@ -157,6 +157,10 @@ Paket & pembayaran (`src/lib/langganan.ts`, `src/lib/midtrans.ts`), semuanya dik
   kurs bergeser ≥1%. Kartunya membuka chat WhatsApp admin (pesan memuat rincian paket) atau dibayar langsung lewat
   Midtrans: isiannya dicerminkan ke baris tabel `paket` berkode `_custom` (tidak ikut daftar & simulasi paket
   biasa; bisa juga diberikan admin dari halaman pengguna).
+- **Katalog produk** (`src/lib/katalog.ts`, panel "Katalog" di halaman nomor; akun berbayar & admin): produk dengan
+  foto (JPEG kecil, diperkecil di browser, disimpan di tabel `produk`), harga, keterangan, status habis. Katalog masuk
+  pesan sistem sebagai sumber harga; AI mengirimnya lewat tag `<kirim_produk>` (daftar + foto dikirim jembatan
+  WhatsApp setelah jawabannya, juga tampil di Uji bot).
 - **Kurs USD → Rp** (`src/lib/kurs.ts`): Coinbase (kurs pasar real-time) dicek silang dengan kurs referensi ECB
   (Frankfurter) dan ExchangeRate-API; angka yang menyimpang >3% dibuang. Diperbarui tiap 10 menit (kurs referensi
   harian paling sering tiap jam), tombol "Perbarui" di panel admin; kalkulator harga memantaunya lewat `/api/kurs`.

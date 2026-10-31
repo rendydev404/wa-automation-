@@ -13,6 +13,7 @@ import { berikanPaket, hentikanLangganan, mulaiBayar, paketById, riwayatTransaks
 import { MidtransError, konfigMidtrans } from "@/lib/midtrans";
 import { GalatCustom, customTampil, periksaCustom, ringkasCustom, simpanPaketCustom } from "@/lib/paket-custom";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
+import { geserProduk, hapusProduk, katalogBoleh, setTersedia } from "@/lib/katalog";
 import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringSpam, setTeruskan, siapDipakai, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { ujiTeruskan } from "@/lib/penerusan";
 import { PERLU_PENERUS } from "@/lib/teruskan";
@@ -269,16 +270,49 @@ export async function teruskanAction(_lalu: Hasil | null, form: FormData): Promi
   const nomor = await nomorUntuk(await requireUser(), id);
   if (!nomor) return { ok: false, pesan: "Nomor tidak ditemukan." };
   const mentah = String(form.get("teruskan_ke") ?? "").trim();
-  const aktif = form.get("aktif") === "on";
   // Wajib diisi: tanpa nomor penerus, nomor bisnis tidak bisa dipakai (lihat siapDipakai).
   if (!mentah) return { ok: false, pesan: "Nomor WhatsApp penerus wajib diisi. Tanpa nomor ini AI tidak membalas di nomor bisnis ini." };
   const ke = rapikanNomorWa(mentah);
   if (!ke) return { ok: false, pesan: "Nomor WhatsApp tidak valid. Contoh: 0812 3456 7890 atau +62 812 3456 7890." };
   if (ke === nomor.wa_id) return { ok: false, pesan: "Isi dengan nomor lain (WhatsApp pribadi Anda), bukan nomor bisnis yang dibalas AI ini." };
-  await setTeruskan(id, { ke, aktif });
+  await setTeruskan(id, { ke, aktif: true }); // penerusan selalu aktif selama nomor penerus terisi
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${id}`);
-  return { ok: true, pesan: aktif ? "Tersimpan. AI akan meneruskan hal penting ke nomor ini." : "Tersimpan. Penerusan dimatikan." };
+  return { ok: true, pesan: "Tersimpan. Pesanan, keluhan, bukti bayar, dan hal penting lain selalu diteruskan ke nomor ini." };
+}
+
+// ---------- Katalog produk (tambah/ubah lewat /api/katalog karena membawa foto) ----------
+
+async function produkMilik(numberId: number, tulis: boolean): Promise<{ id: number } | null> {
+  const user = await requireUser();
+  const nomor = await nomorUntuk(user, numberId);
+  if (!nomor) return null;
+  if (tulis && user.peran !== "admin" && !(await katalogBoleh(nomor.user_id))) return null;
+  return { id: nomor.id };
+}
+
+export async function hapusProdukAction(numberId: number, id: number): Promise<Hasil> {
+  const n = await produkMilik(numberId, false); // menghapus tetap boleh walau paket sudah habis
+  if (!n || !Number.isInteger(id)) return { ok: false, pesan: "Produk tidak ditemukan." };
+  await hapusProduk(n.id, id);
+  revalidatePath(`/nomor/${n.id}`);
+  return { ok: true, pesan: "Produk dihapus." };
+}
+
+export async function tersediaProdukAction(numberId: number, id: number, tersedia: boolean): Promise<Hasil> {
+  const n = await produkMilik(numberId, true);
+  if (!n || !Number.isInteger(id)) return { ok: false, pesan: "Katalog tidak bisa diubah." };
+  await setTersedia(n.id, id, tersedia);
+  revalidatePath(`/nomor/${n.id}`);
+  return { ok: true };
+}
+
+export async function geserProdukAction(numberId: number, id: number, arah: -1 | 1): Promise<Hasil> {
+  const n = await produkMilik(numberId, true);
+  if (!n || !Number.isInteger(id) || (arah !== -1 && arah !== 1)) return { ok: false, pesan: "Katalog tidak bisa diubah." };
+  await geserProduk(n.id, id, arah);
+  revalidatePath(`/nomor/${n.id}`);
+  return { ok: true };
 }
 
 /** Kirim pesan uji dari nomor bisnis ke nomor pribadi: memastikan nomornya benar & WhatsApp-nya menerima. */

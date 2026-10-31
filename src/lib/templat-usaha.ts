@@ -73,7 +73,7 @@ export const JENIS_USAHA = {
       alamat: "Jl. Melati No. 5, Bekasi Timur (sebelah minimarket)",
       maps: "",
       area: "Antar sendiri radius 3 km dari warung",
-      caraPesan: "Sebutkan menu, jumlah, dan pilihan level pedas\nPilih diambil sendiri atau diantar\nAI mengulang ringkasan pesanan untuk dicek\nPesanan diteruskan ke dapur untuk disiapkan",
+      caraPesan: "Sebutkan menu, jumlah, dan pilihan level pedas\nPilih diambil sendiri atau diantar\nRingkasan pesanan diulang untuk dicek\nPesanan diteruskan ke dapur untuk disiapkan",
       dataPesanan: "Nama pemesan\nMenu + jumlah + pilihan (level pedas, tanpa sambal, dll.)\nDiambil sendiri atau diantar\nAlamat lengkap + patokan (bila diantar)\nJam ambil / antar\nCara bayar",
       bayar: "Transfer BCA 1234567890 a.n. Sari Wulandari, QRIS, atau tunai saat ambil/antar",
       kirim: "Ongkir antar dalam radius 3 km dikonfirmasi pemilik. Di luar itu pakai GoSend/GrabExpress (dipesan pelanggan, ongkir ditanggung pembeli).",
@@ -108,7 +108,7 @@ export const JENIS_USAHA = {
       alamat: "Jl. Cibaduyut Raya No. 12, Bandung (gudang, tidak melayani beli di tempat)",
       maps: "",
       area: "Kirim ke seluruh Indonesia",
-      caraPesan: "Sebutkan produk, ukuran, warna, dan jumlah\nKirim nama, alamat lengkap, dan nomor HP penerima\nAI mengulang ringkasan pesanan untuk dicek\nPemilik mengonfirmasi ongkir dan total, lalu pelanggan transfer",
+      caraPesan: "Sebutkan produk, ukuran, warna, dan jumlah\nKirim nama, alamat lengkap, dan nomor HP penerima\nRingkasan pesanan diulang untuk dicek\nPemilik mengonfirmasi ongkir dan total, lalu pelanggan transfer",
       dataPesanan: "Nama penerima\nProduk + ukuran + warna + jumlah\nAlamat lengkap + kecamatan + kode pos\nNomor HP penerima\nKurir pilihan (bila ada)\nCara bayar",
       bayar: "Transfer BCA 1234567890 a.n. Kaosku Indonesia, atau checkout di Shopee: shopee.co.id/kaosku",
       kirim: "Dikirim dari Bandung via JNE, J&T, atau SiCepat. Ongkir sesuai tarif kurir dan dikonfirmasi pemilik. Paket dikirim H+1 setelah pembayaran diterima.",
@@ -143,7 +143,7 @@ export const JENIS_USAHA = {
       alamat: "Jl. Kenanga No. 8, Depok",
       maps: "",
       area: "Depok, Jakarta Selatan, dan Jakarta Timur",
-      caraPesan: "Sebutkan layanan dan jumlah unit\nKirim alamat lokasi dan jadwal yang diinginkan\nAI mengulang ringkasan untuk dicek\nPemilik mengonfirmasi jadwal teknisi",
+      caraPesan: "Sebutkan layanan dan jumlah unit\nKirim alamat lokasi dan jadwal yang diinginkan\nRingkasan diulang untuk dicek\nPemilik mengonfirmasi jadwal teknisi",
       dataPesanan: "Nama\nLayanan + jumlah unit (dan merek/PK bila tahu)\nAlamat lokasi lengkap\nTanggal & jam yang diinginkan\nKeluhan / kondisi (foto bila ada)\nNomor yang bisa dihubungi teknisi",
       bayar: "Bayar setelah pekerjaan selesai: tunai, transfer BCA 1234567890 a.n. Sejuk AC, atau QRIS",
       kirim: "Teknisi datang ke lokasi. Tanpa biaya transport di area layanan.",
@@ -178,7 +178,7 @@ export const JENIS_USAHA = {
       alamat: "Ruko Griya Indah Blok B2, Tangerang",
       maps: "",
       area: "",
-      caraPesan: "Pilih layanan\nPilih tanggal & jam\nAI mengulang ringkasan booking untuk dicek\nPemilik mengonfirmasi slot yang tersedia",
+      caraPesan: "Pilih layanan\nPilih tanggal & jam\nRingkasan booking diulang untuk dicek\nPemilik mengonfirmasi slot yang tersedia",
       dataPesanan: "Nama\nLayanan yang dipilih\nTanggal & jam booking\nStylist/terapis pilihan (bila ada)\nCatatan khusus (alergi, panjang rambut, dll.)",
       bayar: "Bayar di tempat: tunai, QRIS, atau kartu debit",
       kirim: "",
@@ -213,7 +213,7 @@ export const JENIS_USAHA = {
       alamat: "Jl. Pendidikan No. 21, Bogor",
       maps: "",
       area: "Les privat ke rumah untuk area Kota Bogor",
-      caraPesan: "Pilih program\nKirim data siswa dan jadwal yang diinginkan\nAI mengulang ringkasan pendaftaran untuk dicek\nPemilik mengonfirmasi kelas dan jadwal",
+      caraPesan: "Pilih program\nKirim data siswa dan jadwal yang diinginkan\nRingkasan pendaftaran diulang untuk dicek\nPemilik mengonfirmasi kelas dan jadwal",
       dataPesanan: "Nama siswa\nKelas / usia\nProgram yang dipilih\nJadwal yang diinginkan\nNama & nomor orang tua/wali\nCara bayar",
       bayar: "Transfer BCA 1234567890 a.n. Bimbel Cerdas, dibayar di awal bulan",
       kirim: "",
@@ -247,7 +247,7 @@ export const JENIS_USAHA = {
       alamat: "Alamat usaha Anda",
       maps: "",
       area: "",
-      caraPesan: "Sebutkan produk/layanan yang diinginkan\nKirim data yang diperlukan\nAI mengulang ringkasan untuk dicek\nPemilik mengonfirmasi",
+      caraPesan: "Sebutkan produk/layanan yang diinginkan\nKirim data yang diperlukan\nRingkasan diulang untuk dicek\nPemilik mengonfirmasi",
       dataPesanan: "Nama\nProduk/layanan + jumlah\nAlamat / lokasi (bila perlu)\nTanggal & jam (bila perlu)\nCara bayar",
       bayar: "Transfer BCA 1234567890 a.n. Nama Anda",
       kirim: "",
@@ -305,7 +305,7 @@ export function susunTemplat(jenis: KunciUsaha, isi: IsiTemplat): string {
   };
 
   tambah("PERAN & GAYA BAHASA", [
-    `Kamu adalah asisten virtual (AI)${isi.namaAsisten.trim() ? ` bernama ${isi.namaAsisten.trim()}` : ""} dari ${nama} di WhatsApp.`,
+    `Kamu membalas chat WhatsApp untuk ${nama}${isi.namaAsisten.trim() ? ` dengan nama ${isi.namaAsisten.trim()}` : ""}, seperti CS yang ramah dari tim ${nama}.`,
     `Tugasmu: menjawab pertanyaan pelanggan, membantu ${j.transaksi} sampai datanya lengkap, dan menyerahkan ke pemilik hal yang perlu ditangani manusia.`,
     isi.gaya === "sopan"
       ? `Gaya bahasa: sopan dan profesional, panggil pelanggan ${panggil}. Jawaban singkat (1–4 kalimat).`

@@ -615,8 +615,11 @@ await cek("teruskan ke pemilik: tag dibuang dari balasan pelanggan, ringkasan te
   hermes.jawab = null;
 });
 
-await cek("teruskan mati: tag tetap dibuang dari balasan pelanggan dan TIDAK ada pesan ke pemilik; AI diberi tahu ia tidak bisa meneruskan", async () => {
+await cek("teruskan dimatikan admin (saklar sistem): tag tetap dibuang dari balasan pelanggan dan TIDAK ada pesan ke pemilik; AI diberi tahu ia tidak bisa meneruskan", async () => {
+  // Saklar lama per nomor tidak lagi mematikan penerusan (nomor penerus wajib = penerusan selalu aktif).
+  const { setSetting } = await lib("src/lib/db.ts");
   await sql`UPDATE numbers SET teruskan_aktif = false WHERE id = ${A.id}`;
+  await setSetting("teruskan_diizinkan", "0");
   cacheNomorBasi();
   hermes.jawab = (p) => (/pesan 3 nasi/.test(p.pesan) ? 'Baik Kak, pesanannya aku rangkum ya.\n<teruskan jenis="pesanan">Nama: Budi</teruskan>' : null);
   const n0 = hermes.panggilan.length;
@@ -629,6 +632,7 @@ await cek("teruskan mati: tag tetap dibuang dari balasan pelanggan dan TIDAK ada
   assert.equal(baru[0].isi.text, "Baik Kak, pesanannya aku rangkum ya.");
   assert.match(hermes.panggilan[n0].sistem, /Penerusan ke pemilik TIDAK aktif/);
   hermes.jawab = null;
+  await setSetting("teruskan_diizinkan", "1");
   await sql`UPDATE numbers SET teruskan_ke = ${penerusUji(A.id)} WHERE id = ${A.id}`;
   cacheNomorBasi();
 });

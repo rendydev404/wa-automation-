@@ -3,7 +3,7 @@
 import { useActionState, useState, useTransition } from "react";
 import { ArrowRight, BellRing, Send, Smartphone } from "lucide-react";
 import { teruskanAction, ujiTeruskanAction } from "@/app/actions";
-import { Pesan, Saklar, SubmitButton } from "./ui";
+import { Pesan, SubmitButton } from "./ui";
 
 export interface RiwayatTeruskanUi {
   id: number;
@@ -39,21 +39,18 @@ const KAPAN = [
 export function PanelTeruskan({
   numberId,
   teruskanKe,
-  aktif: aktifAwal,
   diizinkan,
   waBisnis,
   riwayat,
 }: {
   numberId: number;
   teruskanKe: string | null;
-  aktif: boolean;
   /** Admin mengizinkan penerusan (aturan sistem). */
   diizinkan: boolean;
   waBisnis: string | null;
   riwayat: RiwayatTeruskanUi[];
 }) {
   const [hasil, aksi] = useActionState(teruskanAction, null);
-  const [aktif, setAktif] = useState(aktifAwal);
   const [uji, setUji] = useState<{ ok: boolean; pesan?: string } | null>(null);
   const [mengirim, mulai] = useTransition();
 
@@ -134,14 +131,10 @@ export function PanelTeruskan({
             karyawan/admin yang memproses pesanan.
           </span>
         </label>
-        <div className="flex items-center justify-between gap-4 rounded-lg bg-subtle/50 p-3">
-          <div>
-            <p className="text-[13px] font-semibold">Teruskan otomatis</p>
-            <p className="text-[12px] text-muted">{aktif ? "AI meneruskan pesanan & hal penting ke nomor di atas." : "Mati: AI hanya mengumpulkan data di chat."}</p>
-          </div>
-          <Saklar aktif={aktif} onUbah={setAktif} label="Teruskan otomatis" disabled={!diizinkan} />
-          {aktif && <input type="hidden" name="aktif" value="on" />}
-        </div>
+        <p className="rounded-lg bg-subtle/50 p-3 text-[12.5px] text-muted">
+          <b className="text-fg">Selalu aktif.</b> Pesanan yang datanya lengkap, bukti bayar, keluhan, permintaan servis, pelanggan yang minta bicara dengan orang, dan pertanyaan yang
+          jawabannya belum ada di base knowledge selalu diteruskan ke nomor ini.
+        </p>
         <div className="flex flex-wrap items-center gap-2">
           <SubmitButton>Simpan</SubmitButton>
           <button

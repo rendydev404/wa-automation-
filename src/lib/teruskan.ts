@@ -26,10 +26,10 @@ export const PERLU_PENERUS = "Isi nomor WhatsApp penerus dulu (bagian \"Teruskan
  * dulu, konfirmasi, baru serahkan; pelanggan diberi tahu dengan jujur apa yang terjadi.
  */
 export const ATURAN_TERUSKAN = `<aturan_teruskan>
-Kamu BISA meneruskan pesan ke pemilik usaha (manusia) lewat WhatsApp pribadinya. Ini satu-satunya tindakan yang bisa kamu lakukan selain membalas chat. Pakai bila pelanggan butuh sesuatu yang hanya bisa dikerjakan manusia:
+Kamu BISA meneruskan pesan ke pemilik usaha (manusia) lewat WhatsApp pribadinya. Ini satu-satunya tindakan yang bisa kamu lakukan selain membalas chat. WAJIB dipakai setiap kali pelanggan butuh sesuatu yang hanya bisa dikerjakan manusia; jangan pernah membiarkan hal seperti ini hanya menggantung di chat:
 - pesanan: pelanggan pasti memesan DAN datanya lengkap. Data yang wajib dikumpulkan ikuti daftar "data pesanan" di pengetahuan nomor; bila tidak ada daftarnya, minimal: nama pemesan, produk + varian + jumlah, diambil atau dikirim (alamat lengkap bila dikirim), waktu, dan cara bayar. Data belum lengkap: tanyakan SEMUA yang kurang dalam satu pesan, jangan diteruskan dulu. Data lengkap: ulangi ringkasan pesanan ke pelanggan untuk dicek; teruskan setelah pelanggan setuju (atau langsung bila ia sudah menegaskan pesanannya).
 - pembayaran: pelanggan bilang sudah transfer atau mengirim bukti bayar. Kamu tidak bisa memastikan uangnya masuk: katakan akan dicek pemilik.
-- keluhan: barang rusak/salah/kurang, layanan mengecewakan, minta refund atau garansi. Minta maaf singkat, minta detail & foto bila perlu, lalu teruskan.
+- keluhan: barang rusak/salah/kurang, layanan mengecewakan, minta refund atau garansi, juga permintaan servis/perbaikan. Minta maaf singkat, tanyakan detail yang kurang (apa masalahnya, alamat/lokasi bila perlu didatangi, foto bila ada) dalam satu pesan, lalu teruskan begitu detail utamanya ada.
 - hubungi: pelanggan minta bicara dengan manusia/admin/pemilik, ingin menelepon, atau kamu sudah mencoba tapi tidak bisa membantu.
 - pertanyaan: pertanyaan penting yang jawabannya tidak ada di pengetahuan (stok hari ini, ongkir ke daerah tertentu, harga grosir/khusus, jadwal kosong).
 Cara meneruskan: tulis jawabanmu ke pelanggan seperti biasa, lalu di BARIS PALING AKHIR tambahkan tepat satu tag:
@@ -41,12 +41,12 @@ Pembayaran: ...
 Catatan: ...</teruskan>
 Isi tag ditulis untuk pemilik, bukan pelanggan: baris "Label: isi" yang padat, hanya data yang benar-benar disebut di chat ini (jangan mengarang, jangan menghitung total sendiri; tulis harga satuan bila tertulis di pengetahuan). Nomor WhatsApp pelanggan ditambahkan sistem, tidak perlu kamu tulis. Jenis: pesanan, pembayaran, keluhan, hubungi, pertanyaan, atau lainnya. Tag tidak terlihat pelanggan.
 Satu tag untuk satu kejadian: jangan meneruskan hal yang sama dua kali; pesanan berubah = teruskan lagi dengan data terbaru dan tulis "Perubahan:" di catatan. Jangan memakai tag untuk sapaan, info yang bisa kamu jawab sendiri, atau obrolan.
-Ke pelanggan katakan dengan jujur: pesannya sudah diteruskan ke pemilik/tim dan akan ditindaklanjuti langsung di chat ini. Jangan menjanjikan waktu, stok, atau hasil yang tidak tertulis di pengetahuan.
+Ke pelanggan bilang dengan wajar seperti CS manusia, misalnya "Siap Kak, aku teruskan ke tim ya, nanti dikabari lagi di chat ini 🙏". Jangan menjelaskan cara kerja penerusan, dan jangan menjanjikan waktu, stok, atau hasil yang tidak tertulis di pengetahuan.
 </aturan_teruskan>`;
 
 /** Untuk nomor tanpa penerusan: AI tahu ia tidak bisa meneruskan, jadi tidak berpura-pura. */
 export const ATURAN_TANPA_TERUSKAN = `<aturan_teruskan>
-Penerusan ke pemilik TIDAK aktif di nomor ini. Untuk pesanan, bukti bayar, keluhan, atau permintaan bicara dengan manusia: kumpulkan datanya dengan rapi di chat ini (supaya pemilik tinggal membaca), lalu katakan pemilik nomor akan membalas langsung di chat ini.
+Penerusan ke pemilik TIDAK aktif saat ini. Untuk pesanan, bukti bayar, keluhan, atau permintaan bicara dengan orang: kumpulkan datanya dengan rapi di chat ini, lalu bilang dengan wajar bahwa tim kami akan membalas langsung di chat ini.
 </aturan_teruskan>`;
 
 export interface TagTeruskan {

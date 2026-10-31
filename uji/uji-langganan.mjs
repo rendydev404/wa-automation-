@@ -448,6 +448,50 @@ await cek("paket Custom mengikuti kurs: bergeser >=1% -> harga otomatis dihitung
   }
 });
 
+console.log("== Katalog produk ==");
+const KAT = await lib("src/lib/katalog.ts");
+const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70, 0, 1, 1, 1, 0, 72, 0, 72, 0, 0, 0xff, 0xd9]);
+
+await cek("katalog: fitur akun berbayar (gratis tidak, berlangganan & admin boleh); produk + foto tersimpan, urutan bisa digeser, foto dicek dari isinya", async () => {
+  const pemilik = await P.buatAkun({ email: "katalog@uji.test", nama: "Toko", password: "rahasia-toko-01" });
+  const n = await tambahNomor("Toko Katalog", pemilik.id);
+  assert.equal(await KAT.katalogBoleh(pemilik.id), false);
+  assert.equal(await KAT.katalogBoleh(admin.id), true);
+  await L.berikanPaket(pemilik.id, starter.id);
+  globalThis.__waKatalogBoleh?.clear();
+  assert.equal(await KAT.katalogBoleh(pemilik.id), true);
+  const a = await KAT.simpanProduk(n.id, { nama: "Kopi Susu Aren", harga: 18000, deskripsi: "Es, 250 ml", tersedia: true, foto: JPEG });
+  const b = await KAT.simpanProduk(n.id, { nama: "Roti Bakar", harga: null, deskripsi: "", tersedia: true });
+  let d = await KAT.daftarProduk(n.id);
+  assert.deepEqual(d.map((p) => [p.nama, p.harga, p.adaFoto]), [["Kopi Susu Aren", 18000, true], ["Roti Bakar", null, false]]);
+  await KAT.geserProduk(n.id, b, -1);
+  assert.deepEqual((await KAT.daftarProduk(n.id)).map((p) => p.id), [b, a]);
+  // ubah tanpa foto = foto tetap; null = foto dihapus
+  await KAT.simpanProduk(n.id, { id: a, nama: "Kopi Susu Aren Besar", harga: 22000, deskripsi: "", tersedia: true });
+  assert.equal((await KAT.fotoProduk(a)).mime, "image/jpeg");
+  const kirim = await KAT.bahanKirim(n.id, [a, b]);
+  assert.deepEqual(kirim.foto.map((p) => [p.id, p.data.length]), [[a, JPEG.length]]);
+  await KAT.simpanProduk(n.id, { id: a, nama: "Kopi Susu Aren Besar", harga: 22000, deskripsi: "", tersedia: true, foto: null });
+  assert.equal(await KAT.fotoProduk(a), undefined);
+  // validasi
+  await assert.rejects(KAT.simpanProduk(n.id, { nama: "X", harga: 1, deskripsi: "", tersedia: true }), /Nama produk/);
+  await assert.rejects(KAT.simpanProduk(n.id, { nama: "Palsu", harga: 1, deskripsi: "", tersedia: true, foto: new TextEncoder().encode("<svg onload=alert(1)>") }), /JPG, PNG, atau WebP/);
+  await assert.rejects(KAT.simpanProduk(n.id, { id: 999999, nama: "Lain", harga: 1, deskripsi: "", tersedia: true }), /tidak ditemukan/);
+  // produk nomor lain tidak bisa diubah/dihapus lewat nomor ini
+  await KAT.hapusProduk(n1.id, a);
+  assert.equal((await KAT.daftarProduk(n.id)).length, 2);
+  await KAT.setTersedia(n.id, b, false);
+  assert.equal((await KAT.daftarProduk(n.id)).find((p) => p.id === b).tersedia, false);
+  await KAT.hapusProduk(n.id, a);
+  assert.deepEqual((await KAT.daftarProduk(n.id)).map((p) => p.id), [b]);
+});
+
+await cek("penerusan selalu aktif selama nomor penerus terisi (saklar per nomor lama diabaikan)", async () => {
+  const PN = await lib("src/lib/penerusan.ts");
+  assert.equal(await PN.bisaTeruskan({ teruskan_ke: "6281234567890", teruskan_aktif: false }), true);
+  assert.equal(await PN.bisaTeruskan({ teruskan_ke: null, teruskan_aktif: true }), false);
+});
+
 await cek("tur panduan: tercatat per akun, tidak dobel", async () => {
   assert.deepEqual(await P.turSelesai(budi.id), []);
   await P.tandaiTurSelesai(budi.id, "dashboard");
