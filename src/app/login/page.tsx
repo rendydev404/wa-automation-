@@ -5,15 +5,16 @@ import { redirect } from "next/navigation";
 import { GalatGoogle } from "@/components/galat-google";
 import { KartuAuth } from "@/components/kartu-auth";
 import { TombolGoogle } from "@/components/tombol-google";
-import { getUser } from "@/lib/session";
+import { getUser, halamanAwal } from "@/lib/session";
 import { LoginForm } from "./login-form";
 import { MEREK } from "@/lib/merek";
 
 export const metadata: Metadata = { title: `Masuk · ${MEREK}` };
 
-/** Sudah login (sesi benar-benar sah di database)? Langsung ke dashboard. */
+/** Sudah login (sesi benar-benar sah di database)? Langsung ke halaman awalnya (admin: panel admin). */
 async function SudahMasuk() {
-  if (await getUser()) redirect("/dashboard");
+  const user = await getUser();
+  if (user) redirect(halamanAwal(user.peran));
   return null;
 }
 

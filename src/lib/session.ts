@@ -9,6 +9,9 @@ import { hashPassword } from "./password";
 
 export type Peran = "admin" | "user";
 
+/** Halaman pertama setelah masuk: admin langsung ke panel admin, pengguna biasa ke dashboard workspace-nya. */
+export const halamanAwal = (peran: Peran): string => (peran === "admin" ? "/admin" : "/dashboard");
+
 export interface User {
   id: number;
   email: string;

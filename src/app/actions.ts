@@ -47,6 +47,7 @@ import {
   catatLoginBerhasil,
   catatLoginGagal,
   findUserByEmail,
+  halamanAwal,
   kuotaNomor,
   mulaiSesi,
   pastikanAdminAwal,
@@ -87,7 +88,7 @@ export async function loginAction(_lalu: Hasil | null, form: FormData): Promise<
 
   await catatLoginBerhasil(user.id);
   await mulaiSesi(user, await lewatHttps());
-  redirect("/dashboard");
+  redirect(halamanAwal(user.peran));
 }
 
 export async function daftarAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
@@ -112,7 +113,7 @@ export async function daftarAction(_lalu: Hasil | null, form: FormData): Promise
   if (!akun) return { ok: false, pesan: "Email ini sudah terdaftar. Silakan masuk." };
   await catatLoginBerhasil(akun.id);
   await mulaiSesi(akun, await lewatHttps());
-  redirect("/dashboard");
+  redirect(halamanAwal(akun.peran));
 }
 
 export async function logoutAction(): Promise<void> {

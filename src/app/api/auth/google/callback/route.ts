@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { COOKIE_GOOGLE, GoogleError, asal, googleSiap, selesaikanGoogle } from "@/lib/google";
 import { akunGoogle } from "@/lib/pengguna";
-import { catatLoginBerhasil, mulaiSesi, pastikanAdminAwal, pendaftaranDibuka } from "@/lib/session";
+import { catatLoginBerhasil, halamanAwal, mulaiSesi, pastikanAdminAwal, pendaftaranDibuka } from "@/lib/session";
 
 /** Kembali dari Google: verifikasi, cari/tautkan/buat akun, lalu mulai sesi login biasa. */
 export async function GET(req: Request) {
@@ -30,5 +30,5 @@ export async function GET(req: Request) {
 
   await catatLoginBerhasil(akun.id);
   await mulaiSesi(akun, app.startsWith("https://"));
-  return ke("/dashboard");
+  return ke(halamanAwal(akun.peran));
 }

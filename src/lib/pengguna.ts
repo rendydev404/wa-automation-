@@ -41,11 +41,11 @@ export function normalkanEmail(email: string): string | null {
 export async function buatAkun(data: { email: string; nama: string; password: string; peran?: Peran; kuota?: number | null }) {
   const sql = await db();
   const hash = await hashPassword(data.password);
-  const [u] = await sql<{ id: number; password_hash: string; sesi_versi: number }[]>`
+  const [u] = await sql<{ id: number; peran: Peran; password_hash: string; sesi_versi: number }[]>`
     INSERT INTO users(email, nama, password_hash, peran, kuota_nomor, created_at)
     VALUES (${data.email}, ${data.nama}, ${hash}, ${data.peran ?? "user"}, ${data.kuota ?? null}, ${sekarang()})
     ON CONFLICT (email) DO NOTHING
-    RETURNING id, password_hash, sesi_versi`;
+    RETURNING id, peran, password_hash, sesi_versi`;
   return u ?? null;
 }
 
@@ -53,6 +53,7 @@ export async function buatAkun(data: { email: string; nama: string; password: st
 
 export interface AkunGoogle {
   id: number;
+  peran: Peran;
   password_hash: string;
   sesi_versi: number;
   status: "aktif" | "diblokir";
@@ -66,7 +67,7 @@ export interface AkunGoogle {
  */
 export async function akunGoogle(g: { sub: string; email: string; nama: string }, bolehDaftar: boolean): Promise<(AkunGoogle & { baru: boolean }) | null> {
   const sql = await db();
-  const kolom = sql.unsafe("id, password_hash, sesi_versi, status, alasan_blokir");
+  const kolom = sql.unsafe("id, peran, password_hash, sesi_versi, status, alasan_blokir");
   const [lewatSub] = await sql<AkunGoogle[]>`SELECT ${kolom} FROM users WHERE google_sub = ${g.sub}`;
   if (lewatSub) return { ...lewatSub, baru: false };
   const [tertaut] = await sql<AkunGoogle[]>`UPDATE users SET google_sub = ${g.sub} WHERE email = ${g.email} AND google_sub IS NULL RETURNING ${kolom}`;

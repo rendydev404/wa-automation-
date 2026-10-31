@@ -4,7 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { KartuAuth } from "@/components/kartu-auth";
 import { TombolGoogle } from "@/components/tombol-google";
-import { getUser, pendaftaranDibuka } from "@/lib/session";
+import { getUser, halamanAwal, pendaftaranDibuka } from "@/lib/session";
 import { DaftarForm } from "./daftar-form";
 import { MEREK } from "@/lib/merek";
 
@@ -12,7 +12,8 @@ export const metadata: Metadata = { title: `Daftar · ${MEREK}` };
 
 /** Sudah login? ke dashboard. Pendaftaran ditutup admin? tampilkan pemberitahuan, bukan formulir. */
 async function Isi() {
-  if (await getUser()) redirect("/dashboard");
+  const user = await getUser();
+  if (user) redirect(halamanAwal(user.peran));
   if (!(await pendaftaranDibuka()))
     return <p className="text-[13.5px] text-muted">Pendaftaran akun baru sedang ditutup. Silakan hubungi admin untuk dibuatkan akun.</p>;
   return (
