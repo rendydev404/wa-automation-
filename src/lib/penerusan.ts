@@ -115,12 +115,14 @@ export async function kabariKuotaHabis(
     // Sekali per periode kuota; kuotanya ditambah (paket diperpanjang, kuota percobaan dinaikkan admin) lalu habis lagi
     // = dikabari lagi.
     const kunci = `kuota_habis_dikabari:${userId}`;
-    const penanda = `${hak.periodeMulai}:${hak.balasan}`;
+    const penanda = `${hak.periodeMulai}:${hak.balasan}:${hak.percobaanSampai ?? ""}`;
     if ((await getSetting(kunci)) === penanda) return "dilewati";
     const terpakai = await balasanTerpakai(userId, hak.periodeMulai);
     const app = process.env.APP_URL?.replace(/\/+$/, "");
     const ringkasan = [
-      hak.percobaan
+      hak.percobaanBerakhir
+        ? `Masa percobaan gratis sudah berakhir pada ${tanggal(hak.percobaanSampai!)} (${angka(terpakai)} dari ${angka(hak.balasan)} balasan AI terpakai).`
+        : hak.percobaan
         ? `Kuota percobaan gratis sudah habis (${angka(terpakai)} dari ${angka(hak.balasan)} balasan AI terpakai).`
         : `Kuota balasan AI paket ${hak.paket} sudah habis (${angka(terpakai)} dari ${angka(hak.balasan)} terpakai).`,
       "Mulai sekarang AI TIDAK membalas pesan pelanggan di semua nomor Anda. Pesan tetap masuk dan bisa Anda balas sendiri dari HP.",

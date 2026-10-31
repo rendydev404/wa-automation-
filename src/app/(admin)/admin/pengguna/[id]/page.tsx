@@ -163,7 +163,11 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               <h2 className="text-[15px] font-bold">Langganan</h2>
               <p className="mt-1 text-[13px] text-muted">
                 <span className="font-semibold text-fg">{hak.paket}</span>
-                {hak.sampai ? ` · sampai ${tanggal(hak.sampai)}` : hak.percobaan ? " · kuota percobaan (sekali pakai)" : " · kuota gratis bulanan"}
+                {hak.sampai ? ` · sampai ${tanggal(hak.sampai)}` : hak.percobaan
+                    ? hak.percobaanSampai === null
+                      ? " · free trial (tanpa batas waktu)"
+                      : ` · free trial ${hak.percobaanBerakhir ? "berakhir" : "sampai"} ${tanggal(hak.percobaanSampai)}`
+                    : " · kuota gratis bulanan"}
               </p>
               <p className="mt-1 text-[13px] text-muted tabular-nums">
                 Balasan AI: {angka(terpakai)} / {hak.balasan === null ? "∞" : angka(hak.balasan)}

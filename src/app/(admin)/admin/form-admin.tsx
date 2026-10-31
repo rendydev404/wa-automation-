@@ -23,7 +23,7 @@ import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "@/components/ui";
 import type { InfoKurs } from "@/lib/kurs-def";
 
 const ULANG_PERCOBAAN = [
-  { nilai: "sekali", judul: "Sekali per akun", isi: "Free trial: dihitung sejak akun dibuat. Habis = AI berhenti sampai pengguna memilih paket." },
+  { nilai: "sekali", judul: "Sekali per akun", isi: "Free trial: dihitung sejak akun dibuat. Kuota habis atau masa percobaan lewat = AI berhenti sampai pengguna memilih paket." },
   { nilai: "bulanan", judul: "Diperbarui tiap bulan", isi: "Kuota terisi lagi setiap tanggal 1 (WIB) selama akun belum berlangganan." },
 ] as const;
 
@@ -35,7 +35,7 @@ export function FormPengaturan({
 }: {
   buka: boolean;
   kuota: number;
-  percobaan: { balasan: number; ulang: "sekali" | "bulanan" };
+  percobaan: { balasan: number; ulang: "sekali" | "bulanan"; hari: number };
   kurs: InfoKurs;
 }) {
   const [hasil, aksi, menyimpan] = useActionState(adminPengaturanAction, null);
@@ -43,8 +43,12 @@ export function FormPengaturan({
   const [aktif, setAktif] = useState(buka);
   const [balasan, setBalasan] = useState(String(percobaan.balasan));
   const [ulang, setUlang] = useState<"sekali" | "bulanan">(percobaan.ulang);
+  const [hari, setHari] = useState(String(percobaan.hari));
   const n = Number(balasan);
-  const sah = balasan.trim() !== "" && Number.isInteger(n) && n >= 0;
+  const h = Number(hari);
+  const sahBalasan = balasan.trim() !== "" && Number.isInteger(n) && n >= 0;
+  const sahHari = ulang === "bulanan" || (hari.trim() !== "" && Number.isInteger(h) && h >= 0 && h <= 365);
+  const sah = sahBalasan && sahHari;
   return (
     // Dikirim lewat transisi (bukan action form) supaya isian tidak direset React setelah tersimpan.
     <form
@@ -107,12 +111,41 @@ export function FormPengaturan({
             </label>
           ))}
         </div>
+        {ulang === "sekali" ? (
+          <div>
+            <label htmlFor="kuota_percobaan_hari" className="label">
+              Masa percobaan
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                id="kuota_percobaan_hari"
+                name="kuota_percobaan_hari"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={365}
+                value={hari}
+                onChange={(e) => setHari(e.target.value)}
+                required
+                className="field w-32"
+              />
+              <span className="text-[13px] text-muted">hari sejak akun dibuat (0 = tanpa batas waktu)</span>
+            </div>
+          </div>
+        ) : (
+          // Mode bulanan tidak memakai masa percobaan; nilainya tetap disimpan apa adanya.
+          <input type="hidden" name="kuota_percobaan_hari" value={hari} />
+        )}
         <p className="hint" aria-live="polite">
-          {!sah
-            ? "Isi angka bulat 0 atau lebih."
-            : n === 0
-              ? "Tanpa kuota gratis: AI hanya membalas untuk akun yang berlangganan."
-              : `Akun tanpa paket mendapat ${n.toLocaleString("id-ID")} balasan AI ${ulang === "sekali" ? "sekali pakai, lalu harus memilih paket" : "setiap bulan"}. Berlaku langsung untuk semua akun tanpa paket.`}
+          {!sahBalasan
+            ? "Isi jumlah balasan dengan angka bulat 0 atau lebih."
+            : !sahHari
+              ? "Isi masa percobaan 0–365 hari."
+              : n === 0
+                ? "Tanpa kuota gratis: AI hanya membalas untuk akun yang berlangganan."
+                : ulang === "bulanan"
+                  ? `Akun tanpa paket mendapat ${n.toLocaleString("id-ID")} balasan AI setiap bulan. Berlaku langsung untuk semua akun tanpa paket.`
+                  : `Akun tanpa paket mendapat ${n.toLocaleString("id-ID")} balasan AI${h > 0 ? ` yang berlaku ${h} hari sejak akun dibuat` : ", tanpa batas waktu"}; habis atau lewat masanya = harus memilih paket. Berlaku langsung untuk semua akun tanpa paket.`}
         </p>
       </fieldset>
       <KursInfo info={kurs} />

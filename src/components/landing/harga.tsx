@@ -66,7 +66,7 @@ export async function HargaLanding() {
       )}
       <p className="text-[13px] text-muted md:col-span-2 xl:col-span-3">
         {gratis.balasan > 0 &&
-          `Coba gratis dulu: setiap akun baru mendapat ${angka(gratis.balasan)} balasan AI ${gratis.ulang === "sekali" ? "percobaan" : "per bulan"} tanpa kartu kredit. `}
+          `Coba gratis dulu: setiap akun baru mendapat ${angka(gratis.balasan)} balasan AI ${gratis.ulang === "bulanan" ? "per bulan" : gratis.hari > 0 ? `percobaan selama ${gratis.hari} hari` : "percobaan"} tanpa kartu kredit. `}
         Bayar lewat QRIS, transfer bank, e-wallet, atau kartu.
       </p>
     </div>

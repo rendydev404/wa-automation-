@@ -14,7 +14,8 @@ export async function KartuLangganan({ tautan = false }: { tautan?: boolean }) {
   const hak = await hakAkun(user);
   const [terpakai, nomor] = await Promise.all([hak.balasan === null ? Promise.resolve(0) : balasanTerpakai(user.id, hak.periodeMulai), nomorMilik(user.id)]);
   const persenBalasan = hak.balasan ? Math.min(100, Math.round((terpakai / hak.balasan) * 100)) : 0;
-  const habis = hak.balasan !== null && terpakai >= hak.balasan;
+  const berakhir = hak.percobaanBerakhir;
+  const habis = berakhir || (hak.balasan !== null && terpakai >= hak.balasan);
   const tipis = !habis && hak.balasan !== null && persenBalasan >= 80;
   return (
     <section aria-label="Langganan dan kuota" className="card grid gap-6 p-6 md:grid-cols-3">
@@ -22,7 +23,13 @@ export async function KartuLangganan({ tautan = false }: { tautan?: boolean }) {
         <p className="text-[12.5px] font-semibold text-muted">Paket sekarang</p>
         <p className="mt-1 text-2xl font-bold">{hak.paket}</p>
         <p className="mt-1 text-[13px] text-muted">
-          {hak.sampai ? `Aktif sampai ${tanggal(hak.sampai)}` : hak.paket === "Admin" ? "Tanpa batas" : hak.percobaan ? "Kuota percobaan gratis, sekali pakai" : "Kuota gratis, diperbarui tiap awal bulan"}
+          {hak.sampai ? `Aktif sampai ${tanggal(hak.sampai)}` : hak.paket === "Admin" ? "Tanpa batas" : hak.percobaan
+              ? hak.percobaanSampai === null
+                ? "Kuota percobaan gratis, sekali pakai"
+                : berakhir
+                  ? `Masa percobaan berakhir ${tanggal(hak.percobaanSampai)}`
+                  : `Masa percobaan sampai ${tanggal(hak.percobaanSampai)}`
+              : "Kuota gratis, diperbarui tiap awal bulan"}
         </p>
       </div>
       <div>
@@ -38,7 +45,11 @@ export async function KartuLangganan({ tautan = false }: { tautan?: boolean }) {
         )}
         {habis ? (
           <p className="mt-2 text-[12.5px] font-semibold text-danger">
-            {hak.percobaan ? "Kuota percobaan habis: AI berhenti membalas. Pilih paket untuk melanjutkan." : "Kuota habis: AI berhenti membalas sampai paket diperpanjang."}
+            {berakhir
+              ? "Masa percobaan sudah berakhir: AI berhenti membalas. Pilih paket untuk melanjutkan."
+              : hak.percobaan
+                ? "Kuota percobaan habis: AI berhenti membalas. Pilih paket untuk melanjutkan."
+                : "Kuota habis: AI berhenti membalas sampai paket diperpanjang."}
           </p>
         ) : tipis ? (
           <p className="mt-2 text-[12.5px] font-semibold text-warning">Sisa {angka(hak.balasan! - terpakai)} balasan lagi.</p>
