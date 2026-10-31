@@ -22,7 +22,8 @@ export const MAKS_FOTO_BYTE = 3_700_000;
 export const MIME_FOTO: readonly Foto["mime"][] = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 export interface StatusWa {
-  hermes: boolean;
+  /** Mesin AI aktif bisa dihubungi. Nama mesinnya sengaja tidak dikirim: pengguna tidak perlu (dan tidak boleh) tahu. */
+  ai: boolean;
   galatAi: { at: number; pesan: string } | null;
   /** Status per nomor, kunci = id nomor. */
   nomor: Record<number, SesiNomor>;

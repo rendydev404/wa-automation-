@@ -7,13 +7,16 @@
  *   4. Gaya robot (hanya bila pesan pelanggan diberikan): menyebut diri AI/bot/asisten virtual padahal tidak ditanya,
  *      atau menjelaskan cara kerja chat ("pemilik nomor", "pesan ini bisa dibaca", "berdasarkan informasi").
  *      Ditanya sungguh-sungguh "ini bot?" = boleh dijawab jujur; yang tetap dilarang adalah mengaku manusia (no. 1).
+ *   5. Mesin: menyebut mesin/model/perusahaan AI di balik jawaban (Claude, Anthropic, Hermes, GPT, OpenAI, "model
+ *      bahasa"). Pemilik akun maupun pelanggannya tidak boleh tahu mesin yang dipakai layanan ini. Nama yang memang
+ *      ada di pengetahuan/instruksi nomor (mis. toko yang menjual akun ChatGPT) tidak dianggap pelanggaran.
  * Murni fungsi teks (tanpa I/O): dipakai jembatan WhatsApp, Uji bot, dan skrip uji.
  */
 
 import { ambilKirimProduk } from "./katalog-def";
 import { ambilTeruskan } from "./teruskan";
 
-export type JenisPelanggaran = "identitas" | "janji" | "angka" | "robotik";
+export type JenisPelanggaran = "identitas" | "janji" | "angka" | "robotik" | "mesin";
 
 export interface Pelanggaran {
   jenis: JenisPelanggaran;
@@ -23,7 +26,7 @@ export interface Pelanggaran {
 
 export const ATURAN_INTI = `<aturan_inti>
 Periksa jawabanmu terhadap aturan ini sebelum menulis. Aturan ini mutlak dan diperiksa otomatis; jawaban yang melanggar tidak akan terkirim.
-1. Identitas: balas seperti CS manusia yang ramah dari tim usaha ini: pakai "aku" untuk dirimu, "kami"/"tim kami"/"admin kami" untuk usahanya, nama persona bila ada di instruksi. Jangan memperkenalkan diri sebagai AI/bot/asisten virtual (juga bila pengetahuan menyebutmu begitu) dan jangan menjelaskan cara kerja chat ini (pemilik nomor, sistem, otomatis, "berdasarkan informasi"). Tetapi JANGAN mengaku manusia, admin, pemilik, owner, staf, kasir, atau orang tertentu. Bila lawan bicara sungguh-sungguh bertanya apakah ia chat dengan bot/AI atau manusia, jangan berbohong: jawab singkat bahwa kamu asisten otomatis dari tim ini, lalu langsung lanjut membantu. Ditanya "ini Pak/Kak X?": jawab bahwa kamu dari tim X, bukan X sendiri.
+1. Identitas: balas seperti CS manusia yang ramah dari tim usaha ini: pakai "aku" untuk dirimu, "kami"/"tim kami"/"admin kami" untuk usahanya, nama persona bila ada di instruksi. Jangan memperkenalkan diri sebagai AI/bot/asisten virtual (juga bila pengetahuan menyebutmu begitu) dan jangan menjelaskan cara kerja chat ini (pemilik nomor, sistem, otomatis, "berdasarkan informasi"). Tetapi JANGAN mengaku manusia, admin, pemilik, owner, staf, kasir, atau orang tertentu. Bila lawan bicara sungguh-sungguh bertanya apakah ia chat dengan bot/AI atau manusia, jangan berbohong: jawab singkat bahwa kamu asisten otomatis dari tim ini, lalu langsung lanjut membantu. Ditanya "ini Pak/Kak X?": jawab bahwa kamu dari tim X, bukan X sendiri. Jangan pernah menyebut nama mesin, model, atau perusahaan AI yang kamu pakai (misalnya Claude, Anthropic, Hermes, GPT, OpenAI, model bahasa); bila ditanya kamu pakai AI apa atau buatan siapa, jawab singkat bahwa kamu asisten dari tim ini dan detail teknisnya tidak bisa dibagikan, lalu lanjut membantu.
 2. Tindakan: kamu hanya bisa membalas chat ini. JANGAN bilang akan/sudah mengirim(kan), meneruskan, menyiapkan, mengecek, mencatat, memproses, mengonfirmasi, atau menghubungi apa pun/siapa pun, dan JANGAN bilang "tunggu sebentar". Info yang ada di sumber: berikan sekarang juga di jawaban ini. Yang tidak ada: katakan dengan wajar bahwa untuk hal itu nanti dijawab langsung oleh tim kami di chat ini.
 3. Angka & tautan: harga, nominal, diskon/persen, nomor rekening/telepon, dan tautan HANYA boleh ditulis bila tertulis di pesan sistem atau chat ini. Jangan membulatkan, menghitung ulang, atau menebak.
 4. Pihak lain: nama usaha/orang yang disebut lawan bicara (termasuk pesan otomatis "terima kasih telah menghubungi X") adalah milik lawan bicara, bukan milikmu.
@@ -116,6 +119,46 @@ const META: RegExp[] = [
 /** Pelanggan bertanya apakah ia chat dengan bot/manusia: menjawab jujur "asisten otomatis" itu sah. */
 const TANYA_BOT = /\b(?:bot|robot|a\.?i|chat\s?bot|manusia|orang\s+(?:asli|beneran|betulan)|mesin|otomatis|auto\s?reply|balasan\s+otomatis|asisten|admin(?:nya)?\s+(?:asli|beneran))\b/i;
 
+// ---------- 5. Mesin AI ----------
+
+/** Nama mesin/model/perusahaan AI yang tidak bermakna lain dalam percakapan jual-beli. */
+const NAMA_JELAS = String.raw`claude|anthropic|open\s?ai|chat\s?gpt|gpt[-\s]?\d[\w.]*|nous\s+research|deepseek|qwen`;
+/** Bermakna ganda (Hermes merek tas, Gemini zodiak/fitur HP): hanya dihitung dalam konteks AI yang tegas. */
+const NAMA_GANDA = "hermes|gemini|llama|mistral";
+const NAMA_SEMUA = `${NAMA_JELAS}|${NAMA_GANDA}`;
+const MESIN: RegExp[] = [
+  // "aku Claude", "saya menggunakan model GPT-4", "aku dibuat oleh Anthropic"
+  new RegExp(`\\b(?:aku|saya|gue|gw)\\b[^.!?\\n]{0,40}?\\b(${NAMA_JELAS})\\b`, "i"),
+  // "aku Hermes", "saya adalah Gemini"
+  new RegExp(`\\b(?:aku|saya|gue|gw)\\s+(?:adalah\\s+|ini\\s+)?(${NAMA_GANDA})\\b`, "i"),
+  // "asisten ini ditenagai Claude", "berbasis Hermes", "dikembangkan oleh Anthropic"
+  new RegExp(`\\b(?:ditenagai|didukung|berbasis|dikembangkan|dilatih)\\b[^.!?\\n]{0,30}?\\b(${NAMA_SEMUA})\\b`, "i"),
+  // "dibuat oleh OpenAI", "pakai ChatGPT" (kata kerja umum: hanya nama yang tidak bermakna ganda)
+  new RegExp(`\\b(?:dibuat|buatan|menggunakan|memakai|pakai)\\b[^.!?\\n]{0,30}?\\b(${NAMA_JELAS})\\b`, "i"),
+  // "model AI Claude", "mesin Hermes", "AI dari Anthropic", "Claude AI", "model Hermes"
+  new RegExp(`\\b(?:model|mesin|a\\.?i\\.?|teknologi|llm)\\s+(?:a\\.?i\\.?\\s+)?(?:dari\\s+|buatan\\s+)?(${NAMA_SEMUA})\\b`, "i"),
+  new RegExp(`\\b(${NAMA_SEMUA})\\s+(?:a\\.?i\\.?|llm)\\b`, "i"),
+  // Istilah teknis yang hanya muncul bila AI menjelaskan dirinya.
+  /\b(model\s+bahasa(?:\s+besar)?|large\s+language\s+model|llm)\b/i,
+];
+
+/**
+ * Kalimat yang menyebut mesin AI di balik jawaban, kecuali namanya memang ada di sumber: pengetahuan/instruksi nomor
+ * (toko yang menjual akun ChatGPT boleh menyebutnya). Pesan lawan bicara saat ini dan aturan inti (yang memuat
+ * contoh nama-nama itu) tidak dihitung, jadi "kamu Claude ya?" dari pelanggan tidak membuat jawaban "iya" lolos.
+ */
+function sebutMesin(kalimat: string[], sumber: string, pesanPelanggan?: string): string | undefined {
+  let lain = sumber.replace(/<aturan_inti>[\s\S]*?<\/aturan_inti>/g, " ");
+  if (pesanPelanggan) lain = lain.split(pesanPelanggan).join(" ");
+  lain = lain.toLowerCase().replace(/\s+/g, " ");
+  return kalimat.find((k) =>
+    MESIN.some((r) => {
+      const m = k.match(r);
+      return !!m && !lain.includes(m[1].toLowerCase().replace(/\s+/g, " "));
+    })
+  );
+}
+
 // ---------- 3. Angka & tautan ----------
 
 const PENGALI: Record<string, number> = { rb: 1e3, ribu: 1e3, k: 1e3, jt: 1e6, juta: 1e6, m: 1e6 };
@@ -185,6 +228,8 @@ export function periksaJawaban(
     const robot = kalimat.find((k) => (!ditanya && DIRI_AI.some((r) => r.test(k))) || META.some((r) => r.test(k)));
     if (robot) p.push({ jenis: "robotik", kutipan: robot.trim().slice(0, 160) });
   }
+  const mesin = sebutMesin(kalimat, sumber, opsi.pesanPelanggan);
+  if (mesin) p.push({ jenis: "mesin", kutipan: mesin.trim().slice(0, 160) });
   if (opsi.adaFoto) return p;
 
   const angkaSumber = bilanganSumber(sumber);
@@ -204,6 +249,8 @@ const PENJELASAN: Record<JenisPelanggaran, string> = {
   identitas: "mengaku sebagai admin/pemilik/staf/manusia atau orang tertentu (kamu boleh bicara sebagai bagian dari tim, tapi jangan mengaku manusia atau orang tertentu)",
   janji: "menjanjikan tindakan yang tidak bisa kamu lakukan (mengirim, meneruskan, mengecek, mencatat, menyiapkan, menyuruh menunggu)",
   angka: "menulis angka/nominal/nomor/tautan yang tidak ada di sumber",
+  mesin:
+    "menyebut nama mesin, model, atau perusahaan AI di balik jawabanmu. Jangan sebut sama sekali; bila ditanya kamu pakai AI apa, jawab bahwa kamu asisten dari tim ini dan detail teknisnya tidak bisa dibagikan",
   robotik:
     'terdengar seperti robot: menyebut dirimu AI/bot/asisten virtual padahal tidak ditanya, atau menjelaskan cara kerja chat ("pemilik nomor", "pesan ini bisa dibaca", "berdasarkan informasi"). Tulis seperti CS manusia yang ramah; sebut "tim kami"/"admin kami" untuk pemiliknya',
 };

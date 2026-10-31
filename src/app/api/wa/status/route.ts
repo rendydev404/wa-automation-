@@ -6,14 +6,14 @@ import { getUser } from "@/lib/session";
 import type { StatusWa } from "@/lib/types";
 import { infoSesi } from "@/lib/wa";
 
-const g = globalThis as unknown as { __waHermes?: { at: number; ok: boolean; janji: Promise<boolean> | null } };
+const g = globalThis as unknown as { __waAiStatus?: { at: number; ok: boolean; janji: Promise<boolean> | null } };
 
 /**
- * Kesehatan Hermes, diperiksa paling sering 30 detik sekali. Polling tidak ikut menunggu
+ * Kesehatan mesin AI aktif (aiSehat), diperiksa paling sering 30 detik sekali. Polling tidak ikut menunggu
  * pemeriksaan itu: nilai terakhir langsung dipakai dan penyegarannya berjalan di latar.
  */
-async function hermesCache(): Promise<boolean> {
-  const c = (g.__waHermes ??= { at: 0, ok: false, janji: null });
+async function aiCache(): Promise<boolean> {
+  const c = (g.__waAiStatus ??= { at: 0, ok: false, janji: null });
   if (Date.now() - c.at >= 30_000 && !c.janji) {
     c.janji = aiSehat()
       .then((ok) => (c.ok = ok))
@@ -33,11 +33,11 @@ export async function GET() {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Sesi berakhir." }, { status: 401 });
 
-  const hermes = await hermesCache();
-  // Galat AI berisi detail teknis server: hanya untuk admin.
+  const ai = await aiCache();
+  // Galat AI berisi detail teknis server (termasuk nama mesin/model): hanya untuk admin.
   const galatMentah = user.peran === "admin" ? await getSetting("galat_terakhir") : null;
   const galatAi = galatMentah ? (JSON.parse(galatMentah) as { at: number; pesan: string }) : null;
-  const hasil: StatusWa = { hermes, galatAi: galatAi && sekarang() - galatAi.at < 86400 ? galatAi : null, nomor: {} };
+  const hasil: StatusWa = { ai, galatAi: galatAi && sekarang() - galatAi.at < 86400 ? galatAi : null, nomor: {} };
 
   // Admin memantau semua nomor (juga saat membuka nomor milik pengguna lain); pengguna biasa hanya miliknya.
   for (const n of user.peran === "admin" ? await semuaNomor() : await nomorMilik(user.id)) {

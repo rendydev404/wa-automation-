@@ -72,7 +72,7 @@ export function TestChat({ numberId }: { numberId: number }) {
           pesan: isi,
           sesi: sesi.current,
           kueriLalu: lalu.current,
-          // Percakapan uji sejauh ini: dipakai penyedia AI tanpa ingatan sesi (Claude API).
+          // Percakapan uji sejauh ini: dipakai mesin AI yang tidak menyimpan ingatan sesi.
           riwayat: pesan.filter((g) => g.dari === "saya" || g.dari === "bot").slice(-12).map((g) => ({ ai: g.dari === "bot", teks: g.teks })),
           ...(lampiran ? { foto: lampiran } : {}),
         }),

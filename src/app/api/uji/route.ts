@@ -73,6 +73,8 @@ export async function POST(req: Request) {
     saringSpam,
     katalog,
   });
+  // Nama mesin/model, biaya, dan galat mentah hanya untuk admin; pengguna biasa tidak perlu tahu mesin di baliknya.
+  const admin = user.peran === "admin";
   try {
     const j = await tanyaAiTerjaga({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, [sistem, pesan, ...semuaRiwayat].join("\n"), { teruskan, saringSpam, katalog: katalog.length > 0, gaya: true });
     if (j.abaikan) return NextResponse.json({ teks: "", ms: j.ms, abaikan: `Dinilai AI: ${j.abaikan.jenis}${j.abaikan.alasan ? ` (${j.abaikan.alasan})` : ""}` });
@@ -86,17 +88,17 @@ export async function POST(req: Request) {
       karakterKonteks: konteks.karakter,
       pelajaran,
       diblokir,
-      model: j.model,
-      biayaUsd: j.biayaUsd,
-      // Untuk admin yang menguji: draf pertama ditolak pemeriksa (jenis pelanggarannya), lalu ditulis ulang / diganti jawaban aman.
-      koreksi: j.pelanggaran.map((x) => x.jenis),
-      aman: j.aman,
+      // Untuk admin yang menguji: mesin & model yang menjawab, biayanya, dan draf pertama yang ditolak pemeriksa
+      // (jenis pelanggarannya) lalu ditulis ulang / diganti jawaban aman.
+      ...(admin ? { model: j.model, biayaUsd: j.biayaUsd, koreksi: j.pelanggaran.map((x) => x.jenis), aman: j.aman } : {}),
       // Di WhatsApp ini dikirim ke nomor pribadi pemilik; di uji hanya ditampilkan.
       teruskan: j.teruskan ? { label: JENIS_TERUSKAN[j.teruskan.jenis].label, ringkasan: j.teruskan.ringkasan } : null,
       // Di WhatsApp ini dikirim sebagai pesan terpisah setelah jawaban: daftar katalog dan/atau foto produk.
       katalog: kirimanUji(katalog, j.kirimProduk, teks),
     });
   } catch (e) {
-    return NextResponse.json({ error: `AI tidak menjawab: ${e instanceof Error ? e.message : "galat"}` }, { status: 502 });
+    const detail = e instanceof Error ? e.message : "galat";
+    if (!admin) console.error(`[uji] AI tidak menjawab user=${user.id} nomor=${nomor.id}: ${detail}`);
+    return NextResponse.json({ error: admin ? `AI tidak menjawab: ${detail}` : "AI sedang tidak bisa menjawab. Coba lagi sebentar lagi." }, { status: 502 });
   }
 }

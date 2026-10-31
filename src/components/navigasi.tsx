@@ -147,7 +147,7 @@ export function StatusLayanan() {
   const { data } = useWaStatus();
   const semua = data ? Object.values(data.nomor) : [];
   const terhubung = semua.filter((s) => s.status === "WORKING").length;
-  const ok = !!data?.hermes;
+  const ok = !!data?.ai;
   return (
     <div className="rounded-xl border border-ink-line bg-white/[0.03] p-3">
       <div className="flex items-center gap-2.5">
@@ -155,7 +155,7 @@ export function StatusLayanan() {
           {ok && <span className="absolute inset-0 animate-ping rounded-full bg-ink-signal opacity-60" />}
           <span className={`relative size-2.5 rounded-full ${!data ? "bg-ink-muted/50" : ok ? "bg-ink-signal" : "bg-amber-400"}`} />
         </span>
-        <p className="text-[12.5px] font-semibold">{!data ? "Memeriksa layanan…" : ok ? "AI Hermes aktif" : "AI tidak terjangkau"}</p>
+        <p className="text-[12.5px] font-semibold">{!data ? "Memeriksa layanan…" : ok ? "AI aktif" : "AI tidak terjangkau"}</p>
       </div>
       <p className="mt-1 pl-5 text-[11.5px] text-ink-muted">{data ? `${terhubung} dari ${semua.length} nomor terhubung` : " "}</p>
     </div>

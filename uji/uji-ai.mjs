@@ -596,6 +596,57 @@ await cek("gaya manusiawi: draf robotik ditulis ulang; bila tulisan ulang masih 
   }
 });
 
+await cek("mesin AI dirahasiakan: menyebut Claude/Anthropic/GPT/'model bahasa' = pelanggaran 'mesin'; nama yang ada di pengetahuan toko & arti lain (tas Hermes) tetap boleh", async () => {
+  const P = await lib("src/lib/pemeriksa.ts");
+  const sistem = `${P.ATURAN_INTI}\n${SUMBER}`; // aturan inti memuat contoh nama mesin: tidak boleh membuat semuanya lolos
+  const g = (t, pesan = "kamu pakai AI apa?", sumber = sistem) => periksaJawaban(t, sumber, { pesanPelanggan: pesan }).map((p) => p.jenis);
+  for (const t of [
+    "Aku Claude, asisten AI buatan Anthropic.",
+    "Saya menggunakan model GPT-4o dari OpenAI.",
+    "Asisten ini ditenagai Hermes.",
+    "Aku berbasis model bahasa besar, Kak.",
+    "Kami pakai ChatGPT untuk membalas chat ini.",
+    "Jawaban ini dari model AI Claude ya Kak.",
+  ])
+    assert.ok(g(t).includes("mesin"), t);
+  // Pelanggan menyebut namanya sendiri: tetap tidak boleh diiyakan.
+  assert.ok(g("Iya Kak, aku Claude.", "kamu claude ya?").includes("mesin"));
+  // Jawaban yang benar: tidak menyebut nama mesin.
+  assert.deepEqual(g("Aku asisten dari tim Toko Uji, Kak; detail teknisnya tidak bisa kami bagikan. Ada yang bisa dibantu?"), []);
+  // Toko yang memang menjual akun ChatGPT/Claude: namanya ada di pengetahuan, jadi sah.
+  const toko = `${sistem}\nProduk: akun ChatGPT Plus 1 bulan Rp${(85000).toLocaleString("id-ID")}; akun Claude Pro tersedia.`;
+  assert.deepEqual(g("Aku rekomendasikan akun ChatGPT Plus 1 bulan ya Kak, Rp85.000.", "ada akun chatgpt?", toko), []);
+  // Arti lain dari nama bermakna ganda: tas Hermes, zodiak Gemini.
+  assert.deepEqual(g("Untuk tas Hermes kami belum ada stoknya, Kak.", "ada tas hermes?"), []);
+  assert.deepEqual(g("Wah, Gemini ya Kak! Untuk ukuran cincinnya mau yang mana?", "aku gemini kak"), []);
+  // Aturan inti meminta AI merahasiakan mesinnya.
+  assert.match(P.ATURAN_INTI, /Jangan pernah menyebut nama mesin, model, atau perusahaan AI/);
+});
+
+await cek("mesin AI dirahasiakan: draf yang menyebut nama mesin ditulis ulang; bila tulisan ulang masih menyebutnya, yang terkirim jawaban aman", async () => {
+  const P = await lib("src/lib/pemeriksa.ts");
+  for (const [kedua, aman] of [
+    ["Aku asisten dari tim Toko Uji, Kak; detail teknisnya tidak bisa kami bagikan.", false],
+    ["Aku pakai Claude dari Anthropic kok Kak.", true],
+  ]) {
+    let n = 0;
+    globalThis.fetch = async () => {
+      n += 1;
+      const teks = n === 1 ? "Aku Claude, model AI buatan Anthropic." : kedua;
+      return new Response(JSON.stringify({ content: [{ type: "text", text: teks }], usage: { input_tokens: 1, output_tokens: 1 } }));
+    };
+    try {
+      const j = await AI.tanyaAiTerjaga({ sessionId: "x", sistem: "S", pesan: "kamu pakai AI apa?" }, `${P.ATURAN_INTI}\n${SUMBER}`, { gaya: true });
+      assert.ok(j.pelanggaran.some((p) => p.jenis === "mesin"));
+      assert.equal(j.aman, aman);
+      assert.equal(j.teks, aman ? P.JAWABAN_AMAN : kedua);
+      assert.doesNotMatch(j.teks, /claude|anthropic/i);
+    } finally {
+      globalThis.fetch = asli;
+    }
+  }
+});
+
 const KT = await lib("src/lib/katalog-def.ts");
 const produkUji = [
   { id: 12, nama: "Kopi Susu Aren", harga: 18000, deskripsi: "Es, 250 ml", tersedia: true, adaFoto: true, urutan: 1, diubah: 1 },

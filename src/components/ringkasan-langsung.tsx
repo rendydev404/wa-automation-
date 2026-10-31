@@ -72,9 +72,9 @@ export function PanelSistem({ botAktif, total, dokumen, karakter }: { botAktif: 
       <ul className="divide-y divide-line">
         <Baris
           ikon={<Cpu className="size-4" aria-hidden />}
-          judul="AI Hermes"
-          keterangan={!data ? "Memeriksa…" : data.hermes ? "Siap membalas pelanggan" : "Pesan pelanggan tidak akan terbalas"}
-          kanan={!data ? <Pill nada="abu">Memeriksa</Pill> : data.hermes ? <Pill nada="hijau">Aktif</Pill> : <Pill nada="merah">Mati</Pill>}
+          judul="Asisten AI"
+          keterangan={!data ? "Memeriksa…" : data.ai ? "Siap membalas pelanggan" : "Pesan pelanggan tidak akan terbalas"}
+          kanan={!data ? <Pill nada="abu">Memeriksa</Pill> : data.ai ? <Pill nada="hijau">Aktif</Pill> : <Pill nada="merah">Mati</Pill>}
         />
         <Baris
           ikon={<Bot className="size-4" aria-hidden />}
@@ -101,12 +101,12 @@ export function PanelSistem({ botAktif, total, dokumen, karakter }: { botAktif: 
 /** Peringatan mencolok hanya saat AI benar-benar tidak terjangkau. */
 export function PeringatanAi() {
   const { data } = useWaStatus();
-  if (!data || data.hermes) return null;
+  if (!data || data.ai) return null;
   return (
     <div role="alert" className="flex animate-masuk gap-3 rounded-2xl border border-danger/20 bg-danger-soft px-4 py-3 text-[13px] text-danger">
       <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
       <p>
-        <b className="font-semibold">AI Hermes tidak terjangkau.</b> Pesan pelanggan tidak akan terbalas sampai layanannya kembali.
+        <b className="font-semibold">AI sedang tidak terjangkau.</b> Pesan pelanggan tidak akan terbalas sampai layanannya kembali.
       </p>
     </div>
   );
