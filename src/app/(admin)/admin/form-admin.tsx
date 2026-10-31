@@ -19,6 +19,7 @@ import {
   adminResetPasswordAction,
 } from "@/app/actions";
 import { KursInfo } from "@/components/kurs-info";
+import { type OpsiModel, PilihModel } from "@/components/pilih-model";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "@/components/ui";
 import type { InfoKurs } from "@/lib/kurs-def";
 import { KODE_CUSTOM } from "@/lib/paket-custom-def";
@@ -269,36 +270,22 @@ export function HapusAkun({ id, email }: { id: number; email: string }) {
   );
 }
 
-/** Model yang disarankan bila daftar dari Anthropic belum bisa diambil (kunci belum diisi). */
-const MODEL_SARAN = [
-  { id: "claude-haiku-5-5", nama: "Claude Haiku 5.5 — cepat & murah" },
-  { id: "claude-sonnet-5-5", nama: "Claude Sonnet 5.5 — lebih pintar" },
-];
-
 export function FormAi({
   penyedia,
   model,
   cadangan,
   adaKunci,
-  daftarModel,
-  biaya,
+  opsi,
 }: {
   penyedia: "hermes" | "anthropic" | "per_paket";
   model: string;
   cadangan: string;
   adaKunci: boolean;
-  /** Dari Anthropic (GET /v1/models) bila kunci sah; null = belum ada kunci / tak terjangkau. */
-  daftarModel: { id: string; nama: string }[] | null;
-  /** Perkiraan biaya per balasan (Rp) dari tarif resmi + profil token nyata; model tanpa tarif tidak tercantum. */
-  biaya: Record<string, number>;
+  /** Model dari akun Anthropic (atau saran bila kunci belum ada) beserta biaya per balasan dari tarif resmi × kurs. */
+  opsi: OpsiModel[];
 }) {
   const [hasil, aksi] = useActionState(adminAiAction, null);
   const [pilih, setPilih] = useState(penyedia);
-  const opsi = (daftarModel?.length ? daftarModel : MODEL_SARAN).map((m) => ({
-    ...m,
-    nama: biaya[m.id] !== undefined ? `${m.nama} · ±Rp${biaya[m.id].toLocaleString("id-ID")}/balasan` : m.nama,
-  }));
-  const pilihan = (nilai: string) => (opsi.some((m) => m.id === nilai) || !nilai ? opsi : [{ id: nilai, nama: nilai }, ...opsi]);
   return (
     <form action={aksi} className="space-y-4">
       <fieldset className="grid gap-2 sm:grid-cols-3">
@@ -333,26 +320,13 @@ export function FormAi({
           <label htmlFor="model-ai" className="label">
             Model utama
           </label>
-          <select id="model-ai" name="model" defaultValue={model} className="field">
-            {pilihan(model).map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.nama}
-              </option>
-            ))}
-          </select>
+          <PilihModel id="model-ai" name="model" nilai={model} opsi={opsi} label="Model utama" />
         </div>
         <div>
           <label htmlFor="cadangan-ai" className="label">
             Model cadangan (dipakai otomatis bila model utama sedang sibuk/gagal)
           </label>
-          <select id="cadangan-ai" name="cadangan" defaultValue={cadangan} className="field">
-            <option value="">Tanpa cadangan</option>
-            {pilihan(cadangan).map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.nama}
-              </option>
-            ))}
-          </select>
+          <PilihModel id="cadangan-ai" name="cadangan" nilai={cadangan} opsi={opsi} kosong="Tanpa cadangan" label="Model cadangan" />
         </div>
       </div>
       <p className="text-[12px] text-muted">Berlaku langsung untuk balasan berikutnya. Koneksi WhatsApp tidak terganggu. Coba dulu lewat &quot;Uji bot&quot; di halaman nomor.</p>

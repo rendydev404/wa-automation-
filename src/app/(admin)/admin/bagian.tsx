@@ -13,6 +13,9 @@ import { konfigMidtrans, kunciMidtransSah } from "@/lib/midtrans";
 import { asalAplikasi } from "@/lib/batas";
 import { kunciAnthropic, modelAnthropic, pengaturanAi, perkiraanPerBalasan, ringkasPakai } from "@/lib/ai";
 import { infoKurs } from "@/lib/kurs";
+import { infoTarif, siapkanTarif, tarifModel } from "@/lib/tarif";
+import type { OpsiModel } from "@/components/pilih-model";
+import { TarifInfo } from "@/components/tarif-info";
 import { sekarang } from "@/lib/db";
 
 /** Bagian-bagian panel admin; tiap halaman di /admin/* menyusunnya. */
@@ -54,10 +57,12 @@ export async function Ringkasan() {
 export async function MesinAi() {
   await requireAdmin();
   const kunci = kunciAnthropic();
-  const [atur, pakai, kursI] = await Promise.all([pengaturanAi(), ringkasPakai(sekarang() - 7 * 86400), infoKurs()]);
+  const [atur, pakai, kursI, tarifI] = await Promise.all([pengaturanAi(), ringkasPakai(sekarang() - 7 * 86400), infoKurs(), infoTarif()]);
   const KURS = kursI.kurs;
   // Daftar model resmi dari akun Anthropic (sekaligus bukti kuncinya masih berlaku).
   const daftarModel = kunci ? await modelAnthropic(kunci) : null;
+  const dasar = daftarModel?.length ? daftarModel : MODEL_SARAN;
+  const opsi = [...dasar, ...[atur.model, atur.cadangan].filter((id) => id && !dasar.some((m) => m.id === id)).map((id) => ({ id, nama: id }))].map((m) => opsiModel(m, KURS));
   const total = pakai.reduce((a, p) => ({ n: a.n + p.balasan, usd: a.usd + p.biaya_usd }), { n: 0, usd: 0 });
   return (
     <section className="card p-6">
@@ -76,19 +81,10 @@ export async function MesinAi() {
         {!kunci ? "belum dipasang di server (developer: ANTHROPIC_API_KEY di .env)." : daftarModel === null ? "terpasang di server tapi ditolak/tak terjangkau, hubungi developer." : "terpasang di server ✓"}
       </p>
       <div className="mt-4">
-        <FormAi
-          penyedia={atur.mode}
-          model={atur.model}
-          cadangan={atur.cadangan}
-          adaKunci={!!kunci}
-          daftarModel={daftarModel}
-          biaya={Object.fromEntries(
-            [...new Set([...(daftarModel ?? []).map((m) => m.id), "claude-haiku-5-5", "claude-sonnet-5-5"])]
-              .map((id) => [id, perkiraanPerBalasan(id)] as const)
-              .filter((x): x is readonly [string, number] => x[1] !== null)
-              .map(([id, usd]) => [id, Math.round(usd * KURS)])
-          )}
-        />
+        <FormAi penyedia={atur.mode} model={atur.model} cadangan={atur.cadangan} adaKunci={!!kunci} opsi={opsi} />
+      </div>
+      <div className="mt-3">
+        <TarifInfo info={tarifI} />
       </div>
       <div className="mt-5 border-t border-line pt-4">
         <p className="text-[12.5px] font-semibold">7 hari terakhir</p>
@@ -136,7 +132,34 @@ export async function Pengaturan() {
   );
 }
 
-/** Model yang tarif resminya sudah dicek (src/lib/ai.ts) dan bisa jadi acuan biaya. */
+/** Saran model bila daftar dari Anthropic belum bisa diambil (kunci belum dipasang). */
+const MODEL_SARAN = [
+  { id: "claude-haiku-5-5", nama: "Claude Haiku 5.5" },
+  { id: "claude-sonnet-5-5", nama: "Claude Sonnet 5.5" },
+];
+
+/** Satu pilihan model untuk pemilih model: biaya per balasan (Rp) dan tarif resmi per 1 juta token, bila tercantum. */
+function opsiModel(m: { id: string; nama: string }, kurs: number, tambahan = 0): OpsiModel {
+  const usd = perkiraanPerBalasan(m.id);
+  const t = tarifModel(m.id);
+  return { id: m.id, nama: m.nama, rpBalasan: usd === null ? null : usd * kurs * (1 + tambahan), masuk: t?.masuk ?? null, keluar: t?.keluar ?? null };
+}
+
+/**
+ * Model acuan biaya untuk simulasi paket & paket Custom: semua model di akun Anthropic yang tarifnya tercantum di halaman
+ * harga resmi (tanpa kunci: tiga model yang tarifnya dicek manual).
+ */
+async function modelAcuan(): Promise<{ id: string; nama: string; usd: number; masuk: number; keluar: number }[]> {
+  await siapkanTarif();
+  const daftar = (kunciAnthropic() && (await modelAnthropic())) || MODEL_ACUAN;
+  return daftar.flatMap((m) => {
+    const usd = perkiraanPerBalasan(m.id);
+    const t = tarifModel(m.id);
+    return usd === null || !t ? [] : [{ id: m.id, nama: m.nama, usd, masuk: t.masuk, keluar: t.keluar }];
+  });
+}
+
+/** Cadangan daftar model acuan bila kunci Anthropic belum dipasang (tarifnya ada di TARIF_CADANGAN, tarif.ts). */
 const MODEL_ACUAN = [
   { id: "claude-haiku-5-5", nama: "Claude Haiku 5.5" },
   { id: "claude-sonnet-5-5", nama: "Claude Sonnet 5.5" },
@@ -145,11 +168,7 @@ const MODEL_ACUAN = [
 
 export async function KelolaPaket() {
   await requireAdmin();
-  const [paket, acuan, nyata, kursI, custom] = await Promise.all([daftarPaket({ semua: true }), acuanHarga(), pemakaianNyata(), infoKurs(), paketCustom()]);
-  const modelAcuan = MODEL_ACUAN.flatMap((m) => {
-    const usd = perkiraanPerBalasan(m.id);
-    return usd === null ? [] : [{ ...m, usd }];
-  });
+  const [paket, acuan, nyata, kursI, custom, daftarAcuan, tarifI] = await Promise.all([daftarPaket({ semua: true }), acuanHarga(), pemakaianNyata(), infoKurs(), paketCustom(), modelAcuan(), infoTarif()]);
   return (
     <section className="card p-6">
       <h2 className="flex items-center gap-2 text-[15px] font-bold">
@@ -161,13 +180,16 @@ export async function KelolaPaket() {
         <div className="border-t border-accent/20 bg-surface p-4">
           <SimulasiHarga
             paket={paket.map((p) => ({ id: p.id, nama: p.nama, harga: p.harga, durasi_hari: p.durasi_hari, kuota_nomor: p.kuota_nomor, kuota_balasan: p.kuota_balasan, unggulan: p.unggulan }))}
-            model={modelAcuan}
+            model={daftarAcuan}
             acuan={acuan}
             nyata={nyata}
             kursInfo={kursI}
           />
         </div>
       </details>
+      <div className="mt-3">
+        <TarifInfo info={tarifI} />
+      </div>
       <ul className="mt-4 divide-y divide-line rounded-xl border border-line">
         {paket.map((p) => (
           <li key={p.id}>
@@ -212,14 +234,12 @@ export async function KelolaPaket() {
 /** Paket Custom: kuota → harga otomatis (margin & asumsi biaya bisa diatur, harga bisa ditimpa), lihat paket-custom.tsx. */
 export async function KelolaPaketCustom() {
   await requireAdmin();
-  const [custom, acuan, nyata, kursI, paket, midtrans] = await Promise.all([paketCustom(), acuanHarga(), pemakaianNyata(), infoKurs(), daftarPaket(), konfigMidtrans()]);
-  const model = MODEL_ACUAN.flatMap((m) => {
-    const usd = perkiraanPerBalasan(m.id);
-    return usd === null ? [] : [{ ...m, usd }];
-  });
+  const [custom, acuan, nyata, kursI, paket, midtrans, model] = await Promise.all([paketCustom(), acuanHarga(), pemakaianNyata(), infoKurs(), daftarPaket(), konfigMidtrans(), modelAcuan()]);
   // Model tersimpan yang tidak ada di daftar acuan (mis. diganti di versi lama) tetap bisa dipilih bila tarifnya diketahui.
   const usdTersimpan = perkiraanPerBalasan(custom.model);
-  if (usdTersimpan !== null && !model.some((m) => m.id === custom.model)) model.push({ id: custom.model, nama: custom.model, usd: usdTersimpan });
+  const tarifTersimpan = tarifModel(custom.model);
+  if (usdTersimpan !== null && tarifTersimpan && !model.some((m) => m.id === custom.model))
+    model.push({ id: custom.model, nama: custom.model, usd: usdTersimpan, masuk: tarifTersimpan.masuk, keluar: tarifTersimpan.keluar });
   const tampil = customTampil(custom);
   return (
     <section id="paket-custom" className="card scroll-mt-24 p-5 sm:p-6">

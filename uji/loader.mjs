@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 
 // Kurs USD→Rp memakai angka tetap supaya uji tidak bergantung pada jaringan; uji kurs.ts sendiri mematikannya.
 process.env.KURS_USD_TETAP ??= "16500";
+// Tarif model Claude: tabel cadangan tanpa jaringan; uji tarif.ts sendiri mematikannya.
+process.env.TARIF_TETAP ??= "1";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {

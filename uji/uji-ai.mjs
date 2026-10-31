@@ -343,6 +343,116 @@ await cek("kurs pasar: belum pernah berhasil sama sekali = perkiraan cadangan ya
   })
 );
 
+// ---------- Tarif resmi model Claude: dari halaman harga Anthropic ----------
+const TR = await lib("src/lib/tarif.ts");
+const dekat = (a, b) => assert.ok(Math.abs(a - b) < 1e-12, `${a} != ${b}`);
+const halamanHarga = (haikuMasuk = "$0.10") => `# Pricing
+
+## Model pricing
+
+The following table shows pricing for all Claude models:
+
+| Model | Base input tokens | 5m cache writes | 1h cache writes | Cache hits and refreshes | Output tokens |
+| :---- | :---- | :---- | :---- | :---- | :---- |
+| Claude Fable 5.1 | $10 / MTok | $12.50 / MTok | $20 / MTok | $0.25 / MTok<sup>1</sup> | $50 / MTok |
+| Claude Opus 4.1 ([retired](https://x.test/deprecations)) | $15 / MTok | $18.75 / MTok | $30 / MTok | $1.50 / MTok | $75 / MTok |
+| Claude Sonnet 5.5 | $2 / MTok | $2.50 / MTok | $4 / MTok | $0.10 / MTok<sup>2</sup> | $10 / MTok |
+| Claude Haiku 5.5 (for prompts up to 100,000 tokens) | ${haikuMasuk} / MTok | $0.125 / MTok | $0.20 / MTok | $0.01 / MTok | $0.50 / MTok |
+| Claude Haiku 5.5 (for prompts over 100,000 tokens) | $0.50 / MTok | $0.625 / MTok | $1 / MTok | $0.05 / MTok | $2.50 / MTok |
+| Claude Haiku 4.5 | $1 / MTok | $1.25 / MTok | $2 / MTok | $0.10 / MTok | $5 / MTok |
+
+## Batch processing
+
+| Model | Batch input | Batch output |
+| :---- | :---- | :---- |
+| Claude Haiku 5.5 | $0.05 / MTok | $0.25 / MTok |
+`;
+
+await cek("tarif: tabel 'Model pricing' resmi terbaca per model (kolom dari judul, baris pertama Haiku 5.5, tautan & catatan kaki diabaikan)", async () => {
+  const t = TR.bacaTabelTarif(halamanHarga());
+  assert.deepEqual(Object.keys(t), ["fable 5.1", "opus 4.1", "sonnet 5.5", "haiku 5.5", "haiku 4.5"]);
+  assert.deepEqual(t["haiku 5.5"], { masuk: 0.1, keluar: 0.5, tulisCache: 0.125, tulisCache1j: 0.2, bacaCache: 0.01 });
+  assert.deepEqual(t["fable 5.1"], { masuk: 10, keluar: 50, tulisCache: 12.5, tulisCache1j: 20, bacaCache: 0.25 });
+  // Kolom ditukar: tetap benar karena dicari dari judulnya
+  const tukar = halamanHarga().replace("| Model | Base input tokens | 5m cache writes | 1h cache writes | Cache hits and refreshes | Output tokens |", "| Model | Output tokens | 5m cache writes | 1h cache writes | Cache hits and refreshes | Base input tokens |");
+  assert.equal(TR.bacaTabelTarif(tukar)["sonnet 5.5"].keluar, 2);
+  // Bentuk halaman berubah / rusak: ditolak utuh (null), bukan angka setengah benar
+  assert.equal(TR.bacaTabelTarif("# Pricing\n\nSegera hadir"), null);
+  assert.equal(TR.bacaTabelTarif(halamanHarga().replace("Base input tokens", "Input")), null);
+  for (const [id, k] of [["claude-haiku-5-5", "haiku 5.5"], ["claude-opus-4-5-20251101", "opus 4.5"], ["claude-3-5-haiku-20241022", "haiku 3.5"], ["claude-fable-5", "fable 5"], ["gpt-4", null]])
+    assert.equal(TR.kunciModel(id), k, id);
+});
+
+const denganTarifResmi = async (fn) => {
+  const tetap = process.env.TARIF_TETAP;
+  delete process.env.TARIF_TETAP;
+  const reset = async () => {
+    for (const k of Object.keys(globalThis.__waTarif ?? {})) delete globalThis.__waTarif[k];
+    await setSetting("tarif_anthropic", "");
+  };
+  try {
+    await reset();
+    await fn();
+  } finally {
+    globalThis.fetch = asli;
+    process.env.TARIF_TETAP = tetap;
+    await reset();
+  }
+};
+const tiruHarga = (fn) =>
+  (globalThis.fetch = async (url) => {
+    permintaan.push({ url: String(url) });
+    const h = fn(String(url));
+    if (!h) throw new Error("jaringan mati (uji)");
+    return new Response(h, { status: 200, headers: { "content-type": "text/markdown" } });
+  });
+
+await cek("tarif: biaya per balasan memakai tarif resmi terbaru; harga Anthropic berubah -> biaya ikut berubah & tercatat; cek ulang paling cepat tiap jam", () =>
+  denganTarifResmi(async () => {
+    tiruHarga((u) => (u.includes("platform.claude.com") ? halamanHarga() : null));
+    permintaan.length = 0;
+    const i = await TR.infoTarif();
+    assert.deepEqual([i.sumber, i.jumlahModel, i.berubah], ["resmi", 5, 0]);
+    assert.equal(permintaan.length, 1);
+    dekat(AI.perkiraanPerBalasan("claude-haiku-5-5"), 0.000846);
+    assert.ok(AI.perkiraanPerBalasan("claude-fable-5-1") > 0.07, "model baru di halaman harga langsung punya biaya");
+    assert.equal(AI.perkiraanPerBalasan("claude-opus-5-5"), null, "tidak tercantum = tidak dikira-kira");
+    await TR.infoTarif();
+    assert.equal(permintaan.length, 1, "dalam 1 jam tidak membaca ulang");
+    // Anthropic menaikkan harga input Haiku 5.5: tombol Perbarui -> biaya per balasan ikut naik
+    tiruHarga((u) => (u.includes("platform.claude.com") ? halamanHarga("$0.20") : null));
+    const j = await TR.perbaruiTarif();
+    assert.ok(j.berubah > 0);
+    assert.equal(TR.tarifModel("claude-haiku-5-5").masuk, 0.2);
+    dekat(AI.perkiraanPerBalasan("claude-haiku-5-5"), 0.001596); // 7.500 x 0,2 + 4.100 x 0,01 + 110 x 0,5, per juta
+    assert.equal(AI.biayaAnthropic("claude-haiku-5-5", { input_tokens: 1_000_000 }), 0.2);
+    assert.equal(JSON.parse(await getSetting("tarif_anthropic")).t["haiku 5.5"].masuk, 0.2);
+  })
+);
+
+await cek("tarif: halaman harga gagal/berubah bentuk = tarif terakhir tetap dipakai & tahan restart; belum pernah berhasil = tarif cadangan yang ditandai", () =>
+  denganTarifResmi(async () => {
+    tiruHarga(() => null);
+    const awal = await TR.infoTarif();
+    assert.equal(awal.sumber, "cadangan");
+    dekat(AI.perkiraanPerBalasan("claude-haiku-5-5"), 0.000846); // TARIF_CADANGAN
+    tiruHarga(() => halamanHarga());
+    globalThis.__waTarif.ronde -= 3600; // lewat jeda coba ulang
+    assert.equal((await TR.infoTarif({ tunggu: true })).sumber, "resmi");
+    tiruHarga(() => "# Pricing\n\n(halaman diganti)");
+    globalThis.__waTarif.ronde -= 3600;
+    const gagal = await TR.infoTarif({ tunggu: true });
+    assert.deepEqual([gagal.sumber, gagal.jumlahModel], ["tersimpan", 5]);
+    assert.ok(AI.perkiraanPerBalasan("claude-fable-5-1") > 0, "tabel lama tetap dipakai");
+    for (const k of Object.keys(globalThis.__waTarif)) delete globalThis.__waTarif[k]; // server dimulai ulang
+    tiruHarga(() => null);
+    const baru = await TR.infoTarif();
+    assert.notEqual(baru.sumber, "cadangan");
+    assert.equal(baru.jumlahModel, 5);
+    await new Promise((r) => setTimeout(r, 50));
+  })
+);
+
 await cek("riwayat lengkap (penyedia tanpa ingatan): seluruh percakapan (tidak dipotong karena lama diam), tanpa pesan yang sedang dijawab", async () => {
   const kunci = "k".repeat(32);
   const t = sekarang();

@@ -6,6 +6,7 @@ import { Calculator, ChevronDown, Eye, Loader2, MessageCircle, Minus, Plus, Rota
 import { adminPaketCustomAction } from "@/app/actions";
 import { KartuCustom } from "@/components/kartu-custom";
 import { KursInfo } from "@/components/kurs-info";
+import { PilihModel } from "@/components/pilih-model";
 import { useKursLangsung } from "@/components/kurs-langsung";
 import { Pesan, Saklar } from "@/components/ui";
 import { rapikanNomorWa } from "@/lib/format";
@@ -92,8 +93,8 @@ export function PembangunCustom({
   awal: PaketCustom;
   /** Acuan simulasi paket biasa: dipakai sebagai titik awal dan bisa disamakan kapan saja. */
   acuan: AcuanUmum;
-  /** Model acuan + biaya dasar per balasan (USD) dari tarif resmi & profil token nyata. */
-  model: { id: string; nama: string; usd: number }[];
+  /** Model acuan + biaya dasar per balasan (USD) dari tarif resmi & profil token nyata, dan tarif per 1 juta token. */
+  model: { id: string; nama: string; usd: number; masuk: number; keluar: number }[];
   nyata: DataNyata;
   kursInfo: InfoKurs;
   /** Paket biasa yang dijual, untuk membandingkan harga per balasan. */
@@ -388,17 +389,19 @@ export function PembangunCustom({
           lipat
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <span className="label">Model AI acuan biaya</span>
-              <select value={c.model} onChange={(e) => ubah({ model: e.target.value })} className="field">
-                {!usd && <option value={c.model}>{c.model} (tarif belum diketahui)</option>}
-                {model.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.nama} · {rpHalus(m.usd * k.info.kurs * (1 + TAMBAHAN_BIAYA_BALASAN))}/balasan
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div>
+              <label htmlFor="c-model" className="label">
+                Model AI acuan biaya
+              </label>
+              <PilihModel
+                id="c-model"
+                nilai={c.model}
+                onUbah={(id) => ubah({ model: id })}
+                label="Model AI acuan biaya"
+                opsi={model.map((m) => ({ id: m.id, nama: m.nama, rpBalasan: m.usd * k.info.kurs * (1 + TAMBAHAN_BIAYA_BALASAN), masuk: m.masuk, keluar: m.keluar }))}
+              />
+              {!usd && <span className="mt-1 block text-[12px] text-warning">Tarif {c.model} tidak tercantum di halaman harga resmi; pilih model lain.</span>}
+            </div>
             <label className="block">
               <span className="label">Metode bayar acuan (biaya Midtrans)</span>
               <select value={c.metode} onChange={(e) => ubah({ metode: e.target.value as MetodeBayar })} className="field">

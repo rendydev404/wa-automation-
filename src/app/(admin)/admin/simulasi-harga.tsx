@@ -5,6 +5,7 @@ import { ArrowRight, Lock, Sparkles } from "lucide-react";
 import { adminHargaAction } from "@/app/actions";
 import { KursInfo } from "@/components/kurs-info";
 import { useKursLangsung } from "@/components/kurs-langsung";
+import { PilihModel } from "@/components/pilih-model";
 import { Pesan, SubmitButton } from "@/components/ui";
 import type { InfoKurs } from "@/lib/kurs-def";
 import { type AcuanHarga, METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hitungHarga, kuotaDariHarga, nomorDariKuota } from "@/lib/harga";
@@ -76,8 +77,8 @@ export function SimulasiHarga({
   kursInfo,
 }: {
   paket: PaketSimulasi[];
-  /** Model yang bisa dipilih + biaya dasar per balasan (USD) dari tarif resmi & profil token nyata. */
-  model: { id: string; nama: string; usd: number }[];
+  /** Model yang bisa dipilih + biaya dasar per balasan (USD) dari tarif resmi & profil token nyata, dan tarif per 1 juta token. */
+  model: { id: string; nama: string; usd: number; masuk: number; keluar: number }[];
   acuan: { margin: number; pemakaian: number; metode: MetodeBayar; biayaServerNomor: number; kurs: number; model: string };
   nyata: DataNyata;
   /** Kurs pasar otomatis (kurs.ts): hanya dibaca, tidak bisa diisi manual; diperbarui terus selama halaman terbuka. */
@@ -162,16 +163,19 @@ export function SimulasiHarga({
           <input type="range" name="pemakaian" min={10} max={100} step={10} value={pemakaian} onChange={(e) => setPemakaian(Number(e.target.value))} className="w-full accent-[var(--c-accent)]" />
           <span className="text-[11.5px] text-faint">100% = pelanggan menghabiskan kuota (paling aman).</span>
         </label>
-        <label className="block">
-          <span className="label">Model AI acuan</span>
-          <select name="model" value={idModel} onChange={(e) => setIdModel(e.target.value)} className="field">
-            {model.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.nama} · {rp(m.usd * kurs * (1 + TAMBAHAN_BIAYA_BALASAN))}/balasan
-              </option>
-            ))}
-          </select>
-        </label>
+        <div>
+          <label htmlFor="sim-model" className="label">
+            Model AI acuan
+          </label>
+          <PilihModel
+            id="sim-model"
+            name="model"
+            nilai={idModel}
+            onUbah={setIdModel}
+            label="Model AI acuan"
+            opsi={model.map((m) => ({ id: m.id, nama: m.nama, rpBalasan: m.usd * kurs * (1 + TAMBAHAN_BIAYA_BALASAN), masuk: m.masuk, keluar: m.keluar }))}
+          />
+        </div>
         <label className="block">
           <span className="label">Metode bayar acuan (biaya Midtrans)</span>
           <select name="metode" value={metode} onChange={(e) => setMetode(e.target.value as MetodeBayar)} className="field">

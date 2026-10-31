@@ -139,6 +139,11 @@ model akun Anthropic). API key TIDAK lewat dashboard: developer memasang `ANTHRO
 `/opt/wa-automation/.env` (admin hanya melihat statusnya). Setiap jawaban,
 apa pun penyedianya, melewati penjaga (`src/lib/pemeriksa.ts`): mengaku admin/pemilik, menjanjikan tindakan,
 atau angka/tautan tak bersumber = ditulis ulang sekali, lalu jawaban aman. Biaya & token per balasan: tabel `ai_pakai`.
+Tarif model (`src/lib/tarif.ts`): API model Anthropic tidak memuat harga, jadi tarif dibaca dari halaman harga resmi
+(`platform.claude.com/docs/en/about-claude/pricing.md`, tabel "Model pricing"), dicek ulang tiap jam + tombol "Perbarui",
+disimpan di database (tahan restart & halaman yang sedang gagal); tabel yang bentuknya berubah ditolak utuh. Biaya tiap
+balasan, pemilih model di Mesin AI, simulasi paket, dan paket Custom memakai tarif ini; model yang tidak tercantum tidak
+diberi harga karangan.
 Membandingkan model dengan percakapan asli: `uji/banding-model.mjs` (cara pakai di awal berkas).
 
 Paket & pembayaran (`src/lib/langganan.ts`, `src/lib/midtrans.ts`), semuanya dikelola admin di `/admin`:

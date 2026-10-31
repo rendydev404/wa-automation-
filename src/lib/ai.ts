@@ -4,6 +4,7 @@ import { db, getSetting, sekarang } from "./db";
 import { hermesSehat, hermesTerkonfigurasi, tanyaHermes } from "./hermes";
 import { JAWABAN_AMAN, type Pelanggaran, pesanKoreksi, periksaJawaban } from "./pemeriksa";
 import { teksSoul } from "./soul";
+import { tarifModel } from "./tarif";
 import { type JenisAbaikan, ambilAbaikan, buangTagAbaikan } from "./spam";
 import { type TagTeruskan, ambilTeruskan } from "./teruskan";
 import type { Foto } from "./types";
@@ -99,18 +100,6 @@ async function jawabHermes(r: PermintaanAi): Promise<JawabanAi> {
 const API = "https://api.anthropic.com/v1";
 const VERSI_API = "2023-06-01";
 
-/**
- * Tarif resmi Anthropic per 1 juta token (USD), dicek di platform.claude.com/docs/en/about-claude/pricing
- * (29 Okt 2026), untuk prompt <= 100 ribu token (prompt balasan WhatsApp ±12 ribu token). Cache = TTL 5 menit.
- * Hanya model yang tarifnya sudah dicek; model lain: biaya tidak dihitung (null) daripada mengira-ngira.
- * Tagihan resmi tetap di Claude Console.
- */
-const HARGA: Record<string, { masuk: number; keluar: number; tulisCache: number; bacaCache: number }> = {
-  "claude-haiku-5-5": { masuk: 0.1, keluar: 0.5, tulisCache: 0.125, bacaCache: 0.01 },
-  "claude-sonnet-5-5": { masuk: 2, keluar: 10, tulisCache: 2.5, bacaCache: 0.1 }, // baca cache turun ke $0,10 sejak 7 Okt 2026
-  "claude-haiku-4-5": { masuk: 1, keluar: 5, tulisCache: 1.25, bacaCache: 0.1 },
-};
-
 interface PakaiAnthropic {
   input_tokens?: number;
   output_tokens?: number;
@@ -118,8 +107,13 @@ interface PakaiAnthropic {
   cache_read_input_tokens?: number;
 }
 
+/**
+ * Biaya satu panggilan (USD) dari tarif resmi Anthropic yang berlaku sekarang (tarif.ts: diambil dari halaman harga
+ * resmi dan ikut berubah bila Anthropic mengubahnya). Cache = TTL 5 menit. Model yang tidak tercantum di halaman harga:
+ * null (biaya tidak dihitung) daripada mengira-ngira. Tagihan resmi tetap di Claude Console.
+ */
 export function biayaAnthropic(model: string, u: PakaiAnthropic): number | null {
-  const h = HARGA[model.replace(/-\d{8}$/, "")];
+  const h = tarifModel(model);
   if (!h) return null;
   return (
     ((u.input_tokens ?? 0) * h.masuk +
@@ -221,10 +215,17 @@ async function tanyaAnthropic(r: PermintaanAi, model: string, cadangan: string):
   return { ...j, ms: Math.round(performance.now() - mulai), penyedia: "anthropic" };
 }
 
-/** Daftar model Claude yang bisa dipakai kunci ini (juga uji koneksi). null = kunci salah / tak terjangkau. */
-export async function modelAnthropic(kunci?: string | null): Promise<{ id: string; nama: string }[] | null> {
+const gm = globalThis as unknown as { __waModel?: { kunci: string; at: number; daftar: { id: string; nama: string }[] } };
+
+/**
+ * Daftar model Claude yang bisa dipakai kunci ini (juga uji koneksi). null = kunci salah / tak terjangkau. Hasil sah
+ * dipegang 10 menit, jadi beberapa bagian panel admin yang memintanya bersamaan tidak memanggil Anthropic berkali-kali.
+ */
+export async function modelAnthropic(kunci?: string | null, opsi: { segar?: boolean } = {}): Promise<{ id: string; nama: string }[] | null> {
   const k = kunci ?? kunciAnthropic();
   if (!k) return null;
+  const c = gm.__waModel;
+  if (!opsi.segar && c && c.kunci === k && Date.now() - c.at < 600_000) return c.daftar;
   try {
     const res = await fetch(`${API}/models?limit=100`, {
       headers: { "x-api-key": k, "anthropic-version": VERSI_API },
@@ -233,7 +234,9 @@ export async function modelAnthropic(kunci?: string | null): Promise<{ id: strin
     });
     if (!res.ok) return null;
     const { data } = (await res.json()) as { data: { id: string; display_name?: string }[] };
-    return data.map((m) => ({ id: m.id, nama: m.display_name || m.id }));
+    const daftar = data.map((m) => ({ id: m.id, nama: m.display_name || m.id }));
+    gm.__waModel = { kunci: k, at: Date.now(), daftar };
+    return daftar;
   } catch {
     return null;
   }
@@ -250,7 +253,7 @@ export async function aiSehat(): Promise<boolean> {
   const k = kunciAnthropic() ?? "";
   const c = g.__waAiSehat;
   if (c && c.kunci === k && Date.now() - c.at < 5 * 60_000) return c.ok; // daftar model cukup dicek tiap 5 menit
-  const ok = (await modelAnthropic(k)) !== null;
+  const ok = (await modelAnthropic(k, { segar: true })) !== null; // pemeriksaan kesehatan: selalu tanya ulang
   g.__waAiSehat = { kunci: k, at: Date.now(), ok };
   return ok;
 }
