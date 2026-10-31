@@ -9,13 +9,14 @@ import { authConfigured } from "@/lib/auth";
 import { asalAplikasi, ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
 import { sekarang, setSetting } from "@/lib/db";
 import { ATURAN_ANGKA, ATURAN_SAKLAR, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
-import { berikanPaket, hentikanLangganan, mulaiBayar, paketById, riwayatTransaksi, segarkanKuota, simpanPaket, terapkanSimulasi, terapkanStatus } from "@/lib/langganan";
+import { type IsiKhusus, METODE_MANUAL, type MetodeManual, berikanPaketManual, hentikanLangganan, mulaiBayar, paketById, riwayatTransaksi, segarkanKuota, simpanPaket, terapkanSimulasi, terapkanStatus } from "@/lib/langganan";
 import { MidtransError, konfigMidtrans } from "@/lib/midtrans";
+import { tanggal } from "@/lib/format";
 import { GalatCustom, customTampil, periksaCustom, ringkasCustom, simpanPaketCustom } from "@/lib/paket-custom";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
 import { geserProduk, hapusProduk, katalogBoleh, setTersedia } from "@/lib/katalog";
 import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringSpam, setTeruskan, siapDipakai, tambahNomor, ubahNomor } from "@/lib/numbers";
-import { ujiTeruskan } from "@/lib/penerusan";
+import { kabariPaketAktif, ujiTeruskan } from "@/lib/penerusan";
 import { PERLU_PENERUS } from "@/lib/teruskan";
 import { cekPassword, verifyPassword } from "@/lib/password";
 import { type ItemPelajaran, daftarPelajaran, hapusPelajaran } from "@/lib/pelajaran";
@@ -730,20 +731,64 @@ export async function adminPaketCustomAction(_lalu: Hasil | null, form: FormData
   };
 }
 
+/**
+ * Admin mengaktifkan paket untuk satu akun (bayar di luar Midtrans atau kompensasi): paket terdaftar atau isi khusus
+ * hasil kesepakatan, pembayarannya dicatat sebagai transaksi lunas, dan (opsional) pemilik akun dikabari lewat WhatsApp.
+ */
 export async function adminBerikanPaketAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   const admin = await requireAdmin();
-  const userId = idSah(form.get("id"));
-  const paketId = idSah(form.get("paket"));
-  const hariMentah = String(form.get("hari") ?? "").trim();
-  const hari = hariMentah ? Number(hariMentah) : undefined;
-  const u = userId ? await penggunaById(userId) : undefined;
-  const p = paketId ? await paketById(paketId) : undefined;
-  if (!u || !p) return { ok: false, pesan: "Pengguna atau paket tidak valid." };
-  if (hari !== undefined && !(Number.isInteger(hari) && hari >= 1 && hari <= 3660)) return { ok: false, pesan: "Jumlah hari 1–3660." };
-  await berikanPaket(u.id, p.id, hari);
-  await catatLog(admin, "berikan paket", u.email, `${p.nama} ${hari ?? p.durasi_hari} hari`);
+  const u = await (async () => {
+    const id = idSah(form.get("id"));
+    return id ? penggunaById(id) : undefined;
+  })();
+  if (!u) return { ok: false, pesan: "Pengguna tidak ditemukan." };
+  const angkaForm = (k: string) => {
+    const t = String(form.get(k) ?? "").replace(/\D/g, "");
+    return t ? Number(t) : null;
+  };
+  const khusus = form.get("mode") === "khusus";
+  const hari = angkaForm("hari");
+  if (hari !== null && !(hari >= 1 && hari <= 3660)) return { ok: false, pesan: "Durasi 1–3660 hari." };
+  let paketId: number | null = null;
+  let isi: IsiKhusus | undefined;
+  let namaPaket: string;
+  if (khusus) {
+    const nama = String(form.get("nama") ?? "").trim().slice(0, 60);
+    const kuotaBalasan = angkaForm("kuota_balasan");
+    const kuotaNomor = angkaForm("kuota_nomor");
+    if (nama.length < 2) return { ok: false, pesan: "Nama paket khusus wajib diisi." };
+    if (kuotaBalasan === null || kuotaBalasan < 1 || kuotaBalasan > 10_000_000) return { ok: false, pesan: "Kuota balasan AI 1–10.000.000." };
+    if (kuotaNomor === null || kuotaNomor < 1 || kuotaNomor > 1000) return { ok: false, pesan: "Jumlah nomor 1–1.000." };
+    if (hari === null) return { ok: false, pesan: "Isi durasi paket khusus." };
+    isi = { nama, kuota_balasan: kuotaBalasan, kuota_nomor: kuotaNomor };
+    namaPaket = nama;
+  } else {
+    const p = await paketById(idSah(form.get("paket")) ?? 0);
+    if (!p) return { ok: false, pesan: "Pilih paket dulu." };
+    paketId = p.id;
+    namaPaket = p.nama;
+  }
+  const metode = String(form.get("metode") ?? "");
+  if (!(metode in METODE_MANUAL)) return { ok: false, pesan: "Pilih cara bayar." };
+  const jumlah = angkaForm("jumlah") ?? 0;
+  if (metode !== "kompensasi" && !(jumlah >= 1 && jumlah <= MAKS_HARGA_PAKET)) return { ok: false, pesan: "Isi jumlah yang diterima (atau pilih Gratis / kompensasi)." };
+  const catatan = String(form.get("catatan") ?? "").trim().slice(0, 300);
+
+  const h = await berikanPaketManual(u.id, { paketId, isi, hari: hari ?? undefined, metode: metode as MetodeManual, jumlah, catatan });
+  const kabar = form.get("kabari") === "on" ? await kabariPaketAktif(u.id, h) : null;
+  await catatLog(
+    admin,
+    h.diperpanjang ? "perpanjang paket" : "berikan paket",
+    u.email,
+    `${namaPaket}${isi ? " (isi khusus)" : ""} · ${h.kuota_balasan.toLocaleString("id-ID")} balasan · ${h.kuota_nomor} nomor · sampai ${tanggal(h.sampai)} · ${METODE_MANUAL[metode as MetodeManual]} Rp${h.jumlah.toLocaleString("id-ID")}${catatan ? ` · ${catatan}` : ""}`
+  );
   revalidatePath(`/admin/pengguna/${u.id}`);
-  return { ok: true, pesan: `Paket ${p.nama} aktif untuk ${u.email}.` };
+  revalidatePath("/admin/transaksi");
+  const pesanKabar = kabar === "terkirim" ? " Pelanggan sudah dikabari lewat WhatsApp." : kabar === "gagal" ? " Kabar WhatsApp gagal terkirim." : kabar === "dilewati" ? " Kabar WhatsApp dilewati (tidak ada nomor yang tersambung dengan nomor penerus)." : "";
+  return {
+    ok: true,
+    pesan: `${h.nama} ${h.diperpanjang ? "diperpanjang" : "aktif"} untuk ${u.email} sampai ${tanggal(h.sampai)}. Pembayaran tercatat (${h.orderId}).${pesanKabar}`,
+  };
 }
 
 export async function adminHentikanLanggananAction(id: number): Promise<Hasil> {

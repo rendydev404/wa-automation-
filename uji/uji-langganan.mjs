@@ -448,6 +448,40 @@ await cek("paket Custom mengikuti kurs: bergeser >=1% -> harga otomatis dihitung
   }
 });
 
+console.log("== Berikan paket manual (admin) ==");
+await cek("berikan paket manual: paket terdaftar + pembayaran transfer tercatat lunas; paket sama = diperpanjang; isi khusus = mulai baru dengan kuota sendiri; kompensasi Rp0", async () => {
+  const akun = await P.buatAkun({ email: "manual@uji.test", nama: "Manual", password: "rahasia-manual-01" });
+  const b0 = await L.paketById(bisnis.id); // nilai terkini (uji simulasi di atas bisa mengubah kuotanya)
+  const h1 = await L.berikanPaketManual(akun.id, { paketId: bisnis.id, metode: "manual_transfer", jumlah: 249000, catatan: "BCA a.n. Manual" });
+  assert.deepEqual([h1.nama, h1.kuota_balasan, h1.kuota_nomor, h1.diperpanjang, h1.jumlah], ["Bisnis", b0.kuota_balasan, b0.kuota_nomor, false, 249000]);
+  assert.equal(h1.sampai - h1.mulai, b0.durasi_hari * 86400);
+  assert.match(h1.orderId, new RegExp(`^ADM-${akun.id}-\\d+-[0-9a-f]{6}$`));
+  let [t] = await L.riwayatTransaksi({ userId: akun.id });
+  assert.deepEqual([t.status, t.metode, t.jumlah, t.catatan, t.nama_paket], ["lunas", "manual_transfer", 249000, "BCA a.n. Manual", "Bisnis"]);
+  assert.equal((await L.hakAkun({ id: akun.id, peran: "user" })).paket, "Bisnis");
+  // Paket sama lagi = diperpanjang (masa + kuota ditambah), transaksi kedua tercatat
+  const h2 = await L.berikanPaketManual(akun.id, { paketId: bisnis.id, hari: 60, metode: "manual_tunai", jumlah: 498000, catatan: "" });
+  assert.deepEqual([h2.diperpanjang, h2.kuota_balasan, h2.sampai - h1.sampai], [true, 2 * b0.kuota_balasan, 60 * 86400]);
+  assert.equal((await L.riwayatTransaksi({ userId: akun.id })).length, 2);
+  // Isi khusus hasil kesepakatan: mengganti paket lama, kuota sesuai isian, tanpa paket terdaftar
+  const h3 = await L.berikanPaketManual(akun.id, { paketId: null, isi: { nama: "Custom PT Maju", kuota_balasan: 50000, kuota_nomor: 40 }, hari: 90, metode: "manual_transfer", jumlah: 4500000, catatan: "invoice 12" });
+  assert.deepEqual([h3.nama, h3.kuota_balasan, h3.kuota_nomor, h3.diperpanjang, h3.sampai - h3.mulai], ["Custom PT Maju", 50000, 40, false, 90 * 86400]);
+  const hak = await L.hakAkun({ id: akun.id, peran: "user" });
+  assert.deepEqual([hak.paket, hak.balasan, hak.nomor], ["Custom PT Maju", 50000, 40]);
+  const r = await L.riwayatLangganan(akun.id);
+  assert.deepEqual(r.map((l) => [l.nama_paket, l.paket_id]), [["Custom PT Maju", null], ["Bisnis", bisnis.id]]);
+  assert.ok(r[1].sampai <= sekarang(), "paket lama dihentikan saat diganti");
+  // Isi khusus lagi = tetap mulai baru (tidak memperpanjang isi khusus lain)
+  const h4 = await L.berikanPaketManual(akun.id, { paketId: null, isi: { nama: "Custom PT Maju", kuota_balasan: 50000, kuota_nomor: 40 }, hari: 30, metode: "kompensasi", jumlah: 99999, catatan: "" });
+  assert.deepEqual([h4.diperpanjang, h4.jumlah], [false, 0]);
+  [t] = await L.riwayatTransaksi({ userId: akun.id });
+  assert.deepEqual([t.metode, t.jumlah], ["kompensasi", 0]);
+  // Midtrans tetap memakai alur yang sama: berikanPaket lama masih berjalan
+  await L.hentikanLangganan(akun.id);
+  await L.berikanPaket(akun.id, starter.id);
+  assert.equal((await L.hakAkun({ id: akun.id, peran: "user" })).paket, "Starter");
+});
+
 console.log("== Katalog produk ==");
 const KAT = await lib("src/lib/katalog.ts");
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70, 0, 1, 1, 1, 0, 72, 0, 72, 0, 0, 0xff, 0xd9]);

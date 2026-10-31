@@ -182,12 +182,16 @@ export function catatBalasanLokal(userId: number): void {
 
 /** Setelah pembayaran / perubahan langganan: hitung ulang di pesan berikutnya. */
 export function segarkanKuota(userId?: number): void {
+  // Izin katalog (katalog.ts) bergantung pada langganan juga; dipegang di peta global yang sama namanya.
+  const katalog = (globalThis as unknown as { __waKatalogBoleh?: Map<number, unknown> }).__waKatalogBoleh;
   if (userId === undefined) {
     cacheKuota.clear();
     cacheBerbayar.clear();
+    katalog?.clear();
   } else {
     cacheKuota.delete(userId);
     cacheBerbayar.delete(userId);
+    katalog?.delete(userId);
   }
 }
 
@@ -255,9 +259,11 @@ export interface Transaksi {
   redirect_url: string | null;
   dibuat: number;
   dibayar: number | null;
+  /** Catatan pembayaran manual dari admin (referensi transfer, dsb.). */
+  catatan: string | null;
 }
 
-const KOLOM_TRX = "id, order_id, user_id, paket_id, nama_paket, jumlah, status, metode, redirect_url, dibuat, dibayar";
+const KOLOM_TRX = "id, order_id, user_id, paket_id, nama_paket, jumlah, status, metode, redirect_url, dibuat, dibayar, catatan";
 
 export async function riwayatTransaksi(opsi: { userId?: number; batas?: number }): Promise<(Transaksi & { email?: string })[]> {
   const sql = await db();
@@ -318,41 +324,114 @@ export async function terapkanStatus(k: KonfigMidtrans, orderId: string): Promis
       UPDATE transaksi SET status = ${status}, metode = ${s.payment_type ?? null}, dibayar = ${status === "lunas" ? (t.dibayar ?? kini) : t.dibayar}
        WHERE id = ${t.id}`;
     if (status !== "lunas" || t.aktif_id) return { status, baruAktif: false };
-    const id = await aktifkan(tx, { userId: t.user_id, paketId: t.paket_id, sumber: "midtrans" });
+    const { id } = await aktifkan(tx, { userId: t.user_id, paketId: t.paket_id, sumber: "midtrans" });
     await tx`UPDATE transaksi SET langganan_id = ${id} WHERE id = ${t.id}`;
     segarkanKuota(t.user_id);
     return { status, baruAktif: true };
   });
 }
 
+/** Isi paket yang disepakati khusus untuk satu akun (tidak mengubah paket mana pun). */
+export interface IsiKhusus {
+  nama: string;
+  kuota_nomor: number;
+  kuota_balasan: number;
+}
+
 /**
  * Aktifkan paket untuk pengguna. Paket sama dengan yang sedang aktif = DIPERPANJANG (masa ditambah, kuota balasan
  * ditambah). Paket lain = mulai baru sekarang (naik/turun paket), sisa paket lama tidak dibawa.
+ * `isi` = isi khusus yang disepakati admin dengan akun ini: disalin apa adanya, selalu mulai baru (tidak memperpanjang).
  */
-async function aktifkan(tx: Tx, a: { userId: number; paketId: number | null; sumber: "midtrans" | "admin"; hari?: number }): Promise<number> {
+async function aktifkan(
+  tx: Tx,
+  a: { userId: number; paketId: number | null; sumber: "midtrans" | "admin"; hari?: number; isi?: IsiKhusus }
+): Promise<{ id: number; nama: string; mulai: number; sampai: number; kuota_nomor: number; kuota_balasan: number; diperpanjang: boolean }> {
   const [p] = a.paketId ? await tx<Paket[]>`SELECT ${tx.unsafe(KOLOM_PAKET)} FROM paket WHERE id = ${a.paketId}` : [];
-  if (!p) throw new Error("Paket tidak ditemukan.");
+  if (!p && !a.isi) throw new Error("Paket tidak ditemukan.");
+  const nama = a.isi?.nama ?? p.nama;
+  const kuotaNomor = a.isi?.kuota_nomor ?? p.kuota_nomor;
+  const kuotaBalasan = a.isi?.kuota_balasan ?? p.kuota_balasan;
+  const hari = a.hari ?? p?.durasi_hari;
+  if (!hari) throw new Error("Durasi paket belum diisi.");
   const kini = sekarang();
-  const durasi = (a.hari ?? p.durasi_hari) * 86400;
+  const durasi = hari * 86400;
   const [l] = await tx<Langganan[]>`
     SELECT id, user_id, paket_id, nama_paket, mulai, sampai, kuota_nomor, kuota_balasan, sumber FROM langganan
      WHERE user_id = ${a.userId} AND sampai > ${kini} ORDER BY sampai DESC, id DESC LIMIT 1 FOR UPDATE`;
-  if (l && l.paket_id === p.id) {
-    await tx`UPDATE langganan SET sampai = sampai + ${durasi}, kuota_balasan = kuota_balasan + ${p.kuota_balasan} WHERE id = ${l.id}`;
-    return l.id;
+  if (l && !a.isi && p && l.paket_id === p.id) {
+    const [d] = await tx<{ sampai: number; kuota_balasan: number }[]>`
+      UPDATE langganan SET sampai = sampai + ${durasi}, kuota_balasan = kuota_balasan + ${kuotaBalasan} WHERE id = ${l.id}
+      RETURNING sampai, kuota_balasan`;
+    return { id: l.id, nama: l.nama_paket, mulai: l.mulai, sampai: d.sampai, kuota_nomor: l.kuota_nomor, kuota_balasan: d.kuota_balasan, diperpanjang: true };
   }
   if (l) await tx`UPDATE langganan SET sampai = ${kini} WHERE id = ${l.id}`; // diganti paket baru
   const [baru] = await tx<{ id: number }[]>`
     INSERT INTO langganan(user_id, paket_id, nama_paket, mulai, sampai, kuota_nomor, kuota_balasan, sumber)
-    VALUES (${a.userId}, ${p.id}, ${p.nama}, ${kini}, ${kini + durasi}, ${p.kuota_nomor}, ${p.kuota_balasan}, ${a.sumber})
+    VALUES (${a.userId}, ${p?.id ?? null}, ${nama}, ${kini}, ${kini + durasi}, ${kuotaNomor}, ${kuotaBalasan}, ${a.sumber})
     RETURNING id`;
-  return baru.id;
+  return { id: baru.id, nama, mulai: kini, sampai: kini + durasi, kuota_nomor: kuotaNomor, kuota_balasan: kuotaBalasan, diperpanjang: false };
 }
 
-/** Admin memberi/memperpanjang paket secara manual (mis. bayar tunai, kompensasi). */
+/** Admin memberi/memperpanjang paket secara manual tanpa catatan pembayaran (dipakai uji & kompensasi lama). */
 export async function berikanPaket(userId: number, paketId: number, hari?: number): Promise<void> {
   await transaksiDb((tx) => aktifkan(tx, { userId, paketId, sumber: "admin", hari }));
   segarkanKuota(userId);
+}
+
+/** Cara bayar di luar Midtrans yang dicatat admin. Disimpan di transaksi.metode. */
+export const METODE_MANUAL = {
+  manual_transfer: "Transfer bank",
+  manual_qris: "QRIS / e-wallet",
+  manual_tunai: "Tunai",
+  manual_lainnya: "Lainnya",
+  kompensasi: "Gratis / kompensasi",
+} as const;
+export type MetodeManual = keyof typeof METODE_MANUAL;
+
+export interface HasilBerikan {
+  langgananId: number;
+  orderId: string;
+  nama: string;
+  mulai: number;
+  sampai: number;
+  kuota_nomor: number;
+  kuota_balasan: number;
+  diperpanjang: boolean;
+  jumlah: number;
+}
+
+/**
+ * Admin mengaktifkan paket untuk satu akun setelah pembayaran di luar Midtrans (atau sebagai kompensasi): paket
+ * terdaftar ATAU isi khusus hasil kesepakatan, dan pembayarannya dicatat sebagai transaksi lunas (tampil di halaman
+ * Transaksi admin & riwayat pembayaran pelanggan). Aktivasi dan catatan pembayaran dalam satu transaksi database.
+ */
+export async function berikanPaketManual(
+  userId: number,
+  o: { paketId: number | null; isi?: IsiKhusus; hari?: number; metode: MetodeManual; jumlah: number; catatan: string }
+): Promise<HasilBerikan> {
+  const jumlah = o.metode === "kompensasi" ? 0 : o.jumlah;
+  const hasil = await transaksiDb(async (tx) => {
+    const l = await aktifkan(tx, { userId, paketId: o.paketId, sumber: "admin", hari: o.hari, isi: o.isi });
+    const kini = sekarang();
+    const orderId = `ADM-${userId}-${kini}-${randomBytes(3).toString("hex")}`;
+    await tx`
+      INSERT INTO transaksi(order_id, user_id, paket_id, nama_paket, jumlah, status, metode, dibuat, dibayar, langganan_id, catatan)
+      VALUES (${orderId}, ${userId}, ${o.paketId}, ${l.nama}, ${jumlah}, 'lunas', ${o.metode}, ${kini}, ${kini}, ${l.id}, ${o.catatan || null})`;
+    return { langgananId: l.id, orderId, nama: l.nama, mulai: l.mulai, sampai: l.sampai, kuota_nomor: l.kuota_nomor, kuota_balasan: l.kuota_balasan, diperpanjang: l.diperpanjang, jumlah };
+  });
+  segarkanKuota(userId);
+  return hasil;
+}
+
+/** Riwayat langganan satu akun, terbaru dulu (untuk halaman kelola pengguna). */
+export async function riwayatLangganan(userId: number, batas = 8): Promise<Langganan[]> {
+  const sql = await db();
+  return [
+    ...(await sql<Langganan[]>`
+      SELECT id, user_id, paket_id, nama_paket, mulai, sampai, kuota_nomor, kuota_balasan, sumber FROM langganan
+       WHERE user_id = ${userId} ORDER BY mulai DESC, id DESC LIMIT ${batas}`),
+  ];
 }
 
 /** Admin menghentikan langganan aktif seorang pengguna (kembali ke kuota gratis). */

@@ -1,11 +1,11 @@
 import "server-only";
 import { aturan, saklar } from "./aturan";
 import { db, getSetting, sekarang, setSetting } from "./db";
-import { angka } from "./format";
+import { angka, tanggal } from "./format";
 import { balasanTerpakai, hakAkun } from "./langganan";
-import type { Nomor } from "./numbers";
+import { type Nomor, nomorMilik } from "./numbers";
 import { type JenisTeruskan, type TagTeruskan, pesanUntukPemilik } from "./teruskan";
-import { kirimTeks } from "./wa";
+import { infoSesi, kirimTeks } from "./wa";
 
 /**
  * Pengiriman pesan yang diteruskan AI ke WhatsApp pribadi pemilik nomor (numbers.teruskan_ke), dikirim dari nomor
@@ -161,4 +161,33 @@ export async function riwayatTeruskan(numberId: number, batas = 20): Promise<Bar
   return sql<BarisTeruskan[]>`
     SELECT id, pelanggan, jenis, ringkasan, tujuan, status, created_at FROM teruskan
      WHERE number_id = ${numberId} ORDER BY created_at DESC, id DESC LIMIT ${batas}`;
+}
+
+/**
+ * Kabari pemilik akun bahwa paketnya sudah aktif (setelah admin mengaktifkan paket berbayar manual). Dikirim seperti
+ * kabar kuota habis: dari nomor bisnisnya yang tersambung ke nomor penerusnya sendiri. Tidak ada nomor yang
+ * tersambung + berpenerus = "dilewati".
+ */
+export async function kabariPaketAktif(
+  userId: number,
+  p: { nama: string; sampai: number; kuota_nomor: number; kuota_balasan: number; diperpanjang: boolean }
+): Promise<"terkirim" | "dilewati" | "gagal"> {
+  const nomor = (await nomorMilik(userId)).find((n) => n.teruskan_ke && infoSesi(n.sesi).status === "WORKING");
+  if (!nomor?.teruskan_ke) return "dilewati";
+  const app = process.env.APP_URL?.replace(/\/+$/, "");
+  const teks = [
+    `✅ *Paket ${p.nama} ${p.diperpanjang ? "diperpanjang" : "sudah aktif"}*`,
+    "",
+    `Berlaku sampai: ${tanggal(p.sampai)}`,
+    `Kuota: ${angka(p.kuota_balasan)} balasan AI, ${angka(p.kuota_nomor)} nomor WhatsApp`,
+    "",
+    `Terima kasih! Detail langganan bisa dilihat${app ? ` di ${app}/langganan` : " di menu Langganan pada dashboard"}.`,
+  ].join("\n");
+  try {
+    await kirimTeks(nomor.sesi, `${nomor.teruskan_ke}@s.whatsapp.net`, teks);
+    return "terkirim";
+  } catch (e) {
+    console.error(`[teruskan] kabar paket aktif gagal (akun ${userId}): ${e instanceof Error ? e.message : e}`);
+    return "gagal";
+  }
 }

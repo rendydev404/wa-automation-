@@ -7,7 +7,7 @@ import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
 import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, SalinTeks } from "./form-admin";
 import { customTampil, hargaAngka, paketCustom } from "@/lib/paket-custom";
 import { PembangunCustom } from "./paket-custom";
-import { acuanHarga, daftarPaket, kuotaBalasanGratis, pemakaianNyata, riwayatTransaksi } from "@/lib/langganan";
+import { METODE_MANUAL, acuanHarga, daftarPaket, kuotaBalasanGratis, pemakaianNyata, riwayatTransaksi } from "@/lib/langganan";
 import { SimulasiHarga } from "./simulasi-harga";
 import { konfigMidtrans, kunciMidtransSah } from "@/lib/midtrans";
 import { asalAplikasi } from "@/lib/batas";
@@ -304,7 +304,8 @@ export async function Transaksi() {
                 · {t.nama_paket} · Rp{angka(t.jumlah)}
                 <span className="block text-[12px] text-faint">
                   {waktuSingkatWib(t.dibuat)} · {t.order_id}
-                  {t.metode ? ` · ${t.metode.replace(/_/g, " ")}` : ""}
+                  {t.metode ? ` · ${t.metode in METODE_MANUAL ? `${METODE_MANUAL[t.metode as keyof typeof METODE_MANUAL]} (dicatat admin)` : t.metode.replace(/_/g, " ")}` : ""}
+                  {t.catatan ? ` · ${t.catatan}` : ""}
                 </span>
               </span>
               <span className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${STATUS_TRX[t.status] ?? ""}`}>{t.status}</span>

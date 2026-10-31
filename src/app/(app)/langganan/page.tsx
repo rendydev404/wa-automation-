@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Check, CreditCard, Sparkles } from "lucide-react";
 import { KartuLangganan } from "@/components/kartu-langganan";
 import { angka, tanggal, UMUR_HISTORI_HARI } from "@/lib/format";
-import { daftarPaket, hakAkun, riwayatTransaksi } from "@/lib/langganan";
+import { METODE_MANUAL, daftarPaket, hakAkun, riwayatTransaksi } from "@/lib/langganan";
 import { konfigMidtrans } from "@/lib/midtrans";
 import { customTampil, idPaketCustom, paketCustom, tautanCustom } from "@/lib/paket-custom";
 import { KartuCustom, TombolWaCustom } from "@/components/kartu-custom";
@@ -125,7 +125,7 @@ async function Riwayat() {
               <span className="font-semibold">Paket {t.nama_paket}</span> · Rp{angka(t.jumlah)}
               <span className="block text-[12px] text-faint">
                 {tanggal(t.dibuat)} · {t.order_id}
-                {t.metode ? ` · ${t.metode.replace(/_/g, " ")}` : ""}
+                {t.metode ? ` · ${t.metode in METODE_MANUAL ? METODE_MANUAL[t.metode as keyof typeof METODE_MANUAL] : t.metode.replace(/_/g, " ")}` : ""}
               </span>
             </span>
             <span className="flex items-center gap-2">

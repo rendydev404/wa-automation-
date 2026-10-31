@@ -8,10 +8,14 @@ import { nomorMilik, siapDipakai } from "@/lib/numbers";
 import { penggunaById } from "@/lib/pengguna";
 import { kuotaBawaan, requireAdmin } from "@/lib/session";
 import { infoSesi } from "@/lib/wa";
-import { AksiAkun, FormAiAkun, FormBerikanPaket, FormBlokir, FormKuota, HapusAkun, HentikanLangganan, PutuskanWa } from "../../form-admin";
+import { AksiAkun, FormAiAkun, FormBlokir, FormKuota, HapusAkun, HentikanLangganan, PutuskanWa } from "../../form-admin";
+import { BerikanPaket } from "../../berikan-paket";
+import { sekarang } from "@/lib/db";
+import { kursUsd } from "@/lib/kurs";
+import { paketCustom } from "@/lib/paket-custom";
 import { angka } from "@/lib/format";
-import { kunciAnthropic, pengaturanAi } from "@/lib/ai";
-import { aiUntukAkun, balasanTerpakai, daftarPaket, hakAkun, langgananAktif } from "@/lib/langganan";
+import { kunciAnthropic, pengaturanAi, perkiraanPerBalasan } from "@/lib/ai";
+import { aiUntukAkun, balasanTerpakai, daftarPaket, hakAkun, langgananAktif, pemakaianNyata, riwayatLangganan } from "@/lib/langganan";
 import { MEREK } from "@/lib/merek";
 
 export const metadata: Metadata = { title: `Kelola pengguna · ${MEREK}` };
@@ -55,7 +59,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   const id = Number((await params).id);
   const u = Number.isInteger(id) && id > 0 ? await penggunaById(id) : undefined;
   if (!u) notFound();
-  const [nomor, bawaan, hak, aktif, paket, atur, ai] = await Promise.all([
+  const [nomor, bawaan, hak, aktif, paket, atur, ai, riwayat, custom, kurs, nyata] = await Promise.all([
     nomorMilik(id),
     kuotaBawaan(),
     hakAkun(u),
@@ -63,7 +67,13 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
     daftarPaket({ semua: true, custom: true }),
     pengaturanAi(),
     aiUntukAkun(id),
+    riwayatLangganan(id),
+    paketCustom(),
+    kursUsd(),
+    pemakaianNyata(),
   ]);
+  const usdCustom = perkiraanPerBalasan(custom.model);
+  const kini = sekarang();
   const umum =
     atur.mode === "anthropic"
       ? `Claude API (${atur.model})`
@@ -158,12 +168,42 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               <p className="mt-1 text-[13px] text-muted tabular-nums">
                 Balasan AI: {angka(terpakai)} / {hak.balasan === null ? "∞" : angka(hak.balasan)}
               </p>
-              <div className="mt-4">
-                <FormBerikanPaket id={u.id} paket={paket} />
+              <div className="mt-5 border-t border-line pt-4">
+                <h3 className="text-[13.5px] font-bold">Berikan / perpanjang paket</h3>
+                <p className="mt-0.5 mb-4 text-[12px] text-muted">Untuk pembayaran di luar Midtrans (transfer, tunai) atau kompensasi. Pembayarannya ikut tercatat di Transaksi.</p>
+                <BerikanPaket
+                  userId={u.id}
+                  paket={paket.map((p) => ({ id: p.id, kode: p.kode, nama: p.nama, harga: p.harga, durasi_hari: p.durasi_hari, kuota_nomor: p.kuota_nomor, kuota_balasan: p.kuota_balasan, aktif: p.aktif }))}
+                  sekarang={aktif ? { paket_id: aktif.paket_id, nama_paket: aktif.nama_paket, sampai: aktif.sampai, kuota_balasan: aktif.kuota_balasan } : null}
+                  kini={kini}
+                  saran={usdCustom === null ? null : { spek: custom, konteks: { usd: usdCustom, kurs, balasanPerNomorBulan: nyata.balasanPerNomorBulan } }}
+                  bisaKabari={nomor.some((n) => !!n.teruskan_ke && infoSesi(n.sesi).status === "WORKING")}
+                />
               </div>
               {aktif && (
-                <div className="mt-3 border-t border-line pt-3">
+                <div className="mt-4 border-t border-line pt-3">
                   <HentikanLangganan id={u.id} />
+                </div>
+              )}
+              {riwayat.length > 0 && (
+                <div className="mt-4 border-t border-line pt-3">
+                  <p className="text-[11.5px] font-semibold tracking-[0.08em] text-muted uppercase">Riwayat langganan</p>
+                  <ul className="mt-2 space-y-2">
+                    {riwayat.map((l) => (
+                      <li key={l.id} className="flex items-start justify-between gap-3 text-[12.5px]">
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold">{l.nama_paket}</span>
+                          <span className="block text-muted tabular-nums">
+                            {tanggal(l.mulai)} – {tanggal(l.sampai)} · {angka(l.kuota_balasan)} balasan · {angka(l.kuota_nomor)} nomor
+                          </span>
+                        </span>
+                        <span className="flex shrink-0 flex-col items-end gap-0.5">
+                          <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold ${l.sampai > kini ? "bg-success-soft text-success" : "bg-subtle text-muted"}`}>{l.sampai > kini ? "Aktif" : "Berakhir"}</span>
+                          <span className="text-[11px] text-faint">{l.sumber === "midtrans" ? "Midtrans" : "Admin"}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </section>

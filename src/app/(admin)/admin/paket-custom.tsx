@@ -770,7 +770,7 @@ function Segmen<T extends string>({ label, nilai, pilihan, onUbah }: { label: st
   );
 }
 
-function Chip({ aktif, onClick, children }: { aktif: boolean; onClick: () => void; children: ReactNode }) {
+export function Chip({ aktif, onClick, children }: { aktif: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button
       type="button"
@@ -788,7 +788,7 @@ function Chip({ aktif, onClick, children }: { aktif: boolean; onClick: () => voi
  * mengetik, menghapus, atau memilih semua lalu mengetik berperilaku biasa. Boleh kosong selama diketik; saat
  * ditinggalkan, nilai di bawah `min` dikembalikan ke `min`. Di atas `maks` dipotong.
  */
-function InputAngka({
+export function InputAngka({
   id,
   label,
   nilai,

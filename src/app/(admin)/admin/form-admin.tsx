@@ -9,7 +9,6 @@ import {
   adminHapusAction,
   adminAiAction,
   adminAiAkunAction,
-  adminBerikanPaketAction,
   adminHentikanLanggananAction,
   adminPaketAction,
   adminKuotaAction,
@@ -22,7 +21,6 @@ import { KursInfo } from "@/components/kurs-info";
 import { type OpsiModel, PilihModel } from "@/components/pilih-model";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "@/components/ui";
 import type { InfoKurs } from "@/lib/kurs-def";
-import { KODE_CUSTOM } from "@/lib/paket-custom-def";
 
 export function FormPengaturan({ buka, kuota, balasan, kurs }: { buka: boolean; kuota: number; balasan: number; kurs: InfoKurs }) {
   const [hasil, aksi] = useActionState(adminPengaturanAction, null);
@@ -390,31 +388,6 @@ export function FormPaket({ paket }: { paket?: PaketForm }) {
 }
 
 // ---------- Langganan per pengguna ----------
-
-export function FormBerikanPaket({ id, paket }: { id: number; paket: { id: number; kode: string; nama: string; durasi_hari: number }[] }) {
-  const [hasil, aksi] = useActionState(adminBerikanPaketAction, null);
-  return (
-    <form action={aksi} className="space-y-3">
-      <input type="hidden" name="id" value={id} />
-      <div className="grid grid-cols-[1fr_110px] gap-2">
-        <select name="paket" aria-label="Paket" required className="field">
-          {paket.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.nama} ({p.kode === KODE_CUSTOM ? "Custom · " : ""}
-              {p.durasi_hari} hari)
-            </option>
-          ))}
-        </select>
-        <input name="hari" aria-label="Jumlah hari (opsional)" placeholder="Hari" inputMode="numeric" className="field" />
-      </div>
-      <p className="text-[12px] text-muted">Untuk pembayaran di luar Midtrans atau kompensasi. Hari kosong = durasi paket.</p>
-      <div className="flex items-center gap-3">
-        <SubmitButton>Berikan paket</SubmitButton>
-        <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
-      </div>
-    </form>
-  );
-}
 
 export function HentikanLangganan({ id }: { id: number }) {
   return (

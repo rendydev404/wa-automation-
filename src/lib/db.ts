@@ -339,6 +339,10 @@ const MIGRASI: string[] = [
   CREATE INDEX produk_nomor_idx ON produk (number_id, urutan, id);
   UPDATE numbers SET teruskan_aktif = true WHERE teruskan_ke IS NOT NULL AND NOT teruskan_aktif;
   `,
+  // v14: catatan pembayaran yang dicatat admin (bayar di luar Midtrans: no. referensi, bank, nama pengirim).
+  `
+  ALTER TABLE transaksi ADD COLUMN catatan text;
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;
