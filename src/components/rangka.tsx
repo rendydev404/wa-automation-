@@ -3,16 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Menu, MessageCircle, X } from "lucide-react";
-import { MEREK } from "@/lib/merek";
+import { Menu, X } from "lucide-react";
+import { Logo } from "@/components/logo";
 
-function Merek({ beranda, label }: { beranda: string; label: string }) {
+function Merek({ beranda, lencana }: { beranda: string; lencana?: string }) {
   return (
-    <Link href={beranda} className="flex min-w-0 items-center gap-2.5 rounded-lg">
-      <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-ink-signal text-ink">
-        <MessageCircle className="size-[18px]" strokeWidth={2.4} aria-hidden />
-      </span>
-      <span className="truncate text-[15px] font-bold tracking-tight">{label}</span>
+    <Link href={beranda} className="flex min-w-0 items-center gap-2 rounded-lg">
+      <Logo gelap />
+      {lencana && (
+        <span className="shrink-0 rounded-md bg-ink-raised px-1.5 py-0.5 text-[10.5px] font-semibold tracking-[0.06em] text-ink-muted uppercase ring-1 ring-ink-line">
+          {lencana}
+        </span>
+      )}
     </Link>
   );
 }
@@ -25,12 +27,13 @@ export function Rangka({
   sidebar,
   children,
   beranda = "/dashboard",
-  label = MEREK,
+  lencana,
 }: {
   sidebar: ReactNode;
   children: ReactNode;
   beranda?: string;
-  label?: string;
+  /** Penanda kecil di samping logo, mis. "Admin" di panel admin. */
+  lencana?: string;
 }) {
   const [buka, setBuka] = useState(false);
   const tombolTutup = useRef<HTMLButtonElement>(null);
@@ -55,7 +58,7 @@ export function Rangka({
   return (
     <div className="min-h-svh lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-ink-line bg-ink/95 px-4 text-ink-fg backdrop-blur sm:px-6 lg:hidden">
-        <Merek beranda={beranda} label={label} />
+        <Merek beranda={beranda} lencana={lencana} />
         <button
           type="button"
           aria-label="Buka menu"
@@ -88,7 +91,7 @@ export function Rangka({
         <div className="relative flex h-16 shrink-0 items-center justify-between gap-2 px-5">
           <div aria-hidden className="kisi-tinta pointer-events-none absolute inset-0 opacity-60" />
           <div className="relative min-w-0">
-            <Merek beranda={beranda} label={label} />
+            <Merek beranda={beranda} lencana={lencana} />
           </div>
           <button
             ref={tombolTutup}

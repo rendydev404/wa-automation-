@@ -21,7 +21,7 @@ export default function LayoutAdmin({ children }: LayoutProps<"/admin">) {
   return (
     <Rangka
       beranda="/admin"
-      label="Panel admin"
+      lencana="Admin"
       sidebar={
         <>
           <Suspense fallback={<div className="flex-1" />}>

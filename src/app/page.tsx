@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, BookOpenText, Camera, Check, GraduationCap, Hand, History, Lock, MessageCircle, ShieldCheck, Smartphone, Zap } from "lucide-react";
+import { ArrowRight, BookOpenText, Camera, Check, GraduationCap, Hand, History, Lock, ShieldCheck, Smartphone, Zap } from "lucide-react";
 import { DemoAlur, DemoChat } from "@/components/landing/demo";
 import { HargaLanding } from "@/components/landing/harga";
+import { Logo } from "@/components/logo";
 import { Kalkulator } from "@/components/landing/kalkulator";
 import { UMUR_HISTORI_HARI } from "@/lib/format";
 import { MEREK } from "@/lib/merek";
@@ -49,11 +50,8 @@ export default function Landing() {
         <div aria-hidden className="kisi-tinta absolute inset-0 opacity-60" />
         <div aria-hidden className="absolute -top-40 left-1/2 size-[720px] -translate-x-1/2 rounded-full bg-ink-signal/15 blur-3xl" />
         <header className="relative mx-auto flex max-w-[1200px] items-center justify-between gap-4 px-4 py-5 sm:px-6">
-          <Link href="/" className="flex items-center gap-2.5">
-            <span className="grid size-9 place-items-center rounded-xl bg-ink-signal text-ink">
-              <MessageCircle className="size-5" strokeWidth={2.4} aria-hidden />
-            </span>
-            <span className="text-[16px] font-bold tracking-tight">{MEREK}</span>
+          <Link href="/" className="rounded-lg" aria-label={`${MEREK}, ke beranda`}>
+            <Logo ukuran="md" gelap />
           </Link>
           <nav aria-label="Navigasi landing" className="hidden items-center gap-7 text-[13.5px] font-semibold text-ink-muted md:flex">
             <a href="#fitur" className="transition-colors hover:text-ink-fg">
@@ -72,12 +70,13 @@ export default function Landing() {
               FAQ
             </a>
           </nav>
-          <div className="flex items-center gap-2">
-            <Link href="/login" className="rounded-xl px-3.5 py-2 text-[13.5px] font-semibold text-ink-fg transition-colors hover:bg-white/[0.06]">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <Link href="/login" className="rounded-xl px-2.5 py-2 text-[13.5px] font-semibold whitespace-nowrap text-ink-fg transition-colors hover:bg-white/[0.06] sm:px-3.5">
               Masuk
             </Link>
-            <Link href="/daftar" className="rounded-xl bg-ink-signal px-4 py-2 text-[13.5px] font-bold text-ink transition-transform hover:-translate-y-0.5">
-              Daftar gratis
+            {/* HP sempit: "Daftar" saja supaya logo, Masuk, dan tombol tetap satu baris. */}
+            <Link href="/daftar" className="rounded-xl bg-ink-signal px-3 py-2 text-[13.5px] font-bold whitespace-nowrap text-ink transition-transform hover:-translate-y-0.5 sm:px-4">
+              Daftar<span className="max-[399px]:hidden"> gratis</span>
             </Link>
           </div>
         </header>
@@ -248,7 +247,7 @@ export default function Landing() {
 
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-[1200px] flex-col items-center justify-between gap-3 px-4 py-8 text-[13px] text-muted sm:flex-row sm:px-6">
-          <p>© {MEREK}</p>
+          <Logo />
           <div className="flex gap-5">
             <Link href="/login" className="hover:text-fg">
               Masuk
