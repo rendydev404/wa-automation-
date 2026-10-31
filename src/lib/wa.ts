@@ -47,11 +47,28 @@ export type EventWa =
       namaPengirim?: string | null;
       /** Pesan masuk ini apa adanya, untuk dikutip (reply) oleh balasan AI. */
       kutip?: WAMessage | null;
+      /** Isi non-teks dalam kata-kata (mis. 'lokasi "Rumah" https://maps...', 'dokumen "menu.pdf"'), null bila tidak ada. */
+      media?: string | null;
+      /** Pesan suara/audio: pengunduhnya (dipanggil hanya bila AI akan menjawab). */
+      suara?: (() => Promise<Audio | null>) | null;
+      /** Pesan yang di-reply (dikutip) lawan bicara. `dariKami` = pesan dari nomor ini (bot/pemilik). */
+      kutipan?: { teks: string; dariKami: boolean; foto: (() => Promise<Foto | null>) | null } | null;
+      /** Lawan bicara mengedit pesannya; `teks` berisi versi barunya. */
+      diedit?: boolean;
     }
   /** Pesan masuk di chat ini terbaca dari perangkat lain milik nomor (HP pemilik). */
   | { jenis: "dibaca"; sesi: string; chat: string };
 
 export class WaError extends Error {}
+
+/** Pesan suara/audio pelanggan, langsung di memori (tidak disimpan). */
+export interface Audio {
+  data: Buffer;
+  mime: string;
+  detik: number;
+}
+/** Batas pesan suara yang ditranskrip: lebih panjang dari ini tidak diunduh. */
+export const MAKS_SUARA = { detik: 300, byte: 10 * 1024 * 1024 } as const;
 
 interface Sesi {
   nama: string;
@@ -231,11 +248,9 @@ async function kanonik(B: Baileys, sock: WASocket, jid: string, alt?: string | n
 
 const chatPribadi = (B: Baileys, jid: string | null | undefined): jid is string => !!jid && !!(B.isPnUser(jid) || B.isLidUser(jid));
 
-/** Teks dan lampiran sebuah pesan; null untuk yang bukan pesan percakapan (protokol, reaksi, suntingan, dsb.). */
-function isiPesan(B: Baileys, m: WAMessage): { teks: string; lampiran: boolean } | null {
-  const c = B.normalizeMessageContent(m.message);
-  if (!c) return null;
-  const teks =
+/** Teks sebuah konten pesan (isi ketikan, keterangan foto/video/dokumen, pilihan tombol). */
+function teksKonten(c: proto.IMessage): string {
+  return (
     c.conversation ||
     c.extendedTextMessage?.text ||
     c.imageMessage?.caption ||
@@ -244,7 +259,61 @@ function isiPesan(B: Baileys, m: WAMessage): { teks: string; lampiran: boolean }
     c.buttonsResponseMessage?.selectedDisplayText ||
     c.listResponseMessage?.title ||
     c.templateButtonReplyMessage?.selectedDisplayText ||
-    "";
+    ""
+  );
+}
+
+/** Nomor telepon pertama di vCard (waid=... atau TEL:...). */
+function teleponVcard(vcard: string | null | undefined): string | null {
+  const m = vcard?.match(/waid=(\d{6,15})/) ?? vcard?.match(/TEL[^:\n]*:\s*([+\d][\d\s-]{5,20})/);
+  return m ? m[1].replace(/[\s-]/g, "") : null;
+}
+
+/** Isi non-teks dalam kata-kata untuk AI & histori; null bila pesan hanya teks. */
+function keteranganMedia(c: proto.IMessage): string | null {
+  const lok = c.locationMessage ?? c.liveLocationMessage;
+  if (lok) {
+    const lat = Number(lok.degreesLatitude);
+    const lng = Number(lok.degreesLongitude);
+    const nama = [c.locationMessage?.name, c.locationMessage?.address].filter(Boolean).join(", ");
+    return `${c.liveLocationMessage ? "lokasi terkini" : "lokasi"}${nama ? ` "${nama}"` : ""}${Number.isFinite(lat) && Number.isFinite(lng) ? ` https://maps.google.com/?q=${lat},${lng}` : ""}`;
+  }
+  if (c.contactMessage) return `kartu kontak "${c.contactMessage.displayName ?? "tanpa nama"}"${teleponVcard(c.contactMessage.vcard) ? ` (${teleponVcard(c.contactMessage.vcard)})` : ""}`;
+  if (c.contactsArrayMessage)
+    return `kartu kontak: ${(c.contactsArrayMessage.contacts ?? [])
+      .slice(0, 5)
+      .map((k) => `${k.displayName ?? "tanpa nama"}${teleponVcard(k.vcard) ? ` (${teleponVcard(k.vcard)})` : ""}`)
+      .join(", ")}`;
+  if (c.documentMessage) return `dokumen "${c.documentMessage.fileName ?? c.documentMessage.title ?? "tanpa nama"}"`;
+  if (c.audioMessage) return c.audioMessage.ptt ? "pesan suara" : "rekaman audio";
+  if (c.stickerMessage) return "stiker";
+  if (c.videoMessage || c.ptvMessage) return "video";
+  if (c.imageMessage) return "foto";
+  return null;
+}
+
+/** Konteks pesan (kutipan, dsb.) dari jenis konten apa pun. */
+function konteksPesan(B: Baileys, c: proto.IMessage): proto.IContextInfo | null {
+  const jenis = B.getContentType(c);
+  const isi = jenis ? (c[jenis] as { contextInfo?: proto.IContextInfo | null } | null | undefined) : null;
+  return isi && typeof isi === "object" && "contextInfo" in isi ? (isi.contextInfo ?? null) : null;
+}
+
+/**
+ * Teks dan lampiran sebuah pesan; null untuk yang bukan pesan percakapan (protokol, reaksi, dsb.). Suntingan pesan
+ * (MESSAGE_EDIT) diperlakukan sebagai pesan baru berisi versi suntingannya, ditandai `diedit`.
+ */
+function isiPesan(B: Baileys, m: WAMessage): { teks: string; lampiran: boolean; media: string | null; konten: proto.IMessage; diedit: boolean } | null {
+  let c = B.normalizeMessageContent(m.message);
+  if (!c) return null;
+  let diedit = false;
+  const pr = c.protocolMessage;
+  if (pr?.type === B.proto.Message.ProtocolMessage.Type.MESSAGE_EDIT && pr.editedMessage) {
+    c = B.normalizeMessageContent(pr.editedMessage);
+    if (!c) return null;
+    diedit = true;
+  }
+  const teks = teksKonten(c);
   const lampiran = !!(
     c.imageMessage ||
     c.videoMessage ||
@@ -257,7 +326,7 @@ function isiPesan(B: Baileys, m: WAMessage): { teks: string; lampiran: boolean }
     c.contactMessage ||
     c.contactsArrayMessage
   );
-  return teks || lampiran ? { teks, lampiran } : null;
+  return teks || lampiran ? { teks, lampiran, media: keteranganMedia(c), konten: c, diedit } : null;
 }
 
 /**
@@ -280,6 +349,40 @@ async function unduhFoto(B: Baileys, s: Sesi, sock: WASocket, m: WAMessage, img:
   }
 }
 
+/** Unduh pesan suara/audio ke memori untuk ditranskrip, dibatasi durasi, ukuran & waktu. */
+async function unduhAudio(B: Baileys, s: Sesi, sock: WASocket, m: WAMessage, au: proto.Message.IAudioMessage): Promise<Audio | null> {
+  const detik = Number(au.seconds ?? 0);
+  if (detik > MAKS_SUARA.detik || B.toNumber(au.fileLength ?? 0) > MAKS_SUARA.byte) return null;
+  try {
+    const buf = await denganBatas(
+      B.downloadMediaMessage(m, "buffer", {}, { logger: pencatat(s.nama)!, reuploadRequest: (x) => sock.updateMediaMessage(x) }),
+      25_000,
+      "mengunduh pesan suara"
+    );
+    return buf.length && buf.length <= MAKS_SUARA.byte ? { data: buf, mime: (au.mimetype ?? "audio/ogg").split(";")[0].trim(), detik } : null;
+  } catch (e) {
+    console.error(`[wa ${s.nama}] pesan suara gagal diunduh:`, e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/**
+ * Pesan yang di-reply lawan bicara: teksnya (atau keterangan medianya) dan, bila berupa foto, pengunduhnya supaya AI
+ * bisa melihat foto yang dimaksud. Dibangun dari konteks pesan (quotedMessage), tanpa query ke WhatsApp.
+ */
+function kutipanPesan(B: Baileys, s: Sesi, sock: WASocket, m: WAMessage, c: proto.IMessage): NonNullable<Extract<EventWa, { jenis: "pesan" }>["kutipan"]> | null {
+  const ctx = konteksPesan(B, c);
+  const q = ctx?.quotedMessage ? B.normalizeMessageContent(ctx.quotedMessage) : null;
+  if (!ctx || !q) return null;
+  const pengirim = ctx.participant ?? null;
+  const dariKami = !!pengirim && (B.areJidsSameUser(pengirim, sock.user?.id) || B.areJidsSameUser(pengirim, sock.user?.lid));
+  const media = keteranganMedia(q);
+  const teks = [teksKonten(q).trim(), media && media !== "foto" ? `[${media}]` : ""].filter(Boolean).join(" ").slice(0, 600);
+  const img = q.imageMessage;
+  const pesanKutipan: WAMessage = { key: { remoteJid: m.key.remoteJid, id: ctx.stanzaId, fromMe: dariKami, participant: pengirim }, message: ctx.quotedMessage };
+  return { teks: teks || (img ? "(foto)" : ""), dariKami, foto: img ? () => unduhFoto(B, s, sock, pesanKutipan, img) : null };
+}
+
 async function pesanTiba(B: Baileys, s: Sesi, sock: WASocket, m: WAMessage): Promise<void> {
   const jid = m.key.remoteJid;
   const id = m.key.id;
@@ -290,7 +393,8 @@ async function pesanTiba(B: Baileys, s: Sesi, sock: WASocket, m: WAMessage): Pro
   if (!isi) return;
   const alt = m.key.remoteJidAlt;
   const pn = B.isPnUser(jid) ? jid : alt && B.isPnUser(alt) ? alt : null;
-  const gambar = m.key.fromMe ? null : B.normalizeMessageContent(m.message)?.imageMessage;
+  const gambar = m.key.fromMe ? null : isi.konten.imageMessage;
+  const audio = m.key.fromMe ? null : isi.konten.audioMessage;
   await kabari({
     jenis: "pesan",
     sesi: s.nama,
@@ -304,7 +408,12 @@ async function pesanTiba(B: Baileys, s: Sesi, sock: WASocket, m: WAMessage): Pro
     waktu: B.toNumber(m.messageTimestamp),
     telepon: pn ? digitWa(pn) || null : null,
     namaPengirim: !m.key.fromMe && m.pushName ? m.pushName.trim().slice(0, 80) || null : null,
-    kutip: m.key.fromMe ? null : { key: m.key, message: m.message, messageTimestamp: m.messageTimestamp },
+    // Suntingan tidak dikutip balik: yang dikutip WhatsApp adalah pesan protokolnya, bukan isi barunya.
+    kutip: m.key.fromMe || isi.diedit ? null : { key: m.key, message: m.message, messageTimestamp: m.messageTimestamp },
+    media: isi.media,
+    suara: audio ? () => unduhAudio(B, s, sock, m, audio) : null,
+    kutipan: m.key.fromMe ? null : kutipanPesan(B, s, sock, m, isi.konten),
+    diedit: isi.diedit,
   });
 }
 

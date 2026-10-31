@@ -42,6 +42,11 @@ const server = http.createServer((req, res) => {
   req.on("data", (c) => (b += c));
   req.on("end", () => {
     if (req.url.endsWith("/models")) return res.end("{}");
+    // Transkripsi pesan suara tiruan (API kompatibel OpenAI/Groq).
+    if (req.url.endsWith("/audio/transcriptions")) {
+      hermes.transkripsi = (hermes.transkripsi ?? 0) + 1;
+      return res.end(JSON.stringify({ text: " mau pesan dua ayam geprek ya kak " }));
+    }
     const j = JSON.parse(b);
     const isi = j.messages[1].content;
     const p = {
@@ -400,8 +405,8 @@ await cek("jenis pesan: teks panjang, pesan sementara, gambar dengan/ tanpa kete
   await tunggu(() => hermes.panggilan.length === n0 + 5, 5000);
   const isi = hermes.panggilan.slice(n0).map((p) => p.pesan).sort();
   assert.deepEqual(isi, [
-    "[Pelanggan mengirim suara/berkas/stiker tanpa teks, yang tidak bisa kamu lihat]",
-    "[Pelanggan mengirim suara/berkas/stiker tanpa teks, yang tidak bisa kamu lihat]",
+    "[Pelanggan mengirim lokasi https://maps.google.com/?q=1,2]",
+    "[Pelanggan mengirim pesan suara yang tidak bisa kamu dengar. Minta dengan sopan agar ia mengetik pesannya.]",
     "ini fotonya\n[Pelanggan melampirkan foto]",
     "pesan sementara",
     "teks diperluas",
@@ -1111,6 +1116,101 @@ await cek("manusia sedang memegang chat: foto pelanggan tidak diunduh sama sekal
 });
 
 // =====================================================================================
+bagian("D5. Konteks WhatsApp: reply, pesan suara, lokasi, kontak, dokumen, suntingan");
+
+await cek("pelanggan me-reply foto produk yang dikirim bot: isi & foto yang di-reply ikut dibaca AI; histori mencatat kutipannya", async () => {
+  const P = "555000450@lid";
+  const n0 = hermes.panggilan.length;
+  const kami = sA.user.id;
+  tiba(
+    sA,
+    pesan(P, {
+      extendedTextMessage: {
+        text: "Yg ini astaga",
+        contextInfo: { stanzaId: "BOTFOTO1", participant: kami, quotedMessage: { imageMessage: { caption: "test\nRp5.000\ntesting ajah", mimetype: "image/jpeg" } } },
+      },
+    })
+  );
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
+  const h = hermes.panggilan.at(-1);
+  assert.match(h.pesan, /^\[Pelanggan me-reply pesan dari pihak kita \(balasanmu\/tim kita\): "test\nRp5\.000\ntesting ajah"; foto yang di-reply ikut terlampir\. Pesannya di bawah ini merujuk ke situ\.\]\nYg ini astaga$/);
+  assert.deepEqual(h.gambar, [fotoUrl("BOTFOTO1")], "foto yang di-reply diunduh & dilihat AI");
+  await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
+  await bridge.tulisTuntas();
+  const [log] = await sql`SELECT m.teks FROM pesan_chat m JOIN percakapan p ON p.id = m.percakapan_id WHERE p.kunci = ${kunciChat(A.sesi, P)} AND m.peran = 0`;
+  assert.equal(log.teks, '↩ "test\nRp5.000\ntesting ajah"\nYg ini astaga');
+});
+
+await cek("reply ke pesannya sendiri: AI tahu yang dirujuk adalah pesan pelanggan", async () => {
+  const P = "555000451@lid";
+  const n0 = hermes.panggilan.length;
+  tiba(sA, pesan(P, { extendedTextMessage: { text: "jadi bisa kan kak?", contextInfo: { stanzaId: "X9", participant: P, quotedMessage: { conversation: "mau antar ke Bekasi besok jam 10" } } } }));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
+  assert.match(hermes.panggilan.at(-1).pesan, /^\[Pelanggan me-reply pesannya sendiri: "mau antar ke Bekasi besok jam 10"\. .*\]\njadi bisa kan kak\?$/);
+  assert.deepEqual(hermes.panggilan.at(-1).gambar, []);
+  await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
+});
+
+await cek("lokasi (dengan tautan peta), kartu kontak, dokumen, dan suntingan pesan dipahami AI", async () => {
+  const P = "555000452@lid";
+  const n0 = hermes.panggilan.length;
+  tiba(sA, pesan(P, { locationMessage: { degreesLatitude: -6.2383, degreesLongitude: 106.9756, name: "Rumah Rina", address: "Jl. Melati 5" } }));
+  tiba(sA, pesan(P, { contactMessage: { displayName: "Budi Kurir", vcard: "BEGIN:VCARD\nFN:Budi Kurir\nTEL;type=CELL;waid=6281234567890:+62 812-3456-7890\nEND:VCARD" } }));
+  tiba(sA, pesan(P, { documentMessage: { fileName: "daftar-pesanan.pdf", mimetype: "application/pdf" } }));
+  tiba(sA, pesan(P, { protocolMessage: { type: 14, key: { id: "LAMA1" }, editedMessage: { conversation: "jadi 3 porsi ya" } } }));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
+  assert.equal(
+    hermes.panggilan.at(-1).pesan,
+    [
+      '[Pelanggan mengirim lokasi "Rumah Rina, Jl. Melati 5" https://maps.google.com/?q=-6.2383,106.9756]',
+      '[Pelanggan mengirim kartu kontak "Budi Kurir" (6281234567890)]',
+      '[Pelanggan mengirim dokumen "daftar-pesanan.pdf"]',
+      "[Pelanggan mengedit pesan sebelumnya menjadi:]\njadi 3 porsi ya",
+    ].join("\n")
+  );
+  await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
+  await bridge.tulisTuntas();
+  const log = await sql`SELECT m.teks FROM pesan_chat m JOIN percakapan p ON p.id = m.percakapan_id WHERE p.kunci = ${kunciChat(A.sesi, P)} AND m.peran = 0 ORDER BY m.id`;
+  assert.deepEqual(
+    log.map((r) => r.teks),
+    ['[Lokasi "Rumah Rina, Jl. Melati 5" https://maps.google.com/?q=-6.2383,106.9756]', '[Kartu kontak "Budi Kurir" (6281234567890)]', '[Dokumen "daftar-pesanan.pdf"]', "(diedit) jadi 3 porsi ya"]
+  );
+});
+
+await cek("pesan suara: ditranskrip (selagi menunggu jeda balas) lalu dibaca AI; tanpa layanan transkripsi AI meminta pelanggan mengetik", async () => {
+  const P = "555000453@lid";
+  // Tanpa STT_API_KEY
+  let n0 = hermes.panggilan.length;
+  tiba(sA, pesan(P, { audioMessage: { ptt: true, seconds: 6, mimetype: "audio/ogg; codecs=opus" } }));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
+  assert.equal(hermes.panggilan.at(-1).pesan, "[Pelanggan mengirim pesan suara yang tidak bisa kamu dengar. Minta dengan sopan agar ia mengetik pesannya.]");
+  await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
+  // Dengan layanan transkripsi
+  process.env.STT_API_URL = process.env.HERMES_API_URL;
+  process.env.STT_API_KEY = "uji";
+  try {
+    const t0 = hermes.transkripsi ?? 0;
+    n0 = hermes.panggilan.length;
+    tiba(sA, pesan(P, { audioMessage: { ptt: true, seconds: 6, mimetype: "audio/ogg; codecs=opus" } }));
+    await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
+    assert.equal(hermes.panggilan.at(-1).pesan, '[Pesan suara pelanggan, sudah ditranskrip: "mau pesan dua ayam geprek ya kak"]');
+    assert.equal(hermes.transkripsi, t0 + 1);
+    // Terlalu panjang (> 5 menit): tidak diunduh, AI diminta meminta pelanggan mengetik.
+    n0 = hermes.panggilan.length;
+    tiba(sA, pesan(P, { audioMessage: { ptt: true, seconds: 900, mimetype: "audio/ogg" } }));
+    await tunggu(() => hermes.panggilan.length === n0 + 1, 4000);
+    assert.match(hermes.panggilan.at(-1).pesan, /pesan suara yang gagal diputar/);
+    assert.equal(hermes.transkripsi, t0 + 1);
+    await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
+    await bridge.tulisTuntas();
+    const log = await sql`SELECT m.teks FROM pesan_chat m JOIN percakapan p ON p.id = m.percakapan_id WHERE p.kunci = ${kunciChat(A.sesi, P)} AND m.peran = 0 ORDER BY m.id`;
+    assert.ok(log.every((r) => r.teks === "[Pesan suara]"));
+  } finally {
+    delete process.env.STT_API_KEY;
+    delete process.env.STT_API_URL;
+  }
+});
+
 bagian("E. Batas dan galat");
 
 // Tidak ada batas jumlah balasan per chat dan tidak ada sesi baru karena pelanggan diam lama:

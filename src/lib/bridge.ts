@@ -12,6 +12,7 @@ import { catatPesan, chatDipercaya, riwayatUntukAi, tandaiSpam } from "./percaka
 import { alasanSpam, periksaSpam } from "./spam";
 import { pelajariBalasan } from "./pelajaran";
 import { CATATAN_KODE_DIBLOKIR, TOLAK_KODE, adaKode } from "./penjaga";
+import { sttTerkonfigurasi, transkripsi } from "./stt";
 import type { Foto } from "./types";
 import type { WAMessage } from "baileys";
 import { type EventWa, digitWa, kirimGambar, kirimTeks, mengetik, padaEvent, tandaiDibaca } from "./wa";
@@ -74,6 +75,8 @@ interface Antrean {
   teks: string[];
   /** Pengunduh foto pelanggan yang belum dijawab (paling banyak MAKS_FOTO_GILIRAN, yang terbaru). */
   foto: (() => Promise<Foto | null>)[];
+  /** Transkrip pesan suara yang belum dijawab, per penanda di `teks` (lihat PENANDA_SUARA); mulai dikerjakan saat tiba. */
+  suara: Map<string, Promise<string | null>>;
   /** Id pesan pelanggan yang belum ditandai dibaca oleh bot. */
   belumDibaca: string[];
   /** Pesan pelanggan terakhir yang belum dijawab; balasan AI mengutipnya (reply). */
@@ -313,7 +316,7 @@ async function proses(kunci: string): Promise<void> {
       a.siapProduk = null;
       const tertunda = a.teks.length;
       const sesiLalu = a.chat?.sesi_ke ?? 0;
-      const asli = a.teks.splice(0);
+      const asli = await isiTranskrip(a.teks.splice(0), a.suara);
       const pesan = asli.join("\n").slice(0, MAKS_PESAN_KARAKTER);
       const pemuatFoto: (() => Promise<Foto | null>)[] = a.foto.splice(0);
       const sesi = ambilGiliran(kunci, a);
@@ -459,6 +462,7 @@ async function antreanUntuk(kunci: string, numberId: number, sesi: string, alama
     belumDibaca: [],
     kutip: null,
     foto: [],
+    suara: new Map(),
     timer: null,
     sedangProses: false,
     tungguMs: 5000,
@@ -508,10 +512,55 @@ function teleponDariEvent(ev: Extract<EventWa, { jenis: "pesan" }>): string | nu
   return null;
 }
 
+const besar = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
+/** Teks pesan untuk histori percakapan: kutipan (bila me-reply), isi, dan keterangan media. */
 function teksLogPesan(ev: Extract<EventWa, { jenis: "pesan" }>): string {
   const t = ev.teks.trim();
-  const label = ev.foto ? "[Foto]" : "[Lampiran media]";
-  return ev.lampiran ? (t ? `${t}\n${label}` : label) : t;
+  const label = ev.lampiran ? `[${besar(ev.media ?? (ev.foto ? "foto" : "lampiran media"))}]` : "";
+  const isi = [t, label].filter(Boolean).join("\n");
+  if (!isi) return "";
+  return [ev.kutipan?.teks ? `↩ "${ev.kutipan.teks.slice(0, 200)}"` : "", ev.diedit ? `(diedit) ${isi}` : isi].filter(Boolean).join("\n");
+}
+
+/** Penanda tempat transkrip pesan suara di teks antrean; diganti isiTranskrip() saat giliran AI diproses. */
+const PENANDA_SUARA = /⟦suara:([a-z0-9]+)⟧/g;
+
+/**
+ * Pesan pelanggan dalam kata-kata untuk AI: isi ketikan, apa yang di-reply (kutipan, termasuk dari siapa), media
+ * (foto, lokasi + tautan peta, kartu kontak, dokumen, stiker, video), suntingan, dan penanda pesan suara.
+ */
+export function teksUntukAi(ev: Extract<EventWa, { jenis: "pesan" }>, penandaSuara: string | null): string {
+  const bagian: string[] = [];
+  const k = ev.kutipan;
+  if (k && (k.teks || k.foto))
+    bagian.push(
+      `[Pelanggan me-reply ${k.dariKami ? "pesan dari pihak kita (balasanmu/tim kita)" : "pesannya sendiri"}: "${k.teks || "(foto)"}"${k.foto ? "; foto yang di-reply ikut terlampir" : ""}. Pesannya di bawah ini merujuk ke situ.]`
+    );
+  if (ev.diedit) bagian.push("[Pelanggan mengedit pesan sebelumnya menjadi:]");
+  const t = ev.teks.trim();
+  if (t) bagian.push(t);
+  if (penandaSuara) bagian.push(penandaSuara);
+  else if (ev.foto) bagian.push(t ? "[Pelanggan melampirkan foto]" : "[Pelanggan mengirim foto]");
+  else if (ev.suara) bagian.push("[Pelanggan mengirim pesan suara yang tidak bisa kamu dengar. Minta dengan sopan agar ia mengetik pesannya.]");
+  else if (ev.media) bagian.push(`[Pelanggan mengirim ${ev.media}]`);
+  else if (ev.lampiran) bagian.push(t ? "[Pelanggan juga melampirkan media yang tidak bisa kamu lihat]" : "[Pelanggan mengirim media yang tidak bisa kamu lihat]");
+  return bagian.join("\n");
+}
+
+/** Ganti penanda pesan suara dengan transkripnya (sudah dikerjakan sejak pesan tiba). */
+async function isiTranskrip(teks: string[], suara: Map<string, Promise<string | null>>): Promise<string[]> {
+  if (!suara.size) return teks;
+  const hasil = new Map(await Promise.all([...suara].map(async ([k, j]) => [k, await j.catch(() => null)] as const)));
+  suara.clear();
+  return teks.map((t) =>
+    t.replace(PENANDA_SUARA, (_, k: string) => {
+      const isi = hasil.get(k);
+      return isi
+        ? `[Pesan suara pelanggan, sudah ditranskrip: "${isi}"]`
+        : "[Pelanggan mengirim pesan suara yang gagal diputar. Minta dengan sopan agar ia mengetik pesannya.]";
+    })
+  );
 }
 
 /**
@@ -567,6 +616,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
     a.timer = null;
     a.teks.length = 0;
     a.foto.length = 0;
+    a.suara.clear();
     a.belumDibaca.length = 0;
     a.kutip = null;
     a.siap = null;
@@ -592,12 +642,25 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
     }
   }
 
-  let teks = ev.teks.trim();
-  if (ev.foto) teks = teks ? `${teks}\n[Pelanggan melampirkan foto]` : "[Pelanggan mengirim foto]";
-  else if (ev.lampiran) teks = teks ? `${teks}\n[Pelanggan juga melampirkan media yang tidak bisa kamu lihat]` : "[Pelanggan mengirim suara/berkas/stiker tanpa teks, yang tidak bisa kamu lihat]";
+  // Pesan suara: transkripsi dimulai sekarang (selagi AI menunggu jeda balas), hasilnya dipakai saat giliran diproses.
+  const kodeSuara = ev.suara && sttTerkonfigurasi() ? createHash("sha1").update(`${nomor.id}:${ev.id}`).digest("hex").slice(0, 12) : null;
+  const teks = teksUntukAi(ev, kodeSuara ? `⟦suara:${kodeSuara}⟧` : null);
   if (!teks) return;
 
   const a = await antreanUntuk(kunci, nomor.id, sesi, ev.alamat);
+  if (kodeSuara && ev.suara) {
+    const ambil = ev.suara;
+    a.suara.set(
+      kodeSuara,
+      ambil()
+        .then((au) => (au ? transkripsi(au.data, au.mime) : null))
+        .then((t) => t || null)
+        .catch((e) => {
+          console.error(`[bridge] transkripsi pesan suara gagal sesi=${sesi}: ${e instanceof Error ? e.message : e}`);
+          return null;
+        })
+    );
+  }
   a.alamat = ev.alamat;
   a.namaPelanggan = ev.namaPengirim?.trim() || a.namaPelanggan;
   a.teleponPelanggan = telepon ?? a.teleponPelanggan;
@@ -609,8 +672,10 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
     catat(a, "Jawaban yang kamu susun untuk pesan sebelumnya BELUM terkirim ke lawan bicara; jawab juga hal itu sekarang.");
   }
   a.teks.push(teks);
-  if (ev.foto) {
-    a.foto.push(ev.foto);
+  // Foto pesan ini, atau foto yang di-reply pelanggan (supaya AI melihat produk yang dimaksud).
+  const foto = ev.foto ?? ev.kutipan?.foto ?? null;
+  if (foto) {
+    a.foto.push(foto);
     if (a.foto.length > MAKS_FOTO_GILIRAN) a.foto.shift();
   }
   a.belumDibaca.push(ev.id);

@@ -139,6 +139,11 @@ model akun Anthropic). API key TIDAK lewat dashboard: developer memasang `ANTHRO
 `/opt/wa-automation/.env` (admin hanya melihat statusnya). Setiap jawaban,
 apa pun penyedianya, melewati penjaga (`src/lib/pemeriksa.ts`): mengaku admin/pemilik, menjanjikan tindakan,
 atau angka/tautan tak bersumber = ditulis ulang sekali, lalu jawaban aman. Biaya & token per balasan: tabel `ai_pakai`.
+AI membaca semua jenis pesan WhatsApp (`src/lib/wa.ts` + `teksUntukAi` di `src/lib/bridge.ts`): pesan yang di-reply
+pelanggan (beserta fotonya bila yang di-reply berupa foto), lokasi + tautan peta, kartu kontak, nama dokumen, stiker,
+video, dan suntingan pesan. Pesan suara ditranskrip lewat `src/lib/stt.ts` (env `STT_API_KEY`, bawaan Groq Whisper;
+lihat `.env.example`), dimulai begitu pesan tiba sehingga tidak menambah waktu balas; tanpa kunci, AI meminta pelanggan
+mengetik. Audio tidak pernah disimpan.
 Tarif model (`src/lib/tarif.ts`): API model Anthropic tidak memuat harga, jadi tarif dibaca dari halaman harga resmi
 (`platform.claude.com/docs/en/about-claude/pricing.md`, tabel "Model pricing"), dicek ulang tiap jam + tombol "Perbarui",
 disimpan di database (tahan restart & halaman yang sedang gagal); tabel yang bentuknya berubah ditolak utuh. Biaya tiap
