@@ -21,6 +21,7 @@ const lib = (f) => import(pathToFileURL(path.join(akar, f)).href);
 const { db, sekarang } = await lib("src/lib/db.ts");
 const { tambahNomor, nomorMilik, nomorById, daftarNomor, statHarian } = await lib("src/lib/numbers.ts");
 const P = await lib("src/lib/pengguna.ts");
+const K = await lib("src/lib/kpi.ts");
 const { bolehAkses } = await lib("src/lib/akses.ts");
 const { cekPassword, verifyPassword } = await lib("src/lib/password.ts");
 const { createSessionToken, verifySessionToken } = await lib("src/lib/auth.ts");
@@ -250,8 +251,8 @@ await cek("halaman pertama & kursor memakai indeks primary key + numbers_user_id
   assert.ok(ms < 15, `terlalu lambat: ${ms} ms`);
   const msKursor = await ukur("daftarPengguna kursor tengah", () => P.daftarPengguna({ sebelumId: 10000 }));
   assert.ok(msKursor < 15);
-  const msRingkas = await ukur("ringkasanAdmin (satu query)", () => P.ringkasanAdmin(), 10);
-  assert.ok(msRingkas < 60);
+  const msKpi = await ukur("kpiAdmin (dashboard KPI, 20 rb akun)", () => K.kpiAdmin(), 5);
+  assert.ok(msKpi < 250, `terlalu lambat: ${msKpi} ms`);
 });
 
 await cek("nomor milik satu pengguna & statistiknya lewat indeks user_id", async () => {

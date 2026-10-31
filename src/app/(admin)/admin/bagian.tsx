@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { ArrowDown, Bot, ChevronRight, CreditCard, Package, Phone, ShieldCheck, Sparkles, UserCheck, UserPlus, UserX, Users } from "lucide-react";
-import { KartuStat } from "@/components/stat";
+import { ArrowDown, Bot, ChevronRight, CreditCard, Package, ShieldCheck, Sparkles, UserPlus } from "lucide-react";
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
-import { type FilterPengguna, daftarLog, daftarPengguna, ringkasanAdmin } from "@/lib/pengguna";
+import { type FilterPengguna, daftarLog, daftarPengguna } from "@/lib/pengguna";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
 import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, SalinTeks } from "./form-admin";
 import { customTampil, hargaAngka, paketCustom } from "@/lib/paket-custom";
@@ -37,19 +36,6 @@ export function BuatAkun() {
       <div className="mt-4">
         <FormBuatAkun />
       </div>
-    </section>
-  );
-}
-
-export async function Ringkasan() {
-  await requireAdmin();
-  const r = await ringkasanAdmin();
-  return (
-    <section aria-label="Ringkasan pengguna" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-      <KartuStat label="Total akun" nilai={angka(r.total)} ikon={<Users className="size-4" aria-hidden />} keterangan={`${angka(r.baru7)} mendaftar 7 hari terakhir`} />
-      <KartuStat label="Akun aktif" nilai={angka(r.aktif)} ikon={<UserCheck className="size-4" aria-hidden />} keterangan={`${angka(r.admin)} admin`} />
-      <KartuStat label="Diblokir" nilai={angka(r.diblokir)} ikon={<UserX className="size-4" aria-hidden />} keterangan="AI berhenti membalas di nomornya" />
-      <KartuStat label="Nomor WhatsApp" nilai={angka(r.nomor)} ikon={<Phone className="size-4" aria-hidden />} keterangan={`${angka(r.tertaut)} sudah tertaut`} />
     </section>
   );
 }

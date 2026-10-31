@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
+import { angka } from "@/lib/format";
 
 /**
  * Kepingan statistik murni (tanpa state): dipakai Server maupun Client Component.
@@ -53,26 +55,89 @@ export function Meter({ persen, label, nada = "normal" }: { persen: number; labe
   );
 }
 
+/**
+ * Perubahan terhadap periode pembanding. Warna = arah x baik/buruk (pendapatan naik hijau, biaya naik merah) dan
+ * selalu disertai panah + kata untuk pembaca layar, jadi tidak bergantung warna saja. Mode "persen" beralih ke
+ * selisih mutlak bila pembandingnya nol/negatif (persentase dari nol tidak bermakna).
+ */
+export function Delta({
+  kini,
+  lalu,
+  mode = "persen",
+  format = angka,
+  naikBaik = true,
+  pembanding,
+  gelap = false,
+}: {
+  kini: number;
+  lalu: number;
+  mode?: "persen" | "selisih";
+  format?: (n: number) => string;
+  naikBaik?: boolean;
+  /** Mis. "30 hari sebelumnya"; tampil di samping angka perubahan. */
+  pembanding: string;
+  gelap?: boolean;
+}) {
+  const beda = kini - lalu;
+  const arah = beda > 0 ? 1 : beda < 0 ? -1 : 0;
+  const persen = mode === "persen" && lalu > 0 ? (beda / lalu) * 100 : null;
+  const teks =
+    arah === 0
+      ? "Sama"
+      : persen !== null
+        ? `${Math.abs(persen) < 10 ? Math.abs(persen).toLocaleString("id-ID", { maximumFractionDigits: 1 }) : angka(Math.round(Math.abs(persen)))}%`
+        : format(Math.abs(beda));
+  const baik = arah === 0 ? null : (arah > 0) === naikBaik;
+  const nada = gelap
+    ? baik === null
+      ? "bg-ink-fg/10 text-ink-muted"
+      : baik
+        ? "bg-ink-signal/15 text-ink-signal"
+        : "bg-ink-alarm/15 text-ink-alarm"
+    : baik === null
+      ? "bg-subtle text-muted"
+      : baik
+        ? "bg-success-soft text-success"
+        : "bg-danger-soft text-danger";
+  const Ikon = arah > 0 ? ArrowUpRight : arah < 0 ? ArrowDownRight : Minus;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs">
+      <span className={`inline-flex items-center gap-0.5 rounded-full py-0.5 pr-1.5 pl-1 font-semibold tabular-nums ${nada}`}>
+        <Ikon className="size-3.5" aria-hidden strokeWidth={2.5} />
+        <span className="sr-only">{arah > 0 ? "naik" : arah < 0 ? "turun" : ""}</span>
+        {arah !== 0 && persen === null && (arah > 0 ? "+" : "−")}
+        {teks}
+      </span>
+      <span className={gelap ? "text-ink-muted" : "text-muted"}>vs {pembanding}</span>
+    </span>
+  );
+}
+
 export function KartuStat({
   label,
   nilai,
   ikon,
   keterangan,
+  delta,
+  className = "",
   children,
 }: {
   label: string;
   nilai: ReactNode;
   ikon: ReactNode;
   keterangan?: ReactNode;
+  delta?: ReactNode;
+  className?: string;
   children?: ReactNode;
 }) {
   return (
-    <div className="card flex min-w-0 flex-col p-4 sm:p-5">
+    <div className={`card flex min-w-0 flex-col p-4 sm:p-5 ${className}`}>
       <div className="flex items-start justify-between gap-2">
         <p className="text-[12.5px] leading-snug font-medium text-muted">{label}</p>
         <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-subtle text-muted sm:size-8">{ikon}</span>
       </div>
       <p className="mt-2 text-[26px] leading-none font-bold tracking-tight sm:text-[30px]">{nilai}</p>
+      {delta && <div className="mt-2.5">{delta}</div>}
       {keterangan && <p className="mt-2 text-xs leading-snug text-muted">{keterangan}</p>}
       {children && <div className="mt-auto pt-3">{children}</div>}
     </div>
@@ -80,12 +145,25 @@ export function KartuStat({
 }
 
 /** Satu-satunya angka utama per tampilan: kartu gelap senada sidebar. */
-export function KartuUtama({ label, nilai, keterangan, tren }: { label: string; nilai: string; keterangan: ReactNode; tren: number[] }) {
+export function KartuUtama({
+  label,
+  nilai,
+  keterangan,
+  tren,
+  delta,
+}: {
+  label: string;
+  nilai: string;
+  keterangan: ReactNode;
+  tren: number[];
+  delta?: ReactNode;
+}) {
   return (
     <div className="relative col-span-2 flex flex-col overflow-hidden rounded-2xl bg-ink p-5 text-ink-fg shadow-pop xl:col-span-1">
       <div aria-hidden className="kisi-tinta pointer-events-none absolute inset-0" />
       <p className="relative text-[12.5px] font-medium text-ink-muted">{label}</p>
       <p className="relative mt-2 text-5xl leading-none font-bold tracking-tight">{nilai}</p>
+      {delta && <div className="relative mt-3">{delta}</div>}
       <p className="relative mt-2 text-xs text-ink-muted">{keterangan}</p>
       {/* Disisakan 6px di kanan untuk titik akhir (hari ini) beserta cincinnya. */}
       <div className="mt-auto pt-4">

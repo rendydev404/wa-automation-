@@ -34,6 +34,7 @@
   --c-ink-fg: #e8f0ec;
   --c-ink-muted: #93a99f;
   --c-ink-signal: #3ddc97;
+  --c-ink-alarm: #ff9aa9; /* perubahan buruk di kartu gelap (kontras 9:1 terhadap ink) */
 
   /* Seri grafik (divalidasi: lolos CVD & kontras terhadap permukaan putih). */
   --c-seri-masuk: #6c8fd6;
@@ -68,6 +69,7 @@
   --color-ink-fg: var(--c-ink-fg);
   --color-ink-muted: var(--c-ink-muted);
   --color-ink-signal: var(--c-ink-signal);
+  --color-ink-alarm: var(--c-ink-alarm);
   --color-seri-masuk: var(--c-seri-masuk);
   --color-seri-dibalas: var(--c-seri-dibalas);
   --shadow-card: var(--shadow-card);

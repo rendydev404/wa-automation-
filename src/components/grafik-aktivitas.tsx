@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { angka } from "@/lib/format";
 import { persen, type TitikHari } from "@/lib/tren";
 
@@ -19,10 +19,22 @@ function batasAtas(n: number): number {
 /**
  * Kolom berkelompok per hari (HTML/CSS, tanpa pustaka grafik): lebar mengikuti wadah tanpa diukur,
  * teks tetap tajam. Tooltip saat disorot/disentuh/fokus; tabel tersembunyi untuk pembaca layar.
+ * Lebih dari 7 hari: label sumbu berupa tanggal dan hanya selang-seling (tanggal lengkap ada di tooltip).
  */
-export function GrafikAktivitas({ titik }: { titik: TitikHari[] }) {
+export function GrafikAktivitas({
+  titik,
+  judul = "Aktivitas 7 hari terakhir",
+  penuh = false,
+}: {
+  titik: TitikHari[];
+  judul?: string;
+  /** Tinggi grafik ikut mengisi kartu (bila kartu diregangkan baris grid). */
+  penuh?: boolean;
+}) {
   const [aktif, setAktif] = useState<number | null>(null);
+  const idJudul = useId();
   const n = titik.length;
+  const rapat = n > 7;
   const atas = batasAtas(Math.max(0, ...titik.flatMap((t) => [t.masuk, t.dibalas])));
   const totalMasuk = titik.reduce((a, t) => a + t.masuk, 0);
   const totalDibalas = titik.reduce((a, t) => a + t.dibalas, 0);
@@ -31,11 +43,11 @@ export function GrafikAktivitas({ titik }: { titik: TitikHari[] }) {
   const kiri = aktif !== null && aktif < n / 2;
 
   return (
-    <section aria-labelledby="judul-aktivitas" className="card flex min-w-0 flex-col p-5 sm:p-6">
+    <section aria-labelledby={idJudul} className="card flex min-w-0 flex-col p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div>
-          <h2 id="judul-aktivitas" className="text-[15px] font-bold tracking-tight">
-            Aktivitas 7 hari terakhir
+          <h2 id={idJudul} className="text-[15px] font-bold tracking-tight">
+            {judul}
           </h2>
           <p className="hint mt-0.5">
             {angka(totalMasuk)} pesan masuk · {angka(totalDibalas)} dibalas AI{rasio !== null && ` (${rasio}%)`}
@@ -51,7 +63,7 @@ export function GrafikAktivitas({ titik }: { titik: TitikHari[] }) {
         </ul>
       </div>
 
-      <div className="relative mt-6 h-52 select-none sm:h-60" onPointerLeave={() => setAktif(null)}>
+      <div className={`relative mt-6 select-none ${penuh ? "min-h-52 flex-1 sm:min-h-60" : "h-52 sm:h-60"}`} onPointerLeave={() => setAktif(null)}>
         <div aria-hidden className="absolute inset-x-0 top-0 bottom-6">
           {[atas, atas / 2, 0].map((v, i) => (
             <div key={i} className="absolute inset-x-0 flex -translate-y-1/2 items-center gap-2" style={{ top: `${i * 50}%` }}>
@@ -71,7 +83,7 @@ export function GrafikAktivitas({ titik }: { titik: TitikHari[] }) {
               onClick={() => setAktif(i)}
               onFocus={() => setAktif(i)}
               onBlur={() => setAktif(null)}
-              className={`flex h-full flex-1 items-end justify-center gap-0.5 rounded-t-lg px-1 transition-colors focus-visible:outline-offset-0 ${aktif === i ? "bg-subtle" : ""}`}
+              className={`flex h-full flex-1 items-end justify-center gap-0.5 rounded-t-lg transition-colors focus-visible:outline-offset-0 ${rapat ? "px-0.5" : "px-1"} ${aktif === i ? "bg-subtle" : ""}`}
             >
               {SERI.map((s) => (
                 <span
@@ -105,15 +117,18 @@ export function GrafikAktivitas({ titik }: { titik: TitikHari[] }) {
 
         <div aria-hidden className="absolute right-0 bottom-0 left-9 flex">
           {titik.map((t, i) => (
-            <span key={t.tanggal} className={`flex-1 text-center text-[11px] ${i === n - 1 ? "font-semibold text-fg" : "text-faint"}`}>
-              {i === n - 1 ? "Hari ini" : t.label}
+            // Label dipusatkan di atas kolomnya tanpa ikut melebarkan kolom ("Hari ini" lebih lebar dari kolom rapat).
+            <span key={t.tanggal} className="relative h-4 min-w-0 flex-1">
+              <span className={`absolute top-0 left-1/2 -translate-x-1/2 text-[11px] whitespace-nowrap ${i === n - 1 ? "font-semibold text-fg" : "text-faint"}`}>
+                {i === n - 1 ? "Hari ini" : !rapat ? t.label : (n - 1 - i) % 2 === 0 ? Number(t.tanggal.slice(8)) : ""}
+              </span>
             </span>
           ))}
         </div>
       </div>
 
       <table className="sr-only">
-        <caption>Aktivitas 7 hari terakhir</caption>
+        <caption>{judul}</caption>
         <thead>
           <tr>
             <th scope="col">Tanggal</th>

@@ -8,6 +8,14 @@ export function formatNomor(waId: string): string {
 
 export const angka = (n: number): string => n.toLocaleString("id-ID");
 
+const fmtRingkas = new Intl.NumberFormat("id-ID", { notation: "compact", maximumFractionDigits: 1 });
+
+/** Angka ringkas untuk kartu KPI: 99.000 -> "99 rb", 12.480.000 -> "12,5 jt". Di bawah 10.000 tetap lengkap. */
+export const angkaRingkas = (n: number): string => (Math.abs(n) < 10_000 ? angka(n) : fmtRingkas.format(n));
+
+/** Rupiah ringkas: "Rp12,5 jt", "−Rp850 rb". */
+export const rupiahRingkas = (n: number): string => `${n < 0 ? "−" : ""}Rp${angkaRingkas(Math.abs(n))}`;
+
 /**
  * Nomor WhatsApp format bebas (0812..., +62 812-..., 62812...) dirapikan jadi digit berawalan kode negara;
  * null = format tidak dikenali.

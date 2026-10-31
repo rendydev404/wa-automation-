@@ -526,6 +526,65 @@ await cek("penerusan selalu aktif selama nomor penerus terisi (saklar per nomor 
   assert.equal(await PN.bisaTeruskan({ teruskan_ke: null, teruskan_aktif: true }), false);
 });
 
+await cek("KPI admin: pendapatan, pelanggan berbayar, balasan, biaya AI, penerusan, tagihan menunggu, langganan berakhir & kuota menipis dibanding 30 hari sebelumnya", async () => {
+  const K = await lib("src/lib/kpi.ts");
+  const HARI = 86400;
+  const kini = sekarang();
+  const wib = (t) => new Date((t + 7 * 3600) * 1000).toISOString().slice(0, 10);
+  const a = await K.kpiAdmin();
+  assert.equal(a.hari.length, K.PERIODE_HARI);
+  assert.equal(a.hari.at(-1), wib(kini));
+
+  const u = await P.buatAkun({ email: "kpi@uji.test", nama: "KPI", password: "rahasia-kpi-0001" });
+  const n = await tambahNomor("Nomor KPI", u.id);
+  await sql`UPDATE numbers SET wa_id = '628111000999' WHERE id = ${n.id}`;
+  await sql`INSERT INTO langganan(user_id, paket_id, nama_paket, mulai, sampai, kuota_nomor, kuota_balasan, sumber)
+            VALUES (${u.id}, NULL, 'KPI Uji', ${kini - 10 * HARI}, ${kini + 3 * HARI}, 1, 10, 'admin')`;
+  // 9 balasan terhitung kuota + 1 spam (biaya tetap tercatat, kuota tidak terpotong); satu panggilan 40 hari lalu = periode pembanding.
+  for (let i = 0; i < 10; i++)
+    await sql`INSERT INTO ai_pakai(number_id, waktu, penyedia, model, biaya_usd, ms, abaikan) VALUES (${n.id}, ${kini - i * 3600}, 'anthropic', 'uji', 0.01, 100, ${i === 9})`;
+  await sql`INSERT INTO ai_pakai(number_id, waktu, penyedia, model, biaya_usd, ms) VALUES (${n.id}, ${kini - 40 * HARI}, 'anthropic', 'uji', 0.5, 100)`;
+  await sql`INSERT INTO transaksi(order_id, user_id, nama_paket, jumlah, status, dibuat, dibayar) VALUES
+    ('KPI-1', ${u.id}, 'KPI Uji', 150000, 'lunas', ${kini - 2 * HARI}, ${kini - 2 * HARI}),
+    ('KPI-2', ${u.id}, 'KPI Uji', 50000, 'lunas', ${kini - 40 * HARI}, ${kini - 40 * HARI}),
+    ('KPI-3', ${u.id}, 'KPI Uji', 99000, 'menunggu', ${kini - HARI}, NULL),
+    ('KPI-4', ${u.id}, 'KPI Uji', 70000, 'menunggu', ${kini - 9 * HARI}, NULL)`;
+  await sql`INSERT INTO stats(number_id, tanggal, masuk, dibalas) VALUES (${n.id}, ${wib(kini)}, 5, 4), (${n.id}, ${wib(kini - 35 * HARI)}, 3, 2)`;
+  await sql`INSERT INTO teruskan(number_id, chat, jenis, ringkasan, tujuan, status, created_at) VALUES
+    (${n.id}, 'c1', 'pesanan', 'pesan 2', '62811', 'terkirim', ${kini - HARI}),
+    (${n.id}, 'c2', 'uji', 'uji', '62811', 'terkirim', ${kini}),
+    (${n.id}, 'c3', 'keluhan', 'gagal kirim', '62811', 'gagal', ${kini})`;
+
+  const b = await K.kpiAdmin();
+  const beda = (f) => f(b) - f(a);
+  const hariKe = (t) => b.hari.indexOf(wib(t));
+  assert.deepEqual(
+    [beda((k) => k.pendapatan.kini), beda((k) => k.pendapatan.lalu), beda((k) => k.pendapatan.transaksi)],
+    [150000, 50000, 1]
+  );
+  assert.equal(b.pendapatan.harian[hariKe(kini - 2 * HARI)].nilai - a.pendapatan.harian[hariKe(kini - 2 * HARI)].nilai, 150000);
+  assert.deepEqual([beda((k) => k.berbayar.kini), beda((k) => k.berbayar.lalu)], [1, 0]);
+  assert.equal(b.berbayar.harian.at(-1).nilai - a.berbayar.harian.at(-1).nilai, 1, "aktif hari ini");
+  assert.equal(b.berbayar.harian[hariKe(kini - 15 * HARI)].nilai - a.berbayar.harian[hariKe(kini - 15 * HARI)].nilai, 0, "belum mulai 15 hari lalu");
+  assert.deepEqual(b.berbayar.perPaket.find((p) => p.nama === "KPI Uji"), { nama: "KPI Uji", jumlah: 1 });
+  assert.deepEqual([beda((k) => k.balasan.kini), beda((k) => k.balasan.masuk), beda((k) => k.balasan.lalu)], [4, 5, 2]);
+  assert.equal(b.balasan.harian.at(-1).dibalas - a.balasan.harian.at(-1).dibalas, 4);
+  assert.ok(Math.abs(beda((k) => k.biayaAiUsd.kini) - 0.1) < 1e-9 && Math.abs(beda((k) => k.biayaAiUsd.lalu) - 0.5) < 1e-9);
+  assert.equal(beda((k) => k.diteruskan.kini), 1, "uji & gagal tidak dihitung");
+  assert.deepEqual([beda((k) => k.menunggu.jumlah), beda((k) => k.menunggu.nilai)], [1, 99000], "tagihan > 7 hari tidak dihitung");
+  assert.deepEqual([beda((k) => k.akun.total), beda((k) => k.akun.pengguna), beda((k) => k.akun.baruKini)], [1, 1, 1]);
+  assert.equal(beda((k) => k.nomor.total), 1);
+  assert.deepEqual(b.nomor.tertaut.find((x) => x.userId === u.id), { sesi: n.sesi, label: "Nomor KPI", userId: u.id, email: "kpi@uji.test" });
+  assert.deepEqual(b.berakhir.find((x) => x.userId === u.id), { userId: u.id, email: "kpi@uji.test", paket: "KPI Uji", sampai: kini + 3 * HARI });
+  assert.deepEqual(b.kuotaMenipis.find((x) => x.userId === u.id), { userId: u.id, email: "kpi@uji.test", paket: "KPI Uji", terpakai: 9, kuota: 10 });
+
+  // Akun diblokir: nomornya tidak dihitung sebagai "tertaut" (sengaja tidak dilayani), admin tidak dihitung pelanggan.
+  await sql`UPDATE users SET status = 'diblokir' WHERE id = ${u.id}`;
+  const c = await K.kpiAdmin();
+  assert.equal(c.nomor.tertaut.some((x) => x.userId === u.id), false);
+  await sql`UPDATE users SET status = 'aktif' WHERE id = ${u.id}`;
+});
+
 await cek("tur panduan: tercatat per akun, tidak dobel", async () => {
   assert.deepEqual(await P.turSelesai(budi.id), []);
   await P.tandaiTurSelesai(budi.id, "dashboard");

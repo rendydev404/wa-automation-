@@ -119,22 +119,6 @@ export async function penggunaById(id: number): Promise<BarisPengguna | undefine
   return u;
 }
 
-/** Angka ringkasan dashboard admin dalam satu query. */
-export async function ringkasanAdmin() {
-  const sql = await db();
-  const minggu = sekarang() - 7 * 86400;
-  const [r] = await sql<{ total: number; aktif: number; diblokir: number; admin: number; baru7: number; nomor: number; tertaut: number }[]>`
-    SELECT COUNT(*) AS total,
-           COUNT(*) FILTER (WHERE status = 'aktif') AS aktif,
-           COUNT(*) FILTER (WHERE status = 'diblokir') AS diblokir,
-           COUNT(*) FILTER (WHERE peran = 'admin') AS admin,
-           COUNT(*) FILTER (WHERE created_at >= ${minggu}) AS baru7,
-           (SELECT COUNT(*) FROM numbers) AS nomor,
-           (SELECT COUNT(*) FROM numbers WHERE wa_id IS NOT NULL) AS tertaut
-      FROM users`;
-  return r;
-}
-
 // ---------- Tindakan admin ----------
 
 async function jumlahAdminAktif(): Promise<number> {
