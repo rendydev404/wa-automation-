@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, Bot, CreditCard, LayoutDashboard, Package, ScrollText, Settings2, Users, Wallet } from "lucide-react";
+import { ArrowLeft, Bot, LayoutDashboard, Package, ScrollText, Settings2, Users, Wallet } from "lucide-react";
 
 const MENU = [
   { href: "/admin", label: "Ringkasan", ikon: LayoutDashboard, tepat: true },
@@ -10,7 +10,6 @@ const MENU = [
   { href: "/admin/paket", label: "Paket & harga", ikon: Package },
   { href: "/admin/transaksi", label: "Transaksi", ikon: Wallet },
   { href: "/admin/ai", label: "Mesin AI", ikon: Bot },
-  { href: "/admin/pembayaran", label: "Pembayaran", ikon: CreditCard },
   { href: "/admin/aturan", label: "Aturan", ikon: Settings2 },
   { href: "/admin/log", label: "Log admin", ikon: ScrollText },
 ];

@@ -3,13 +3,12 @@ import { ArrowDown, Bot, ChevronRight, CreditCard, Package, ShieldCheck, Sparkle
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna } from "@/lib/pengguna";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
-import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, SalinTeks } from "./form-admin";
+import { FormAi, FormBuatAkun, FormPaket, FormPengaturan } from "./form-admin";
 import { customTampil, hargaAngka, paketCustom } from "@/lib/paket-custom";
 import { PembangunCustom } from "./paket-custom";
 import { METODE_MANUAL, acuanHarga, aturanPercobaan, daftarPaket, pemakaianNyata, riwayatTransaksi } from "@/lib/langganan";
 import { SimulasiHarga } from "./simulasi-harga";
-import { konfigMidtrans, kunciMidtransSah } from "@/lib/midtrans";
-import { asalAplikasi } from "@/lib/batas";
+import { konfigMidtrans } from "@/lib/midtrans";
 import { kunciAnthropic, modelAnthropic, pengaturanAi, perkiraanPerBalasan, ringkasPakai } from "@/lib/ai";
 import { infoKurs } from "@/lib/kurs";
 import { infoTarif, siapkanTarif, tarifModel } from "@/lib/tarif";
@@ -299,29 +298,6 @@ export async function Transaksi() {
           ))}
         </ul>
       )}
-    </section>
-  );
-}
-
-export async function Pembayaran() {
-  await requireAdmin();
-  const [k, asal] = await Promise.all([konfigMidtrans(), asalAplikasi()]);
-  // Kunci dipasang developer di server; di sini hanya dicek apakah Midtrans menerimanya.
-  const sah = k ? await kunciMidtransSah(k) : false;
-  return (
-    <section className="card p-6">
-      <h2 className="flex items-center gap-2 text-[15px] font-bold">
-        <CreditCard className="size-4 text-accent" aria-hidden /> Pembayaran (Midtrans Snap)
-      </h2>
-      <p className="mt-0.5 text-[13px] text-muted">
-        {!k
-          ? "Belum aktif: server key belum dipasang developer di server (MIDTRANS_SERVER_KEY di .env)."
-          : `${sah ? "Aktif ✓" : "Kunci terpasang tapi ditolak Midtrans, hubungi developer."} · ${k.produksi ? "Production" : "Sandbox"}`}
-      </p>
-      <div className="mt-4">
-        <p className="label">Payment Notification URL (tempel di dashboard Midtrans → Settings → Payment)</p>
-        <SalinTeks teks={`${asal}/api/midtrans/notifikasi`} label="Salin URL notifikasi" />
-      </div>
     </section>
   );
 }

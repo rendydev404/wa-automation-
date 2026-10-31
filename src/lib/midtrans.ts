@@ -116,20 +116,3 @@ export function petaStatus(s: Pick<StatusMidtrans, "transaction_status" | "fraud
   }
 }
 
-/**
- * Server key diterima Midtrans? Ditanyakan status sebuah order yang pasti tidak ada: kunci sah -> 404
- * (transaksi tidak ditemukan), kunci salah -> 401.
- */
-export async function kunciMidtransSah(k: KonfigMidtrans): Promise<boolean> {
-  try {
-    const res = await fetch(`${alamatApi(k)}/cek-kunci-${Date.now()}/status`, {
-      headers: { Authorization: otorisasi(k), Accept: "application/json" },
-      signal: AbortSignal.timeout(10_000),
-      cache: "no-store",
-    });
-    const d = (await res.json().catch(() => null)) as { status_code?: string } | null;
-    return res.status !== 401 && d?.status_code !== "401";
-  } catch {
-    return false;
-  }
-}
