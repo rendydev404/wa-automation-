@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState, useTransition } from "reac
 import { ArrowLeft, Check, Circle, Loader2, PencilLine, RotateCcw, Sparkles, TriangleAlert, X } from "lucide-react";
 import { tambahTeksAction } from "@/app/actions";
 import { JENIS_USAHA, KELENGKAPAN, type KunciUsaha, bersihkanKerangka, cekKelengkapan, infoUsaha, kerangka } from "@/lib/templat-usaha";
+import { LoadingAi } from "./loading-ai";
 import { Pesan } from "./ui";
 
 /**
@@ -133,25 +134,14 @@ export function EditorKnowledge({ numberId, edit, tutup }: { numberId: number; e
 
   if (tahap === "proses")
     return (
-      <div className="flex flex-col items-center rounded-2xl border border-line bg-subtle/40 px-6 py-12 text-center" role="status">
-        <span className="relative grid size-12 place-items-center rounded-2xl bg-accent-soft text-accent">
-          <Sparkles className="size-5" aria-hidden />
-          <Loader2 className="absolute -right-1 -bottom-1 size-5 animate-spin rounded-full bg-surface p-0.5 text-accent" aria-hidden />
-        </span>
-        <p className="mt-4 text-[14px] font-bold">{edit ? "AI sedang menyempurnakan dokumen…" : "AI sedang merapikan tulisan Anda…"}</p>
-        <p className="mt-1 max-w-sm text-[12.5px] text-muted">Biasanya 10–40 detik. Harga, jam, dan alamat tetap persis seperti yang Anda tulis.</p>
-        <button
-          type="button"
-          className="btn btn-ghost mt-4"
-          onClick={() => {
-            batal.current?.abort();
-            if (edit && tutup) tutup();
-            else setTahap("tulis");
-          }}
-        >
-          Batal
-        </button>
-      </div>
+      <LoadingAi
+        judul={edit ? "AI sedang menyempurnakan dokumen…" : "AI sedang merapikan tulisan Anda…"}
+        onBatal={() => {
+          batal.current?.abort();
+          if (edit && tutup) tutup();
+          else setTahap("tulis");
+        }}
+      />
     );
 
   if (tahap === "hasil")
