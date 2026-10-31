@@ -81,7 +81,7 @@ function DialogTambah({ tutup }: { tutup: () => void }) {
         <label htmlFor={`${id}-label`} className="label">
           Nama nomor
         </label>
-        <input id={`${id}-label`} name="label" required maxLength={60} autoFocus placeholder="CS Outlet Depok" className="field" />
+        <input id={`${id}-label`} name="label" required maxLength={60} autoFocus placeholder="mis. CS Utama" className="field" />
         <div className="mt-2 min-h-5">
           <Pesan ok={false}>{hasil?.pesan}</Pesan>
         </div>

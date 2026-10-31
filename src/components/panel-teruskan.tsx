@@ -16,13 +16,13 @@ export interface RiwayatTeruskanUi {
 }
 
 const CONTOH = `🛒 *Pesanan baru*
-Dari: Rina · +62 812-3456-7890
+Dari: Nama Pelanggan · +62 812-xxxx-xxxx
 
-Nama: Rina
-Pesanan: 2 Paket Hemat Ayam, 1 Es Teh
-Diambil/dikirim: diantar ke Jl. Melati 5, Bekasi
-Waktu: hari ini jam 12.00
-Pembayaran: transfer BCA`;
+Nama: Nama Pelanggan
+Pesanan: (produk yang dipesan beserta jumlahnya)
+Diambil/dikirim: (alamat atau ambil sendiri)
+Waktu: (kapan dibutuhkan)
+Pembayaran: (cara bayar yang dipilih)`;
 
 const KAPAN = [
   ["🛒", "Pesanan siap diproses", "setelah AI mengumpulkan nama, pesanan, alamat/ambil, waktu, dan cara bayar"],

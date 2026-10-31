@@ -278,7 +278,7 @@ function FormProduk({ numberId, produk, selesai }: { numberId: number; produk: P
         <div className="space-y-3">
           <label className="block">
             <span className="label">Nama produk</span>
-            <input value={nama} onChange={(e) => setNama(e.target.value)} required minLength={2} maxLength={BATAS_KATALOG.nama} placeholder="mis. Kopi Susu Aren 250 ml" className="field" />
+            <input value={nama} onChange={(e) => setNama(e.target.value)} required minLength={2} maxLength={BATAS_KATALOG.nama} placeholder="Nama produk, mis. dengan ukuran atau varian" className="field" />
           </label>
           <label className="block">
             <span className="label">Harga</span>

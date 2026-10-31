@@ -37,7 +37,7 @@ const FAQ = [
   { t: "Apakah nomor WhatsApp saya aman?", j: "Nomor tersambung sebagai perangkat tertaut, sama seperti WhatsApp Web. Anda bisa memutusnya kapan saja dari dashboard atau dari HP (Perangkat tertaut → Keluar)." },
   { t: "Bisa dipakai WhatsApp Business?", j: "Bisa. WhatsApp biasa maupun WhatsApp Business, selama bisa membuka menu Perangkat tertaut." },
   { t: "Bagaimana kalau AI tidak tahu jawabannya?", j: "AI dilarang menebak. Bila informasinya tidak ada di base knowledge, AI berkata terus terang dan meneruskan ke Anda." },
-  { t: "Berapa nomor yang bisa saya sambungkan?", j: "Akun gratis mendapat 1 nomor. Butuh lebih banyak untuk tim atau cabang? Pilih paket Bisnis atau Pro di bagian Harga." },
+  { t: "Berapa nomor yang bisa saya sambungkan?", j: "Akun gratis mendapat 1 nomor. Butuh lebih banyak nomor untuk tim atau beberapa lini layanan? Pilih paket Bisnis atau Pro di bagian Harga." },
   { t: "Apa yang terjadi kalau kuota balasan AI habis?", j: "AI berhenti membalas sementara dan chat tetap masuk ke HP-mu seperti biasa. Perpanjang atau naikkan paket, AI langsung aktif lagi." },
   { t: "Bolehkah untuk broadcast/promo massal?", j: "Tidak. Layanan ini untuk membalas pelanggan yang menghubungi Anda. Akun yang dipakai untuk spam akan diblokir." },
 ];

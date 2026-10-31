@@ -82,7 +82,7 @@ export const AMBANG_KURS_CUSTOM = 0.01;
 export const BAWAAN_CUSTOM: PaketCustom = {
   aktif: false,
   nama: "Custom",
-  deskripsi: "Kuota & harga menyesuaikan kebutuhan: banyak cabang, volume chat besar, atau durasi panjang.",
+  deskripsi: "Kuota & harga menyesuaikan kebutuhan: banyak nomor, volume chat besar, atau durasi panjang.",
   fitur: ["Base knowledge & belajar dari balasanmu", "Bantuan penyiapan base knowledge", "Dukungan prioritas lewat WhatsApp"],
   tampil_harga: "angka",
   teks_harga: "Hubungi kami",

@@ -215,7 +215,7 @@ export function NumberSettings({
             rows={4}
             maxLength={2000}
             defaultValue={instruksi}
-            placeholder="Contoh: Sapa dengan 'Bang'. Jawab singkat dan santai. Untuk permintaan penawaran, minta dulu nama usaha dan kebutuhannya."
+            placeholder="Contoh: Sapa pelanggan dengan ramah dan jawab singkat. Untuk permintaan penawaran, tanyakan dulu kebutuhannya."
             className="field resize-y leading-relaxed"
           />
           <p className="hint mt-1.5">Gaya bicara dan alur khusus nomor ini. Siapa pemilik nomor dan faktanya (layanan, harga, jadwal) taruh di base knowledge.</p>

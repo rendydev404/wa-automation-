@@ -21,8 +21,7 @@ interface Hasil {
 
 type Tahap = "tulis" | "proses" | "hasil" | "tersimpan";
 
-const CONTOH_BEBAS =
-  "Contoh: Warung Bu Sari, jual ayam geprek 18rb, paket hemat 25rb (ayam+nasi+es teh), es teh 5rb. Buka tiap hari jam 10 pagi - 9 malam. Alamat Jl. Melati 5 Bekasi. Bisa antar radius 3 km. Bayar transfer BCA, QRIS, atau tunai.";
+const CONTOH_BEBAS = "Tulis seperti chat biasa: nama usaha, apa yang dijual beserta harganya, jam buka, alamat atau area layanan, cara pesan, dan cara bayar.";
 
 async function minta(body: object, sinyal: AbortSignal): Promise<Hasil> {
   const res = await fetch("/api/knowledge/rapikan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: sinyal });
