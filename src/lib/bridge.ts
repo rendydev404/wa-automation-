@@ -644,6 +644,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
 
   // Pesan suara: transkripsi dimulai sekarang (selagi AI menunggu jeda balas), hasilnya dipakai saat giliran diproses.
   const kodeSuara = ev.suara && sttTerkonfigurasi() ? createHash("sha1").update(`${nomor.id}:${ev.id}`).digest("hex").slice(0, 12) : null;
+  if (ev.suara && !kodeSuara) console.warn(`[bridge] pesan suara tidak ditranskrip: STT_API_KEY belum dipasang di .env (sesi=${sesi})`);
   const teks = teksUntukAi(ev, kodeSuara ? `⟦suara:${kodeSuara}⟧` : null);
   if (!teks) return;
 

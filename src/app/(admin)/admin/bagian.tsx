@@ -11,6 +11,7 @@ import { SimulasiHarga } from "./simulasi-harga";
 import { konfigMidtrans } from "@/lib/midtrans";
 import { kunciAnthropic, modelAnthropic, pengaturanAi, perkiraanPerBalasan, ringkasPakai } from "@/lib/ai";
 import { infoKurs } from "@/lib/kurs";
+import { sttTerkonfigurasi } from "@/lib/stt";
 import { infoTarif, siapkanTarif, tarifModel } from "@/lib/tarif";
 import type { OpsiModel } from "@/components/pilih-model";
 import { TarifInfo } from "@/components/tarif-info";
@@ -64,6 +65,12 @@ export async function MesinAi() {
       <p className={`mt-1 text-[12.5px] ${kunci && daftarModel === null ? "text-danger" : "text-muted"}`}>
         API key Anthropic:{" "}
         {!kunci ? "belum dipasang di server (developer: ANTHROPIC_API_KEY di .env)." : daftarModel === null ? "terpasang di server tapi ditolak/tak terjangkau, hubungi developer." : "terpasang di server ✓"}
+      </p>
+      <p className={`mt-1 text-[12.5px] ${sttTerkonfigurasi() ? "text-muted" : "text-warning"}`}>
+        Transkripsi pesan suara:{" "}
+        {sttTerkonfigurasi()
+          ? "terpasang di server ✓ (pesan suara pelanggan dibaca AI)"
+          : "belum dipasang, jadi AI meminta pelanggan mengetik (developer: STT_API_KEY di .env, lalu buat ulang container)."}
       </p>
       <div className="mt-4">
         <FormAi penyedia={atur.mode} model={atur.model} cadangan={atur.cadangan} adaKunci={!!kunci} opsi={opsi} />
