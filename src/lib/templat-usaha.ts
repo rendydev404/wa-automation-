@@ -1,8 +1,7 @@
 /**
- * Templat base knowledge per jenis usaha. Pengguna memilih jenis usahanya, mengganti contoh (nama produk, harga,
- * jam, alamat, rekening), lalu susunTemplat() menyusun dokumen yang terstruktur untuk AI: peran & gaya bahasa,
- * daftar harga resmi, data pesanan yang wajib dikumpulkan (dipakai sistem teruskan), kebijakan, FAQ, dan batasan.
- * Murni (tanpa I/O): dipakai formulir di browser dan uji.
+ * Bahan editor base knowledge per jenis usaha: kerangka isian sederhana (kerangka), pembersih baris kerangka yang
+ * belum diisi (bersihkanKerangka), dan cek kelengkapan. Hasil tulisan pengguna dirapikan AI di rapikan-knowledge.ts
+ * menjadi dokumen terstruktur. Murni (tanpa I/O): dipakai editor di browser, server, dan uji.
  */
 
 export interface ProdukTemplat {
@@ -262,91 +261,99 @@ export const JENIS_USAHA = {
 
 export type KunciUsaha = keyof typeof JENIS_USAHA;
 
-/** Salinan contoh yang bisa diubah formulir (contoh di atas readonly). */
-export function isiAwal(jenis: KunciUsaha): IsiTemplat {
-  return structuredClone(JENIS_USAHA[jenis].contoh) as IsiTemplat;
-}
-
 const baris = (t: string) =>
   t
     .split("\n")
     .map((b) => b.trim().replace(/^(?:[-•*]|\d+[.)])\s*/, ""))
     .filter(Boolean);
 
-export const rupiah = (digit: string): string | null => {
-  const n = Number(digit.replace(/\D/g, ""));
-  return digit.trim() && Number.isFinite(n) && n > 0 ? `Rp${n.toLocaleString("id-ID")}` : null;
+const hargaRingkas = (digit: string) => {
+  const n = Number(digit);
+  return !n ? "" : n % 1000 === 0 ? ` ${n / 1000}rb` : ` Rp${n.toLocaleString("id-ID")}`;
 };
 
 /**
- * Isian yang masih sama persis dengan contoh (nama produk, harga, alamat, rekening...). Dipakai untuk mencegah
- * contoh tersimpan sebagai fakta: AI akan menyebut harga & rekening itu ke pelanggan.
+ * Kerangka isian sederhana per jenis usaha untuk editor knowledge. Fakta usaha (produk, harga, jam, alamat,
+ * rekening) hanya diberi petunjuk "(contoh: ...)" yang dibuang sebelum disimpan / dirapikan AI, jadi data contoh
+ * tidak pernah menjadi fakta. Yang bukan fakta (gaya bahasa, data yang ditanyakan saat pesan, kapan diserahkan ke
+ * pemilik) sudah terisi saran yang boleh diubah.
  */
-export function masihContoh(jenis: KunciUsaha, isi: IsiTemplat): string[] {
-  const c = JENIS_USAHA[jenis].contoh as IsiTemplat;
-  const sama: string[] = [];
-  if (isi.namaUsaha.trim() === c.namaUsaha) sama.push("Nama usaha");
-  for (const p of isi.produk) if (c.produk.some((x) => x.nama === p.nama.trim() && x.harga === p.harga.trim())) sama.push(`Produk "${p.nama}"`);
-  if (isi.alamat.trim() && isi.alamat.trim() === c.alamat) sama.push("Alamat");
-  if (isi.bayar.trim() && isi.bayar.trim() === c.bayar) sama.push("Pembayaran (nomor rekening)");
-  if (isi.jam.trim() === c.jam) sama.push("Jam buka");
-  return sama;
+export function kerangka(jenis: KunciUsaha): string {
+  const j = JENIS_USAHA[jenis];
+  const c = j.contoh as IsiTemplat;
+  const istilah = j.istilah.charAt(0) + j.istilah.slice(1).toLowerCase();
+  // Petunjuk selalu di akhir baris dan tanpa kurung di dalamnya, supaya bersihkanKerangka bisa membuangnya utuh.
+  const tanpaKurung = (t: string) => t.replace(/\s*\(([^)]*)\)/g, " – $1");
+  const produk = c.produk.slice(0, 2).map((p) => `- (contoh: ${tanpaKurung(p.nama)}${hargaRingkas(p.harga)}${p.ket ? `, ${p.ket}` : ""})`);
+  return [
+    "Nama usaha: ",
+    `Tentang usaha: (contoh: ${tanpaKurung(c.tentang)})`,
+    `Gaya bahasa: ${c.gaya === "sopan" ? 'sopan, panggil pelanggan "Bapak/Ibu"' : 'santai dan ramah, panggil pelanggan "Kak"'}`,
+    "",
+    `${istilah} (satu per baris, dengan harga):`,
+    ...produk,
+    "- ",
+    "",
+    `Jam buka: (contoh: ${tanpaKurung(c.jam)})`,
+    "Alamat: ",
+    "Area layanan / pengiriman: ",
+    `Cara ${j.transaksi}: `,
+    `Cara bayar: (contoh: ${tanpaKurung(c.bayar)})`,
+    "Pengiriman: ",
+    "Kebijakan (pembatalan, penukaran, garansi): ",
+    "Promo yang sedang berlaku: ",
+    "",
+    `Saat pelanggan ${j.transaksi === "pendaftaran" ? "mendaftar" : j.transaksi === "booking" ? "booking" : "memesan"}, tanyakan: ${baris(c.dataPesanan).join(", ")}`,
+    "",
+    "Pertanyaan yang sering ditanya:",
+    "T: ",
+    "J: ",
+    "",
+    `Serahkan ke pemilik bila: ${baris(c.serahkan).join(", ")}`,
+  ].join("\n");
 }
 
-/** Dokumen base knowledge dari templat. Bagian kosong tidak ditulis. */
-export function susunTemplat(jenis: KunciUsaha, isi: IsiTemplat): string {
-  const j = JENIS_USAHA[jenis];
-  const nama = isi.namaUsaha.trim() || "usaha ini";
-  const panggil = isi.gaya === "sopan" ? '"Bapak/Ibu"' : '"Kak"';
-  const bagian: string[] = [];
-  const tambah = (judul: string, isiBagian: string | string[] | null | undefined) => {
-    const t = Array.isArray(isiBagian) ? isiBagian.join("\n") : (isiBagian ?? "").trim();
-    if (t) bagian.push(`# ${judul}\n${t}`);
-  };
+/**
+ * Isi editor yang benar-benar berisi informasi: petunjuk "(contoh: ...)" dibuang, begitu juga baris kerangka yang
+ * belum diisi ("Alamat:", "- ", "T:"). Dipakai sebelum disimpan, sebelum dirapikan AI, dan untuk cek kelengkapan.
+ */
+export function bersihkanKerangka(teks: string): string {
+  // "Pertanyaan? → " = pertanyaan AI yang belum dijawab pengguna (lihat editor knowledge).
+  const kosong = (b: string) => /^\s*[-•*]?\s*$/.test(b) || /^\s*[TJ]:\s*$/i.test(b) || /→\s*$/.test(b);
+  const b0 = teks
+    .replace(/\s*\(contoh:.*$/gim, "")
+    .split("\n")
+    .map((b) => b.replace(/\s+$/, ""))
+    .filter((b) => b === "" || !kosong(b));
+  // "Label:" tanpa isi dibuang, kecuali judul daftar yang diikuti butir ("Menu & harga:" lalu "- Ayam 18rb").
+  const hasil = b0.filter((b, i) => {
+    if (!/^[^:\n]{1,80}:\s*$/.test(b)) return true;
+    const lanjut = b0.slice(i + 1).find((x) => x.trim() !== "");
+    return !!lanjut && /^\s*(?:[-•*]\s*\S|[TJ]:\s*\S|\d+[.)]\s*\S)/i.test(lanjut);
+  });
+  return hasil.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
 
-  tambah("PERAN & GAYA BAHASA", [
-    `Kamu membalas chat WhatsApp untuk ${nama}${isi.namaAsisten.trim() ? ` dengan nama ${isi.namaAsisten.trim()}` : ""}, seperti CS yang ramah dari tim ${nama}.`,
-    `Tugasmu: menjawab pertanyaan pelanggan, membantu ${j.transaksi} sampai datanya lengkap, dan menyerahkan ke pemilik hal yang perlu ditangani manusia.`,
-    isi.gaya === "sopan"
-      ? `Gaya bahasa: sopan dan profesional, panggil pelanggan ${panggil}. Jawaban singkat (1–4 kalimat).`
-      : `Gaya bahasa: santai, ramah, dan hangat, panggil pelanggan ${panggil}. Jawaban singkat (1–4 kalimat), emoji secukupnya.`,
-    "Bila pelanggan bertanya beberapa hal sekaligus, jawab semuanya. Akhiri dengan ajakan yang relevan (mis. menawarkan bantuan memesan).",
-  ]);
-  tambah("TENTANG USAHA", [`Nama usaha: ${nama}`, `Jenis usaha: ${j.label}`, isi.tentang.trim()].filter(Boolean));
+/** Lima hal yang paling sering ditanyakan pelanggan: sudah tertulis atau belum (petunjuk untuk pengguna, bukan syarat). */
+export const KELENGKAPAN = [
+  { kunci: "nama", label: "Nama usaha", pola: /nama usaha\s*:\s*\S|^(?!.*:)\s*\S.{3,}/im },
+  { kunci: "harga", label: "Produk & harga", pola: /(?:rp\.?\s*\d|\d+\s*(?:rb|ribu|k|jt|juta)\b|\d{1,3}(?:[.,]\d{3})+|\b\d{4,}\b)/i },
+  { kunci: "jam", label: "Jam buka", pola: /\b(?:jam|buka|tutup|setiap hari|tiap hari|senin|selasa|rabu|kamis|jumat|sabtu|minggu|24 jam)\b|\b\d{1,2}[.:]\d{2}\b/i },
+  { kunci: "lokasi", label: "Alamat / area", pola: /\b(?:jl\.?|jalan|alamat|kota|kab(?:upaten)?|kec(?:amatan)?|maps|area|lokasi|seluruh indonesia|online)\b/i },
+  { kunci: "bayar", label: "Cara pesan & bayar", pola: /\b(?:bayar|transfer|qris|cod|rekening|tunai|cash|dana|ovo|gopay|shopeepay|e-?wallet)\b/i },
+] as const;
 
-  const produk = isi.produk
-    .filter((p) => p.nama.trim())
-    .map((p) => `- ${p.nama.trim()}: ${rupiah(p.harga) ?? "harga ditanyakan ke pemilik"}${p.ket.trim() ? ` (${p.ket.trim()})` : ""}`);
-  if (produk.length)
-    tambah(j.istilah, [
-      ...produk,
-      "Ini harga resmi. Sebutkan persis seperti tertulis. Jangan memberi harga lain, diskon, atau menghitung total sendiri: total akhir (termasuk ongkir) dikonfirmasi pemilik.",
-      "Produk/layanan yang tidak ada di daftar ini: katakan belum tersedia di catatan dan tawarkan untuk ditanyakan ke pemilik.",
-    ]);
+/** Info usaha yang benar-benar ditulis pengguna: tanpa kerangka kosong dan tanpa baris saran bawaan (gaya bahasa,
+ * data yang ditanyakan, kapan diserahkan ke pemilik). Kosong = belum ada yang bisa dirapikan. */
+export function infoUsaha(teks: string): string {
+  return bersihkanKerangka(teks)
+    .split("\n")
+    .filter((b) => !/^\s*(?:gaya bahasa|saat pelanggan|serahkan ke pemilik)\b/i.test(b))
+    .join("\n")
+    .trim();
+}
 
-  tambah("JAM BUKA", isi.jam);
-  tambah(
-    "LOKASI",
-    [isi.alamat.trim() && `Alamat: ${isi.alamat.trim()}`, isi.maps.trim() && `Google Maps: ${isi.maps.trim()}`, isi.area.trim() && `Area layanan: ${isi.area.trim()}`].filter(
-      (x): x is string => !!x
-    )
-  );
-  const langkah = baris(isi.caraPesan);
-  tambah(`CARA ${j.transaksi.toUpperCase()}`, langkah.map((l, i) => `${i + 1}. ${l}`));
-  const data = baris(isi.dataPesanan);
-  if (data.length)
-    tambah(`DATA ${j.transaksi.toUpperCase()} YANG WAJIB DIKUMPULKAN`, [
-      `Sebelum ${j.transaksi} diteruskan ke pemilik, pastikan pelanggan sudah menyebutkan:`,
-      ...data.map((d) => `- ${d}`),
-      "Tanyakan semua yang belum ada sekaligus dalam satu pesan, jangan satu per satu. Setelah lengkap, ulangi ringkasannya ke pelanggan untuk dicek.",
-    ]);
-  tambah("PEMBAYARAN", isi.bayar);
-  tambah("PENGIRIMAN", isi.kirim);
-  tambah("KEBIJAKAN (pembatalan, penukaran, garansi)", isi.kebijakan);
-  tambah("PROMO YANG SEDANG BERLAKU", isi.promo.trim() ? [isi.promo.trim(), "Hanya promo di atas yang berlaku. Jangan menawarkan promo lain."] : "Tidak ada promo saat ini. Jangan menawarkan diskon.");
-  const faq = isi.faq.filter((f) => f.t.trim() && f.j.trim()).map((f) => `T: ${f.t.trim()}\nJ: ${f.j.trim()}`);
-  if (faq.length) bagian.push(`# PERTANYAAN YANG SERING DITANYA\n${faq.join("\n\n")}`);
-  tambah("SERAHKAN KE PEMILIK", baris(isi.serahkan).map((s) => `- ${s}`));
-  tambah("JANGAN", baris(isi.larangan).map((s) => `- ${s}`));
-  return bagian.join("\n\n");
+export function cekKelengkapan(teks: string): Record<(typeof KELENGKAPAN)[number]["kunci"], boolean> {
+  const t = infoUsaha(teks);
+  return Object.fromEntries(KELENGKAPAN.map((k) => [k.kunci, k.pola.test(t)])) as Record<(typeof KELENGKAPAN)[number]["kunci"], boolean>;
 }

@@ -339,14 +339,17 @@ export async function tambahTeksAction(_lalu: Hasil | null, form: FormData): Pro
   if (!(await nomorUntuk(await requireUser(), numberId))) return { ok: false, pesan: "Nomor tidak ditemukan." };
   const judul = String(form.get("judul") ?? "").trim();
   if (!judul) return { ok: false, pesan: "Judul wajib diisi." };
+  // `ganti_id`: dokumen lama yang disempurnakan; dihapus setelah versi barunya tersimpan (tidak pernah keduanya hilang).
+  const gantiId = Number(form.get("ganti_id"));
   try {
     await tambahDokumen({ numberId, judul, sumber: "teks", teks: String(form.get("isi") ?? "") });
+    if (Number.isInteger(gantiId) && gantiId > 0) await hapusDokumen(gantiId, numberId);
   } catch (e) {
     return { ok: false, pesan: pesanGalat(e) };
   }
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${numberId}`);
-  return { ok: true, pesan: "Teks ditambahkan." };
+  return { ok: true, pesan: gantiId > 0 ? "Dokumen diperbarui." : "Tersimpan ke base knowledge." };
 }
 
 export async function hapusDokumenAction(id: number, numberId: number): Promise<Hasil> {

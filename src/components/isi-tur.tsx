@@ -68,7 +68,7 @@ export const TUR_NOMOR: LangkahTur[] = [
           usahamu, apa yang dijual, harganya, jam buka, alamat, dan cara pesan.
         </p>
         <p>AI hanya menjawab dari catatan ini dan tidak mengarang. Yang tidak tertulis, ia akan bilang belum tahu dan menyerahkannya ke kamu.</p>
-        <p>Paling mudah: klik &quot;Pakai contoh&quot;, lalu ganti tulisan di dalam [kurung siku] dengan data usahamu.</p>
+        <p>Tidak perlu rapi: pilih jenis usaha, tulis atau tempel info usahamu dengan bahasa sendiri, lalu klik &quot;Rapikan dengan AI&quot;. Periksa hasilnya, lalu simpan.</p>
       </>
     ),
   },
@@ -111,39 +111,3 @@ export const TUR_NOMOR: LangkahTur[] = [
     isi: <p>Semua chat {UMUR_HISTORI_HARI} hari terakhir tercatat di sini: mana yang dibalas AI dan mana yang kamu balas sendiri. Yang lebih lama terhapus otomatis.</p>,
   },
 ];
-
-/** Contoh isi base knowledge: tinggal ganti bagian [dalam kurung siku]. */
-export const CONTOH_KNOWLEDGE = `TENTANG USAHA
-Nama usaha: [nama usaha kamu]
-Kamu adalah asisten virtual (AI) dari [nama usaha]. Bantu pelanggan dengan ramah dan singkat.
-
-PRODUK / LAYANAN DAN HARGA
-- [nama produk 1]: Rp[harga]
-- [nama produk 2]: Rp[harga]
-- [nama produk 3]: Rp[harga]
-
-JAM BUKA
-Senin - Jumat: [jam buka] - [jam tutup]
-Sabtu - Minggu: [jam buka] - [jam tutup]
-
-ALAMAT
-[alamat lengkap]
-Google Maps: [tautan Google Maps]
-
-CARA PESAN
-1. [contoh: kirim nama, alamat, dan pesanan lewat chat ini]
-2. [contoh: kami konfirmasi total harga dan ongkir]
-3. [contoh: bayar lalu kirim bukti transfer]
-
-PEMBAYARAN
-[contoh: transfer BCA 1234567890 a.n. Nama Pemilik, atau QRIS]
-
-PENGIRIMAN
-[contoh: GoSend/GrabExpress, ongkir ditanggung pembeli]
-
-PERTANYAAN YANG SERING DITANYA
-T: [pertanyaan pelanggan]
-J: [jawabanmu]
-
-T: [pertanyaan pelanggan]
-J: [jawabanmu]`;
