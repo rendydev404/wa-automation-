@@ -547,14 +547,22 @@ export async function adminPengaturanAction(_lalu: Hasil | null, form: FormData)
   const admin = await requireAdmin();
   const buka = form.get("pendaftaran") === "on";
   const kuota = Number(form.get("kuota_bawaan"));
-  const balasan = Number(form.get("kuota_balasan_gratis"));
+  const balasanTeks = String(form.get("kuota_percobaan") ?? "").trim();
+  const balasan = balasanTeks === "" ? NaN : Number(balasanTeks);
+  const ulang = form.get("kuota_percobaan_ulang") === "bulanan" ? "bulanan" : "sekali";
   if (!(Number.isInteger(kuota) && kuota >= 0 && kuota <= 100)) return { ok: false, pesan: "Kuota bawaan harus 0–100 nomor." };
-  if (!(Number.isInteger(balasan) && balasan >= 0 && balasan <= 1_000_000)) return { ok: false, pesan: "Kuota balasan gratis tidak valid." };
+  if (!(Number.isInteger(balasan) && balasan >= 0 && balasan <= 1_000_000)) return { ok: false, pesan: "Kuota balasan gratis harus angka bulat 0–1.000.000." };
   await setSetting("pendaftaran", buka ? "buka" : "tutup");
   await setSetting("kuota_bawaan", String(kuota));
-  await setSetting("kuota_balasan_gratis", String(balasan));
+  await setSetting("kuota_percobaan", String(balasan));
+  await setSetting("kuota_percobaan_ulang", ulang);
   segarkanKuota();
-  await catatLog(admin, "ubah pengaturan", null, `pendaftaran ${buka ? "dibuka" : "ditutup"}, kuota gratis ${kuota} nomor & ${balasan} balasan/bulan`);
+  await catatLog(
+    admin,
+    "ubah pengaturan",
+    null,
+    `pendaftaran ${buka ? "dibuka" : "ditutup"}, kuota gratis ${kuota} nomor & ${balasan} balasan ${ulang === "sekali" ? "sekali (free trial)" : "per bulan"}`
+  );
   revalidatePath("/admin", "layout");
   return { ok: true, pesan: "Pengaturan tersimpan." };
 }

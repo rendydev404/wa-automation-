@@ -543,7 +543,7 @@ await cek("kuota balasan AI pemilik habis: pesan tercatat tetapi AI diam; kuota 
   const PEMILIK_KUOTA = "6281200002222";
   await sql`UPDATE numbers SET teruskan_ke = ${PEMILIK_KUOTA}, teruskan_aktif = true WHERE id = ${A.id}`;
   cacheNomorBasi();
-  await setSetting("kuota_balasan_gratis", "0");
+  await setSetting("kuota_percobaan", "0");
   L.segarkanKuota();
   const n0 = hermes.panggilan.length;
   const m0 = (await stat(A.id)).masuk;
@@ -558,7 +558,7 @@ await cek("kuota balasan AI pemilik habis: pesan tercatat tetapi AI diam; kuota 
   const kabar = sA.terkirim.slice(kirim0);
   assert.equal(kabar.length, 1);
   assert.equal(kabar[0].jid, `${PEMILIK_KUOTA}@s.whatsapp.net`);
-  assert.match(kabar[0].isi.text, /Kuota balasan AI habis[\s\S]*paket Gratis sudah habis \(\d+ dari 0 terpakai\)[\s\S]*perpanjang atau upgrade paket/);
+  assert.match(kabar[0].isi.text, /Kuota balasan AI habis[\s\S]*Kuota percobaan gratis sudah habis \(\d+ dari 0 balasan AI terpakai\)[\s\S]*Pilih paket untuk melanjutkan/);
   const [rk] = await sql`SELECT jenis, status, pelanggan FROM teruskan WHERE number_id = ${A.id} AND chat = 'kuota'`;
   assert.deepEqual({ ...rk }, { jenis: "lainnya", status: "terkirim", pelanggan: "Sistem: kuota habis" });
   // Notifikasi dikirim langsung lewat WhatsApp tanpa AI: tidak tercatat sebagai pemakaian, kuota balasan tidak terpotong.
@@ -568,7 +568,7 @@ await cek("kuota balasan AI pemilik habis: pesan tercatat tetapi AI diam; kuota 
   assert.equal(sA.terkirim.length, kirim0 + 1, "periode kuota yang sama tidak dikabari dua kali");
   await sql`UPDATE numbers SET teruskan_ke = ${penerusUji(A.id)}, teruskan_aktif = false WHERE id = ${A.id}`;
   cacheNomorBasi();
-  await setSetting("kuota_balasan_gratis", "100");
+  await setSetting("kuota_percobaan", "100");
   L.segarkanKuota();
   const k0 = sA.terkirim.length;
   tiba(sA, pesan("555000306@lid", "sekarang bagaimana?"));

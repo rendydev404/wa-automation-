@@ -66,9 +66,19 @@ export async function BannerKuota() {
         <AlertTriangle className="mt-0.5 size-5 shrink-0 text-danger" aria-hidden />
         <div className="text-[13px]">
           <p className="font-bold text-fg">
-            {sisa === 0 ? "Kuota balasan AI habis: AI berhenti membalas" : `Kuota balasan AI tinggal ${sisa.toLocaleString("id-ID")} dari ${hak.balasan.toLocaleString("id-ID")}`}
+            {sisa === 0
+              ? `Kuota ${hak.percobaan ? "percobaan" : "balasan AI"} habis: AI berhenti membalas`
+              : `Kuota ${hak.percobaan ? "percobaan" : "balasan AI"} tinggal ${sisa.toLocaleString("id-ID")} dari ${hak.balasan.toLocaleString("id-ID")} balasan`}
           </p>
-          <p className="text-muted">{sisa === 0 ? "Pesan pelanggan tetap masuk, tapi tidak dijawab AI sampai paket diperpanjang." : "Perpanjang atau naikkan paket supaya AI tidak berhenti di tengah jalan."}</p>
+          <p className="text-muted">
+            {hak.percobaan
+              ? sisa === 0
+                ? "Pesan pelanggan tetap masuk, tapi tidak dijawab AI. Pilih paket untuk melanjutkan."
+                : "Pilih paket sebelum kuota percobaan habis supaya AI tidak berhenti di tengah jalan."
+              : sisa === 0
+                ? "Pesan pelanggan tetap masuk, tapi tidak dijawab AI sampai paket diperpanjang."
+                : "Perpanjang atau naikkan paket supaya AI tidak berhenti di tengah jalan."}
+          </p>
         </div>
       </div>
       <Link href="/langganan" className="btn btn-primary shrink-0">

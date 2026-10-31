@@ -6,7 +6,7 @@ import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
 import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, SalinTeks } from "./form-admin";
 import { customTampil, hargaAngka, paketCustom } from "@/lib/paket-custom";
 import { PembangunCustom } from "./paket-custom";
-import { METODE_MANUAL, acuanHarga, daftarPaket, kuotaBalasanGratis, pemakaianNyata, riwayatTransaksi } from "@/lib/langganan";
+import { METODE_MANUAL, acuanHarga, aturanPercobaan, daftarPaket, pemakaianNyata, riwayatTransaksi } from "@/lib/langganan";
 import { SimulasiHarga } from "./simulasi-harga";
 import { konfigMidtrans, kunciMidtransSah } from "@/lib/midtrans";
 import { asalAplikasi } from "@/lib/batas";
@@ -104,15 +104,15 @@ export async function MesinAi() {
 
 export async function Pengaturan() {
   await requireAdmin();
-  const [buka, kuota, balasan, kurs] = await Promise.all([pendaftaranDibuka(), kuotaBawaan(), kuotaBalasanGratis(), infoKurs()]);
+  const [buka, kuota, percobaan, kurs] = await Promise.all([pendaftaranDibuka(), kuotaBawaan(), aturanPercobaan(), infoKurs()]);
   return (
     <section className="card p-6">
       <h2 className="flex items-center gap-2 text-[15px] font-bold">
         <ShieldCheck className="size-4 text-accent" aria-hidden /> Aturan pendaftaran
       </h2>
-      <p className="mt-0.5 text-[13px] text-muted">Berlaku untuk akun yang dibuat setelah disimpan.</p>
+      <p className="mt-0.5 text-[13px] text-muted">Berlaku langsung setelah disimpan, untuk semua akun yang belum berlangganan.</p>
       <div className="mt-4">
-        <FormPengaturan buka={buka} kuota={kuota} balasan={balasan} kurs={kurs} />
+        <FormPengaturan buka={buka} kuota={kuota} percobaan={percobaan} kurs={kurs} />
       </div>
     </section>
   );

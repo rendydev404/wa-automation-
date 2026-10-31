@@ -38,7 +38,7 @@ export const TUR_DASHBOARD: LangkahTur[] = [
   {
     sasaran: "nav-langganan",
     judul: "Paket & kuota",
-    isi: <p>Lihat sisa balasan AI bulan ini dan pilih paket bila butuh lebih banyak nomor atau balasan. Pembayaran lewat QRIS, transfer bank, atau e-wallet.</p>,
+    isi: <p>Lihat sisa kuota balasan AI dan pilih paket bila butuh lebih banyak nomor atau balasan. Pembayaran lewat QRIS, transfer bank, atau e-wallet.</p>,
   },
   {
     sasaran: "nav-panduan",

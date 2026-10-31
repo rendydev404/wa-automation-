@@ -22,11 +22,39 @@ import { type OpsiModel, PilihModel } from "@/components/pilih-model";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "@/components/ui";
 import type { InfoKurs } from "@/lib/kurs-def";
 
-export function FormPengaturan({ buka, kuota, balasan, kurs }: { buka: boolean; kuota: number; balasan: number; kurs: InfoKurs }) {
-  const [hasil, aksi] = useActionState(adminPengaturanAction, null);
+const ULANG_PERCOBAAN = [
+  { nilai: "sekali", judul: "Sekali per akun", isi: "Free trial: dihitung sejak akun dibuat. Habis = AI berhenti sampai pengguna memilih paket." },
+  { nilai: "bulanan", judul: "Diperbarui tiap bulan", isi: "Kuota terisi lagi setiap tanggal 1 (WIB) selama akun belum berlangganan." },
+] as const;
+
+export function FormPengaturan({
+  buka,
+  kuota,
+  percobaan,
+  kurs,
+}: {
+  buka: boolean;
+  kuota: number;
+  percobaan: { balasan: number; ulang: "sekali" | "bulanan" };
+  kurs: InfoKurs;
+}) {
+  const [hasil, aksi, menyimpan] = useActionState(adminPengaturanAction, null);
+  const [, mulai] = useTransition();
   const [aktif, setAktif] = useState(buka);
+  const [balasan, setBalasan] = useState(String(percobaan.balasan));
+  const [ulang, setUlang] = useState<"sekali" | "bulanan">(percobaan.ulang);
+  const n = Number(balasan);
+  const sah = balasan.trim() !== "" && Number.isInteger(n) && n >= 0;
   return (
-    <form action={aksi} className="space-y-4">
+    // Dikirim lewat transisi (bukan action form) supaya isian tidak direset React setelah tersimpan.
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        mulai(() => aksi(fd));
+      }}
+      className="space-y-4"
+    >
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-[13.5px] font-semibold">Pendaftaran publik</p>
@@ -41,15 +69,58 @@ export function FormPengaturan({ buka, kuota, balasan, kurs }: { buka: boolean; 
         </label>
         <input id="kuota_bawaan" name="kuota_bawaan" type="number" min={0} max={100} defaultValue={kuota} required className="field" />
       </div>
-      <div>
-        <label htmlFor="kuota_balasan_gratis" className="label">
-          Kuota balasan AI gratis per bulan (akun tanpa paket)
-        </label>
-        <input id="kuota_balasan_gratis" name="kuota_balasan_gratis" type="number" min={0} defaultValue={balasan} required className="field" />
-      </div>
+      <fieldset className="space-y-3 rounded-2xl border border-line p-4">
+        <legend className="px-1 text-[13.5px] font-semibold">Kuota gratis (free trial)</legend>
+        <div>
+          <label htmlFor="kuota_percobaan" className="label">
+            Balasan AI gratis untuk akun tanpa paket
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              id="kuota_percobaan"
+              name="kuota_percobaan"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={1_000_000}
+              value={balasan}
+              onChange={(e) => setBalasan(e.target.value)}
+              required
+              className="field w-32"
+            />
+            <span className="text-[13px] text-muted">balasan AI</span>
+          </div>
+        </div>
+        <div role="radiogroup" aria-label="Kuota gratis berlaku" className="grid gap-2">
+          {ULANG_PERCOBAAN.map((o) => (
+            <label
+              key={o.nilai}
+              className={`flex cursor-pointer gap-2.5 rounded-xl border p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent ${
+                ulang === o.nilai ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong"
+              }`}
+            >
+              <input type="radio" name="kuota_percobaan_ulang" value={o.nilai} checked={ulang === o.nilai} onChange={() => setUlang(o.nilai)} className="mt-0.5 accent-accent" />
+              <span>
+                <span className="block text-[13px] font-semibold">{o.judul}</span>
+                <span className="mt-0.5 block text-[12px] leading-snug text-muted">{o.isi}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+        <p className="hint" aria-live="polite">
+          {!sah
+            ? "Isi angka bulat 0 atau lebih."
+            : n === 0
+              ? "Tanpa kuota gratis: AI hanya membalas untuk akun yang berlangganan."
+              : `Akun tanpa paket mendapat ${n.toLocaleString("id-ID")} balasan AI ${ulang === "sekali" ? "sekali pakai, lalu harus memilih paket" : "setiap bulan"}. Berlaku langsung untuk semua akun tanpa paket.`}
+        </p>
+      </fieldset>
       <KursInfo info={kurs} />
       <div className="flex items-center gap-3">
-        <SubmitButton>Simpan aturan</SubmitButton>
+        <button type="submit" disabled={menyimpan || !sah} className="btn btn-primary">
+          {menyimpan && <Loader2 className="size-4 animate-spin" aria-hidden />}
+          Simpan aturan
+        </button>
         <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
       </div>
     </form>

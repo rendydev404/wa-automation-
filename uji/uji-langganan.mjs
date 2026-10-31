@@ -51,13 +51,17 @@ await cek("migrasi membuat 3 paket awal (Starter, Bisnis unggulan, Pro) urut har
   );
 });
 
-await cek("hak akun: admin tanpa batas; tanpa paket = kuota gratis bulanan (bisa diatur admin); kuota nomor per akun mengalahkan paket", async () => {
-  assert.deepEqual(await L.hakAkun({ id: admin.id, peran: "admin" }), { nomor: null, balasan: null, periodeMulai: L.awalBulanWib(), sampai: null, paket: "Admin" });
+await cek("hak akun: admin tanpa batas; tanpa paket = free trial 5 balasan sekali pakai (jumlah & 'tiap bulan' bisa diatur admin); kuota nomor per akun mengalahkan paket", async () => {
+  assert.deepEqual(await L.hakAkun({ id: admin.id, peran: "admin" }), { nomor: null, balasan: null, periodeMulai: L.awalBulanWib(), sampai: null, paket: "Admin", percobaan: false });
   let h = await L.hakAkun(B);
-  assert.deepEqual([h.nomor, h.balasan, h.paket, h.sampai], [1, 100, "Gratis", null]);
-  await setSetting("kuota_balasan_gratis", "50");
+  const [{ created_at: dibuat }] = await sql`SELECT created_at FROM users WHERE id = ${budi.id}`;
+  assert.deepEqual([h.nomor, h.balasan, h.paket, h.sampai, h.percobaan, h.periodeMulai], [1, 5, "Gratis", null, true, dibuat]);
+  await setSetting("kuota_percobaan", "50");
   h = await L.hakAkun(B);
   assert.equal(h.balasan, 50);
+  await setSetting("kuota_percobaan_ulang", "bulanan");
+  h = await L.hakAkun(B);
+  assert.deepEqual([h.balasan, h.percobaan, h.periodeMulai], [50, false, L.awalBulanWib()]);
   // awal bulan WIB: 1 Okt 2026 00:00 WIB = 30 Sep 2026 17:00 UTC
   assert.equal(L.awalBulanWib(Date.UTC(2026, 9, 15, 3) / 1000), Date.UTC(2026, 8, 30, 17) / 1000);
 });
@@ -79,7 +83,7 @@ await cek("balasan terpakai: hanya nomor milik pengguna itu, hanya dalam periode
 });
 
 await cek("penjaga kuota WhatsApp: sisa dari memori, berkurang per balasan, habis = 0; disegarkan setelah paket berubah", async () => {
-  await setSetting("kuota_balasan_gratis", "3");
+  await setSetting("kuota_percobaan", "3");
   L.segarkanKuota();
   assert.equal(await L.sisaKuotaAi(budi.id), 1); // 3 - 2 terpakai
   L.catatBalasanLokal(budi.id);
@@ -110,6 +114,44 @@ await cek("berikan paket sama = diperpanjang (masa & kuota bertambah); paket lai
   await L.hentikanLangganan(budi.id);
   assert.equal(await L.langgananAktif(budi.id), undefined);
   assert.equal((await L.hakAkun(B)).paket, "Gratis");
+});
+
+await cek("free trial: kuota percobaan dihitung sejak akun dibuat (tidak terisi lagi tiap bulan); langganan berakhir = tetap habis; admin menaikkan kuota = AI jalan lagi", async () => {
+  const HARI = 86400;
+  const t = sekarang();
+  await setSetting("kuota_percobaan", "5");
+  await setSetting("kuota_percobaan_ulang", "sekali");
+  const u = await P.buatAkun({ email: "trial@uji.test", nama: "Trial", password: "rahasia-trial-01" });
+  const U = { id: u.id, peran: "user" };
+  await sql`UPDATE users SET created_at = ${t - 60 * HARI} WHERE id = ${u.id}`;
+  const n = await tambahNomor("Nomor Trial", u.id);
+  for (const w of [t - 50 * HARI, t - 45 * HARI, t - 40 * HARI]) await pakai(n.id, w); // dua bulan lalu
+  await pakai(n.id, t - 60);
+  L.segarkanKuota(u.id);
+  assert.equal(await L.sisaKuotaAi(u.id), 1, "4 dari 5 terpakai, termasuk yang bulan-bulan lalu");
+  // Mode tiap bulan: hanya bulan ini yang dihitung.
+  await setSetting("kuota_percobaan_ulang", "bulanan");
+  L.segarkanKuota(u.id);
+  assert.equal(await L.sisaKuotaAi(u.id), 4);
+  await setSetting("kuota_percobaan_ulang", "sekali");
+  // Berlangganan lalu langganannya berakhir: kembali ke kuota percobaan yang sudah terpakai (tidak dapat percobaan baru).
+  await L.berikanPaket(u.id, starter.id);
+  for (let i = 0; i < 3; i++) await pakai(n.id, t - 5 + i);
+  await L.hentikanLangganan(u.id);
+  L.segarkanKuota(u.id);
+  const h = await L.hakAkun(U);
+  assert.deepEqual([h.paket, h.percobaan, h.balasan], ["Gratis", true, 5]);
+  assert.equal(await L.sisaKuotaAi(u.id), 0);
+  // Admin menaikkan kuota percobaan: berlaku langsung.
+  await setSetting("kuota_percobaan", "10");
+  L.segarkanKuota();
+  assert.equal(await L.sisaKuotaAi(u.id), 3);
+  await setSetting("kuota_percobaan", "0");
+  L.segarkanKuota();
+  assert.equal(await L.sisaKuotaAi(u.id), 0, "0 = tanpa kuota gratis");
+  await setSetting("kuota_percobaan", "50");
+  await setSetting("kuota_percobaan_ulang", "bulanan");
+  L.segarkanKuota();
 });
 
 console.log("== Midtrans ==");

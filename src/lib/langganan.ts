@@ -99,15 +99,26 @@ const angkaSetting = (nilai: string | null, bawaan: number): number => {
 };
 
 export const KUOTA_NOMOR_GRATIS_AWAL = 1;
-export const KUOTA_BALASAN_GRATIS_AWAL = 100;
+/** Kuota percobaan akun tanpa paket (free trial) bila admin belum mengaturnya. */
+export const KUOTA_PERCOBAAN_AWAL = 5;
 
 /** Kuota nomor akun tanpa paket (pengaturan admin "kuota_bawaan"). */
 export async function kuotaNomorGratis(): Promise<number> {
   return angkaSetting(await getSetting("kuota_bawaan"), KUOTA_NOMOR_GRATIS_AWAL);
 }
 
-export async function kuotaBalasanGratis(): Promise<number> {
-  return angkaSetting(await getSetting("kuota_balasan_gratis"), KUOTA_BALASAN_GRATIS_AWAL);
+/**
+ * Kuota balasan AI akun tanpa paket, diatur admin (Aturan pendaftaran): `balasan` per akun, `ulang` = "sekali" (free
+ * trial: dihitung sejak akun dibuat, tidak bertambah lagi) atau "bulanan" (diperbarui tiap awal bulan WIB).
+ */
+export interface AturanPercobaan {
+  balasan: number;
+  ulang: "sekali" | "bulanan";
+}
+
+export async function aturanPercobaan(): Promise<AturanPercobaan> {
+  const [n, u] = await Promise.all([getSetting("kuota_percobaan"), getSetting("kuota_percobaan_ulang")]);
+  return { balasan: angkaSetting(n, KUOTA_PERCOBAAN_AWAL), ulang: u === "bulanan" ? "bulanan" : "sekali" };
 }
 
 /** Awal bulan kalender WIB (detik epoch): periode kuota akun tanpa langganan. */
@@ -122,18 +133,26 @@ export interface HakAkun {
   balasan: number | null;
   /** Awal periode penghitungan kuota balasan. */
   periodeMulai: number;
-  /** Akhir masa langganan; null = kuota gratis (berulang tiap bulan). */
+  /** Akhir masa langganan; null = kuota gratis. */
   sampai: number | null;
   paket: string;
+  /** Kuota gratis sekali pakai (free trial): dihitung sejak akun dibuat, habis = harus berlangganan. */
+  percobaan: boolean;
 }
 
 export async function hakAkun(user: { id: number; peran: string }): Promise<HakAkun> {
-  if (user.peran === "admin") return { nomor: null, balasan: null, periodeMulai: awalBulanWib(), sampai: null, paket: "Admin" };
+  if (user.peran === "admin") return { nomor: null, balasan: null, periodeMulai: awalBulanWib(), sampai: null, paket: "Admin", percobaan: false };
   const sql = await db();
-  const [[u], l] = await Promise.all([sql<{ kuota_nomor: number | null }[]>`SELECT kuota_nomor FROM users WHERE id = ${user.id}`, langgananAktif(user.id)]);
-  if (l) return { nomor: u?.kuota_nomor ?? l.kuota_nomor, balasan: l.kuota_balasan, periodeMulai: l.mulai, sampai: l.sampai, paket: l.nama_paket };
-  const [nomorGratis, balasanGratis] = await Promise.all([kuotaNomorGratis(), kuotaBalasanGratis()]);
-  return { nomor: u?.kuota_nomor ?? nomorGratis, balasan: balasanGratis, periodeMulai: awalBulanWib(), sampai: null, paket: "Gratis" };
+  const [[u], l] = await Promise.all([
+    sql<{ kuota_nomor: number | null; created_at: number }[]>`SELECT kuota_nomor, created_at FROM users WHERE id = ${user.id}`,
+    langgananAktif(user.id),
+  ]);
+  if (l) return { nomor: u?.kuota_nomor ?? l.kuota_nomor, balasan: l.kuota_balasan, periodeMulai: l.mulai, sampai: l.sampai, paket: l.nama_paket, percobaan: false };
+  const [nomorGratis, p] = await Promise.all([kuotaNomorGratis(), aturanPercobaan()]);
+  // Free trial: semua balasan AI sejak akun dibuat ikut dihitung, jadi akun yang langganannya berakhir tidak
+  // mendapat percobaan baru.
+  const sekali = p.ulang === "sekali";
+  return { nomor: u?.kuota_nomor ?? nomorGratis, balasan: p.balasan, periodeMulai: sekali ? (u?.created_at ?? 0) : awalBulanWib(), sampai: null, paket: "Gratis", percobaan: sekali };
 }
 
 /**

@@ -22,11 +22,11 @@ export async function KartuLangganan({ tautan = false }: { tautan?: boolean }) {
         <p className="text-[12.5px] font-semibold text-muted">Paket sekarang</p>
         <p className="mt-1 text-2xl font-bold">{hak.paket}</p>
         <p className="mt-1 text-[13px] text-muted">
-          {hak.sampai ? `Aktif sampai ${tanggal(hak.sampai)}` : hak.paket === "Admin" ? "Tanpa batas" : "Kuota gratis, berulang tiap awal bulan"}
+          {hak.sampai ? `Aktif sampai ${tanggal(hak.sampai)}` : hak.paket === "Admin" ? "Tanpa batas" : hak.percobaan ? "Kuota percobaan gratis, sekali pakai" : "Kuota gratis, diperbarui tiap awal bulan"}
         </p>
       </div>
       <div>
-        <p className="text-[12.5px] font-semibold text-muted">Balasan AI {hak.sampai ? "masa ini" : "bulan ini"}</p>
+        <p className="text-[12.5px] font-semibold text-muted">Balasan AI {hak.sampai ? "masa ini" : hak.percobaan ? "percobaan" : "bulan ini"}</p>
         <p className="mt-1 text-2xl font-bold tabular-nums">
           {angka(terpakai)}
           <span className="text-base text-muted"> / {hak.balasan === null ? "∞" : angka(hak.balasan)}</span>
@@ -37,7 +37,9 @@ export async function KartuLangganan({ tautan = false }: { tautan?: boolean }) {
           </div>
         )}
         {habis ? (
-          <p className="mt-2 text-[12.5px] font-semibold text-danger">Kuota habis: AI berhenti membalas sampai paket diperpanjang.</p>
+          <p className="mt-2 text-[12.5px] font-semibold text-danger">
+            {hak.percobaan ? "Kuota percobaan habis: AI berhenti membalas. Pilih paket untuk melanjutkan." : "Kuota habis: AI berhenti membalas sampai paket diperpanjang."}
+          </p>
         ) : tipis ? (
           <p className="mt-2 text-[12.5px] font-semibold text-warning">Sisa {angka(hak.balasan! - terpakai)} balasan lagi.</p>
         ) : null}
@@ -52,7 +54,7 @@ export async function KartuLangganan({ tautan = false }: { tautan?: boolean }) {
         </div>
         {tautan && hak.paket !== "Admin" && (
           <Link href="/langganan" className={`btn self-start ${habis || tipis ? "btn-primary" : "btn-ghost border border-line"}`}>
-            {habis ? "Perpanjang paket" : "Kelola paket"}
+            {hak.paket === "Gratis" ? "Pilih paket" : habis ? "Perpanjang paket" : "Kelola paket"}
           </Link>
         )}
       </div>

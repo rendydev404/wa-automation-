@@ -112,14 +112,21 @@ export async function kabariKuotaHabis(
     if (!u) return "dilewati";
     const hak = await hakAkun({ id: userId, peran: u.peran });
     if (hak.balasan === null) return "dilewati";
+    // Sekali per periode kuota; kuotanya ditambah (paket diperpanjang, kuota percobaan dinaikkan admin) lalu habis lagi
+    // = dikabari lagi.
     const kunci = `kuota_habis_dikabari:${userId}`;
-    if ((await getSetting(kunci)) === String(hak.periodeMulai)) return "dilewati";
+    const penanda = `${hak.periodeMulai}:${hak.balasan}`;
+    if ((await getSetting(kunci)) === penanda) return "dilewati";
     const terpakai = await balasanTerpakai(userId, hak.periodeMulai);
     const app = process.env.APP_URL?.replace(/\/+$/, "");
     const ringkasan = [
-      `Kuota balasan AI paket ${hak.paket} sudah habis (${angka(terpakai)} dari ${angka(hak.balasan)} terpakai).`,
+      hak.percobaan
+        ? `Kuota percobaan gratis sudah habis (${angka(terpakai)} dari ${angka(hak.balasan)} balasan AI terpakai).`
+        : `Kuota balasan AI paket ${hak.paket} sudah habis (${angka(terpakai)} dari ${angka(hak.balasan)} terpakai).`,
       "Mulai sekarang AI TIDAK membalas pesan pelanggan di semua nomor Anda. Pesan tetap masuk dan bisa Anda balas sendiri dari HP.",
-      `Segera perpanjang atau upgrade paket${app ? `: ${app}/langganan` : " di menu Langganan pada dashboard"}.`,
+      hak.percobaan
+        ? `Pilih paket untuk melanjutkan balasan AI${app ? `: ${app}/langganan` : " di menu Langganan pada dashboard"}.`
+        : `Segera perpanjang atau upgrade paket${app ? `: ${app}/langganan` : " di menu Langganan pada dashboard"}.`,
     ].join("\n\n");
     const tag: TagTeruskan = { jenis: "lainnya", ringkasan };
     const teks = `⚠️ *Kuota balasan AI habis*\nNomor: ${nomor.label}${nomor.nama_wa ? ` (${nomor.nama_wa})` : ""}\n\n${ringkasan}`;
@@ -130,7 +137,7 @@ export async function kabariKuotaHabis(
       console.error(`[teruskan] notifikasi kuota habis gagal (nomor ${nomor.id}): ${e instanceof Error ? e.message : e}`);
       return "gagal";
     }
-    await setSetting(kunci, String(hak.periodeMulai));
+    await setSetting(kunci, penanda);
     await catat(nomor.id, "kuota", "Sistem: kuota habis", tag, nomor.teruskan_ke, "terkirim");
     console.info(`[teruskan] kuota habis dikabarkan ke pemilik (akun ${userId}, nomor ${nomor.id})`);
     return "terkirim";

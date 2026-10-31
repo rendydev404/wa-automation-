@@ -2,7 +2,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Check, Sparkles } from "lucide-react";
 import { angka, UMUR_HISTORI_HARI } from "@/lib/format";
-import { daftarPaket, kuotaBalasanGratis } from "@/lib/langganan";
+import { aturanPercobaan, daftarPaket } from "@/lib/langganan";
 import { customTampil, paketCustom, tautanCustom } from "@/lib/paket-custom";
 import { KartuCustom, TombolWaCustom } from "../kartu-custom";
 
@@ -15,7 +15,7 @@ export async function HargaLanding() {
   await connection();
   let paket, gratis, custom;
   try {
-    [paket, gratis, custom] = await Promise.all([daftarPaket(), kuotaBalasanGratis(), paketCustom()]);
+    [paket, gratis, custom] = await Promise.all([daftarPaket(), aturanPercobaan(), paketCustom()]);
   } catch {
     return null;
   }
@@ -65,7 +65,9 @@ export async function HargaLanding() {
         />
       )}
       <p className="text-[13px] text-muted md:col-span-2 xl:col-span-3">
-        Coba gratis dulu: setiap akun baru mendapat {angka(gratis)} balasan AI per bulan tanpa kartu kredit. Bayar lewat QRIS, transfer bank, e-wallet, atau kartu.
+        {gratis.balasan > 0 &&
+          `Coba gratis dulu: setiap akun baru mendapat ${angka(gratis.balasan)} balasan AI ${gratis.ulang === "sekali" ? "percobaan" : "per bulan"} tanpa kartu kredit. `}
+        Bayar lewat QRIS, transfer bank, e-wallet, atau kartu.
       </p>
     </div>
   );
