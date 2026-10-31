@@ -371,7 +371,7 @@ await cek("paket Custom versi lama (harga berupa teks) tetap tampil seperti dulu
   // Pesan WhatsApp ke admin memuat rincian paket di kartu, lalu email akun
   const isi = { ...sah, wa: "6281234567890", harga: 401000, kuota_nomor: 10, kuota_balasan: 10000 };
   const teks = new URL(C.tautanCustom(isi, "Email akun: budi@uji.test")).searchParams.get("text");
-  assert.equal(teks, "Halo, saya tertarik dengan paket Custom BalasCepet.com.\n\nPaket: Enterprise (10.000 balasan AI, 10 nomor WhatsApp, Rp401.000 / 30 hari)\nEmail akun: budi@uji.test");
+  assert.equal(teks, "Halo, saya tertarik dengan paket Custom ChatGercep.\n\nPaket: Enterprise (10.000 balasan AI, 10 nomor WhatsApp, Rp401.000 / 30 hari)\nEmail akun: budi@uji.test");
   assert.ok(C.tautanCustom(isi).startsWith("https://wa.me/6281234567890?text="));
 });
 

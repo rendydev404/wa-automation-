@@ -361,10 +361,8 @@ function AdeganLogo({ f }: { f: number }) {
         </div>
         <div style={{ position: "relative", marginLeft: 26, width: LEBAR_TEKS * buka, overflow: "hidden", whiteSpace: "nowrap", height: 210, display: "flex", alignItems: "center" }}>
           <div style={{ color: C.fg, fontSize: 86, fontWeight: 800, letterSpacing: -2, lineHeight: 1.02, transform: `translateX(${(1 - buka) * -80}px)` }}>
-            BalasCepet
+            ChatGercep
             <span style={{ display: "inline-block", verticalAlign: "top", marginLeft: 14, marginTop: 6, padding: "4px 14px", borderRadius: 14, background: C.hijau, color: "#06231a", fontSize: 36, fontWeight: 800, letterSpacing: 0, lineHeight: 1.2, opacity: sup, transform: `scale(${0.6 + sup * 0.4})` }}>AI</span>
-            <br />
-            .com
           </div>
         </div>
       </div>
