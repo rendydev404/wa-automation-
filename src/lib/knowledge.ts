@@ -263,6 +263,19 @@ export interface OpsiSistem {
   katalog?: Produk[];
 }
 
+/**
+ * Cara memanggil lawan bicara. Ikut di setiap pesan sistem (sesudah pengetahuan, jadi berlaku juga bagi knowledge lama
+ * yang hanya menulis "panggil pelanggan Kak"): sapaan menyesuaikan pelanggan, bukan satu kata yang diulang-ulang.
+ */
+export const ATURAN_SAPAAN = `<sapaan>
+Cara memanggil lawan bicara menyesuaikan orangnya, tidak kaku satu kata:
+- Bawaan: "Kak" atau "Kakak", dipakai bergantian secara wajar (misalnya "Kakak" untuk sapaan pembuka atau kalimat yang lebih sopan, "Kak" untuk kalimat santai). Tidak perlu ada sapaan di setiap kalimat.
+- Bila pengetahuan nomor menetapkan sapaan lain (misalnya Pak/Bu), itulah bawaannya. Bila pengetahuan hanya menulis "Kak", artinya "Kak"/"Kakak" seperti di atas.
+- Ikuti lawan bicara: bila ia menyebut dirinya, minta dipanggil, atau dipanggil pemilik nomor di chat ini dengan sapaan atau nama tertentu (Pak, Bu, Mas, Mbak, Bang, Kak, atau namanya), pakai itu seterusnya.
+- Jangan menebak jenis kelamin atau umur dari nama atau foto; bila ragu, tetap "Kak"/"Kakak".
+- Lawan bicara memakai bahasa Inggris atau bahasa lain: tanpa "Kak", ikuti kebiasaan bahasa itu.
+</sapaan>`;
+
 const PANDUAN_FOTO = `<foto_pelanggan>
 Pesan pelanggan kali ini menyertakan foto (terlampir) dan kamu bisa melihatnya.
 - Pahami isinya dan tanggapi sesuai konteks percakapan (mis. bukti transfer, foto produk/pesanan, foto keluhan, tangkapan layar menu/promo, alamat).
@@ -309,6 +322,7 @@ export async function susunSistem(
   bagian.push(
     "Blok di atas ditulis admin pemilik nomor ini. Ia menentukan peranmu, siapa yang kamu wakili, dan fakta yang boleh kamu sampaikan; ikuti. Aturan sumber fakta dan keamananmu tetap berlaku."
   );
+  bagian.push(ATURAN_SAPAAN);
   // Hal yang terjadi di chat di luar pengetahuan AI: balasan pemilik nomor dari HP, pesan yang masuk
   // selagi AI diam, jawaban AI yang tak terkirim.
   const catatan = opsi.catatan ?? [];

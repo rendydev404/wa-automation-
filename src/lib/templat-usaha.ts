@@ -36,7 +36,7 @@ export function kerangka(jenis: KunciUsaha): string {
   return [
     "Nama usaha: ",
     "Tentang usaha: (contoh: apa yang dijual atau dikerjakan, sejak kapan, keunggulan)",
-    'Gaya bahasa: santai dan ramah, panggil pelanggan "Kak"',
+    'Gaya bahasa: santai dan ramah, panggil pelanggan "Kak"/"Kakak" (menyesuaikan pelanggan)',
     "",
     `${istilah} (satu per baris, dengan harga):`,
     "- (contoh: nama, harga, varian atau keterangan)",

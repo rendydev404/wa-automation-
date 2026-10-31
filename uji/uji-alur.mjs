@@ -1033,6 +1033,7 @@ await cek("WhatsApp: jawaban AI berisi kode tidak terkirim (diganti penolakan); 
   assert.ok(s.trimEnd().endsWith("</aturan_inti>"), "aturan inti (identitas, janji, angka) ada di paling akhir pesan sistem");
   assert.match(s, /<batasan_topik>[\s\S]*<\/batasan_topik>\s*<aturan_inti>/, "batas topik tepat sebelum aturan inti");
   assert.match(s, /DILARANG menulis[^\n]*kode program/);
+  assert.match(s, /<\/pengetahuan_nomor>[\s\S]*<sapaan>[\s\S]*"Kak" atau "Kakak"[\s\S]*Pak, Bu, Mas, Mbak[\s\S]*<\/sapaan>/, "sapaan menyesuaikan pelanggan, sesudah pengetahuan nomor");
   await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
   assert.equal(sA.terkirim.at(-1).isi.text, pj.TOLAK_KODE);
   assert.ok(!sA.terkirim.some((k) => /def hitung/.test(k.isi.text ?? "")), "kode tidak pernah terkirim");
