@@ -220,7 +220,7 @@ export async function logoutWaAction(id: number): Promise<Hasil> {
 // ---------- Nomor ----------
 
 // Tiap nomor terhubung = satu soket WebSocket di proses ini; batas total server ini hanya pengaman memori.
-const MAKS_NOMOR = Math.max(1, Number(process.env.MAKS_NOMOR) || 30);
+const MAKS_NOMOR = Math.max(1, Number(process.env.MAKS_NOMOR) || 250);
 
 /** Tambah nomor (dalam kuota akun): buat jalurnya, nyalakan sesi WhatsApp-nya, lalu buka halamannya (QR langsung tampil). */
 export async function tambahNomorAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {

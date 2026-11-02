@@ -177,14 +177,14 @@ async function panggilAnthropic(kunci: string, model: string, r: PermintaanAi) {
       // SOUL selalu sama persis di setiap panggilan: di-cache Anthropic (input yang di-cache 10x lebih murah).
       system: [
         { type: "text", text: teksSoul(), cache_control: { type: "ephemeral" } },
-        { type: "text", text: r.sistem },
+        { type: "text", text: r.sistem.toWellFormed() },
       ],
       messages: [
         {
           role: "user",
           content: r.gambar?.length
-            ? [...r.gambar.map((g) => ({ type: "image", source: { type: "base64", media_type: g.mime, data: g.data } })), { type: "text", text: r.pesan }]
-            : r.pesan,
+            ? [...r.gambar.map((g) => ({ type: "image", source: { type: "base64", media_type: g.mime, data: g.data } })), { type: "text", text: r.pesan.toWellFormed() }]
+            : r.pesan.toWellFormed(),
         },
       ],
     }),

@@ -241,7 +241,7 @@ try {
   await sql.end();
   console.log(`  bot nomor 3 aktif: ${k.bot3}; baris sesi WhatsApp: ${k.auth} (belum ada yang dipasangkan); koneksi app ke database: ${k.koneksi}; ukuran database: ${k.ukuran}`);
   assert.equal(k.bot3, false);
-  assert.ok(k.koneksi >= 1 && k.koneksi <= 4, "pool tidak melebihi 4 koneksi");
+  assert.ok(k.koneksi >= 1 && k.koneksi <= 8, "pool tidak melebihi 8 koneksi");
   console.log("\nLOLOS");
 } catch (e) {
   kode = 1;

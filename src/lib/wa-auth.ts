@@ -18,7 +18,7 @@ interface Baris {
   teks: string | null;
 }
 
-const MAKS_CACHE_KUNCI = 800; // entri kunci di memori per soket; selebihnya dibaca dari database
+const MAKS_CACHE_KUNCI = 400; // entri kunci di memori per soket (hemat RAM untuk 250+ nomor); selebihnya dibaca dari database
 
 /**
  * Cache kunci di depan database: LRU berbatas jumlah, tanpa timer, ikut terbuang bersama soketnya.

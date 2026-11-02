@@ -646,7 +646,9 @@ export async function mulaiGerbang(): Promise<void> {
     setTimeout(() => void mulaiGerbang(), st.jedaDbMs ?? 5_000);
     return;
   }
-  const jedaMulai = st.jedaMulaiMs ?? JEDA_MULAI_MS;
+  // Jeda adaptif: <=20 nomor = 700 ms; 200+ nomor dirapatkan otomatis (min 120 ms) agar seluruh nomor tersambung dalam ±25 dtk.
+  const jedaAdaptif = daftar.length > 20 ? Math.max(120, Math.floor(25_000 / daftar.length)) : JEDA_MULAI_MS;
+  const jedaMulai = st.jedaMulaiMs ?? jedaAdaptif;
   daftar.forEach((nama, i) => {
     const s = sesiAtauBaru(nama);
     s.terpasang = true;
@@ -657,9 +659,10 @@ export async function mulaiGerbang(): Promise<void> {
   if (st.timerJaga) clearInterval(st.timerJaga);
   // Penjaga berkala: memastikan tidak ada nomor tertaut yang diam tanpa soket dan tanpa jadwal sambung ulang.
   st.timerJaga = setInterval(() => {
+    let urutan = 0;
     for (const s of st.sesi.values()) {
       if (s.terpasang && !s.sock && !s.timer && s.status !== "WORKING" && s.status !== "SCAN_QR_CODE") {
-        void sambung(s);
+        s.timer = setTimeout(() => void sambung(s), urutan++ * 150);
       }
     }
   }, 45_000);

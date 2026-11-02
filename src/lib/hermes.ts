@@ -39,12 +39,12 @@ export async function tanyaHermes(opsi: { sessionId: string; sistem: string; pes
       model: "hermes",
       stream: false,
       messages: [
-        { role: "system", content: opsi.sistem },
+        { role: "system", content: opsi.sistem.toWellFormed() },
         {
           role: "user",
           content: opsi.gambar?.length
-            ? [{ type: "text", text: opsi.pesan }, ...opsi.gambar.map((g) => ({ type: "image_url", image_url: { url: `data:${g.mime};base64,${g.data}` } }))]
-            : opsi.pesan,
+            ? [{ type: "text", text: opsi.pesan.toWellFormed() }, ...opsi.gambar.map((g) => ({ type: "image_url", image_url: { url: `data:${g.mime};base64,${g.data}` } }))]
+            : opsi.pesan.toWellFormed(),
         },
       ],
     }),

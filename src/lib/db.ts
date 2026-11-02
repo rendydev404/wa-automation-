@@ -423,7 +423,7 @@ function buat(): Sql {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL belum diisi (alamat PostgreSQL).");
   return postgres(url, {
-    max: Math.max(1, Number(process.env.DB_POOL) || 4),
+    max: Math.max(1, Number(process.env.DB_POOL) || 8),
     idle_timeout: 120,
     connect_timeout: 10,
     onnotice: () => {},
