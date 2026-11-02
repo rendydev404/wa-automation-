@@ -104,6 +104,9 @@ interface Keadaan {
   versiJanji?: Promise<void>;
   penangan: ((ev: EventWa) => void | Promise<void>) | null;
   dimulai: boolean;
+  /** Khusus pengujian: ubah jeda mulai bergiliran & coba-ulang DB setelah diuji. */
+  jedaMulaiMs?: number;
+  jedaDbMs?: number;
 }
 
 const g = globalThis as unknown as { __waGerbang?: Keadaan };
@@ -601,15 +604,16 @@ export async function mulaiGerbang(): Promise<void> {
   } catch (e) {
     st.dimulai = false;
     console.error(`[wa] database belum siap (${e instanceof Error ? e.message : String(e)}); mencoba lagi dalam 5 dtk`);
-    setTimeout(() => void mulaiGerbang(), 5_000);
+    setTimeout(() => void mulaiGerbang(), st.jedaDbMs ?? 5_000);
     return;
   }
+  const jedaMulai = st.jedaMulaiMs ?? JEDA_MULAI_MS;
   daftar.forEach((nama, i) => {
     const s = sesiAtauBaru(nama);
     s.terpasang = true;
     if (s.sock || s.timer) return; // sudah dijalankan lewat dashboard selagi menunggu database
     s.status = "STARTING";
-    s.timer = setTimeout(() => void sambung(s), i * JEDA_MULAI_MS + Math.floor(Math.random() * 200));
+    s.timer = setTimeout(() => void sambung(s), i * jedaMulai + Math.floor(Math.random() * Math.min(200, jedaMulai)));
   });
   console.info(`[wa] menyambungkan ${daftar.length} nomor`);
 }

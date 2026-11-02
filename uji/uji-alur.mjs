@@ -395,6 +395,9 @@ await cek("pesan beruntun digabung jadi satu giliran AI; semuanya ditandai dibac
   );
 });
 
+// Setelah jeda mengetik minimal (1.200 ms) terbukti di atas, percepat untuk sisa pengujian.
+globalThis.__waBridge.minMengetikMs = 20;
+
 await cek("jenis pesan: teks panjang, pesan sementara, gambar dengan/ tanpa keterangan, lokasi", async () => {
   const n0 = hermes.panggilan.length;
   tiba(sA, pesan("555000201@lid", { extendedTextMessage: { text: "teks diperluas" } }));
@@ -842,6 +845,7 @@ await cek("histori percakapan mencatat pesan pelanggan, balasan AI, dan balasan 
 
 // =====================================================================================
 bagian("D2. Belajar dari balasan manusia");
+globalThis.__waBridge.tungguMs = 450;
 const pl = await lib("src/lib/pelajaran.ts");
 const { setBelajar } = await lib("src/lib/numbers.ts");
 // Event diproses asinkron: beri waktu sampai tulisnya masuk antrean, baru tunggu antrean itu tuntas.
@@ -1392,6 +1396,7 @@ await cek("nomor dihapus: sesi hilang dari memori dan database", async () => {
 
 // =====================================================================================
 bagian("G. Banyak nomor sekaligus");
+globalThis.__waBridge.tungguMs = undefined;
 const banyak = [];
 
 await cek("12 nomor terhubung bersamaan, masing-masing dengan knowledge dan soketnya sendiri", async () => {
@@ -1522,6 +1527,8 @@ await cek("nomor tertaut gagal dibuat koneksinya berkali-kali: tetap dijadwalkan
 
 await cek("database sempat tidak terjangkau saat server mulai: gerbang mencoba lagi sendiri", async () => {
   const st = globalThis.__waGerbang;
+  st.jedaDbMs = 250;
+  st.jedaMulaiMs = 30;
   for (const s of st.sesi.values()) if (s.timer) clearTimeout(s.timer);
   st.sesi.clear();
   st.dimulai = false;

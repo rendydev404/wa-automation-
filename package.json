@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "uji": "node --no-warnings --import ./uji/loader.mjs uji/uji-auth.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-data.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-alur.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-sinkron.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-log.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-pengguna.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-ai.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-langganan.mjs && node --no-warnings --import ./uji/loader.mjs uji/uji-afiliasi.mjs",
+    "uji": "node --no-warnings uji/jalankan-semua.mjs",
     "db": "node --no-warnings uji/pg-lokal.mjs"
   },
   "dependencies": {

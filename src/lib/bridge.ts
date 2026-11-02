@@ -119,10 +119,13 @@ interface Keadaan {
   /** Tulis ke database di latar, satu per satu sesuai urutan dibuatnya. */
   tulis: Promise<void>;
   hitung: number;
+  /** Khusus pengujian: ubah jeda mengetik minimal & masa tunggu setelah diuji di awal. */
+  minMengetikMs?: number;
+  tungguMs?: number;
 }
 
 const g = globalThis as unknown as { __waBridge?: Keadaan };
-const st = (g.__waBridge ??= { terlihat: new Map(), terkirim: new Set(), antre: new Map(), tulis: Promise.resolve(), hitung: 0 });
+const st: Keadaan = (g.__waBridge ??= { terlihat: new Map(), terkirim: new Set(), antre: new Map(), tulis: Promise.resolve(), hitung: 0 });
 
 function ingat<T>(wadah: Map<T, number> | Set<T>, kunci: T, maks: number): void {
   if (wadah instanceof Map) wadah.set(kunci, Date.now());
@@ -394,7 +397,7 @@ async function proses(kunci: string): Promise<void> {
     }
     a.ulangAi = 0;
 
-    const kurang = MIN_MENGETIK_MS - (Date.now() - mulai);
+    const kurang = (st.minMengetikMs ?? MIN_MENGETIK_MS) - (Date.now() - mulai);
     if (kurang > 0) await tidur(kurang);
 
     // Selagi AI menyusun jawaban, manusia bisa saja membuka chat atau membalas: jangan menimpali.
@@ -665,7 +668,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   a.alamat = ev.alamat;
   a.namaPelanggan = ev.namaPengirim?.trim() || a.namaPelanggan;
   a.teleponPelanggan = telepon ?? a.teleponPelanggan;
-  a.tungguMs = nomor.tunggu_detik * 1000;
+  a.tungguMs = st.tungguMs ?? nomor.tunggu_detik * 1000;
   a.tungguBacaMs = nomor.tunggu_baca_detik * 1000;
   if (a.siap) {
     // Jawaban yang ditahan jadi basi: pelanggan menambah pesan sebelum jawaban itu terkirim.

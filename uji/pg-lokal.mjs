@@ -4,7 +4,7 @@
 // Sebagai skrip (database dev yang menetap di ./data/pg, port 5434):
 //   npm run db        -> lalu isi .env.local: DATABASE_URL=postgres://wa:wa@127.0.0.1:5434/wa
 // Sebagai modul: mulaiPg({ dir, port, sementara }) dipakai skrip uji.
-import { existsSync, rmSync } from "node:fs";
+import { cpSync, existsSync, rmSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -31,6 +31,10 @@ export async function mulaiPg({ dir, port, sementara = false }) {
   const { default: EmbeddedPostgres } = await impor("embedded-postgres/dist/index.js");
   const { default: postgres } = await impor("postgres/src/index.js");
   if (sementara) rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); // Windows: proses postgres bisa masih melepas berkas sesaat
+  const tpl = process.env.WA_PG_TEMPLATE;
+  if (sementara && tpl && path.resolve(dir) !== path.resolve(tpl) && existsSync(path.join(tpl, "PG_VERSION"))) {
+    cpSync(tpl, dir, { recursive: true });
+  }
   const p = port ?? (await portBebas());
   const baru = !existsSync(path.join(dir, "PG_VERSION"));
   const pg = new EmbeddedPostgres({

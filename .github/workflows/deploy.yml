@@ -16,18 +16,17 @@ on:
       - "video/**"
   workflow_dispatch:
 
-# Satu deploy pada satu waktu; push berikutnya menunggu, tidak membatalkan deploy yang sedang jalan.
-concurrency:
-  group: deploy-produksi
-  cancel-in-progress: false
-
 permissions:
   contents: read
 
 jobs:
-  uji-dan-deploy:
+  uji-dan-bangun:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 15
+    # Push baru saat masih tahap uji/build langsung membatalkan proses uji commit lama yang usang.
+    concurrency:
+      group: ci-${{ github.ref }}
+      cancel-in-progress: true
     env:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
@@ -36,18 +35,38 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
 
-      - run: npm ci
+      - name: Cache node_modules
+        id: cache-nm
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-node24-${{ hashFiles('package-lock.json') }}
 
-      - name: Lint
-        run: npx eslint
+      - name: Pasang dependensi (hanya bila package-lock berubah)
+        if: steps.cache-nm.outputs.cache-hit != 'true'
+        run: npm ci --prefer-offline --no-audit
 
-      - name: Build (termasuk pemeriksaan tipe)
-        run: npm run build
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**') }}
+          restore-keys: |
+            next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+            next-${{ runner.os }}-
 
-      - name: Uji (PostgreSQL sementara di runner)
-        run: npm run uji
+      - name: Lint, Build & Uji paralel
+        run: |
+          npx eslint &
+          PID_LINT=$!
+          npm run build &
+          PID_BUILD=$!
+          npm run uji &
+          PID_UJI=$!
+          wait $PID_LINT
+          wait $PID_BUILD
+          wait $PID_UJI
 
       - name: Uji server hasil build
         run: node --no-warnings --import ./uji/loader.mjs uji/uji-next.mjs
@@ -59,15 +78,38 @@ jobs:
           mkdir -p paket/standalone/.next
           cp -r .next/standalone/. paket/standalone/
           cp -r .next/static paket/standalone/.next/static
-          if [ -d public ]; then cp -r public paket/standalone/public; fi # folder kosong tidak ikut ke git
-          rm -rf paket/standalone/data paket/standalone/.env*
-          echo "$GITHUB_SHA" > paket/standalone/VERSI # dicocokkan penerima deploy dengan isi container yang berjalan
+          if [ -d public ]; then cp -r public paket/standalone/public; fi
+          rm -rf paket/standalone/data paket/standalone/.env* paket/standalone/node_modules/@img
+          echo "$GITHUB_SHA" > paket/standalone/VERSI
           cp deploy/Dockerfile deploy/docker-compose.yml paket/
-          tar czf paket.tgz -C paket .
+          GZIP=-1 tar czf paket.tgz -C paket .
           ls -lh paket.tgz
 
-      - name: Deploy ke VPS
+      - name: Simpan paket deploy
         if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: paket-deploy
+          path: paket.tgz
+          compression-level: 0
+          retention-days: 1
+
+  deploy:
+    needs: uji-dan-bangun
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Satu deploy ke VPS pada satu waktu; tidak pernah memutus pengiriman yang sedang berjalan.
+    concurrency:
+      group: deploy-produksi
+      cancel-in-progress: false
+    steps:
+      - name: Unduh paket deploy
+        uses: actions/download-artifact@v4
+        with:
+          name: paket-deploy
+
+      - name: Deploy ke VPS
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
