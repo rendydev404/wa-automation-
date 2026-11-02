@@ -398,6 +398,15 @@ const MIGRASI: string[] = [
   CREATE INDEX penarikan_afiliasi_afiliator_idx ON penarikan_afiliasi (afiliator_id, id DESC);
   CREATE INDEX penarikan_afiliasi_status_idx ON penarikan_afiliasi (status, dibuat DESC, id DESC);
   `,
+  // v16: kecepatan bawaan AI menjawab (tunggu_detik, tunggu_baca_detik, jeda_detik) dipercepat dari 5 detik menjadi 3 detik.
+  `
+  ALTER TABLE numbers ALTER COLUMN tunggu_detik SET DEFAULT 3;
+  ALTER TABLE numbers ALTER COLUMN tunggu_baca_detik SET DEFAULT 3;
+  ALTER TABLE numbers ALTER COLUMN jeda_detik SET DEFAULT 3;
+  UPDATE numbers SET tunggu_detik = 3 WHERE tunggu_detik = 5;
+  UPDATE numbers SET tunggu_baca_detik = 3 WHERE tunggu_baca_detik = 5;
+  UPDATE numbers SET jeda_detik = 3 WHERE jeda_detik = 5;
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;
