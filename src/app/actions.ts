@@ -26,7 +26,7 @@ import { authConfigured } from "@/lib/auth";
 import { asalAplikasi, ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
 import { sekarang, setSetting } from "@/lib/db";
 import { ATURAN_ANGKA, ATURAN_SAKLAR, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
-import { type IsiKhusus, METODE_MANUAL, type MetodeManual, berikanPaketManual, hentikanLangganan, mulaiBayar, paketById, riwayatTransaksi, segarkanKuota, simpanPaket, terapkanSimulasi, terapkanStatus } from "@/lib/langganan";
+import { type IsiKhusus, METODE_MANUAL, type MetodeManual, berikanPaketManual, hapusPaket, hentikanLangganan, mulaiBayar, paketById, riwayatTransaksi, segarkanKuota, simpanPaket, terapkanSimulasi, terapkanStatus } from "@/lib/langganan";
 import { MidtransError, konfigMidtrans } from "@/lib/midtrans";
 import { tanggal } from "@/lib/format";
 import { GalatCustom, customTampil, periksaCustom, ringkasCustom, simpanPaketCustom } from "@/lib/paket-custom";
@@ -728,8 +728,24 @@ export async function adminPaketAction(_lalu: Hasil | null, form: FormData): Pro
   await catatLog(admin, id ? "ubah paket" : "buat paket", null, `${nama} · Rp${p.harga.toLocaleString("id-ID")} · ${p.kuota_nomor} nomor · ${p.kuota_balasan} balasan · komisi ${labelKomisiPaket(komisiJenis, komisiNilai, p.harga)}`);
   revalidatePath("/admin", "layout");
   revalidatePath("/langganan");
+  revalidatePath("/afiliasi");
+  revalidatePath("/program-afiliasi");
   revalidatePath("/");
   return { ok: true, pesan: id ? "Paket diperbarui." : "Paket dibuat." };
+}
+
+export async function adminHapusPaketAction(id: number): Promise<Hasil> {
+  const admin = await requireAdmin();
+  if (!idSah(id)) return { ok: false, pesan: "Paket tidak valid." };
+  const dihapus = await hapusPaket(id);
+  if (!dihapus) return { ok: false, pesan: "Paket tidak ditemukan." };
+  await catatLog(admin, "hapus paket", null, `${dihapus.nama} (Rp${dihapus.harga.toLocaleString("id-ID")})`);
+  revalidatePath("/admin", "layout");
+  revalidatePath("/langganan");
+  revalidatePath("/afiliasi");
+  revalidatePath("/program-afiliasi");
+  revalidatePath("/");
+  return { ok: true, pesan: `Paket "${dihapus.nama}" dihapus.` };
 }
 
 /**

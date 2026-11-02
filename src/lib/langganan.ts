@@ -75,6 +75,14 @@ export async function simpanPaket(p: Omit<Paket, "id" | "komisi_jenis" | "komisi
   return r.id;
 }
 
+export async function hapusPaket(id: number): Promise<Paket | undefined> {
+  const sql = await db();
+  const [p] = await sql<Paket[]>`
+    DELETE FROM paket WHERE id = ${id} AND kode <> ${KODE_CUSTOM}
+    RETURNING ${sql.unsafe(KOLOM_PAKET)}`;
+  return p;
+}
+
 // ---------- Langganan & hak akun ----------
 
 export interface Langganan {

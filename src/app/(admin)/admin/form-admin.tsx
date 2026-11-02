@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { Copy, KeyRound, Loader2, LogOut, Unplug } from "lucide-react";
+import { Copy, KeyRound, Loader2, LogOut, Trash2, Unplug } from "lucide-react";
 import {
   adminBlokirAction,
   adminBuatAkunAction,
   adminCabutSesiAction,
   adminHapusAction,
+  adminHapusPaketAction,
   adminAiAction,
   adminAiAkunAction,
   adminHentikanLanggananAction,
@@ -542,9 +543,21 @@ export function FormPaket({ paket }: { paket?: PaketForm }) {
           <input type="checkbox" name="unggulan" defaultChecked={p?.unggulan} className="size-4 accent-[var(--c-accent)]" /> Tandai &quot;paling banyak dipilih&quot;
         </label>
       </div>
-      <div className="flex items-center gap-3">
-        <SubmitButton>{p ? "Simpan paket" : "Buat paket"}</SubmitButton>
-        <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <SubmitButton>{p ? "Simpan paket" : "Buat paket"}</SubmitButton>
+          <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
+        </div>
+        {p && (
+          <TombolKonfirmasi
+            label="Hapus paket"
+            tanya={`Hapus paket "${p.nama}"? Pelanggan yang sedang aktif tetap aman.`}
+            ya="Ya, hapus"
+            className="btn btn-ghost border border-line text-danger hover:bg-danger-soft"
+            ikon={<Trash2 className="size-4" aria-hidden />}
+            aksi={() => adminHapusPaketAction(p.id)}
+          />
+        )}
       </div>
     </form>
   );
