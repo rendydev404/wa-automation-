@@ -52,22 +52,22 @@ const FAQ_AFILIASI = [
   },
   {
     t: "Kapan komisi masuk ke saldo saya?",
-    j: "Komisi otomatis dikreditkan detik itu juga saat pembayaran paket langganan pengguna referral Anda berstatus Lunas.",
+    j: "Komisi diberikan untuk setiap pelanggan baru yang mendaftar lewat link Anda dan melakukan pembelian paket langganan (otomatis dikreditkan begitu pembayaran berstatus Lunas). Siklus dan besaran komisi mengikuti pengaturan Admin serta ketentuan dari pihak aplikasi.",
   },
   {
     t: "Apakah komisi berbeda untuk setiap paket?",
-    j: "Ya. Besaran komisi diatur secara spesifik untuk masing-masing paket (Starter, Bisnis, Pro, maupun Paket Custom) sehingga semakin tinggi paket yang dibeli referral Anda, semakin besar komisi yang Anda terima.",
+    j: "Ya. Besaran komisi diatur secara spesifik oleh Admin untuk masing-masing paket (Starter, Bisnis, Pro, maupun Paket Custom) sesuai kebijakan pihak aplikasi.",
   },
   {
     t: "Bagaimana cara mencairkan saldo komisi?",
-    j: "Buka menu Afiliasi di dashboard, pastikan saldo Anda sudah mencapai batas minimum penarikan, lalu klik Ajukan Penarikan. Dana akan ditransfer ke rekening Bank atau E-Wallet yang Anda daftarkan.",
+    j: "Buka menu Afiliasi di dashboard, pastikan saldo Anda sudah mencapai batas minimum penarikan, lalu klik Ajukan Penarikan. Dana akan ditransfer ke rekening Bank atau E-Wallet yang Anda daftarkan sesuai ketentuan dari pihak aplikasi.",
   },
 ];
 
 async function SeksiKalkulatorDanTabelDinamis() {
   await connection();
   let paketSimulasi: PaketSimulasiAfiliasi[] = [];
-  let siklus: "pertama" | "berulang" = "berulang";
+  let siklus: "pertama" | "berulang" = "pertama";
   let minTarik = 50_000;
 
   try {
@@ -120,7 +120,7 @@ async function SeksiKalkulatorDanTabelDinamis() {
             </div>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3.5 py-1.5 text-[12px] font-bold text-accent">
               <Sparkles className="size-3.5" aria-hidden />
-              {siklus === "berulang" ? "Komisi Berulang Tiap Pembelian" : "Komisi Pembelian Pertama"}
+              {siklus === "berulang" ? "Komisi Berulang Tiap Pembelian" : "1x Komisi per Pelanggan Referral"}
             </span>
           </div>
 
@@ -166,6 +166,9 @@ async function SeksiKalkulatorDanTabelDinamis() {
                 })}
               </tbody>
             </table>
+          </div>
+          <div className="border-t border-line bg-subtle/40 px-6 py-3.5 text-[12.5px] text-muted sm:px-8">
+            * Besaran komisi per paket, skema pemberian komisi, dan pencairan saldo dapat diatur oleh Admin serta mengikuti syarat & ketentuan dari pihak aplikasi.
           </div>
         </div>
       )}
@@ -242,7 +245,7 @@ export default function HalamanProgramAfiliasi() {
             <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-ink-muted">
               {[
                 "100% gratis tanpa biaya pendaftaran",
-                "Bebas kustomisasi kode link unik",
+                "Kode referral unik dibuat acak otomatis",
                 "Cookie pelacakan 30 hari",
                 "Cairkan ke Bank & E-Wallet",
               ].map((t) => (
@@ -308,7 +311,7 @@ export default function HalamanProgramAfiliasi() {
           <div className="mt-10">
             <Suspense
               fallback={
-                <KalkulatorAfiliasi paketList={[]} siklus="berulang" minTarik={50_000} />
+                <KalkulatorAfiliasi paketList={[]} siklus="pertama" minTarik={50_000} />
               }
             >
               <SeksiKalkulatorDanTabelDinamis />

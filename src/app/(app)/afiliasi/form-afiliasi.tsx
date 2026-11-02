@@ -14,32 +14,14 @@ const OPSI_BANK = DAFTAR_BANK.map((b) => ({
   lencana: b.kategori,
 }));
 
-export function FormGabungAfiliasi({ kodeSaran }: { kodeSaran: string }) {
+export function FormGabungAfiliasi() {
   const [hasil, aksi] = useActionState(daftarAfiliasiAction, null);
-  const [kode, setKode] = useState(kodeSaran);
   const [bank, setBank] = useState<string>(DAFTAR_BANK[0].id);
 
   return (
     <form action={aksi} className="space-y-4">
-      <div>
-        <label htmlFor="af-kode" className="label">
-          Kode referral pilihan Anda
-        </label>
-        <input
-          id="af-kode"
-          name="kode"
-          value={kode}
-          onChange={(e) => setKode(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 24))}
-          placeholder="contoh: toko-budi"
-          required
-          minLength={3}
-          maxLength={24}
-          autoComplete="off"
-          className="field font-mono"
-        />
-        <p className="hint mt-1">
-          3–24 karakter (huruf kecil, angka, atau strip). Tautan Anda nanti menjadi <span className="font-mono text-fg">?ref={kode || "kode-anda"}</span>.
-        </p>
+      <div className="rounded-xl border border-line bg-subtle/40 px-4 py-3 text-[12.5px] text-muted">
+        Kode tautan referral unik akan dibuat secara <strong className="font-semibold text-fg">acak otomatis</strong> oleh sistem begitu Anda bergabung.
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -116,7 +98,6 @@ export function KartuTautanReferral({
   const [disalin, setDisalin] = useState<"utama" | "daftar" | null>(null);
   const [bukaEdit, setBukaEdit] = useState(false);
   const [hasil, aksi] = useActionState(ubahAfiliasiAction, null);
-  const [kodeEdit, setKodeEdit] = useState(kode);
   const [bankEdit, setBankEdit] = useState(bankNama);
 
   const salin = (teks: string, jenis: "utama" | "daftar") => {
@@ -132,7 +113,7 @@ export function KartuTautanReferral({
           <p className="text-[11.5px] font-semibold tracking-[0.08em] text-accent uppercase">Tautan Afiliasi Anda</p>
           <h2 className="mt-1 text-lg font-bold">Bagikan & dapatkan komisi otomatis</h2>
           <p className="mt-0.5 text-[13px] text-muted">
-            Cookie referral tersimpan selama 30 hari di browser pengunjung. Jika mereka mendaftar dan membeli paket, komisi langsung masuk ke saldo Anda.
+            Cookie referral tersimpan selama 30 hari di browser pengunjung. Jika mereka mendaftar dan membeli paket, komisi langsung masuk ke saldo Anda sesuai ketentuan pihak aplikasi.
           </p>
         </div>
         <button
@@ -140,7 +121,7 @@ export function KartuTautanReferral({
           onClick={() => setBukaEdit((v) => !v)}
           className="btn btn-ghost border border-line text-[12.5px]"
         >
-          <Pencil className="size-3.5" aria-hidden /> {bukaEdit ? "Tutup pengaturan" : "Ubah kode & rekening"}
+          <Pencil className="size-3.5" aria-hidden /> {bukaEdit ? "Tutup pengaturan" : "Ubah rekening pencairan"}
         </button>
       </div>
 
@@ -194,23 +175,8 @@ export function KartuTautanReferral({
 
       {bukaEdit && (
         <form action={aksi} className="mt-4 animate-masuk space-y-3 rounded-xl border border-line bg-subtle/40 p-4">
-          <p className="text-[13px] font-bold">Ubah kode referral & rekening pencairan</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label htmlFor="edit-kode" className="label">
-                Kode referral
-              </label>
-              <input
-                id="edit-kode"
-                name="kode"
-                value={kodeEdit}
-                onChange={(e) => setKodeEdit(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 24))}
-                required
-                minLength={3}
-                maxLength={24}
-                className="field font-mono"
-              />
-            </div>
+          <p className="text-[13px] font-bold">Ubah rekening tujuan pencairan komisi</p>
+          <div className="grid gap-3 sm:grid-cols-3">
             <div>
               <label htmlFor="edit-bank" className="label">
                 Bank / E-Wallet

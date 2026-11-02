@@ -1,4 +1,5 @@
 import "server-only";
+import { randomBytes } from "node:crypto";
 import { type Tx, db, getSetting, sekarang, setSetting, transaksi as transaksiDb } from "./db";
 import {
   DAFTAR_BANK,
@@ -42,7 +43,7 @@ export async function pengaturanAfiliasi(): Promise<PengaturanAfiliasi> {
   return {
     aktif: aktif !== "0",
     persetujuan: persetujuan === "manual" ? "manual" : "otomatis",
-    siklus: siklus === "pertama" ? "pertama" : "berulang",
+    siklus: siklus === "berulang" ? "berulang" : "pertama",
     minTarik: Math.max(10_000, angkaSetting(minTarik, MIN_PENARIKAN_BAWAAN)),
   };
 }
@@ -80,11 +81,18 @@ export async function profilAfiliator(userId: number): Promise<BarisAfiliator | 
   return a;
 }
 
-function validasiInputAfiliator(input: { kode: string; bankNama: string; bankNomor: string; bankPemilik: string }) {
-  const kode = normalkanKodeRef(input.kode);
-  if (!kode) {
-    throw new AfiliasiError("Kode afiliasi harus 3–24 karakter (huruf kecil, angka, atau tanda hubung, diawali/diakhiri huruf/angka).");
+const ALFABET_REF = "abcdefghjkmnpqrstuvwxyz23456789";
+
+export function buatKodeReferralAcak(panjang = 8): string {
+  const b = randomBytes(panjang);
+  let hasil = "";
+  for (let i = 0; i < panjang; i++) {
+    hasil += ALFABET_REF[b[i] % ALFABET_REF.length];
   }
+  return hasil;
+}
+
+function validasiRekeningAfiliator(input: { bankNama: string; bankNomor: string; bankPemilik: string }) {
   const bankSah = DAFTAR_BANK.some((b) => b.id === input.bankNama);
   if (!bankSah) {
     throw new AfiliasiError("Pilih bank atau e-wallet tujuan pencairan dari daftar.");
@@ -97,50 +105,70 @@ function validasiInputAfiliator(input: { kode: string; bankNama: string; bankNom
   if (bankPemilik.length < 2) {
     throw new AfiliasiError("Nama pemilik rekening wajib diisi (minimal 2 huruf).");
   }
-  return { kode, bankNama: input.bankNama, bankNomor, bankPemilik };
+  return { bankNama: input.bankNama, bankNomor, bankPemilik };
 }
 
 export async function daftarAfiliator(
   userId: number,
-  input: { kode: string; bankNama: string; bankNomor: string; bankPemilik: string }
+  input: { kode?: string; bankNama: string; bankNomor: string; bankPemilik: string }
 ): Promise<BarisAfiliator> {
   const atur = await pengaturanAfiliasi();
   if (!atur.aktif) throw new AfiliasiError("Program afiliasi sedang ditutup sementara oleh admin.");
-  const { kode, bankNama, bankNomor, bankPemilik } = validasiInputAfiliator(input);
+  const { bankNama, bankNomor, bankPemilik } = validasiRekeningAfiliator(input);
+  const kodeManual = input.kode && input.kode.trim() !== "" ? normalkanKodeRef(input.kode) : null;
+  if (input.kode && input.kode.trim() !== "" && !kodeManual) {
+    throw new AfiliasiError("Kode afiliasi tidak valid.");
+  }
   const statusAwal: StatusAfiliator = atur.persetujuan === "otomatis" ? "aktif" : "menunggu";
   const sql = await db();
 
   const sudah = await profilAfiliator(userId);
   if (sudah) throw new AfiliasiError("Akun Anda sudah terdaftar di program afiliasi.");
 
-  try {
-    const [baru] = await sql<BarisAfiliator[]>`
-      INSERT INTO afiliator(user_id, kode, status, bank_nama, bank_nomor, bank_pemilik, created_at)
-      VALUES (${userId}, ${kode}, ${statusAwal}, ${bankNama}, ${bankNomor}, ${bankPemilik}, ${sekarang()})
-      RETURNING ${sql.unsafe(KOLOM_AFILIATOR)}`;
-    return baru;
-  } catch {
-    throw new AfiliasiError(`Kode afiliasi "${kode}" sudah dipakai orang lain. Silakan pilih kode unik lainnya.`);
+  for (let coba = 0; coba < 6; coba++) {
+    const kodePakai = kodeManual ?? buatKodeReferralAcak(8);
+    try {
+      const [baru] = await sql<BarisAfiliator[]>`
+        INSERT INTO afiliator(user_id, kode, status, bank_nama, bank_nomor, bank_pemilik, created_at)
+        VALUES (${userId}, ${kodePakai}, ${statusAwal}, ${bankNama}, ${bankNomor}, ${bankPemilik}, ${sekarang()})
+        RETURNING ${sql.unsafe(KOLOM_AFILIATOR)}`;
+      return baru;
+    } catch {
+      if (kodeManual) {
+        throw new AfiliasiError(`Kode afiliasi "${kodeManual}" sudah dipakai orang lain.`);
+      }
+    }
   }
+  throw new AfiliasiError("Gagal membuat kode afiliasi acak. Silakan coba lagi.");
 }
 
 export async function ubahProfilAfiliator(
   userId: number,
-  input: { kode: string; bankNama: string; bankNomor: string; bankPemilik: string }
+  input: { kode?: string; bankNama: string; bankNomor: string; bankPemilik: string }
 ): Promise<BarisAfiliator> {
-  const { kode, bankNama, bankNomor, bankPemilik } = validasiInputAfiliator(input);
+  const { bankNama, bankNomor, bankPemilik } = validasiRekeningAfiliator(input);
+  const kodeBaru = input.kode && input.kode.trim() !== "" ? normalkanKodeRef(input.kode) : null;
+  if (input.kode && input.kode.trim() !== "" && !kodeBaru) {
+    throw new AfiliasiError("Kode afiliasi tidak valid.");
+  }
   const sql = await db();
   try {
-    const [ubah] = await sql<BarisAfiliator[]>`
-      UPDATE afiliator
-         SET kode = ${kode}, bank_nama = ${bankNama}, bank_nomor = ${bankNomor}, bank_pemilik = ${bankPemilik}
-       WHERE user_id = ${userId}
-       RETURNING ${sql.unsafe(KOLOM_AFILIATOR)}`;
+    const [ubah] = kodeBaru
+      ? await sql<BarisAfiliator[]>`
+          UPDATE afiliator
+             SET kode = ${kodeBaru}, bank_nama = ${bankNama}, bank_nomor = ${bankNomor}, bank_pemilik = ${bankPemilik}
+           WHERE user_id = ${userId}
+           RETURNING ${sql.unsafe(KOLOM_AFILIATOR)}`
+      : await sql<BarisAfiliator[]>`
+          UPDATE afiliator
+             SET bank_nama = ${bankNama}, bank_nomor = ${bankNomor}, bank_pemilik = ${bankPemilik}
+           WHERE user_id = ${userId}
+           RETURNING ${sql.unsafe(KOLOM_AFILIATOR)}`;
     if (!ubah) throw new AfiliasiError("Profil afiliasi tidak ditemukan.");
     return ubah;
   } catch (e) {
     if (e instanceof AfiliasiError) throw e;
-    throw new AfiliasiError(`Kode afiliasi "${kode}" sudah dipakai orang lain.`);
+    throw new AfiliasiError("Gagal memperbarui profil afiliasi.");
   }
 }
 

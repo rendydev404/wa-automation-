@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, Banknote, Check, Copy, Link2, MousePointerClick, ShieldCheck, Sparkles, TrendingUp, Users, Wallet } from "lucide-react";
+import { ArrowRight, Banknote, Check, Copy, Link2, MousePointerClick, RefreshCw, ShieldCheck, Sparkles, TrendingUp, Users, Wallet } from "lucide-react";
 import { angka } from "@/lib/format";
 import { hitungKomisiPaket, labelKomisiPaket, type JenisKomisi, type SiklusKomisi } from "@/lib/afiliasi-def";
 
@@ -36,28 +36,22 @@ export function KalkulatorAfiliasi({
 
   const defaultIdx = Math.max(0, daftar.findIndex((p) => p.unggulan));
   const [idxPaket, setIdxPaket] = useState(defaultIdx);
-  const [jumlahUser, setJumlahUser] = useState(15);
-  const [bulanSimulasi, setBulanSimulasi] = useState<1 | 6 | 12>(6);
+  const [jumlahPembeli, setJumlahPembeli] = useState(15);
 
   const paketAktif = daftar[idxPaket] ?? daftar[0];
-  const komisiPerTransaksi = hitungKomisiPaket(paketAktif.harga, paketAktif.komisiJenis, paketAktif.komisiNilai);
+  const komisiPerPembeli = hitungKomisiPaket(paketAktif.harga, paketAktif.komisiJenis, paketAktif.komisiNilai);
   const labelKomisi = labelKomisiPaket(paketAktif.komisiJenis, paketAktif.komisiNilai);
-
-  // Jika siklus "berulang", pelanggan yang bertahan setiap bulan menghasilkan komisi lagi;
-  // jika "pertama", komisi dihitung dari jumlah user baru per bulan * jumlah bulan.
-  const komisiBulanan = komisiPerTransaksi * jumlahUser;
-  const totalPeriode =
-    siklus === "berulang"
-      ? komisiBulanan * bulanSimulasi
-      : komisiBulanan * bulanSimulasi;
+  const totalKomisi = komisiPerPembeli * jumlahPembeli;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
       {/* Panel Kontrol Kiri */}
-      <div className="rounded-3xl border border-line bg-surface p-6 shadow-card sm:p-8">
+      <div className="flex flex-col justify-between rounded-3xl border border-line bg-surface p-6 shadow-card sm:p-8">
         <div>
-          <span className="text-[12.5px] font-bold tracking-[0.08em] text-muted uppercase">1. Pilih Paket yang Direkomendasikan</span>
-          <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
+          <span className="text-[12.5px] font-bold tracking-[0.08em] text-muted uppercase">
+            1. Pilih Paket yang Dibeli Pelanggan Referral
+          </span>
+          <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
             {daftar.map((p, idx) => {
               const aktif = idx === idxPaket;
               const komisiRp = hitungKomisiPaket(p.harga, p.komisiJenis, p.komisiNilai);
@@ -83,72 +77,60 @@ export function KalkulatorAfiliasi({
                   </div>
                   <span className="mt-1 text-[12.5px] text-muted tabular-nums">Harga Rp{angka(p.harga)}</span>
                   <span className="mt-2.5 text-[13px] font-extrabold text-accent tabular-nums">
-                    +Rp{angka(komisiRp)} <span className="font-normal text-muted">/ beli</span>
+                    +Rp{angka(komisiRp)} <span className="font-normal text-muted">/ pembeli</span>
                   </span>
                 </button>
               );
             })}
           </div>
+
+          <div className="mt-7 border-t border-line pt-6">
+            <div className="flex items-baseline justify-between gap-3">
+              <label htmlFor="slider-referral" className="text-[12.5px] font-bold tracking-[0.08em] text-muted uppercase">
+                2. Jumlah Pelanggan yang Membeli Paket
+              </label>
+              <span className="text-2xl font-extrabold text-accent tabular-nums">
+                {jumlahPembeli} <span className="text-[13.5px] font-semibold text-muted">pembeli</span>
+              </span>
+            </div>
+
+            <input
+              id="slider-referral"
+              type="range"
+              min={1}
+              max={100}
+              step={1}
+              value={jumlahPembeli}
+              onChange={(e) => setJumlahPembeli(Number(e.target.value))}
+              className="mt-4 w-full cursor-pointer accent-[var(--c-accent)]"
+            />
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-[12px] font-semibold text-muted">Pilih cepat:</span>
+              {JUMLAH_CEPAT.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setJumlahPembeli(n)}
+                  className={`rounded-xl border px-3 py-1.5 text-[12.5px] font-bold tabular-nums transition-colors ${
+                    jumlahPembeli === n
+                      ? "border-accent bg-accent text-on-accent"
+                      : "border-line bg-canvas text-muted hover:border-accent/40 hover:text-fg"
+                  }`}
+                >
+                  {n} pembeli
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <div className="mt-7 border-t border-line pt-6">
-          <div className="flex items-baseline justify-between gap-3">
-            <label htmlFor="slider-referral" className="text-[12.5px] font-bold tracking-[0.08em] text-muted uppercase">
-              2. Jumlah Pembeli Paket per Bulan
-            </label>
-            <span className="text-2xl font-extrabold text-accent tabular-nums">
-              {jumlahUser} <span className="text-[13.5px] font-semibold text-muted">pembeli</span>
-            </span>
-          </div>
-
-          <input
-            id="slider-referral"
-            type="range"
-            min={1}
-            max={100}
-            step={1}
-            value={jumlahUser}
-            onChange={(e) => setJumlahUser(Number(e.target.value))}
-            className="mt-4 w-full cursor-pointer accent-[var(--c-accent)]"
-          />
-
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="text-[12px] font-semibold text-muted">Pilih cepat:</span>
-            {JUMLAH_CEPAT.map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setJumlahUser(n)}
-                className={`rounded-xl border px-3 py-1 text-[12.5px] font-bold tabular-nums transition-colors ${
-                  jumlahUser === n
-                    ? "border-accent bg-accent text-on-accent"
-                    : "border-line bg-canvas text-muted hover:border-accent/40 hover:text-fg"
-                }`}
-              >
-                {n} user
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-7 border-t border-line pt-6">
-          <span className="text-[12.5px] font-bold tracking-[0.08em] text-muted uppercase">3. Rentang Proyeksi Komisi</span>
-          <div className="mt-3 grid grid-cols-3 gap-2.5">
-            {([1, 6, 12] as const).map((bln) => (
-              <button
-                key={bln}
-                type="button"
-                onClick={() => setBulanSimulasi(bln)}
-                className={`rounded-xl border py-2.5 text-[13.5px] font-bold transition-colors ${
-                  bulanSimulasi === bln
-                    ? "border-accent bg-accent text-on-accent"
-                    : "border-line bg-canvas text-fg hover:border-accent/40"
-                }`}
-              >
-                {bln === 1 ? "1 Bulan" : bln === 6 ? "6 Bulan" : "1 Tahun"}
-              </button>
-            ))}
-          </div>
+        <div className="mt-7 rounded-2xl border border-line bg-subtle/40 px-4 py-3.5 text-[12.5px] leading-relaxed text-muted">
+          <strong className="font-bold text-fg">Ketentuan Komisi:</strong> Komisi diberikan{" "}
+          {siklus === "berulang"
+            ? "setiap kali pelanggan referral membeli atau memperpanjang paket"
+            : "1 kali saat pelanggan yang mendaftar lewat link Anda melakukan pembelian paket"}
+          . Besaran komisi per paket dan aturan pencairan dapat diatur oleh Admin sesuai ketentuan dari pihak aplikasi.
         </div>
       </div>
 
@@ -156,58 +138,60 @@ export function KalkulatorAfiliasi({
       <div className="flex flex-col justify-between rounded-3xl border border-ink-line bg-ink p-6 text-ink-fg shadow-card sm:p-8">
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-ink-signal/30 bg-ink-signal/10 px-3 py-1 text-[12px] font-bold text-ink-signal">
-            <TrendingUp className="size-3.5" aria-hidden /> Estimasi Penghasilan Afiliasi
+            <TrendingUp className="size-3.5" aria-hidden /> Estimasi Komisi yang Anda Dapatkan
           </div>
 
           <div className="mt-6">
-            <p className="text-[13px] font-semibold text-ink-muted">Potensi Komisi per Bulan ({jumlahUser} pembeli {paketAktif.nama})</p>
+            <p className="text-[13px] font-semibold text-ink-muted">
+              Total Komisi dari {jumlahPembeli} Pembeli Paket {paketAktif.nama}
+            </p>
             <p className="mt-1.5 text-4xl font-extrabold tracking-tight text-white tabular-nums sm:text-[44px]">
-              Rp{angka(komisiBulanan)}
+              Rp{angka(totalKomisi)}
             </p>
           </div>
 
           <div className="mt-6 grid grid-cols-2 gap-4 rounded-2xl border border-ink-line bg-white/[0.03] p-4">
             <div>
-              <p className="text-[12px] font-semibold text-ink-muted">Komisi / 1 Pembelian</p>
+              <p className="text-[12px] font-semibold text-ink-muted">Komisi / 1 Pembeli</p>
               <p className="mt-1 text-lg font-extrabold text-ink-signal tabular-nums">
-                Rp{angka(komisiPerTransaksi)}
+                +Rp{angka(komisiPerPembeli)}
               </p>
               <p className="mt-0.5 text-[11.5px] text-ink-muted">
-                {labelKomisi ? `Tarif ${labelKomisi} dari Rp${angka(paketAktif.harga)}` : "Sesuai pengaturan paket"}
+                {labelKomisi ? `Tarif ${labelKomisi} dari paket` : "Sesuai pengaturan paket"}
               </p>
             </div>
             <div>
-              <p className="text-[12px] font-semibold text-ink-muted">
-                Akumulasi {bulanSimulasi === 12 ? "1 Tahun" : `${bulanSimulasi} Bulan`}
-              </p>
+              <p className="text-[12px] font-semibold text-ink-muted">Harga Paket {paketAktif.nama}</p>
               <p className="mt-1 text-lg font-extrabold text-white tabular-nums">
-                Rp{angka(totalPeriode)}
+                Rp{angka(paketAktif.harga)}
               </p>
               <p className="mt-0.5 text-[11.5px] text-ink-muted">
-                {siklus === "berulang" ? "Komisi berulang tiap perpanjangan" : "Komisi pembelian perdana"}
+                Masa aktif {paketAktif.durasiHari} hari
               </p>
             </div>
           </div>
 
           <ul className="mt-6 space-y-2.5 text-[13px] text-ink-muted">
-            <li className="flex items-center gap-2">
-              <Check className="size-4 shrink-0 text-ink-signal" aria-hidden />
+            <li className="flex items-start gap-2">
+              <Check className="mt-0.5 size-4 shrink-0 text-ink-signal" aria-hidden />
               <span>
-                Siklus komisi aktif:{" "}
+                Skema komisi:{" "}
                 <strong className="text-white">
-                  {siklus === "berulang" ? "Berulang (setiap user beli / perpanjang paket)" : "Pembelian paket pertama user"}
+                  {siklus === "berulang"
+                    ? "Dapat komisi setiap pembelian / perpanjangan paket"
+                    : "Dapat 1x komisi saat pembelian paket oleh pelanggan referral"}
                 </strong>
               </span>
             </li>
-            <li className="flex items-center gap-2">
-              <Check className="size-4 shrink-0 text-ink-signal" aria-hidden />
+            <li className="flex items-start gap-2">
+              <Check className="mt-0.5 size-4 shrink-0 text-ink-signal" aria-hidden />
               <span>
-                Minimum penarikan saldo ringan mulai <strong className="text-white">Rp{angka(minTarik)}</strong>
+                Minimum penarikan saldo mulai <strong className="text-white">Rp{angka(minTarik)}</strong>
               </span>
             </li>
-            <li className="flex items-center gap-2">
-              <Check className="size-4 shrink-0 text-ink-signal" aria-hidden />
-              <span>Atribusi cookie otomatis tersimpan selama 30 hari penuh</span>
+            <li className="flex items-start gap-2">
+              <Check className="mt-0.5 size-4 shrink-0 text-ink-signal" aria-hidden />
+              <span>Sesuai syarat & ketentuan resmi dari pihak aplikasi</span>
             </li>
           </ul>
         </div>
@@ -226,13 +210,15 @@ export function KalkulatorAfiliasi({
   );
 }
 
+const KODE_ACAK_CONTOH = ["af8k3m9x", "r7p4n2qx", "k9m2v6wz", "x4t8b3np", "m5h9q2kc"];
+
 const LANGKAH_INTERAKTIF = [
   {
     nomor: "01",
-    judul: "Aktifkan Kode Referral Unik",
-    ringkas: "Daftar akun gratis, buka menu Afiliasi, lalu tentukan sendiri kode link referral dan rekening pencairan Anda.",
+    judul: "Dapatkan Kode Referral Acak Otomatis",
+    ringkas: "Daftar akun gratis, buka menu Afiliasi, isi rekening pencairan, dan sistem otomatis membuat kode referral unik acak untuk Anda.",
     ikon: Link2,
-    sorotan: "Bebas pilih kode unik (contoh: tokomaju, digitalpro, csbantu)",
+    sorotan: "Kode referral dibuat acak otomatis oleh sistem (tanpa perlu repot memilih)",
   },
   {
     nomor: "02",
@@ -243,8 +229,8 @@ const LANGKAH_INTERAKTIF = [
   },
   {
     nomor: "03",
-    judul: "Komisi Masuk Saat Paket Lunas",
-    ringkas: "Begitu pengguna yang mendaftar lewat link Anda membeli paket langganan, komisi langsung masuk ke saldo afiliasi.",
+    judul: "Komisi Masuk Saat Paket Dibeli",
+    ringkas: "Saat pengguna yang mendaftar lewat link Anda membeli paket langganan, komisi langsung masuk ke saldo afiliasi Anda sesuai ketentuan aplikasi.",
     ikon: Sparkles,
     sorotan: "Transparan: lihat rincian transaksi, nama paket, dan nominal komisi real-time",
   },
@@ -259,10 +245,15 @@ const LANGKAH_INTERAKTIF = [
 
 export function AlurAfiliasiInteraktif({ domainContoh }: { domainContoh: string }) {
   const [langkahAktif, setLangkahAktif] = useState(0);
-  const [kodeDemo, setKodeDemo] = useState("mitausaha");
+  const [idxKode, setIdxKode] = useState(0);
   const [tersalin, setTersalin] = useState(false);
 
-  const linkDemo = `${domainContoh}/?ref=${kodeDemo || "mitausaha"}`;
+  const kodeDemo = KODE_ACAK_CONTOH[idxKode];
+  const linkDemo = `${domainContoh}/?ref=${kodeDemo}`;
+
+  function acakKodeContoh() {
+    setIdxKode((s) => (s + 1) % KODE_ACAK_CONTOH.length);
+  }
 
   function salinDemo() {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -335,21 +326,20 @@ export function AlurAfiliasiInteraktif({ domainContoh }: { domainContoh: string 
         {langkahAktif === 0 && (
           <div className="mt-6 space-y-4">
             <p className="text-[13px] text-ink-muted">
-              Coba ketik kode referral yang Anda inginkan untuk melihat tampilan link afiliasi Anda:
+              Sistem otomatis membangkitkan kode referral unik acak untuk akun Anda begitu mendaftar:
             </p>
-            <div>
-              <label htmlFor="input-kode-demo" className="text-[12px] font-bold text-ink-muted uppercase">
-                Kode Referral Anda
-              </label>
-              <input
-                id="input-kode-demo"
-                type="text"
-                maxLength={24}
-                value={kodeDemo}
-                onChange={(e) => setKodeDemo(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
-                placeholder="ketik-kode-anda"
-                className="mt-1.5 w-full rounded-xl border border-ink-line bg-white/[0.05] px-4 py-2.5 text-[14px] font-bold text-white outline-none focus:border-ink-signal"
-              />
+            <div className="flex items-center justify-between rounded-2xl border border-ink-line bg-white/[0.04] px-4 py-3">
+              <div>
+                <span className="text-[11px] font-bold text-ink-muted uppercase">Kode Referral Acak Sistem</span>
+                <p className="mt-0.5 font-mono text-lg font-extrabold text-white">{kodeDemo}</p>
+              </div>
+              <button
+                type="button"
+                onClick={acakKodeContoh}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-ink-line bg-white/[0.06] px-3 py-2 text-[12px] font-bold text-ink-fg transition-colors hover:bg-white/[0.12]"
+              >
+                <RefreshCw className="size-3.5" aria-hidden /> Contoh Kode Lain
+              </button>
             </div>
             <div className="rounded-2xl border border-ink-line bg-white/[0.03] p-4">
               <span className="text-[11.5px] font-semibold text-ink-muted">Link Siap Bagikan</span>
@@ -396,9 +386,9 @@ export function AlurAfiliasiInteraktif({ domainContoh }: { domainContoh: string 
         {langkahAktif === 2 && (
           <div className="mt-6 space-y-3">
             {[
-              { email: "tok***@gmail.com", paket: "Paket Bisnis", harga: 144_000, komisi: 28_800, waktu: "Baru saja" },
-              { email: "kli***@usaha.id", paket: "Paket Pro", harga: 401_000, komisi: 80_200, waktu: "2 jam lalu" },
-              { email: "kop***@mail.com", paket: "Paket Starter", harga: 99_000, komisi: 14_850, waktu: "Kemarin" },
+              { email: "tok***@gmail.com", paket: "Paket Bisnis", harga: 246_000, komisi: 49_200, waktu: "Baru saja" },
+              { email: "kli***@usaha.id", paket: "Paket Pro", harga: 602_000, komisi: 120_400, waktu: "2 jam lalu" },
+              { email: "kop***@mail.com", paket: "Paket Starter", harga: 67_000, komisi: 13_400, waktu: "Kemarin" },
             ].map((item) => (
               <div
                 key={item.email}
@@ -436,7 +426,7 @@ export function AlurAfiliasiInteraktif({ domainContoh }: { domainContoh: string 
               </div>
               <p className="mt-1.5 text-[14px] font-bold text-white">BCA · 8720••••91 a.n. Mitra Usaha</p>
               <p className="mt-1 text-[12px] text-ink-muted">
-                Pencairan diproses ke rekening Bank atau E-Wallet tanpa potongan tersembunyi.
+                Pencairan diproses ke rekening Bank atau E-Wallet sesuai ketentuan dari pihak aplikasi.
               </p>
             </div>
           </div>

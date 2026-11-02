@@ -12,16 +12,6 @@ import { FormGabungAfiliasi, FormTarikKomisi, KartuTautanReferral } from "./form
 
 export const metadata: Metadata = { title: `Program Afiliasi · ${MEREK}` };
 
-function buatSaranKode(nama: string, email: string, id: number): string {
-  const dasar = (nama || email.split("@")[0] || "mitra")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 16);
-  const bersih = dasar.length >= 3 ? dasar : `mitra-${id}`;
-  return `${bersih}-${id}`.slice(0, 24);
-}
-
 const BADGE_PENARIKAN: Record<string, { label: string; kelas: string }> = {
   menunggu: { label: "Menunggu diproses", kelas: "bg-warning-soft text-warning" },
   selesai: { label: "Sudah ditransfer", kelas: "bg-success-soft text-success" },
@@ -64,7 +54,6 @@ async function IsiAfiliasi() {
 
   // 1. Belum bergabung -> Tampilan Onboarding seperti Shopee / TikTok Affiliate versi simpel
   if (!profil) {
-    const saran = buatSaranKode(user.nama, user.email, user.id);
     return (
       <div className="space-y-6">
         <section className="card p-6 sm:p-8">
@@ -76,10 +65,10 @@ async function IsiAfiliasi() {
               Bagikan tautan, dapatkan komisi dari setiap pembelian paket
             </h2>
             <p className="mt-2 text-[14px] leading-relaxed text-muted">
-              Daftar menjadi afiliator hanya dalam 1 langkah. Setiap kali ada orang yang mendaftar lewat tautan Anda dan membeli paket langganan, komisi langsung masuk otomatis ke saldo Anda{" "}
+              Daftar menjadi afiliator hanya dalam 1 langkah. Setiap kali ada pelanggan baru yang mendaftar lewat tautan Anda dan membeli paket langganan, komisi langsung masuk otomatis ke saldo Anda{" "}
               {pengaturan.siklus === "berulang"
-                ? "termasuk saat mereka memperpanjang paket di bulan berikutnya."
-                : "pada pembelian paket pertama mereka."}
+                ? "(berlaku juga saat perpanjangan paket sesuai pengaturan admin)."
+                : "pada pembelian paket mereka (1 kali per pelanggan referral sesuai ketentuan pihak aplikasi)."}
             </p>
           </div>
 
@@ -90,7 +79,7 @@ async function IsiAfiliasi() {
               </span>
               <p className="mt-3 text-[13.5px] font-bold">1. Bagikan Tautan Unik</p>
               <p className="mt-1 text-[12.5px] text-muted">
-                Pilih kode referral Anda sendiri. Cookie tersimpan otomatis selama 30 hari di perangkat pengunjung.
+                Sistem membuat kode referral acak otomatis untuk akun Anda. Cookie tersimpan otomatis selama 30 hari di perangkat pengunjung.
               </p>
             </div>
             <div className="rounded-2xl border border-line bg-subtle/40 p-4">
@@ -99,7 +88,7 @@ async function IsiAfiliasi() {
               </span>
               <p className="mt-3 text-[13.5px] font-bold">2. Komisi Masuk Otomatis</p>
               <p className="mt-1 text-[12.5px] text-muted">
-                Begitu pembayaran paket lunas, komisi langsung dihitung dan ditambahkan ke saldo Anda detik itu juga.
+                Begitu pembayaran paket pelanggan referral lunas, komisi langsung dihitung dan ditambahkan ke saldo Anda sesuai ketentuan aplikasi.
               </p>
             </div>
             <div className="rounded-2xl border border-line bg-subtle/40 p-4">
@@ -124,7 +113,7 @@ async function IsiAfiliasi() {
             </p>
             <div className="mt-5">
               {pengaturan.aktif ? (
-                <FormGabungAfiliasi kodeSaran={saran} />
+                <FormGabungAfiliasi />
               ) : (
                 <p className="rounded-xl border border-line bg-subtle p-4 text-[13px] text-muted">
                   Pendaftaran program afiliasi baru sedang ditutup sementara oleh admin.
@@ -138,9 +127,9 @@ async function IsiAfiliasi() {
               <Package className="size-4 text-accent" aria-hidden /> Rincian Komisi per Paket
             </h3>
             <p className="mt-0.5 text-[12.5px] text-muted">
-              Siklus komisi saat ini:{" "}
+              Ketentuan komisi saat ini:{" "}
               <strong className="font-semibold text-fg">
-                {pengaturan.siklus === "berulang" ? "Berulang setiap pembelian / perpanjangan" : "Pembelian paket pertama"}
+                {pengaturan.siklus === "berulang" ? "Berulang setiap pembelian / perpanjangan" : "1x per pelanggan referral yang membeli paket"}
               </strong>
             </p>
             <ul className="mt-4 divide-y divide-line rounded-xl border border-line">
@@ -172,6 +161,9 @@ async function IsiAfiliasi() {
                 );
               })}
             </ul>
+            <p className="mt-3 text-[11.5px] leading-relaxed text-muted">
+              * Besaran komisi per paket, siklus pemberian komisi, serta proses pencairan saldo dapat diatur sewaktu-waktu oleh admin dan mengikuti ketentuan dari pihak aplikasi.
+            </p>
           </section>
         </div>
       </div>
@@ -305,6 +297,9 @@ async function IsiAfiliasi() {
               );
             })}
           </ul>
+          <p className="mt-3 text-[11.5px] leading-relaxed text-muted">
+            * Besaran komisi per paket, siklus komisi ({pengaturan.siklus === "berulang" ? "berulang" : "1 kali per pelanggan"}), serta pencairan saldo diatur oleh admin dan mengikuti ketentuan dari pihak aplikasi.
+          </p>
         </section>
       </div>
 

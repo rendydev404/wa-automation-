@@ -61,27 +61,26 @@ await cek("admin dapat mengatur komisi berbeda per paket: Starter 15% (persen), 
   assert.deepEqual([pr.komisi_jenis, pr.komisi_nilai], ["rupiah", 0]);
 });
 
-await cek("pendaftaran afiliator mandiri, pencatatan klik, dan atribusi referral (anti self-referral)", async () => {
+await cek("pendaftaran afiliator mandiri (kode acak otomatis), pencatatan klik, dan atribusi referral (anti self-referral)", async () => {
   const af = await A.daftarAfiliator(mitra1.id, {
-    kode: "mitra-1",
     bankNama: "bca",
     bankNomor: "1234567890",
     bankPemilik: "Mitra Satu",
   });
-  assert.equal(af.kode, "mitra-1");
+  assert.match(af.kode, /^[a-z0-9]{8}$/);
   assert.equal(af.status, "aktif");
 
   // Klik tercatat
-  assert.equal(await A.catatKlikReferral("mitra-1"), true);
-  assert.equal(await A.catatKlikReferral("mitra-1"), true);
+  assert.equal(await A.catatKlikReferral(af.kode), true);
+  assert.equal(await A.catatKlikReferral(af.kode), true);
   assert.equal((await A.profilAfiliator(mitra1.id)).klik, 2);
 
   // Self-referral ditolak
-  assert.equal(await A.terapkanReferral(mitra1.id, "mitra-1"), false);
+  assert.equal(await A.terapkanReferral(mitra1.id, af.kode), false);
 
   // Atribusi ke pembeli1 & pembeli2 berhasil
-  assert.equal(await A.terapkanReferral(pembeli1.id, "mitra-1"), true);
-  assert.equal(await A.terapkanReferral(pembeli2.id, "mitra-1"), true);
+  assert.equal(await A.terapkanReferral(pembeli1.id, af.kode), true);
+  assert.equal(await A.terapkanReferral(pembeli2.id, af.kode), true);
 });
 
 await cek("pembelian paket Starter (Rp99.000, komisi 15%) menghasilkan komisi Rp14.850 otomatis", async () => {
@@ -163,7 +162,6 @@ await cek("pengajuan penarikan (withdraw), tolak (refund saldo atomik), dan penc
 });
 
 await sql.end({ timeout: 2 });
-await pg.berhenti();
-rmSync(tmp, { recursive: true, force: true });
+await pg.berhenti().catch(() => {});
 console.log(`\nLOLOS ${lolos} uji afiliasi & pencairan komisi`);
 process.exit(0);
