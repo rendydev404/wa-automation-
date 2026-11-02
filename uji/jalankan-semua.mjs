@@ -6,17 +6,24 @@ import os from "node:os";
 import path from "node:path";
 import { mulaiPg } from "./pg-lokal.mjs";
 
-const DAFTAR_UJI = [
+// Jalur 1: berkas uji yang sebagian besar waktunya menunggu timer (hampir 0% pemakaian CPU).
+const JALUR_TIMER = [
   "uji/uji-alur.mjs",
-  "uji/uji-data.mjs",
   "uji/uji-sinkron.mjs",
-  "uji/uji-auth.mjs",
+];
+
+// Jalur 2: berkas uji DB & CPU (termasuk tolok ukur latensi ketat < 20 ms di uji-data & < 15 ms di uji-pengguna).
+// Dijalankan berurutan di jalur ini agar tidak saling berebut CPU/IO dengan sesama instans PostgreSQL.
+const JALUR_DB = [
+  "uji/uji-data.mjs",
   "uji/uji-pengguna.mjs",
+  "uji/uji-auth.mjs",
   "uji/uji-langganan.mjs",
   "uji/uji-ai.mjs",
   "uji/uji-afiliasi.mjs",
   "uji/uji-log.mjs",
 ];
+const TOTAL_BERKAS = JALUR_TIMER.length + JALUR_DB.length;
 
 const t0 = performance.now();
 const tplDir = path.join(os.tmpdir(), "wa-pg-template");
@@ -25,8 +32,6 @@ const tplDir = path.join(os.tmpdir(), "wa-pg-template");
 const tpl = await mulaiPg({ dir: tplDir, sementara: true });
 await tpl.berhentiSementara();
 
-const paralel = Math.max(2, Math.min(os.availableParallelism?.() ?? 4, 4));
-let indeks = 0;
 let gagal = false;
 
 function jalankanSatu(berkas) {
@@ -50,15 +55,15 @@ function jalankanSatu(berkas) {
   });
 }
 
-async function pekerja() {
-  while (!gagal && indeks < DAFTAR_UJI.length) {
-    const berkas = DAFTAR_UJI[indeks++];
+async function jalankanJalur(daftar) {
+  for (const berkas of daftar) {
+    if (gagal) break;
     await jalankanSatu(berkas);
   }
 }
 
 try {
-  await Promise.all(Array.from({ length: paralel }, () => pekerja()));
+  await Promise.all([jalankanJalur(JALUR_TIMER), jalankanJalur(JALUR_DB)]);
 } finally {
   rmSync(tplDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 }
@@ -68,4 +73,4 @@ if (gagal) {
   console.error(`\nUJI GAGAL setelah ${totalDtk} dtk`);
   process.exit(1);
 }
-console.log(`\nSEMUA ${DAFTAR_UJI.length} BERKAS UJI LOLOS dalam ${totalDtk} dtk`);
+console.log(`\nSEMUA ${TOTAL_BERKAS} BERKAS UJI LOLOS dalam ${totalDtk} dtk`);

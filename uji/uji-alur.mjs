@@ -395,8 +395,9 @@ await cek("pesan beruntun digabung jadi satu giliran AI; semuanya ditandai dibac
   );
 });
 
-// Setelah jeda mengetik minimal (1.200 ms) terbukti di atas, percepat untuk sisa pengujian.
+// Setelah jeda mengetik minimal (1.200 ms) & tunggu_detik (1.000 ms) terbukti di atas, percepat untuk Bagian C.
 globalThis.__waBridge.minMengetikMs = 20;
+globalThis.__waBridge.tungguMs = 300;
 
 await cek("jenis pesan: teks panjang, pesan sementara, gambar dengan/ tanpa keterangan, lokasi", async () => {
   const n0 = hermes.panggilan.length;
@@ -435,7 +436,7 @@ await cek("grup, status, saluran, pesan protokol, reaksi, pesan kosong, chat den
   // pesan protokol antar-perangkat & "catatan untuk diri sendiri": bukan balasan manusia ke pelanggan
   tiba(sA, pesan("6281100000001@s.whatsapp.net", "catatan sendiri", { dariSaya: true }));
   tiba(sA, pesan("777000111@lid", "catatan sendiri", { dariSaya: true }));
-  await tidur(2600);
+  await tidur(750);
   assert.equal(hermes.panggilan.length, n0);
   assert.equal((await stat(A.id)).masuk, m0);
   assert.equal((await sql`SELECT COUNT(*) AS n FROM chat_state`)[0].n, baris0);
@@ -449,7 +450,7 @@ await cek("pesan lama (menumpuk saat offline) dan pesan ganda", async () => {
   tiba(sA, pesan("555000303@lid", "sekali saja", { id }));
   tiba(sA, pesan("555000303@lid", "sekali saja", { id }));
   sA.pancar("messages.upsert", { messages: [pesan("555000303@lid", "sekali saja", { id })], type: "append" });
-  await tidur(2800);
+  await tidur(850);
   assert.equal(hermes.panggilan.length, n0 + 1);
   assert.equal(hermes.panggilan.at(-1).pesan, "sekali saja");
 });
@@ -459,7 +460,7 @@ await cek("balasan otomatis dimatikan: pesan dihitung tetapi tidak dijawab", asy
   const m0 = (await stat(A.id)).masuk;
   await setBotAktif(A.id, false); // seperti saklar di dashboard: langsung berlaku tanpa restart
   tiba(sA, pesan("555000304@lid", "ada orang?"));
-  await tidur(2600);
+  await tidur(750);
   await setBotAktif(A.id, true);
   assert.equal(hermes.panggilan.length, n0);
   assert.equal((await stat(A.id)).masuk, m0 + 1);
@@ -482,7 +483,7 @@ await cek("spam judi: tidak dijawab (tanpa memanggil AI), tidak ditandai dibaca,
   const d0 = sA.dibaca.length;
   tiba(sA, pesan(P, "SLOT GACOR hari ini!! bonus new member 100%, daftar sekarang bit.ly/gacor88 🔥🔥"));
   tiba(sA, pesan(P, "s1ot g4c0r min depo 5rb, anti rungkad, wd cepat"));
-  await tidur(2600);
+  await tidur(750);
   await bridge.tulisTuntas();
   assert.equal(hermes.panggilan.length, n0);
   assert.equal(sA.terkirim.length, k0);
@@ -508,7 +509,7 @@ await cek("spam judi di chat yang pernah dibalas pemilik / ditandai bukan spam: 
   // Ditandai bukan spam dari dashboard: penyaring lokal dan AI dilewati.
   const P2b = "555000324@lid";
   tiba(sA, pesan(P2b, "SLOT GACOR hari ini!! bonus new member 100%, daftar sekarang bit.ly/gacor88"));
-  await tidur(1500);
+  await tidur(600);
   await bridge.tulisTuntas();
   const { tandaiBukanSpam } = await lib("src/lib/percakapan.ts");
   const [p] = await sql`SELECT id FROM percakapan WHERE kunci = ${kunciChat(A.sesi, P2b)}`;
@@ -525,7 +526,7 @@ await cek("spam yang dinilai AI (tag <abaikan>): tidak dikirim, tidak memotong k
   hermes.jawab = (p) => (/followers/.test(p.pesan) ? '<abaikan jenis="promosi">jual followers</abaikan>' : null);
   tiba(sA, pesan(P, "Jual followers instagram aktif 1000 = 25rb, proses cepat"));
   await tunggu(() => /followers/.test(hermes.panggilan.at(-1)?.pesan ?? ""), 5000);
-  await tidur(1800);
+  await tidur(600);
   await bridge.tulisTuntas();
   hermes.jawab = null;
   assert.match(hermes.panggilan.at(-1).sistem, /<aturan_spam>/);
@@ -559,7 +560,7 @@ await cek("kuota balasan AI pemilik habis: pesan tercatat tetapi AI diam; kuota 
   const pakai0 = (await sql`SELECT COUNT(*)::int AS n FROM ai_pakai`)[0].n;
   tiba(sA, pesan("555000305@lid", "masih bisa dibalas?"));
   tiba(sA, pesan("555000315@lid", "halo kak"));
-  await tidur(2600);
+  await tidur(750);
   assert.equal(hermes.panggilan.length, n0, "AI tidak dipanggil saat kuota habis");
   assert.equal((await stat(A.id)).masuk, m0 + 2, "pesan tetap dihitung masuk");
   // Pemilik dikabari lewat WA pribadinya, sekali saja walau dua pelanggan tidak terbalas.
@@ -572,7 +573,7 @@ await cek("kuota balasan AI pemilik habis: pesan tercatat tetapi AI diam; kuota 
   // Notifikasi dikirim langsung lewat WhatsApp tanpa AI: tidak tercatat sebagai pemakaian, kuota balasan tidak terpotong.
   assert.equal((await sql`SELECT COUNT(*)::int AS n FROM ai_pakai`)[0].n, pakai0, "notifikasi tidak memakai kuota balasan AI");
   tiba(sA, pesan("555000316@lid", "p"));
-  await tidur(2600);
+  await tidur(750);
   assert.equal(sA.terkirim.length, kirim0 + 1, "periode kuota yang sama tidak dikabari dua kali");
   await sql`UPDATE numbers SET teruskan_ke = ${penerusUji(A.id)}, teruskan_aktif = false WHERE id = ${A.id}`;
   cacheNomorBasi();
@@ -617,7 +618,7 @@ await cek("teruskan ke pemilik: tag dibuang dari balasan pelanggan, ringkasan te
   const k1 = sA.terkirim.length;
   tiba(sA, pesan(`${PEMILIK}@s.whatsapp.net`, kePemilik.isi.text, { dariSaya: true, id: kePemilik.id }));
   tiba(sA, pesan(`${PEMILIK}@s.whatsapp.net`, "oke, saya siapkan"));
-  await tidur(2600);
+  await tidur(750);
   assert.equal(hermes.panggilan.length, n1);
   assert.equal(sA.terkirim.length, k1);
   hermes.jawab = null;
@@ -634,7 +635,7 @@ await cek("teruskan dimatikan admin (saklar sistem): tag tetap dibuang dari bala
   const k0 = sA.terkirim.length;
   tiba(sA, pesan("6285500000308@s.whatsapp.net", "mau pesan 3 nasi"));
   await tunggu(() => sA.terkirim.length > k0, 5000, "balasan pelanggan");
-  await tidur(300);
+  await tidur(200);
   const baru = sA.terkirim.slice(k0);
   assert.equal(baru.length, 1);
   assert.equal(baru[0].isi.text, "Baik Kak, pesanannya aku rangkum ya.");
@@ -652,7 +653,7 @@ await cek("nomor penerus wajib: tanpa nomor penerus pesan tetap tercatat tetapi 
   const m0 = (await stat(A.id)).masuk;
   const k0 = sA.terkirim.length;
   tiba(sA, pesan("555000309@lid", "halo, buka?"));
-  await tidur(2600);
+  await tidur(750);
   assert.equal(hermes.panggilan.length, n0, "AI tidak dipanggil tanpa nomor penerus");
   assert.equal(sA.terkirim.length, k0, "tidak ada balasan");
   assert.equal((await stat(A.id)).masuk, m0 + 1, "pesan tetap dihitung masuk");
@@ -665,6 +666,7 @@ await cek("nomor penerus wajib: tanpa nomor penerus pesan tetap tercatat tetapi 
 
 // =====================================================================================
 bagian("D. Serah-terima manusia <-> AI");
+globalThis.__waBridge.tungguMs = undefined;
 const P2 = "555000401@lid";
 
 await cek("manusia membalas dari HP sebelum AI: jawaban AI batal dan chat dijeda", async () => {

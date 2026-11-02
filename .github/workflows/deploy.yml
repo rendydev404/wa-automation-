@@ -56,17 +56,13 @@ jobs:
             next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
             next-${{ runner.os }}-
 
-      - name: Lint, Build & Uji paralel
+      - name: Lint & Build
         run: |
-          npx eslint &
-          PID_LINT=$!
-          npm run build &
-          PID_BUILD=$!
-          npm run uji &
-          PID_UJI=$!
-          wait $PID_LINT
-          wait $PID_BUILD
-          wait $PID_UJI
+          npx eslint
+          npm run build
+
+      - name: Uji (2 jalur tanpa perebutan CPU untuk tolok ukur DB)
+        run: npm run uji
 
       - name: Uji server hasil build
         run: node --no-warnings --import ./uji/loader.mjs uji/uji-next.mjs
