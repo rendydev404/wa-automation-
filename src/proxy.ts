@@ -52,12 +52,12 @@ export async function proxy(request: NextRequest) {
   if (pathname === "/login" || pathname === "/daftar") return pasangRef(NextResponse.next());
   if (!sesi) {
     if (isApi) return NextResponse.json({ error: "Sesi berakhir. Silakan login kembali." }, { status: 401, headers: { "Cache-Control": "no-store" } });
-    return NextResponse.redirect(new URL("/login", request.url));
+    return pasangRef(NextResponse.redirect(new URL("/login", request.url)));
   }
   if (isApi && request.method !== "GET" && request.method !== "HEAD" && !asalSama(request)) {
     return NextResponse.json({ error: "Permintaan tidak valid." }, { status: 403 });
   }
-  return NextResponse.next();
+  return pasangRef(NextResponse.next());
 }
 
 // Ikon aplikasi (src/app/icon.svg, apple-icon.png) harus terbuka tanpa login: dipakai tab peramban & layar utama HP.

@@ -219,7 +219,7 @@ export interface InfoTransaksiKomisi {
  * - Mencatat baris komisi_afiliasi (idempoten lewat UNIQUE transaksi_id) & menambah saldo afiliator.
  */
 export async function prosesKomisiTransaksi(tx: Tx, info: InfoTransaksiKomisi): Promise<number> {
-  if (info.jumlahBayar <= 0 || !info.paketId) return 0;
+  if (info.jumlahBayar <= 0) return 0;
 
   const atur = await pengaturanAfiliasi();
   if (!atur.aktif) return 0;
@@ -249,12 +249,17 @@ export async function prosesKomisiTransaksi(tx: Tx, info: InfoTransaksiKomisi): 
     if (trxLama) return 0;
   }
 
-  // 4. Ambil konfigurasi komisi dari paket yang dibeli
-  const [pkt] = await tx<{ komisi_jenis: JenisKomisi; komisi_nilai: number }[]>`
-    SELECT komisi_jenis, komisi_nilai FROM paket WHERE id = ${info.paketId}`;
-  if (!pkt || pkt.komisi_nilai <= 0) return 0;
+  // 4. Ambil konfigurasi komisi dari paket yang dibeli (atau dari paket '_custom' bila kesepakatan khusus tanpa paketId)
+  const [pkt] = info.paketId
+    ? await tx<{ komisi_jenis: JenisKomisi; komisi_nilai: number }[]>`
+        SELECT komisi_jenis, komisi_nilai FROM paket WHERE id = ${info.paketId}`
+    : await tx<{ komisi_jenis: JenisKomisi; komisi_nilai: number }[]>`
+        SELECT komisi_jenis, komisi_nilai FROM paket WHERE kode = '_custom'`;
+  const komisiJenis: JenisKomisi = pkt?.komisi_jenis ?? "persen";
+  const komisiNilai = pkt ? pkt.komisi_nilai : info.paketId === null ? 20 : 0;
+  if (komisiNilai <= 0) return 0;
 
-  const nominalKomisi = hitungKomisiPaket(info.jumlahBayar, pkt.komisi_jenis, pkt.komisi_nilai);
+  const nominalKomisi = hitungKomisiPaket(info.jumlahBayar, komisiJenis, komisiNilai);
   if (nominalKomisi <= 0) return 0;
 
   // 5. Catat ke komisi_afiliasi secara idempoten (UNIQUE transaksi_id mencegah komisi ganda)
@@ -265,7 +270,7 @@ export async function prosesKomisiTransaksi(tx: Tx, info: InfoTransaksiKomisi): 
     )
     VALUES (
       ${afiliatorId}, ${info.userId}, ${info.transaksiId}, ${info.namaPaket}, ${info.jumlahBayar},
-      ${pkt.komisi_jenis}, ${pkt.komisi_nilai}, ${nominalKomisi}, ${sekarang()}
+      ${komisiJenis}, ${komisiNilai}, ${nominalKomisi}, ${sekarang()}
     )
     ON CONFLICT (transaksi_id) DO NOTHING
     RETURNING id`;

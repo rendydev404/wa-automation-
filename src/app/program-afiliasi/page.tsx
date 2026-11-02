@@ -292,7 +292,7 @@ export default function HalamanProgramAfiliasi() {
           </p>
         </div>
         <div className="mt-12">
-          <AlurAfiliasiInteraktif domainContoh="https://wa-bot.id" />
+          <AlurAfiliasiInteraktif domainContoh={process.env.APP_URL?.replace(/\/$/, "") || "https://chatgercep.com"} />
         </div>
       </section>
 

@@ -94,8 +94,7 @@ async function IsiAdminAfiliasi() {
               <Wallet className="size-4 text-accent" aria-hidden /> Antrean Pengajuan Penarikan (Withdraw)
             </h2>
             <p className="mt-0.5 text-[12.5px] text-muted">
-              Transfer manual ke rekening mitra lalu klik Tandai Sudah Ditransfer
-              {irisSiap ? ", atau cairkan otomatis 1-klik lewat Midtrans Iris." : " (Midtrans Iris otomatis aktif bila MIDTRANS_IRIS_KEY dipasang di .env)."}
+              Transfer ke rekening mitra lalu klik Tandai Sudah Ditransfer{irisSiap ? ", atau cairkan otomatis 1-klik lewat Midtrans Iris." : "."}
             </p>
           </div>
           <span className="rounded-full bg-subtle px-3 py-1 text-[12px] font-semibold text-muted tabular-nums">

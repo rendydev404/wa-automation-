@@ -64,55 +64,71 @@ export function FormAturanAfiliasi({ awal }: { awal: PengaturanAfiliasi }) {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <fieldset className="space-y-2 rounded-2xl border border-line p-4">
-          <legend className="px-1 text-[13px] font-semibold">Siklus pemberian komisi</legend>
-          {OPSI_SIKLUS.map((o) => (
-            <label
-              key={o.nilai}
-              className={`flex cursor-pointer gap-2.5 rounded-xl border p-3 transition-colors ${
-                siklus === o.nilai ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong"
-              }`}
-            >
-              <input
-                type="radio"
-                name="siklus"
-                value={o.nilai}
-                checked={siklus === o.nilai}
-                onChange={() => setSiklus(o.nilai)}
-                className="mt-0.5 accent-accent"
-              />
-              <span>
-                <span className="block text-[13px] font-semibold">{o.judul}</span>
-                <span className="mt-0.5 block text-[12px] leading-snug text-muted">{o.isi}</span>
-              </span>
-            </label>
-          ))}
-        </fieldset>
+        <div role="radiogroup" aria-label="Siklus pemberian komisi" className="space-y-2 rounded-2xl border border-line p-4">
+          <p className="px-1 text-[13px] font-semibold">Siklus pemberian komisi</p>
+          <input type="hidden" name="siklus" value={siklus} />
+          {OPSI_SIKLUS.map((o) => {
+            const terpilih = siklus === o.nilai;
+            return (
+              <button
+                key={o.nilai}
+                type="button"
+                role="radio"
+                aria-checked={terpilih}
+                onClick={() => setSiklus(o.nilai)}
+                className={`flex w-full cursor-pointer items-start gap-2.5 rounded-xl border p-3 text-left transition-colors ${
+                  terpilih ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong"
+                }`}
+              >
+                <span
+                  aria-hidden
+                  className={`mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border transition-colors ${
+                    terpilih ? "border-accent bg-accent text-on-accent" : "border-line-strong bg-surface"
+                  }`}
+                >
+                  {terpilih && <span className="size-1.5 rounded-full bg-current" />}
+                </span>
+                <span>
+                  <span className="block text-[13px] font-semibold">{o.judul}</span>
+                  <span className="mt-0.5 block text-[12px] leading-snug text-muted">{o.isi}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
-        <fieldset className="space-y-2 rounded-2xl border border-line p-4">
-          <legend className="px-1 text-[13px] font-semibold">Pendaftaran afiliator baru</legend>
-          {OPSI_PERSETUJUAN.map((o) => (
-            <label
-              key={o.nilai}
-              className={`flex cursor-pointer gap-2.5 rounded-xl border p-3 transition-colors ${
-                persetujuan === o.nilai ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong"
-              }`}
-            >
-              <input
-                type="radio"
-                name="persetujuan"
-                value={o.nilai}
-                checked={persetujuan === o.nilai}
-                onChange={() => setPersetujuan(o.nilai)}
-                className="mt-0.5 accent-accent"
-              />
-              <span>
-                <span className="block text-[13px] font-semibold">{o.judul}</span>
-                <span className="mt-0.5 block text-[12px] leading-snug text-muted">{o.isi}</span>
-              </span>
-            </label>
-          ))}
-        </fieldset>
+        <div role="radiogroup" aria-label="Pendaftaran afiliator baru" className="space-y-2 rounded-2xl border border-line p-4">
+          <p className="px-1 text-[13px] font-semibold">Pendaftaran afiliator baru</p>
+          <input type="hidden" name="persetujuan" value={persetujuan} />
+          {OPSI_PERSETUJUAN.map((o) => {
+            const terpilih = persetujuan === o.nilai;
+            return (
+              <button
+                key={o.nilai}
+                type="button"
+                role="radio"
+                aria-checked={terpilih}
+                onClick={() => setPersetujuan(o.nilai)}
+                className={`flex w-full cursor-pointer items-start gap-2.5 rounded-xl border p-3 text-left transition-colors ${
+                  terpilih ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong"
+                }`}
+              >
+                <span
+                  aria-hidden
+                  className={`mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border transition-colors ${
+                    terpilih ? "border-accent bg-accent text-on-accent" : "border-line-strong bg-surface"
+                  }`}
+                >
+                  {terpilih && <span className="size-1.5 rounded-full bg-current" />}
+                </span>
+                <span>
+                  <span className="block text-[13px] font-semibold">{o.judul}</span>
+                  <span className="mt-0.5 block text-[12px] leading-snug text-muted">{o.isi}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="max-w-xs">

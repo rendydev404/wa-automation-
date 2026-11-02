@@ -112,7 +112,7 @@ try {
       const req = http.request(dasar + jalur, { method: metode, headers: { cookie, ...headers }, agent }, (res) => {
         const potong = [];
         res.on("data", (c) => potong.push(c));
-        res.on("end", () => resolve({ status: res.statusCode, ms: performance.now() - t, bytes: Buffer.concat(potong).length, enc: res.headers["content-encoding"] ?? "-", teks: Buffer.concat(potong).toString() }));
+        res.on("end", () => resolve({ status: res.statusCode, ms: performance.now() - t, bytes: Buffer.concat(potong).length, enc: res.headers["content-encoding"] ?? "-", setCookie: res.headers["set-cookie"] ?? [], teks: Buffer.concat(potong).toString() }));
       });
       req.on("error", reject);
       if (body) req.write(body);
@@ -141,6 +141,19 @@ try {
   assert.equal(halaman.status, 200);
   assert.match(halaman.teks, /Nomor uji 7/);
   console.log("  12 nomor + knowledge dari SQLite muncul di dashboard; cookie login tetap sah");
+
+  console.log("\n== halaman & atribusi afiliasi lewat HTTP ==");
+  const halPublikAf = await minta("GET", "/program-afiliasi?ref=af8k3m9x", { headers: { cookie: "", "accept-encoding": "identity" } });
+  assert.equal(halPublikAf.status, 200);
+  assert.match(halPublikAf.teks, /Program Mitra &amp; Afiliasi Resmi|Kalkulator Komisi/);
+  assert.ok(halPublikAf.setCookie.some((c) => c.includes("wa_ref=af8k3m9x")), "cookie wa_ref harus terpasang saat mengunjungi ?ref=");
+  const halUserAf = await minta("GET", "/afiliasi", { headers: { "accept-encoding": "identity" } });
+  assert.equal(halUserAf.status, 200);
+  assert.match(halUserAf.teks, /Program Afiliasi &amp; Komisi/);
+  const halAdminAf = await minta("GET", "/admin/afiliasi", { headers: { "accept-encoding": "identity" } });
+  assert.equal(halAdminAf.status, 200);
+  assert.match(halAdminAf.teks, /Afiliasi &amp; Pencairan Komisi/);
+  console.log("  /program-afiliasi (+ cookie wa_ref), /afiliasi, dan /admin/afiliasi lolos 200 OK");
 
   console.log("\n== kecepatan endpoint (12 nomor) ==");
   await ukur("/api/wa/status", 30);
