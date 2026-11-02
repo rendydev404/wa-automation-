@@ -1,4 +1,4 @@
--- Sinkron otomatis menu, harga, promo, dan status outlet ke asisten WhatsApp (dashboard wa.sukapost.tech).
+-- Sinkron otomatis menu, harga, promo, dan status outlet ke asisten WhatsApp (dashboard chatgercep.com).
 --
 -- Cara kerja:
 --  1. Trigger di tabel menu/harga/promo/outlet menyala HANYA bila kolom yang dilihat pelanggan berubah
@@ -17,7 +17,7 @@ revoke all on schema kb_cs from public, anon, authenticated;
 
 create table if not exists kb_cs.pengaturan (
   id          smallint primary key default 1 check (id = 1),
-  url_ping    text,          -- mis. https://wa.sukapost.tech/api/sinkron ; null = tidak mengirim sinyal
+  url_ping    text,          -- mis. https://chatgercep.com/api/sinkron ; null = tidak mengirim sinyal
   kunci_hash  text,          -- sha256 (hex) dari kunci tarik; kunci aslinya hanya ada di env dashboard
   diubah_pada timestamptz not null default now()
 );
@@ -211,4 +211,4 @@ grant execute on function public.kb_cs_ambil(text) to anon, authenticated, servi
 -- ---------- Pengaturan (dijalankan terpisah, JANGAN disimpan di berkas) ----------
 -- update kb_cs.pengaturan set kunci_hash = encode(extensions.digest('<KUNCI_TARIK>', 'sha256'), 'hex'), diubah_pada = now() where id = 1;
 -- select vault.create_secret('<RAHASIA_HMAC>', 'kb_cs_rahasia_ping', 'Rahasia tanda tangan sinyal sinkron CS');
--- update kb_cs.pengaturan set url_ping = 'https://wa.sukapost.tech/api/sinkron', diubah_pada = now() where id = 1;   -- setelah dashboard versi baru jalan
+-- update kb_cs.pengaturan set url_ping = 'https://chatgercep.com/api/sinkron', diubah_pada = now() where id = 1;   -- setelah dashboard versi baru jalan

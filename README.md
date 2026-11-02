@@ -102,7 +102,7 @@ ikut pindah; app & Hermes di server lama dihentikan dan tidak menyala lagi saat 
   `APP_PORT` di `.env`, karena 3200 dipakai app lain di VPS ini; batas memori 512 MB). Rahasia di `/opt/wa-automation/.env` (izin 600).
 - Semua data ada di PostgreSQL (`/opt/wa-postgres`, lihat di bawah). Cadangkan database itu; bila
   hilang, semua nomor harus scan QR ulang. Volume `wa_data` hanya menyimpan `wa.db` lama.
-- Caddy (`/etc/caddy/Caddyfile`) meneruskan `wa.sukapost.tech` ke app.
+- Caddy (`/etc/caddy/Caddyfile`) meneruskan `chatgercep.com` ke app.
 - Hermes: user Linux `suka-automation`, profil `cs`, API di `127.0.0.1:8644`.
 
 ### Deploy otomatis (CI/CD)
@@ -173,7 +173,7 @@ Paket & pembayaran (`src/lib/langganan.ts`, `src/lib/midtrans.ts`), semuanya dik
   memori dan disegarkan tiap 60 dtk, jadi tidak ada query tambahan per pesan.
 - **Midtrans Snap** (bawaan production): developer memasang `MIDTRANS_SERVER_KEY` (dan opsional
   `MIDTRANS_SIGNATURE_KEY`, `MIDTRANS_MODE=sandbox`) di `/opt/wa-automation/.env`; admin hanya melihat status.
-  Payment Notification URL di dashboard Midtrans: `https://wa.sukapost.tech/api/midtrans/notifikasi`.
+  Payment Notification URL di dashboard Midtrans: `https://chatgercep.com/api/midtrans/notifikasi`.
   Webhook memeriksa tanda tangan SHA-512, lalu status diambil ulang dari API Midtrans dan nominal dicocokkan;
   paket aktif tepat sekali. Bayar paket yang sama = diperpanjang; paket lain = mulai baru.
 - Tur panduan (`src/components/tur.tsx`, isi di `isi-tur.tsx`) tampil sekali per akun di dashboard dan halaman
