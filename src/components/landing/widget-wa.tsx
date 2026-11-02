@@ -2,10 +2,7 @@
 
 import { useState } from "react";
 import { ArrowUpRight, CheckCircle2, Send, Sparkles, X } from "lucide-react";
-import { MEREK } from "@/lib/merek";
-
-const NOMOR_WA_DEMO = "62895354873838";
-const NOMOR_WA_TAMPIL = "+62 895-3548-73838";
+import { MEREK, NOMOR_WA_DEMO, NOMOR_WA_TAMPIL } from "@/lib/merek";
 
 const CONTOH_PESAN = [
   `Halo ${MEREK}, saya mau coba tes secepat apa AI membalas chat ini.`,
@@ -21,16 +18,11 @@ function IkonWhatsApp({ className = "size-5" }: { className?: string }) {
   );
 }
 
-export function buatUrlWaDemo(pesan?: string): string {
-  const teks = (pesan ?? CONTOH_PESAN[0]).trim();
-  return `https://wa.me/${NOMOR_WA_DEMO}?text=${encodeURIComponent(teks)}`;
-}
-
 export function WidgetWaLanding() {
   const [terbuka, setTerbuka] = useState(false);
   const [pesan, setPesan] = useState(CONTOH_PESAN[0]);
 
-  const urlWa = buatUrlWaDemo(pesan);
+  const urlWa = `https://wa.me/${NOMOR_WA_DEMO}?text=${encodeURIComponent(pesan.trim() || CONTOH_PESAN[0])}`;
 
   return (
     <div className="fixed right-4 bottom-4 z-50 flex flex-col items-end sm:right-6 sm:bottom-6">
@@ -172,5 +164,3 @@ export function WidgetWaLanding() {
     </div>
   );
 }
-
-export { NOMOR_WA_DEMO, NOMOR_WA_TAMPIL };

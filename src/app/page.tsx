@@ -6,9 +6,9 @@ import { DemoAlur, DemoChat } from "@/components/landing/demo";
 import { HargaLanding } from "@/components/landing/harga";
 import { Logo } from "@/components/logo";
 import { Kalkulator } from "@/components/landing/kalkulator";
-import { NOMOR_WA_TAMPIL, WidgetWaLanding, buatUrlWaDemo } from "@/components/landing/widget-wa";
+import { WidgetWaLanding } from "@/components/landing/widget-wa";
 import { UMUR_HISTORI_HARI } from "@/lib/format";
-import { MEREK } from "@/lib/merek";
+import { MEREK, NOMOR_WA_TAMPIL, URL_WA_DEMO } from "@/lib/merek";
 
 /** Landing page publik: seluruhnya statis (prerender), animasi Remotion dimuat terpisah di sisi klien. */
 
@@ -107,7 +107,7 @@ export default function Landing() {
                 Mulai gratis <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
               </Link>
               <a
-                href={buatUrlWaDemo()}
+                href={URL_WA_DEMO}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-2xl border border-ink-signal/40 bg-ink-signal/10 px-5 py-3.5 text-[15px] font-bold text-ink-signal transition-colors hover:bg-ink-signal/20"
@@ -300,7 +300,7 @@ export default function Landing() {
           <Logo />
           <div className="flex flex-wrap items-center justify-center gap-5">
             <a
-              href={buatUrlWaDemo()}
+              href={URL_WA_DEMO}
               target="_blank"
               rel="noopener noreferrer"
               className="font-semibold text-fg hover:text-accent"
