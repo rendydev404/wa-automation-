@@ -113,7 +113,7 @@ export function KartuTautanReferral({
           <p className="text-[11.5px] font-semibold tracking-[0.08em] text-accent uppercase">Tautan Afiliasi Anda</p>
           <h2 className="mt-1 text-lg font-bold">Bagikan & dapatkan komisi otomatis</h2>
           <p className="mt-0.5 text-[13px] text-muted">
-            Cookie referral tersimpan selama 30 hari di browser pengunjung. Jika mereka mendaftar dan membeli paket, komisi langsung masuk ke saldo Anda sesuai ketentuan pihak aplikasi.
+            Setiap pengguna baru yang mendaftar melalui tautan Anda dan membeli paket, komisinya langsung masuk ke saldo Anda sesuai ketentuan pihak aplikasi.
           </p>
         </div>
         <button

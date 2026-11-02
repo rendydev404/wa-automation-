@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
-import { ArrowRight, Banknote, Check, Clock, Link2, Percent, ShieldCheck, Share2, Sparkles, TrendingUp, Users, Wallet } from "lucide-react";
+import { ArrowRight, Banknote, Check, Link2, Percent, ShieldCheck, Share2, Sparkles, TrendingUp, Users, Wallet } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { AlurAfiliasiInteraktif, KalkulatorAfiliasi, type PaketSimulasiAfiliasi } from "@/components/landing/interaktif-afiliasi";
 import { WidgetWaLanding } from "@/components/landing/widget-wa";
@@ -26,9 +26,9 @@ const KEUNGGULAN_AFILIASI = [
     teks: "Setiap paket memiliki tarif komisi tersendiri (persentase atau nominal tetap Rupiah) yang langsung masuk ke saldo saat pembayaran lunas.",
   },
   {
-    ikon: Clock,
-    judul: "Cookie Atribusi 30 Hari",
-    teks: "Pengunjung yang mengklik link Anda tidak harus langsung membeli hari itu juga. Selama mendaftar dalam 30 hari, komisinya tetap milik Anda.",
+    ikon: ShieldCheck,
+    judul: "Pelacakan Referral Otomatis",
+    teks: "Setiap pengguna baru yang mendaftar melalui link referral Anda—baik menggunakan Email maupun login Google—otomatis tercatat sebagai referral Anda.",
   },
   {
     ikon: TrendingUp,
@@ -49,7 +49,7 @@ const FAQ_AFILIASI = [
   },
   {
     t: "Bagaimana cara sistem melacak orang yang mendaftar dari link saya?",
-    j: "Saat seseorang membuka link ?ref=kode-anda, sistem menyimpan cookie atribusi selama 30 hari penuh. Ketika mereka mendaftar akun (baik menggunakan Email maupun login Google), akun mereka otomatis tercatat sebagai referral Anda.",
+    j: "Saat seseorang membuka link ?ref=kode-anda lalu mendaftar akun (baik menggunakan Email maupun login Google), akun mereka otomatis terhubung dan tercatat sebagai referral Anda.",
   },
   {
     t: "Kapan komisi masuk ke saldo saya?",
@@ -247,7 +247,7 @@ export default function HalamanProgramAfiliasi() {
               {[
                 "100% gratis tanpa biaya pendaftaran",
                 "Kode referral unik dibuat acak otomatis",
-                "Cookie pelacakan 30 hari",
+                "Komisi langsung masuk saat paket lunas",
                 "Cairkan ke Bank & E-Wallet",
               ].map((t) => (
                 <li key={t} className="flex items-center gap-1.5">
@@ -264,7 +264,7 @@ export default function HalamanProgramAfiliasi() {
         <div className="mx-auto grid max-w-[1200px] grid-cols-2 gap-6 px-4 py-9 sm:px-6 md:grid-cols-4">
           {[
             { ikon: Link2, angka: "1 Klik", label: "Aktifkan kode afiliasi di dashboard" },
-            { ikon: Clock, angka: "30 Hari", label: "Masa simpan cookie atribusi referral" },
+            { ikon: TrendingUp, angka: "Real-Time", label: "Pantau klik, pendaftar & komisi langsung" },
             { ikon: Users, angka: "Otomatis", label: "Kredit komisi saat transaksi lunas" },
             { ikon: Banknote, angka: `${DAFTAR_BANK.length} Metode`, label: "Pilihan Bank & E-Wallet pencairan" },
           ].map((item) => (

@@ -225,7 +225,7 @@ const LANGKAH_INTERAKTIF = [
     judul: "Bagikan Link ke Komunitas & Relasi",
     ringkas: "Sebarkan link afiliasi ke grup bisnis, media sosial, atau klien UMKM yang membutuhkan admin WhatsApp AI 24/7.",
     ikon: MousePointerClick,
-    sorotan: "Cookie atribusi 30 hari: daftar hari ini, beli minggu depan tetap terhitung",
+    sorotan: "Pelacakan otomatis: daftar via Email maupun Google tetap tercatat",
   },
   {
     nomor: "03",
@@ -373,12 +373,12 @@ export function AlurAfiliasiInteraktif({ domainContoh }: { domainContoh: string 
               </div>
               <div className="rounded-2xl border border-ink-line bg-white/[0.03] p-4">
                 <ShieldCheck className="size-4 text-ink-signal" aria-hidden />
-                <p className="mt-2 text-2xl font-extrabold text-ink-signal tabular-nums">30 Hari</p>
-                <p className="text-[11.5px] text-ink-muted">Masa Aktif Cookie</p>
+                <p className="mt-2 text-2xl font-extrabold text-ink-signal tabular-nums">Otomatis</p>
+                <p className="text-[11.5px] text-ink-muted">Atribusi Referral</p>
               </div>
             </div>
             <div className="rounded-2xl border border-ink-line bg-white/[0.03] p-4 text-[13px] text-ink-muted">
-              Saat calon pengguna membuka <code className="font-bold text-white">{linkDemo}</code>, sistem menyimpan cookie atribusi. Baik daftar via Email maupun Google OAuth, akun mereka otomatis terhubung ke kode Anda.
+              Saat calon pengguna membuka <code className="font-bold text-white">{linkDemo}</code>, sistem melacak referral secara otomatis. Baik daftar via Email maupun Google OAuth, akun mereka langsung terhubung ke kode Anda.
             </div>
           </div>
         )}

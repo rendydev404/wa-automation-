@@ -79,7 +79,7 @@ async function IsiAfiliasi() {
               </span>
               <p className="mt-3 text-[13.5px] font-bold">1. Bagikan Tautan Unik</p>
               <p className="mt-1 text-[12.5px] text-muted">
-                Sistem membuat kode referral acak otomatis untuk akun Anda. Cookie tersimpan otomatis selama 30 hari di perangkat pengunjung.
+                Sistem membuat kode referral acak otomatis untuk akun Anda yang siap langsung dibagikan ke calon pelanggan.
               </p>
             </div>
             <div className="rounded-2xl border border-line bg-subtle/40 p-4">
