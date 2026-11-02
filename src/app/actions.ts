@@ -869,30 +869,59 @@ export async function adminHargaAction(_lalu: Hasil | null, form: FormData): Pro
   await setSetting("biaya_server_nomor", String(Math.round(a.biayaServerNomor)));
   await setSetting("harga_model", a.model);
   const acuanTeks = `margin ${a.margin}%, pemakaian ${a.pemakaian}%, ${a.metode}, ${a.model}, kurs ${a.kurs}`;
-  if (form.get("terapkan") !== "1") {
+  const terapkanPenuh = form.get("terapkan") === "1";
+  const terapkanKomisiSaja = form.get("terapkan_komisi") === "1";
+  if (!terapkanPenuh && !terapkanKomisiSaja) {
     await catatLog(admin, "ubah acuan harga", null, acuanTeks);
     revalidatePath("/admin", "layout");
     return { ok: true, pesan: "Acuan harga tersimpan." };
   }
   const mode = form.get("mode") === "kunci-harga" ? "kunci-harga" : "kunci-kuota";
+  const masukkanKomisi = form.get("masukkan_komisi") === "1";
+  let komisiMap: Record<number, { jenis: JenisKomisi; nilai: number }> | undefined;
+  const komisiJson = form.get("komisi_paket_json");
+  if (typeof komisiJson === "string" && komisiJson.trim() !== "") {
+    try {
+      const parsed = JSON.parse(komisiJson) as Record<string, { jenis?: string; nilai?: number }>;
+      komisiMap = {};
+      for (const [k, v] of Object.entries(parsed)) {
+        const idNum = Number(k);
+        if (!Number.isInteger(idNum) || idNum <= 0 || !v) continue;
+        const jenis: JenisKomisi = v.jenis === "rupiah" ? "rupiah" : "persen";
+        const nilai = Math.max(0, Math.round(Number(v.nilai) || 0));
+        if (jenis === "persen" && nilai > 100) return { ok: false, pesan: "Komisi persentase harus 0–100%." };
+        if (jenis === "rupiah" && nilai > MAKS_HARGA_PAKET) return { ok: false, pesan: "Nominal komisi terlalu besar." };
+        komisiMap[idNum] = { jenis, nilai };
+      }
+    } catch {
+      // abaikan jika JSON tidak valid
+    }
+  }
   // Paket yang dicentang admin; paket tanpa centang tetap persis seperti yang ia atur.
   const ids = new Set(form.getAll("ikut").map(Number).filter((n) => Number.isInteger(n) && n > 0));
   if (!ids.size) return { ok: false, pesan: "Centang minimal satu paket yang mau diterapkan." };
   let hasil;
   try {
-    hasil = await terapkanSimulasi({ ...a, metode: a.metode as keyof typeof METODE_BAYAR }, mode, ids);
+    hasil = await terapkanSimulasi(
+      { ...a, metode: a.metode as keyof typeof METODE_BAYAR },
+      mode,
+      ids,
+      komisiMap ? { komisiMap, masukkanKomisi, hanyaKomisi: terapkanKomisiSaja } : undefined
+    );
   } catch (e) {
     return { ok: false, pesan: e instanceof Error ? e.message : "Gagal menerapkan simulasi." };
   }
   const { berubah, dilewati } = hasil;
   await catatLog(
     admin,
-    "terapkan simulasi paket",
+    terapkanKomisiSaja ? "terapkan komisi paket" : "terapkan simulasi paket",
     null,
     `${acuanTeks}, ${mode}; ${berubah.map((b) => `${b.nama}: ${b.sebelum} -> ${b.sesudah}`).join("; ") || "tidak ada perubahan"}${dilewati.length ? `; dilewati: ${dilewati.map((d) => `${d.nama} (${d.alasan})`).join(", ")}` : ""}`
   );
   revalidatePath("/admin", "layout");
   revalidatePath("/langganan");
+  revalidatePath("/afiliasi");
+  revalidatePath("/program-afiliasi");
   revalidatePath("/");
   const lewat = dilewati.length ? ` Tidak diubah: ${dilewati.map((d) => `${d.nama} (${d.alasan})`).join("; ")}.` : "";
   return { ok: true, pesan: (berubah.length ? `Paket diperbarui: ${berubah.map((b) => `${b.nama} → ${b.sesudah}`).join("; ")}.` : "Paket yang dipilih sudah sesuai simulasi.") + lewat };

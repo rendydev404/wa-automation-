@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { type Tx, db, getSetting, sekarang, transaksi as transaksiDb } from "./db";
 import { MODEL_BAWAAN, type Penyedia, kunciAnthropic, kursUsd, pengaturanAi, perkiraanPerBalasan } from "./ai";
-import { METODE_BAYAR, type MetodeBayar, hitungHarga, kuotaDariHarga, nomorDariKuota } from "./harga";
+import { METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hitungHarga, kuotaDariHarga, nomorDariKuota } from "./harga";
 import { hermesTerkonfigurasi } from "./hermes";
 import { type KonfigMidtrans, MidtransError, type StatusBayar, buatSnap, petaStatus, statusMidtrans } from "./midtrans";
 import { KODE_CUSTOM } from "./paket-custom-def";
@@ -563,16 +563,30 @@ export type ModeSimulasi = "kunci-harga" | "kunci-kuota";
  * Simulasi hanya saran: paket yang tidak mungkin mencapai margin target (mis. harga uji Rp1.000) tidak diubah dan
  * dilaporkan di `dilewati`, tidak menggagalkan paket lain. Harga paket tetap bebas diatur admin.
  */
+export interface OpsiKomisiSimulasi {
+  komisiMap?: Record<number, { jenis: JenisKomisi; nilai: number }>;
+  masukkanKomisi?: boolean;
+  hanyaKomisi?: boolean;
+}
+
 export async function terapkanSimulasi(
   a: AcuanTersimpan,
   mode: ModeSimulasi = "kunci-kuota",
-  ids?: ReadonlySet<number>
+  ids?: ReadonlySet<number>,
+  opsiKomisi?: OpsiKomisiSimulasi
 ): Promise<{ berubah: { nama: string; sebelum: string; sesudah: string }[]; dilewati: { nama: string; alasan: string }[] }> {
   const usd = perkiraanPerBalasan(a.model);
   if (usd === null) throw new Error("Tarif model acuan belum diketahui.");
   const acuan = { biayaBalasanUsd: usd, kurs: a.kurs, margin: a.margin / 100, pemakaian: a.pemakaian / 100, metode: a.metode, biayaServerNomor: a.biayaServerNomor };
+  const mBayar = METODE_BAYAR[a.metode] ?? METODE_BAYAR.kartu;
   const { balasanPerNomorBulan: r } = await pemakaianNyata();
-  const ringkas = (p: Pick<Paket, "harga" | "kuota_balasan" | "kuota_nomor">) => `Rp${p.harga.toLocaleString("id-ID")} · ${p.kuota_balasan.toLocaleString("id-ID")} balasan · ${p.kuota_nomor} nomor`;
+  const adaOpsiKomisi = !!opsiKomisi?.komisiMap;
+  const ringkas = (p: Pick<Paket, "harga" | "kuota_balasan" | "kuota_nomor" | "komisi_jenis" | "komisi_nilai">) => {
+    const dasar = `Rp${p.harga.toLocaleString("id-ID")} · ${p.kuota_balasan.toLocaleString("id-ID")} balasan · ${p.kuota_nomor} nomor`;
+    if (!adaOpsiKomisi) return dasar;
+    const kom = p.komisi_nilai > 0 ? (p.komisi_jenis === "persen" ? `${p.komisi_nilai}%` : `Rp${p.komisi_nilai.toLocaleString("id-ID")}`) : "0%";
+    return `${dasar} · komisi ${kom}`;
+  };
   const berubah: { nama: string; sebelum: string; sesudah: string }[] = [];
   const dilewati: { nama: string; alasan: string }[] = [];
   const semua = await daftarPaket({ semua: true });
@@ -580,24 +594,61 @@ export async function terapkanSimulasi(
   for (const p of semua) {
     if (p.harga <= 0) continue; // paket gratis/khusus admin tidak disentuh
     if (ids && !ids.has(p.id)) continue; // tidak dipilih admin: harga & kuotanya tetap seperti yang ia atur
-    let baru: Paket;
-    if (mode === "kunci-harga") {
-      const k = kuotaDariHarga(p.harga, p.durasi_hari, acuan, r);
-      if (k.kuotaBalasan <= 0) {
-        dilewati.push({ nama: p.nama, alasan: `harga ${`Rp${p.harga.toLocaleString("id-ID")}`} terlalu rendah untuk margin ${a.margin}%` });
-        continue;
+    const kom = opsiKomisi?.komisiMap?.[p.id] ?? { jenis: p.komisi_jenis, nilai: p.komisi_nilai };
+    const kPersen = opsiKomisi?.masukkanKomisi && kom.jenis === "persen" ? kom.nilai / 100 : 0;
+    const kTetap = opsiKomisi?.masukkanKomisi && kom.jenis === "rupiah" ? kom.nilai : 0;
+
+    let baru: Paket = { ...p, komisi_jenis: kom.jenis, komisi_nilai: kom.nilai };
+
+    if (!opsiKomisi?.hanyaKomisi) {
+      if (mode === "kunci-harga") {
+        let kuotaBalasan: number;
+        let kuotaNomor: number;
+        if (!opsiKomisi?.masukkanKomisi) {
+          const k = kuotaDariHarga(p.harga, p.durasi_hari, acuan, r);
+          kuotaBalasan = k.kuotaBalasan;
+          kuotaNomor = k.kuotaNomor;
+        } else {
+          const bersih = p.harga * (1 - acuan.margin - mBayar.persen - kPersen) - mBayar.tetap - kTetap;
+          const perBalasan =
+            acuan.biayaBalasanUsd * acuan.kurs * (1 + TAMBAHAN_BIAYA_BALASAN) * acuan.pemakaian +
+            (r > 0 ? acuan.biayaServerNomor / r : 0);
+          kuotaBalasan = bersih > 0 && perBalasan > 0 ? Math.floor(bersih / perBalasan / 50) * 50 : 0;
+          kuotaNomor = nomorDariKuota(kuotaBalasan, p.durasi_hari, r);
+        }
+        if (kuotaBalasan <= 0) {
+          dilewati.push({ nama: p.nama, alasan: `harga ${`Rp${p.harga.toLocaleString("id-ID")}`} terlalu rendah untuk margin ${a.margin}%` });
+          continue;
+        }
+        baru = { ...baru, kuota_balasan: kuotaBalasan, kuota_nomor: kuotaNomor };
+      } else {
+        const kuotaNomor = nomorDariKuota(p.kuota_balasan, p.durasi_hari, r);
+        let hargaSaran: number | null;
+        if (!opsiKomisi?.masukkanKomisi) {
+          hargaSaran = hitungHarga({ ...p, kuota_nomor: kuotaNomor }, acuan).hargaSaran;
+        } else {
+          const dasar = hitungHarga({ ...p, kuota_nomor: kuotaNomor }, acuan);
+          const penyebut = 1 - acuan.margin - mBayar.persen - kPersen;
+          const hargaPas = penyebut > 0 ? (dasar.modal + mBayar.tetap + kTetap) / penyebut : null;
+          hargaSaran = hargaPas === null ? null : Math.max(1_000, Math.ceil(hargaPas / 1_000) * 1_000);
+        }
+        if (hargaSaran === null) {
+          dilewati.push({ nama: p.nama, alasan: "margin + biaya bayar mencapai 100%" });
+          continue;
+        }
+        baru = { ...baru, harga: hargaSaran, kuota_nomor: kuotaNomor };
       }
-      baru = { ...p, kuota_balasan: k.kuotaBalasan, kuota_nomor: k.kuotaNomor };
-    } else {
-      const kuotaNomor = nomorDariKuota(p.kuota_balasan, p.durasi_hari, r);
-      const { hargaSaran } = hitungHarga({ ...p, kuota_nomor: kuotaNomor }, acuan);
-      if (hargaSaran === null) {
-        dilewati.push({ nama: p.nama, alasan: "margin + biaya bayar mencapai 100%" });
-        continue;
-      }
-      baru = { ...p, harga: hargaSaran, kuota_nomor: kuotaNomor };
     }
-    if (baru.harga !== p.harga || baru.kuota_balasan !== p.kuota_balasan || baru.kuota_nomor !== p.kuota_nomor) simpan.push(baru);
+
+    if (
+      baru.harga !== p.harga ||
+      baru.kuota_balasan !== p.kuota_balasan ||
+      baru.kuota_nomor !== p.kuota_nomor ||
+      baru.komisi_jenis !== p.komisi_jenis ||
+      baru.komisi_nilai !== p.komisi_nilai
+    ) {
+      simpan.push(baru);
+    }
   }
   for (const baru of simpan) {
     const lama = semua.find((p) => p.id === baru.id)!;

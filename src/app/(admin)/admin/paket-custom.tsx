@@ -657,6 +657,9 @@ function Ringkasan({ c, h, paketLain, kurs }: { c: PaketCustom; h: HasilCustom; 
   const r = h.rincian;
   const target = c.margin / 100;
   const isi = Math.max(0, Math.min(1, r.margin ?? 0));
+  const komisiRp = hitungKomisiPaket(h.harga, c.komisi_jenis, c.komisi_nilai);
+  const untungViaAfiliasi = r.untung - komisiRp;
+  const marginViaAfiliasi = h.harga > 0 ? untungViaAfiliasi / h.harga : null;
   const perBalasanLain = paketLain.filter((p) => p.harga > 0 && p.kuota_balasan > 0).map((p) => ({ nama: p.nama, nilai: p.harga / p.kuota_balasan }));
   const termurah = perBalasanLain.reduce<{ nama: string; nilai: number } | null>((a, p) => (!a || p.nilai < a.nilai ? p : a), null);
   return (
@@ -679,8 +682,19 @@ function Ringkasan({ c, h, paketLain, kurs }: { c: PaketCustom; h: HasilCustom; 
         <Baris label="Modal server" ket={`${angka(h.kuotaNomor)} nomor × ${rp(c.biaya_server)} × ${(c.durasi_hari / 30).toLocaleString("id-ID", { maximumFractionDigits: 1 })} bln`} nilai={rp(r.modalServer)} />
         <Baris label="Biaya pembayaran" ket={`${METODE_BAYAR[c.metode].label} · ${tarifBayar(c.metode)}`} nilai={rp(r.biayaBayar)} />
         <div className="flex items-baseline justify-between gap-3 border-t border-line pt-2 text-[13.5px] font-bold">
-          <dt>Untung bersih</dt>
+          <dt>Untung (tanpa afiliasi)</dt>
           <dd className={r.untung < 0 ? "text-danger" : "text-success"}>{rp(r.untung)}</dd>
+        </div>
+        <Baris
+          label="Komisi afiliasi"
+          ket={c.komisi_nilai > 0 ? (c.komisi_jenis === "persen" ? `${c.komisi_nilai}% dari harga jual` : "Nominal tetap") : "Tanpa komisi"}
+          nilai={rp(komisiRp)}
+        />
+        <div className="flex items-baseline justify-between gap-3 border-t border-line pt-2 text-[13px] font-bold">
+          <dt>Untung bersih (via afiliasi)</dt>
+          <dd className={untungViaAfiliasi < 0 ? "text-danger" : "text-success"}>
+            {rp(untungViaAfiliasi)} <span className="text-[11.5px] font-semibold">({persen(marginViaAfiliasi)})</span>
+          </dd>
         </div>
       </dl>
 

@@ -172,7 +172,17 @@ export async function KelolaPaket() {
         <summary className="cursor-pointer px-4 py-3 text-[13.5px] font-semibold text-accent">Margin keuntungan & simulasi paket (pratinjau langsung)</summary>
         <div className="border-t border-accent/20 bg-surface p-4">
           <SimulasiHarga
-            paket={paket.map((p) => ({ id: p.id, nama: p.nama, harga: p.harga, durasi_hari: p.durasi_hari, kuota_nomor: p.kuota_nomor, kuota_balasan: p.kuota_balasan, unggulan: p.unggulan }))}
+            paket={paket.map((p) => ({
+              id: p.id,
+              nama: p.nama,
+              harga: p.harga,
+              durasi_hari: p.durasi_hari,
+              kuota_nomor: p.kuota_nomor,
+              kuota_balasan: p.kuota_balasan,
+              unggulan: p.unggulan,
+              komisi_jenis: p.komisi_jenis,
+              komisi_nilai: p.komisi_nilai,
+            }))}
             model={daftarAcuan}
             acuan={acuan}
             nyata={nyata}

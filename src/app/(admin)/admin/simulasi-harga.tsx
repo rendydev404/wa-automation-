@@ -1,22 +1,21 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { ArrowRight, Lock, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Lock, Share2, Sparkles } from "lucide-react";
 import { adminHargaAction } from "@/app/actions";
 import { KursInfo } from "@/components/kurs-info";
 import { useKursLangsung } from "@/components/kurs-langsung";
 import { PilihModel } from "@/components/pilih-model";
-import { Pesan, SubmitButton } from "@/components/ui";
+import { PilihOpsi } from "@/components/pilih-opsi";
+import { Pesan, Saklar, SubmitButton } from "@/components/ui";
+import { hitungKomisiPaket, type JenisKomisi, labelKomisiPaket } from "@/lib/afiliasi-def";
 import type { InfoKurs } from "@/lib/kurs-def";
 import { type AcuanHarga, METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hitungHarga, kuotaDariHarga, nomorDariKuota } from "@/lib/harga";
 
 /**
- * Simulasi paket: admin menggeser margin & asumsi, pratinjau kartu paket (harga, kuota balasan, jumlah nomor)
- * berubah langsung. Dua mode:
- * - kunci kuota: kuota balasan tetap, harga dihitung dari modal + margin;
- * - kunci harga: harga tetap, kuota balasan dihitung supaya margin tercapai.
- * Jumlah nomor = kuota balasan / rata-rata balasan per nomor (data nyata 30 hari). "Terapkan" menyimpan acuan lalu
- * server menghitung ulang dengan rumus yang sama (src/lib/harga.ts); angka dari browser tidak dipakai.
+ * Simulasi paket: admin menggeser margin, asumsi biaya, dan komisi afiliasi (bisa Semua Paket sekaligus atau Per Paket).
+ * Pratinjau kartu paket (harga, kuota balasan, jumlah nomor, modal, komisi afiliasi, untung normal, dan untung bersih setelah komisi)
+ * berubah langsung secara real-time.
  */
 
 export interface PaketSimulasi {
@@ -27,6 +26,8 @@ export interface PaketSimulasi {
   kuota_nomor: number;
   kuota_balasan: number;
   unggulan: boolean;
+  komisi_jenis: JenisKomisi;
+  komisi_nilai: number;
 }
 
 export interface DataNyata {
@@ -36,27 +37,108 @@ export interface DataNyata {
   puncakHarian: number;
 }
 
+export interface SetelanKomisiPaket {
+  jenis: JenisKomisi;
+  nilai: number;
+}
+
 type Mode = "kunci-kuota" | "kunci-harga";
+type ModeKomisi = "semua" | "per-paket";
 
 const rp = (n: number) => `Rp${Math.round(n).toLocaleString("id-ID")}`;
 const angka = (n: number) => Math.round(n).toLocaleString("id-ID");
 const persen = (n: number | null) => (n === null ? "–" : `${(n * 100).toFixed(0)}%`);
 
-/** Hasil simulasi satu paket; sama persis dengan terapkanSimulasi di server. */
-function simulasikan(p: PaketSimulasi, a: AcuanHarga, mode: Mode, r: number) {
+const OPSI_METODE = (Object.keys(METODE_BAYAR) as MetodeBayar[]).map((k) => {
+  const m = METODE_BAYAR[k];
+  const rincian = [
+    m.persen ? `${(m.persen * 100).toLocaleString("id-ID")}%` : "",
+    m.tetap ? rp(m.tetap) : "",
+  ]
+    .filter(Boolean)
+    .join(" + ");
+  return {
+    id: k,
+    label: `${m.label} · ${rincian}`,
+  };
+});
+
+const CHIP_KOMISI_PERSEN = [0, 10, 15, 20, 25, 30];
+
+/**
+ * Hitung simulasi satu paket dengan memperhitungkan komisi afiliasi.
+ * Jika `masukkanKomisiKeTarget` = true, maka harga saran / kuota saran dihitung sedemikian rupa sehingga
+ * keuntungan bersih SETELAH dipotong komisi afiliasi tetap mencapai margin target.
+ */
+function simulasikan(
+  p: PaketSimulasi,
+  a: AcuanHarga,
+  mode: Mode,
+  r: number,
+  komisi: SetelanKomisiPaket,
+  masukkanKomisiKeTarget: boolean
+) {
+  const m = METODE_BAYAR[a.metode] ?? METODE_BAYAR.kartu;
+  const kPersen = masukkanKomisiKeTarget && komisi.jenis === "persen" ? komisi.nilai / 100 : 0;
+  const kTetap = masukkanKomisiKeTarget && komisi.jenis === "rupiah" ? komisi.nilai : 0;
+
   let baru: PaketSimulasi;
+  let mustahil = false;
+
   if (mode === "kunci-harga") {
-    const k = kuotaDariHarga(p.harga, p.durasi_hari, a, r);
-    baru = { ...p, kuota_balasan: k.kuotaBalasan, kuota_nomor: k.kuotaNomor };
+    if (!masukkanKomisiKeTarget) {
+      const k = kuotaDariHarga(p.harga, p.durasi_hari, a, r);
+      baru = { ...p, kuota_balasan: k.kuotaBalasan, kuota_nomor: k.kuotaNomor };
+    } else {
+      const bersih = p.harga * (1 - a.margin - m.persen - kPersen) - m.tetap - kTetap;
+      const perBalasan =
+        a.biayaBalasanUsd * a.kurs * (1 + TAMBAHAN_BIAYA_BALASAN) * a.pemakaian +
+        (r > 0 ? a.biayaServerNomor / r : 0);
+      const kuotaBalasan = bersih > 0 && perBalasan > 0 ? Math.floor(bersih / perBalasan / 50) * 50 : 0;
+      const kuotaNomor = nomorDariKuota(kuotaBalasan, p.durasi_hari, r);
+      baru = { ...p, kuota_balasan: kuotaBalasan, kuota_nomor: kuotaNomor };
+    }
+    mustahil = baru.kuota_balasan <= 0;
   } else {
     const kuotaNomor = nomorDariKuota(p.kuota_balasan, p.durasi_hari, r);
-    const saran = hitungHarga({ ...p, kuota_nomor: kuotaNomor }, a).hargaSaran;
-    baru = { ...p, harga: saran ?? p.harga, kuota_nomor: kuotaNomor };
+    const dasar = hitungHarga({ ...p, kuota_nomor: kuotaNomor }, a);
+    if (!masukkanKomisiKeTarget) {
+      baru = { ...p, harga: dasar.hargaSaran ?? p.harga, kuota_nomor: kuotaNomor };
+      mustahil = dasar.hargaSaran === null;
+    } else {
+      const penyebut = 1 - a.margin - m.persen - kPersen;
+      const hargaPas = penyebut > 0 ? (dasar.modal + m.tetap + kTetap) / penyebut : null;
+      const hargaSaran = hargaPas === null ? null : Math.max(1_000, Math.ceil(hargaPas / 1_000) * 1_000);
+      baru = { ...p, harga: hargaSaran ?? p.harga, kuota_nomor: kuotaNomor };
+      mustahil = hargaSaran === null;
+    }
   }
-  const mustahil = mode === "kunci-harga" ? baru.kuota_balasan <= 0 : hitungHarga(p, a).hargaSaran === null;
-  // Tidak mungkin mencapai margin target: paket tetap seperti yang admin atur (server melewatinya, tidak menggagalkan).
+
   if (mustahil) baru = p;
-  return { baru, h: hitungHarga(baru, a), sekarang: hitungHarga(p, a), mustahil };
+
+  const h = hitungHarga(baru, a);
+  const sekarang = hitungHarga(p, a);
+
+  const komisiSimulasi = hitungKomisiPaket(baru.harga, komisi.jenis, komisi.nilai);
+  const untungSetelahKomisi = h.untung - komisiSimulasi;
+  const marginSetelahKomisi = baru.harga > 0 ? untungSetelahKomisi / baru.harga : null;
+
+  const komisiSekarang = hitungKomisiPaket(p.harga, komisi.jenis, komisi.nilai);
+  const untungSekarangSetelahKomisi = sekarang.untung - komisiSekarang;
+  const marginSekarangSetelahKomisi = p.harga > 0 ? untungSekarangSetelahKomisi / p.harga : null;
+
+  return {
+    baru,
+    h,
+    sekarang,
+    mustahil,
+    komisiSimulasi,
+    untungSetelahKomisi,
+    marginSetelahKomisi,
+    komisiSekarang,
+    untungSekarangSetelahKomisi,
+    marginSekarangSetelahKomisi,
+  };
 }
 
 function Berubah({ lama, baru, f }: { lama: number; baru: number; f: (n: number) => string }) {
@@ -77,11 +159,9 @@ export function SimulasiHarga({
   kursInfo,
 }: {
   paket: PaketSimulasi[];
-  /** Model yang bisa dipilih + biaya dasar per balasan (USD) dari tarif resmi & profil token nyata, dan tarif per 1 juta token. */
   model: { id: string; nama: string; usd: number; masuk: number; keluar: number }[];
   acuan: { margin: number; pemakaian: number; metode: MetodeBayar; biayaServerNomor: number; kurs: number; model: string };
   nyata: DataNyata;
-  /** Kurs pasar otomatis (kurs.ts): hanya dibaca, tidak bisa diisi manual; diperbarui terus selama halaman terbuka. */
   kursInfo: InfoKurs;
 }) {
   const [hasil, aksi] = useActionState(adminHargaAction, null);
@@ -93,8 +173,54 @@ export function SimulasiHarga({
   const k = useKursLangsung(kursInfo);
   const kurs = k.info.kurs;
   const [idModel, setIdModel] = useState(model.some((m) => m.id === acuan.model) ? acuan.model : (model[0]?.id ?? ""));
-  // Paket yang ikut diterapkan; yang tidak dicentang tidak disentuh (harga & kuotanya tetap seperti yang admin atur).
-  const [ikut, setIkut] = useState<Set<number>>(() => new Set(paket.filter((p) => p.harga > 0).map((p) => p.id)));
+
+  // --- State Komisi Afiliasi (Bisa Semua Paket atau Per Paket) ---
+  const paketBerbayar = paket.filter((p) => p.harga > 0);
+  const semuaSamaAwal =
+    paketBerbayar.length > 0 &&
+    paketBerbayar.every(
+      (p) => p.komisi_jenis === paketBerbayar[0].komisi_jenis && p.komisi_nilai === paketBerbayar[0].komisi_nilai
+    );
+
+  const [modeKomisi, setModeKomisi] = useState<ModeKomisi>(semuaSamaAwal ? "semua" : "per-paket");
+  const [komisiGlobalJenis, setKomisiGlobalJenis] = useState<JenisKomisi>(paketBerbayar[0]?.komisi_jenis ?? "persen");
+  const [komisiGlobalNilai, setKomisiGlobalNilai] = useState<number>(paketBerbayar[0]?.komisi_nilai ?? 20);
+  const [komisiPerPaket, setKomisiPerPaket] = useState<Record<number, SetelanKomisiPaket>>(() =>
+    Object.fromEntries(paket.map((p) => [p.id, { jenis: p.komisi_jenis, nilai: p.komisi_nilai }]))
+  );
+  const [masukkanKomisiKeTarget, setMasukkanKomisiKeTarget] = useState(false);
+
+  const ambilKomisiPaket = (id: number): SetelanKomisiPaket => {
+    if (modeKomisi === "semua") {
+      return { jenis: komisiGlobalJenis, nilai: komisiGlobalNilai };
+    }
+    return komisiPerPaket[id] ?? { jenis: "persen", nilai: 20 };
+  };
+
+  const ubahKomisiSatuPaket = (id: number, patch: Partial<SetelanKomisiPaket>) => {
+    setKomisiPerPaket((lama) => {
+      const skrg = lama[id] ?? { jenis: "persen", nilai: 20 };
+      const jenisBaru = patch.jenis ?? skrg.jenis;
+      let nilaiBaru = patch.nilai ?? skrg.nilai;
+      if (patch.jenis && patch.jenis !== skrg.jenis) {
+        nilaiBaru = patch.jenis === "persen" ? 20 : 25_000;
+      }
+      return { ...lama, [id]: { jenis: jenisBaru, nilai: Math.max(0, nilaiBaru) } };
+    });
+  };
+
+  const gantiModeKomisi = (baru: ModeKomisi) => {
+    if (baru === "per-paket" && modeKomisi === "semua") {
+      // Salin nilai global saat ini ke semua paket sebagai titik awal per-paket
+      setKomisiPerPaket(
+        Object.fromEntries(paket.map((p) => [p.id, { jenis: komisiGlobalJenis, nilai: komisiGlobalNilai }]))
+      );
+    }
+    setModeKomisi(baru);
+  };
+
+  // Paket yang ikut diterapkan
+  const [ikut, setIkut] = useState<Set<number>>(() => new Set(paketBerbayar.map((p) => p.id)));
   const ubahIkut = (id: number, nyala: boolean) =>
     setIkut((s) => {
       const n = new Set(s);
@@ -102,15 +228,32 @@ export function SimulasiHarga({
       else n.delete(id);
       return n;
     });
+
   const usd = model.find((m) => m.id === idModel)?.usd ?? 0;
   const a: AcuanHarga = { biayaBalasanUsd: usd, kurs, margin: margin / 100, pemakaian: pemakaian / 100, metode, biayaServerNomor: biayaServer };
   const r = nyata.balasanPerNomorBulan;
-  const baris = paket.filter((p) => p.harga > 0).map((p) => ({ p, ...simulasikan(p, a, mode, r) }));
+
+  const baris = paketBerbayar.map((p) => {
+    const kom = ambilKomisiPaket(p.id);
+    return {
+      p,
+      kom,
+      ...simulasikan(p, a, mode, r, kom, masukkanKomisiKeTarget),
+    };
+  });
+
   const biayaBalasan = usd * kurs * (1 + TAMBAHAN_BIAYA_BALASAN);
+
+  // Data komisi yang dikirim ke server saat disimpan/diterapkan
+  const jsonKomisi = JSON.stringify(
+    Object.fromEntries(paketBerbayar.map((p) => [p.id, ambilKomisiPaket(p.id)]))
+  );
 
   return (
     <form action={aksi} className="space-y-5">
       <input type="hidden" name="mode" value={mode} />
+      <input type="hidden" name="masukkan_komisi" value={masukkanKomisiKeTarget ? "1" : "0"} />
+      <input type="hidden" name="komisi_paket_json" value={jsonKomisi} />
       {[...ikut].map((id) => (
         <input key={id} type="hidden" name="ikut" value={id} />
       ))}
@@ -135,14 +278,14 @@ export function SimulasiHarga({
             ["kunci-kuota", "Kuota tetap → hitung harga"],
             ["kunci-harga", "Harga tetap → hitung kuota"],
           ] as const
-        ).map(([k, label]) => (
+        ).map(([kMode, label]) => (
           <button
-            key={k}
+            key={kMode}
             type="button"
             role="radio"
-            aria-checked={mode === k}
-            onClick={() => setMode(k)}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors ${mode === k ? "bg-accent text-white" : "text-muted hover:text-fg"}`}
+            aria-checked={mode === kMode}
+            onClick={() => setMode(kMode)}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors ${mode === kMode ? "bg-accent text-white" : "text-muted hover:text-fg"}`}
           >
             <Lock className="size-3.5" aria-hidden /> {label}
           </button>
@@ -176,18 +319,19 @@ export function SimulasiHarga({
             opsi={model.map((m) => ({ id: m.id, nama: m.nama, rpBalasan: m.usd * kurs * (1 + TAMBAHAN_BIAYA_BALASAN), masuk: m.masuk, keluar: m.keluar }))}
           />
         </div>
-        <label className="block">
-          <span className="label">Metode bayar acuan (biaya Midtrans)</span>
-          <select name="metode" value={metode} onChange={(e) => setMetode(e.target.value as MetodeBayar)} className="field">
-            {(Object.keys(METODE_BAYAR) as MetodeBayar[]).map((k) => (
-              <option key={k} value={k}>
-                {METODE_BAYAR[k].label} · {METODE_BAYAR[k].persen ? `${(METODE_BAYAR[k].persen * 100).toLocaleString("id-ID")}%` : ""}
-                {METODE_BAYAR[k].persen && METODE_BAYAR[k].tetap ? " + " : ""}
-                {METODE_BAYAR[k].tetap ? rp(METODE_BAYAR[k].tetap) : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div>
+          <label htmlFor="sim-metode" className="label">
+            Metode bayar acuan (biaya Midtrans)
+          </label>
+          <PilihOpsi
+            id="sim-metode"
+            name="metode"
+            nilai={metode}
+            onUbah={(v) => setMetode(v as MetodeBayar)}
+            opsi={OPSI_METODE}
+            label="Metode bayar acuan"
+          />
+        </div>
         <label className="block">
           <span className="label">Biaya server per nomor per bulan (Rp)</span>
           <input type="number" name="biaya_server" min={0} max={1_000_000} value={biayaServer} onChange={(e) => setBiayaServer(Math.max(0, Number(e.target.value) || 0))} className="field" />
@@ -195,37 +339,177 @@ export function SimulasiHarga({
         <KursInfo info={k.info} segarkan={k.segarkan} sedang={k.sedang} galat={k.galat} />
       </div>
 
+      {/* ---------- Panel Perhitungan & Pengaturan Komisi Afiliasi ---------- */}
+      <div className="rounded-2xl border border-line bg-subtle/30 p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="flex items-center gap-1.5 text-[13.5px] font-bold text-fg">
+              <Share2 className="size-4 text-accent" aria-hidden /> Perhitungan & Pengaturan Komisi Afiliasi
+            </p>
+            <p className="mt-0.5 text-[12px] text-muted">
+              Atur komisi untuk semua paket sekaligus atau berbeda-beda tiap paket, lalu lihat langsung dampaknya ke modal, komisi, dan untung bersih.
+            </p>
+          </div>
+
+          <div className="inline-flex rounded-xl border border-line bg-surface p-1 text-[12px] font-semibold" role="radiogroup" aria-label="Mode pengaturan komisi">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={modeKomisi === "semua"}
+              onClick={() => gantiModeKomisi("semua")}
+              className={`rounded-lg px-3 py-1.5 transition-colors ${modeKomisi === "semua" ? "bg-accent text-on-accent" : "text-muted hover:text-fg"}`}
+            >
+              Semua paket sama
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={modeKomisi === "per-paket"}
+              onClick={() => gantiModeKomisi("per-paket")}
+              className={`rounded-lg px-3 py-1.5 transition-colors ${modeKomisi === "per-paket" ? "bg-accent text-on-accent" : "text-muted hover:text-fg"}`}
+            >
+              Atur per paket
+            </button>
+          </div>
+        </div>
+
+        {modeKomisi === "semua" ? (
+          <div className="mt-4 grid gap-4 border-t border-line pt-4 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-center">
+            <div>
+              <span className="label">Jenis komisi semua paket</span>
+              <div className="inline-flex w-full rounded-xl border border-line bg-surface p-1 text-[12px] font-semibold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKomisiGlobalJenis("persen");
+                    if (komisiGlobalNilai > 100) setKomisiGlobalNilai(20);
+                  }}
+                  className={`flex-1 rounded-lg py-1.5 transition-colors ${komisiGlobalJenis === "persen" ? "bg-accent text-on-accent" : "text-muted hover:text-fg"}`}
+                >
+                  Persen (%)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKomisiGlobalJenis("rupiah");
+                    if (komisiGlobalNilai <= 100) setKomisiGlobalNilai(25_000);
+                  }}
+                  className={`flex-1 rounded-lg py-1.5 transition-colors ${komisiGlobalJenis === "rupiah" ? "bg-accent text-on-accent" : "text-muted hover:text-fg"}`}
+                >
+                  Nominal (Rp)
+                </button>
+              </div>
+            </div>
+
+            {komisiGlobalJenis === "persen" ? (
+              <div>
+                <div className="flex items-center justify-between text-[12.5px]">
+                  <span className="font-semibold text-fg">Besaran komisi afiliasi (semua paket)</span>
+                  <b className="text-[14px] text-accent tabular-nums">{komisiGlobalNilai}% dari harga paket</b>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={60}
+                  step={1}
+                  value={Math.min(60, komisiGlobalNilai)}
+                  onChange={(e) => setKomisiGlobalNilai(Number(e.target.value))}
+                  className="mt-2 w-full accent-[var(--c-accent)]"
+                />
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  {CHIP_KOMISI_PERSEN.map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setKomisiGlobalNilai(pct)}
+                      className={`rounded-full border px-2.5 py-0.5 text-[11.5px] font-semibold tabular-nums transition-colors ${
+                        komisiGlobalNilai === pct ? "border-accent bg-accent text-on-accent" : "border-line bg-surface text-muted hover:text-fg"
+                      }`}
+                    >
+                      {pct === 0 ? "0% (Tanpa komisi)" : `${pct}%`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label htmlFor="sim-komisi-rp" className="label">
+                  Nominal komisi tetap untuk semua paket (Rp)
+                </label>
+                <input
+                  id="sim-komisi-rp"
+                  type="number"
+                  min={0}
+                  max={100_000_000}
+                  step={1000}
+                  value={komisiGlobalNilai}
+                  onChange={(e) => setKomisiGlobalNilai(Math.max(0, Number(e.target.value) || 0))}
+                  className="field max-w-xs tabular-nums"
+                />
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="mt-3 border-t border-line pt-3 text-[12px] text-muted">
+            Mode <b className="text-fg">Atur per paket</b> aktif: silakan ubah persentase (<b className="text-fg">%</b>) atau nominal (<b className="text-fg">Rp</b>) komisi langsung pada masing-masing kartu paket di bawah ini.
+          </p>
+        )}
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface px-3.5 py-2.5">
+          <div>
+            <p className="text-[12.5px] font-semibold text-fg">
+              Masukkan komisi afiliasi ke dalam target margin harga/kuota
+            </p>
+            <p className="text-[11.5px] text-muted">
+              {masukkanKomisiKeTarget
+                ? "Aktif: Harga/kuota dihitung agar setelah dipotong Modal + Biaya Bayar + Komisi Afiliasi, untung bersih tetap mencapai target margin."
+                : "Nonaktif: Harga/kuota dihitung dari modal dasar, lalu kartu menampilkan sisa untung bersih bila pembelian berasal dari link afiliasi."}
+            </p>
+          </div>
+          <Saklar
+            aktif={masukkanKomisiKeTarget}
+            onUbah={setMasukkanKomisiKeTarget}
+            label="Masukkan komisi afiliasi ke dalam target margin"
+          />
+        </div>
+      </div>
+
       <div>
         <p className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold tracking-wide text-muted uppercase">
-          <Sparkles className="size-3.5 text-accent" aria-hidden /> Pratinjau paket (seperti dilihat pelanggan)
+          <Sparkles className="size-3.5 text-accent" aria-hidden /> Pratinjau paket, modal, komisi afiliasi & untung bersih
         </p>
         <p className="mb-3 text-[12px] text-muted">
-          Simulasi hanya saran. Harga tiap paket bebas kamu atur sendiri di &quot;Rincian paket&quot; di bawah. Centang paket yang mau ikut dihitung ulang; yang tidak dicentang tidak disentuh.
+          Centang paket yang mau ikut diterapkan. Saat klik tombol terapkan di bawah, harga, kuota, sekaligus pengaturan komisi afiliasi pada paket yang dicentang akan disimpan.
         </p>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {baris.map(({ p, baru, h, mustahil }) => (
-            <div key={p.id} className={`rounded-2xl border p-4 ${p.unggulan ? "border-accent/50 bg-accent-soft/20" : "border-line bg-surface"}`}>
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[14px] font-bold">{p.nama}</p>
-                <span className="flex items-center gap-2">
-                  {p.unggulan && <span className="rounded-md bg-accent-soft px-1.5 py-0.5 text-[10.5px] font-semibold text-accent">unggulan</span>}
-                  <label className="flex cursor-pointer items-center gap-1 text-[11.5px] font-medium text-muted">
-                    <input type="checkbox" checked={ikut.has(p.id)} onChange={(e) => ubahIkut(p.id, e.target.checked)} className="size-3.5 accent-[var(--c-accent)]" />
-                    ikut
-                  </label>
-                </span>
-              </div>
-              {mustahil && (
-                <p className="mt-2 text-[12px] font-medium text-warning">
-                  {mode === "kunci-harga" ? `Harga ${rp(p.harga)} di bawah margin ${margin}%` : "Margin + biaya bayar mencapai 100%"}: paket ini tidak diubah, tetap dijual seperti yang kamu atur.
-                </p>
-              )}
-                <>
+          {baris.map(({ p, baru, kom, h, mustahil, komisiSimulasi, untungSetelahKomisi, marginSetelahKomisi }) => {
+            const persenKomisiEfektif = baru.harga > 0 ? Math.round((komisiSimulasi / baru.harga) * 100) : 0;
+            return (
+              <div key={p.id} className={`flex flex-col justify-between rounded-2xl border p-4 ${p.unggulan ? "border-accent/50 bg-accent-soft/20" : "border-line bg-surface"}`}>
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[14px] font-bold">{p.nama}</p>
+                    <span className="flex items-center gap-2">
+                      {p.unggulan && <span className="rounded-md bg-accent-soft px-1.5 py-0.5 text-[10.5px] font-semibold text-accent">unggulan</span>}
+                      <label className="flex cursor-pointer items-center gap-1 text-[11.5px] font-medium text-muted">
+                        <input type="checkbox" checked={ikut.has(p.id)} onChange={(e) => ubahIkut(p.id, e.target.checked)} className="size-3.5 accent-[var(--c-accent)]" />
+                        ikut
+                      </label>
+                    </span>
+                  </div>
+
+                  {mustahil && (
+                    <p className="mt-2 text-[12px] font-medium text-warning">
+                      {mode === "kunci-harga" ? `Harga ${rp(p.harga)} di bawah margin ${margin}%` : "Margin + biaya bayar + komisi mencapai 100%"}: paket ini tidak diubah.
+                    </p>
+                  )}
+
                   <p className="mt-2 text-[22px] font-extrabold tracking-tight tabular-nums">
                     <Berubah lama={p.harga} baru={baru.harga} f={rp} />
                     <span className="text-[12px] font-medium text-muted"> / {p.durasi_hari} hari</span>
                   </p>
-                  <ul className="mt-3 space-y-1.5 text-[12.5px] tabular-nums">
+
+                  <ul className="mt-2.5 space-y-1 text-[12.5px] tabular-nums">
                     <li>
                       <b>
                         <Berubah lama={p.kuota_balasan} baru={baru.kuota_balasan} f={angka} />
@@ -239,42 +523,109 @@ export function SimulasiHarga({
                       nomor WhatsApp
                     </li>
                   </ul>
-                  <div className="mt-3 grid grid-cols-3 gap-2 border-t border-line pt-3 text-[11.5px] text-muted tabular-nums">
-                    <span>
-                      Modal
-                      <b className="block text-[12.5px] text-fg">{rp(h.modal)}</b>
-                    </span>
-                    <span>
-                      Untung
-                      <b className={`block text-[12.5px] ${h.untung < 0 ? "text-danger" : "text-success"}`}>{rp(h.untung)}</b>
-                    </span>
-                    <span>
-                      Margin
-                      <b className={`block text-[12.5px] ${h.margin !== null && h.margin < margin / 100 - 0.005 ? "text-danger" : "text-success"}`}>{persen(h.margin)}</b>
-                    </span>
+
+                  {/* Kontrol komisi per paket jika mode "per-paket" aktif */}
+                  {modeKomisi === "per-paket" && (
+                    <div className="mt-3 rounded-xl border border-line bg-subtle/50 p-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold text-muted uppercase">Komisi Paket {p.nama}</span>
+                        <div className="inline-flex rounded-lg border border-line bg-surface p-0.5 text-[11px] font-semibold">
+                          <button
+                            type="button"
+                            onClick={() => ubahKomisiSatuPaket(p.id, { jenis: "persen" })}
+                            className={`rounded-md px-2 py-0.5 ${kom.jenis === "persen" ? "bg-accent text-on-accent" : "text-muted"}`}
+                          >
+                            %
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => ubahKomisiSatuPaket(p.id, { jenis: "rupiah" })}
+                            className={`rounded-md px-2 py-0.5 ${kom.jenis === "rupiah" ? "bg-accent text-on-accent" : "text-muted"}`}
+                          >
+                            Rp
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={0}
+                          max={kom.jenis === "persen" ? 100 : 100_000_000}
+                          step={kom.jenis === "persen" ? 1 : 1000}
+                          value={kom.nilai}
+                          onChange={(e) => ubahKomisiSatuPaket(p.id, { nilai: Math.max(0, Number(e.target.value) || 0) })}
+                          className="field py-1.5 text-[12.5px] font-bold tabular-nums"
+                        />
+                        <span className="shrink-0 text-[11.5px] font-semibold text-muted">
+                          {kom.jenis === "persen" ? `% (${rp(komisiSimulasi)})` : "Rupiah"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Ringkasan Modal, Komisi, Untung Normal & Untung Bersih Afiliasi */}
+                <div className="mt-3 space-y-2 border-t border-line pt-3 text-[11.5px] tabular-nums">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg bg-subtle/40 px-2.5 py-1.5">
+                      <span className="text-muted">Modal + Midtrans</span>
+                      <b className="block text-[12.5px] text-fg">{rp(h.modal + h.biayaBayar)}</b>
+                      <span className="text-[10.5px] text-faint">
+                        AI/Srv {rp(h.modal)} + Bayar {rp(h.biayaBayar)}
+                      </span>
+                    </div>
+                    <div className="rounded-lg bg-accent-soft/40 px-2.5 py-1.5">
+                      <span className="text-muted">
+                        Komisi ({kom.jenis === "persen" ? `${kom.nilai}%` : `${persenKomisiEfektif}%`})
+                      </span>
+                      <b className="block text-[12.5px] text-accent">{rp(komisiSimulasi)}</b>
+                      <span className="text-[10.5px] text-faint">
+                        {komisiSimulasi > 0 ? labelKomisiPaket(kom.jenis, kom.nilai, baru.harga) : "Tanpa komisi"}
+                      </span>
+                    </div>
                   </div>
-                </>
-            </div>
-          ))}
+
+                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-line bg-surface px-2.5 py-2">
+                    <div>
+                      <span className="text-muted">Untung (Tanpa Afiliasi)</span>
+                      <b className={`block text-[12.5px] ${h.untung < 0 ? "text-danger" : "text-success"}`}>
+                        {rp(h.untung)} <span className="text-[11px] font-semibold">({persen(h.margin)})</span>
+                      </b>
+                    </div>
+                    <div className="border-l border-line pl-2">
+                      <span className="text-muted">Untung (Via Afiliasi)</span>
+                      <b className={`block text-[12.5px] ${untungSetelahKomisi < 0 ? "text-danger" : "text-success"}`}>
+                        {rp(untungSetelahKomisi)}{" "}
+                        <span className="text-[11px] font-semibold">({persen(marginSetelahKomisi)})</span>
+                      </b>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       <details className="rounded-xl border border-line">
-        <summary className="cursor-pointer px-3 py-2.5 text-[12.5px] font-semibold text-muted">Rincian paket saat ini (tanpa perubahan)</summary>
+        <summary className="cursor-pointer px-3 py-2.5 text-[12.5px] font-semibold text-muted">
+          Rincian paket saat ini (harga tersimpan vs modal, komisi afiliasi & untung)
+        </summary>
         <div className="overflow-x-auto border-t border-line">
-          <table className="w-full min-w-[640px] text-left text-[12.5px]">
+          <table className="w-full min-w-[760px] text-left text-[12.5px]">
             <thead className="bg-subtle/60 text-[11px] font-semibold tracking-wide text-muted uppercase">
               <tr>
                 <th className="px-3 py-2.5">Paket</th>
-                <th className="px-3 py-2.5 text-right">Modal</th>
-                <th className="px-3 py-2.5 text-right">Biaya bayar</th>
                 <th className="px-3 py-2.5 text-right">Harga</th>
-                <th className="px-3 py-2.5 text-right">Untung</th>
-                <th className="px-3 py-2.5 text-right">Margin</th>
+                <th className="px-3 py-2.5 text-right">Modal AI+Srv</th>
+                <th className="px-3 py-2.5 text-right">Biaya Bayar</th>
+                <th className="px-3 py-2.5 text-right">Komisi Afiliasi</th>
+                <th className="px-3 py-2.5 text-right">Untung (Normal)</th>
+                <th className="px-3 py-2.5 text-right">Untung (Via Afiliasi)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line tabular-nums">
-              {baris.map(({ p, sekarang: s }) => (
+              {baris.map(({ p, kom, sekarang: s, komisiSekarang, untungSekarangSetelahKomisi, marginSekarangSetelahKomisi }) => (
                 <tr key={p.id}>
                   <td className="px-3 py-2.5 font-semibold">
                     {p.nama}
@@ -282,11 +633,22 @@ export function SimulasiHarga({
                       {angka(p.kuota_balasan)} balasan · {p.kuota_nomor} nomor · {p.durasi_hari} hari
                     </span>
                   </td>
+                  <td className="px-3 py-2.5 text-right font-semibold">{rp(p.harga)}</td>
                   <td className="px-3 py-2.5 text-right">{rp(s.modal)}</td>
                   <td className="px-3 py-2.5 text-right">{rp(s.biayaBayar)}</td>
-                  <td className="px-3 py-2.5 text-right">{rp(p.harga)}</td>
-                  <td className={`px-3 py-2.5 text-right ${s.untung < 0 ? "font-bold text-danger" : ""}`}>{rp(s.untung)}</td>
-                  <td className={`px-3 py-2.5 text-right font-semibold ${s.margin !== null && s.margin < margin / 100 ? "text-danger" : "text-success"}`}>{persen(s.margin)}</td>
+                  <td className="px-3 py-2.5 text-right text-accent">
+                    {rp(komisiSekarang)}{" "}
+                    <span className="text-[11px] text-muted">
+                      ({kom.jenis === "persen" ? `${kom.nilai}%` : "tetap"})
+                    </span>
+                  </td>
+                  <td className={`px-3 py-2.5 text-right ${s.untung < 0 ? "font-bold text-danger" : "text-success"}`}>
+                    {rp(s.untung)} <span className="text-[11px] text-muted">({persen(s.margin)})</span>
+                  </td>
+                  <td className={`px-3 py-2.5 text-right font-semibold ${untungSekarangSetelahKomisi < 0 ? "text-danger" : "text-success"}`}>
+                    {rp(untungSekarangSetelahKomisi)}{" "}
+                    <span className="text-[11px]">({persen(marginSekarangSetelahKomisi)})</span>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -298,15 +660,19 @@ export function SimulasiHarga({
         <SubmitButton className="btn btn-ghost border border-line">Simpan acuan</SubmitButton>
         <button
           type="submit"
+          name="terapkan_komisi"
+          value="1"
+          className="btn btn-ghost border border-accent/40 bg-accent-soft/30 text-accent hover:bg-accent-soft/60"
+        >
+          <Check className="size-4" aria-hidden /> Terapkan komisi saja ke paket dicentang
+        </button>
+        <button
+          type="submit"
           name="terapkan"
           value="1"
           className="btn btn-primary h-auto min-h-[2.375rem] max-w-full py-2 text-center whitespace-normal"
-          onClick={(e) => {
-            const teks = mode === "kunci-harga" ? `kuota balasan & nomor paket yang dicentang dihitung ulang (harga tetap)` : `harga & jumlah nomor paket yang dicentang dihitung ulang (kuota balasan tetap)`;
-            if (!window.confirm(`Terapkan simulasi margin ${margin}%: ${teks}? Pelanggan yang sedang aktif tidak terpengaruh.`)) e.preventDefault();
-          }}
         >
-          Terapkan ke paket yang dicentang <ArrowRight className="size-4" aria-hidden />
+          Terapkan harga, kuota & komisi ke paket dicentang <ArrowRight className="size-4" aria-hidden />
         </button>
         <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
       </div>
