@@ -37,6 +37,10 @@ cp -p Dockerfile docker-compose.yml lama/ 2>/dev/null || true
 mv "$MASUK/standalone" standalone
 cp "$MASUK/Dockerfile" "$MASUK/docker-compose.yml" .
 
+# Matikan container lama lebih dulu (SIGTERM -> matikanGerbang) supaya semua soket WA ditutup rapi
+# dan kunci Signal selesai ditulis ke PostgreSQL sebelum container baru menyambung ke WhatsApp.
+docker compose stop -t 25 app 2>/dev/null || true
+
 # --force-recreate: container selalu dibuat ulang dari image yang baru dibangun. Tanpa itu, compose
 # bisa menganggap "tidak ada perubahan" dan membiarkan container lama berjalan.
 docker compose up -d --build --force-recreate --remove-orphans

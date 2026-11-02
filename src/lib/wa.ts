@@ -104,6 +104,7 @@ interface Keadaan {
   versiJanji?: Promise<void>;
   penangan: ((ev: EventWa) => void | Promise<void>) | null;
   dimulai: boolean;
+  timerJaga?: ReturnType<typeof setInterval> | null;
   /** Khusus pengujian: ubah jeda mulai bergiliran & coba-ulang DB setelah diuji. */
   jedaMulaiMs?: number;
   jedaDbMs?: number;
@@ -438,6 +439,7 @@ async function sambung(s: Sesi): Promise<void> {
     if (s.gen !== gen) return;
     if (auth.creds.me?.id) s.terpasang = true;
     const log = pencatat(s.nama);
+    const abaikanJid = (jid: string | undefined): boolean => !!(B.isJidGroup(jid) || B.isJidBroadcast(jid) || B.isJidNewsletter(jid));
     sock = B.makeWASocket({
       auth: { creds: auth.creds, keys: auth.keys },
       ...(st.versi ? { version: st.versi } : {}),
@@ -451,8 +453,26 @@ async function sambung(s: Sesi): Promise<void> {
       // `messages.upsert` pasti dikirim dari perangkat lain, yaitu manusia.
       emitOwnEvents: false,
       generateHighQualityLinkPreview: false,
-      shouldIgnoreJid: (jid) => !!(B.isJidGroup(jid) || B.isJidBroadcast(jid) || B.isJidNewsletter(jid)),
+      shouldIgnoreJid: abaikanJid,
     });
+    // Baileys bawaan mengirim NACK error="500" (UnhandledError) setiap ada pesan dari JID yang diabaikan
+    // (grup, status, saluran). Ribuan NACK 500 membuat server WhatsApp memutus stream atau mencabut perangkat
+    // (401 device_removed). Di sini pesan yang diabaikan langsung diberi ACK bersih tanpa error="500".
+    const ws = (sock as unknown as { ws?: { emit?: (ev: string, ...args: unknown[]) => boolean } }).ws;
+    if (ws && typeof ws.emit === "function" && typeof sock.sendMessageAck === "function") {
+      const emitAsli = ws.emit.bind(ws);
+      ws.emit = (ev: string, ...args: unknown[]) => {
+        if (ev === "CB:message") {
+          const node = args[0] as { attrs?: Record<string, string> } | undefined;
+          const dari = node?.attrs?.from;
+          if (dari && dari !== "@s.whatsapp.net" && abaikanJid(dari)) {
+            void sock.sendMessageAck(node as never).catch(() => {});
+            return true;
+          }
+        }
+        return emitAsli(ev, ...args);
+      };
+    }
   } catch (e) {
     console.error(`[wa ${s.nama}] gagal membuat koneksi:`, e instanceof Error ? e.message : e);
     if (s.gen !== gen) return;
@@ -479,6 +499,14 @@ async function sambung(s: Sesi): Promise<void> {
       s.namaWa = nama;
       if (s.status === "WORKING" && s.waId) void kabari({ jenis: "terhubung", sesi: s.nama, waId: s.waId, nama });
     }
+    // Saat kunci app-state pertama tiba dari HP (khususnya WA Business yang sudah punya nama bisnis sejak pair-success),
+    // wajib jalankan resync awal dan bersihkan dirty bit account_sync agar tidak dicabut WA setelah ±20 menit.
+    if (u.myAppStateKeyId && !auth.creds.accountSyncCounter) {
+      sinkronAwal(sock, auth, ["critical_block", "critical_unblock_low"]);
+    }
+    if (u.lastAccountSyncTimestamp && !auth.creds.accountSyncCounter && typeof sock.cleanDirtyBits === "function") {
+      void sock.cleanDirtyBits("account_sync", u.lastAccountSyncTimestamp).catch(() => {});
+    }
   });
 
   sock.ev.on("connection.update", (u) => {
@@ -501,6 +529,19 @@ async function sambung(s: Sesi): Promise<void> {
   });
 }
 
+function sinkronAwal(sock: WASocket, auth: AuthSesi, koleksi: readonly ("critical_block" | "critical_unblock_low")[]): void {
+  if (typeof sock.resyncAppState !== "function") return;
+  void sock
+    .resyncAppState(koleksi, false)
+    .then(() => {
+      if (!auth.creds.accountSyncCounter) {
+        auth.creds.accountSyncCounter = 1;
+        auth.simpanCreds();
+      }
+    })
+    .catch(() => {});
+}
+
 function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen: number, u: Partial<ConnectionState>): void {
   if (u.qr) {
     s.qr = u.qr;
@@ -521,9 +562,11 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
     s.namaWa = sock.user?.name ?? s.namaWa;
     console.info(`[wa ${s.nama}] terhubung`);
     if (s.waId) void kabari({ jenis: "terhubung", sesi: s.nama, waId: s.waId, nama: s.namaWa });
-    // Nama profil sendiri hanya datang lewat sinkronisasi pengaturan; tanpa itu status "mengetik"
-    // tidak bisa ditampilkan. Sekali saja, dan hanya koleksi kecil yang memuatnya.
-    if (!sock.user?.name) void sock.resyncAppState(["critical_block"], false).catch(() => {});
+    // Nama profil sendiri & kelengkapan tautan perangkat datang lewat sinkronisasi pengaturan.
+    // Untuk WA Business, sock.user.name sudah terisi dari sertifikat bisnis saat pairing, sehingga
+    // kita tetap wajib menyinkronkan critical_block bila accountSyncCounter masih 0.
+    if (!sock.user?.name) sinkronAwal(sock, auth, ["critical_block"]);
+    else if (!auth.creds.accountSyncCounter && auth.creds.myAppStateKeyId) sinkronAwal(sock, auth, ["critical_block", "critical_unblock_low"]);
     lepasTunggu(s);
     return;
   }
@@ -546,13 +589,12 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
     s.gagal += 1;
     s.status = "STARTING";
     void perbaruiVersi(B, true).then(() => {
-        if (s.gen === gen) void sambung(s);
-      });
+      if (s.gen === gen) void sambung(s);
+    });
     return;
   }
   if (kode === KODE.keluar || !terpasang) {
-    // Dikeluarkan dari HP, atau QR tidak jadi dipindai: kunci yang tersisa tidak berguna lagi, dan
-    // tidak ada gunanya terus membuat QR baru tanpa ada yang memindai.
+    // Dikeluarkan secara eksplisit dari HP (401), atau QR tidak jadi dipindai: kunci yang tersisa tidak berguna lagi.
     s.terpasang = false;
     void hapusAuth(s.nama).catch((e) => console.error(`[wa ${s.nama}] gagal membuang kredensial:`, e));
     s.status = terpasang ? "STOPPED" : "FAILED";
@@ -565,18 +607,14 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
     lepasTunggu(s);
     return;
   }
-  if (kode === KODE.ditolak || kode === KODE.tidakCocok) {
-    s.status = "FAILED";
-    s.alasan = "WhatsApp menolak koneksi nomor ini (kemungkinan dibatasi atau diblokir).";
-    console.warn(`[wa ${s.nama}] berhenti (kode ${kode})`);
-    lepasTunggu(s);
-    return;
-  }
 
-  // Putus biasa (jaringan, server WhatsApp, dsb.): sambung ulang dengan jeda yang makin panjang, tanpa
-  // pernah menyerah. 440 (sesi digantikan koneksi lain) juga: jedanya panjang supaya tidak saling
-  // rebut bila memang ada koneksi lain, lalu 5 menit setelah 5 kali berturut-turut.
+  // Nomor sudah tertaut: TIDAK PERNAH berhenti menyambung ulang (kecuali pengguna sendiri yang logout / 401).
+  // Bila gagal berulang atau ditolak edge server (403/405/411), buang routingInfo lama agar mencoba edge server baru.
   s.gagal += 1;
+  if ((s.gagal >= 2 || kode === KODE.ditolak || kode === KODE.versiDitolak || kode === KODE.tidakCocok) && auth.creds.routingInfo) {
+    delete auth.creds.routingInfo;
+    auth.simpanCreds();
+  }
   const dasar =
     kode === KODE.digantikan
       ? s.gagal > 5
@@ -585,6 +623,7 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
       : Math.min(JEDA_ULANG_MAKS_MS, 1_000 * 2 ** Math.min(s.gagal - 1, 6));
   const jeda = dasar + Math.floor(Math.random() * 1_000);
   s.status = "STARTING";
+  s.alasan = "Sedang menyambung ulang secara otomatis ke WhatsApp...";
   console.warn(`[wa ${s.nama}] terputus (kode ${kode}), menyambung ulang dalam ${Math.round(jeda / 1000)} dtk`);
   s.timer = setTimeout(() => void sambung(s), jeda);
   lepasTunggu(s);
@@ -615,6 +654,16 @@ export async function mulaiGerbang(): Promise<void> {
     s.status = "STARTING";
     s.timer = setTimeout(() => void sambung(s), i * jedaMulai + Math.floor(Math.random() * Math.min(200, jedaMulai)));
   });
+  if (st.timerJaga) clearInterval(st.timerJaga);
+  // Penjaga berkala: memastikan tidak ada nomor tertaut yang diam tanpa soket dan tanpa jadwal sambung ulang.
+  st.timerJaga = setInterval(() => {
+    for (const s of st.sesi.values()) {
+      if (s.terpasang && !s.sock && !s.timer && s.status !== "WORKING" && s.status !== "SCAN_QR_CODE") {
+        void sambung(s);
+      }
+    }
+  }, 45_000);
+  st.timerJaga.unref?.();
   console.info(`[wa] menyambungkan ${daftar.length} nomor`);
 }
 
@@ -673,6 +722,10 @@ async function putus(s: Sesi, keluar: boolean): Promise<void> {
  * (stream:error 401 device_removed), paling rawan tepat setelah QR dipindai.
  */
 export async function matikanGerbang(batasMs = 20_000): Promise<void> {
+  if (st.timerJaga) {
+    clearInterval(st.timerJaga);
+    st.timerJaga = null;
+  }
   const semua = [...st.sesi.values()];
   for (const s of semua) {
     s.gen += 1; // event dari soket yang ditutup tidak lagi diproses

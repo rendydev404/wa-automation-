@@ -93,13 +93,17 @@ function buatSoket(config) {
     throw new Error("tidak terjangkau (uji)");
   }
   const ev = new EventEmitter();
+  const ws = new EventEmitter();
   const s = {
     config,
     ev,
+    ws,
     terkirim: [],
     dibaca: [],
     presensi: [],
     urutan: [],
+    acks: [],
+    dirtyCleaned: [],
     keluar: 0,
     ditutup: 0,
     gagalKirim: false,
@@ -107,6 +111,12 @@ function buatSoket(config) {
       return config.auth.creds.me;
     },
     signalRepository: { lidMapping: { getLIDForPN: async (pn) => petaLid.get(pn) ?? null } },
+    async sendMessageAck(node, errorCode) {
+      s.acks.push({ from: node?.attrs?.from, errorCode });
+    },
+    async cleanDirtyBits(type, ts) {
+      s.dirtyCleaned.push({ type, ts });
+    },
     async sendMessage(jid, isi, opsi) {
       if (s.gagalKirim) throw new Error("kirim gagal");
       s.terkirim.push({ jid, isi, id: opsi.messageId, kutip: opsi.quoted?.key?.id ?? null, at: Date.now() });
@@ -1347,6 +1357,44 @@ await cek("440 berulang kali: nomor tertaut tidak pernah berhenti menyambung (ha
   sA.tutup(440);
   assert.equal(wa.infoSesi(A.sesi).status, "STARTING", "bukan FAILED");
   assert.ok(s.timer, "sambung ulang terjadwal");
+  const p = wa.hubungkan(A.sesi);
+  const baru = await tunggu(() => soket[awal], 1000);
+  baru.pancar("connection.update", { connection: "open" });
+  await p;
+  assert.equal(wa.infoSesi(A.sesi).status, "WORKING");
+  sA = baru;
+});
+
+await cek("proteksi anti-putus: ACK bersih JID diabaikan (tanpa NACK 500), sinkronisasi WA Business, & sambung ulang 403/411", async () => {
+  let cbTerpanggil = 0;
+  sA.ws.on("CB:message", () => {
+    cbTerpanggil += 1;
+  });
+  sA.ws.emit("CB:message", { tag: "message", attrs: { from: "120363000000000000@g.us", id: "MSG-G1" } });
+  sA.ws.emit("CB:message", { tag: "message", attrs: { from: "status@broadcast", id: "MSG-S1" } });
+  sA.ws.emit("CB:message", { tag: "message", attrs: { from: "6281234567890@s.whatsapp.net", id: "MSG-P1" } });
+  assert.equal(cbTerpanggil, 1, "hanya chat pribadi yang diteruskan ke CB:message Baileys");
+  assert.deepEqual(sA.acks, [
+    { from: "120363000000000000@g.us", errorCode: undefined },
+    { from: "status@broadcast", errorCode: undefined },
+  ]);
+
+  // Simulasi WA Business: accountSyncCounter diset ke 0 lalu kunci app-state & dirty bit tiba
+  sA.config.auth.creds.accountSyncCounter = 0;
+  sA.config.auth.creds.routingInfo = Buffer.from([1, 2, 3, 4]);
+  sA.pancar("creds.update", { myAppStateKeyId: "KEY-BIZ-1", lastAccountSyncTimestamp: 1777700000 });
+  await tidur(50);
+  assert.deepEqual(sA.resync, ["critical_block", "critical_unblock_low"]);
+  assert.equal(sA.config.auth.creds.accountSyncCounter, 1);
+  assert.deepEqual(sA.dirtyCleaned, [{ type: "account_sync", ts: 1777700000 }]);
+
+  // 403 / 411 pada nomor tertaut tetap menyambung ulang & membuang routingInfo usang
+  const s = globalThis.__waGerbang.sesi.get(A.sesi);
+  const awal = soket.length;
+  sA.tutup(403);
+  assert.equal(wa.infoSesi(A.sesi).status, "STARTING");
+  assert.ok(s.timer, "tetap dijadwalkan sambung ulang saat 403");
+  assert.equal(sA.config.auth.creds.routingInfo, undefined, "routingInfo usang dibersihkan");
   const p = wa.hubungkan(A.sesi);
   const baru = await tunggu(() => soket[awal], 1000);
   baru.pancar("connection.update", { connection: "open" });
