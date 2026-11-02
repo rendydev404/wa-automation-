@@ -1,6 +1,7 @@
 import { angka } from "./format";
 import { MEREK } from "./merek";
 import { type AcuanHarga, type HasilHarga, MAKS_HARGA_PAKET, METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hitungHarga, kuotaDariHarga, nomorDariKuota } from "./harga";
+import type { JenisKomisi } from "./afiliasi-def";
 
 /**
  * Paket "Custom": satu paket di daftar harga yang seluruh isinya diatur admin (Paket & harga → Paket Custom).
@@ -48,6 +49,9 @@ export interface PaketCustom {
   // ---- Jejak hitungan terakhir (diisi server) ----
   kurs: number; // kurs USD saat harga terakhir dihitung; 0 = belum pernah disimpan dengan rumus ini
   dihitung: number; // detik epoch
+  // ---- Komisi Afiliasi ----
+  komisi_jenis: JenisKomisi;
+  komisi_nilai: number;
 }
 
 /** Kode baris paket Custom di tabel paket. Garis bawah tidak bisa dibuat dari formulir paket biasa (hanya a-z, 0-9, -). */
@@ -107,6 +111,8 @@ export const BAWAAN_CUSTOM: PaketCustom = {
   biaya_server: 0,
   kurs: 0,
   dihitung: 0,
+  komisi_jenis: "persen",
+  komisi_nilai: 20,
 };
 
 const bulatSah = (v: unknown, min: number, maks: number): v is number => typeof v === "number" && Number.isInteger(v) && v >= min && v <= maks;
@@ -157,6 +163,8 @@ export function rapikanCustom(d: unknown): PaketCustom {
     biaya_server: bulat(o.biaya_server, B.biaya_server, 0, L.biayaServer),
     kurs: typeof o.kurs === "number" && Number.isFinite(o.kurs) && o.kurs > 0 ? o.kurs : 0,
     dihitung: bulat(o.dihitung, 0, 0, Number.MAX_SAFE_INTEGER),
+    komisi_jenis: o.komisi_jenis === "rupiah" ? "rupiah" : "persen",
+    komisi_nilai: bulat(o.komisi_nilai, B.komisi_nilai, 0, MAKS_HARGA_PAKET),
   };
 }
 
@@ -178,6 +186,7 @@ export function periksaCustom(d: unknown): PaketCustom | string {
   if (!(PEMBULATAN as readonly unknown[]).includes(o.pembulatan)) return "Pilihan pembulatan tidak dikenal.";
   if (o.harga_manual === true && !bulatSah(o.harga, 1, MAKS_HARGA_PAKET)) return `Harga sendiri Rp1–Rp${angka(MAKS_HARGA_PAKET)}.`;
   const p = rapikanCustom({ ...o, kurs: 0, dihitung: 0 });
+  if (p.komisi_jenis === "persen" && p.komisi_nilai > 100) return "Persentase komisi afiliasi harus 0–100%.";
   if (p.aktif && p.aksi === "wa" && !p.wa) return "Isi nomor WhatsApp admin dulu sebelum menampilkan paket Custom dengan tombol chat.";
   if (p.aktif && p.tampil_harga === "teks" && !p.teks_harga) return 'Teks harga wajib diisi, mis. "Hubungi kami".';
   return p;

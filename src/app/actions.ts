@@ -1,7 +1,24 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import {
+  AfiliasiError,
+  COOKIE_REF,
+  type JenisKomisi,
+  type ModePersetujuanAfiliasi,
+  type SiklusKomisi,
+  type StatusAfiliator,
+  ajukanPenarikan,
+  daftarAfiliator,
+  labelKomisiPaket,
+  prosesPenarikanAdmin,
+  setStatusAfiliatorAdmin,
+  simpanPengaturanAfiliasi,
+  terapkanReferral,
+  ubahProfilAfiliator,
+} from "@/lib/afiliasi";
 import { nomorUntuk } from "@/lib/akses";
 import { kunciAnthropic, kursUsd, perkiraanPerBalasan } from "@/lib/ai";
 import { MAKS_HARGA_PAKET, METODE_BAYAR } from "@/lib/harga";
@@ -111,6 +128,12 @@ export async function daftarAction(_lalu: Hasil | null, form: FormData): Promise
   await pastikanAdminAwal();
   const akun = await buatAkun({ email, nama, password });
   if (!akun) return { ok: false, pesan: "Email ini sudah terdaftar. Silakan masuk." };
+  const toples = await cookies();
+  const refKode = toples.get(COOKIE_REF)?.value;
+  if (refKode) {
+    await terapkanReferral(akun.id, refKode).catch(() => {});
+    toples.delete(COOKIE_REF);
+  }
   await catatLoginBerhasil(akun.id);
   await mulaiSesi(akun, await lewatHttps());
   redirect(halamanAwal(akun.peran));
@@ -159,7 +182,7 @@ export async function keluarSemuaAction(): Promise<Hasil> {
 // ---------- Koneksi WhatsApp ----------
 
 const pesanGalat = (e: unknown): string =>
-  e instanceof WaError || e instanceof KnowledgeError || e instanceof PenggunaError ? e.message : "Terjadi kesalahan. Coba lagi.";
+  e instanceof WaError || e instanceof KnowledgeError || e instanceof PenggunaError || e instanceof AfiliasiError ? e.message : "Terjadi kesalahan. Coba lagi.";
 
 export async function hubungkanWaAction(id: number): Promise<Hasil> {
   const nomor = await nomorUntuk(await requireUser(), id);
@@ -673,6 +696,8 @@ export async function adminPaketAction(_lalu: Hasil | null, form: FormData): Pro
   const id = idSah(form.get("id")) ?? undefined;
   const angkaForm = (k: string) => Number(String(form.get(k) ?? "").replace(/[^\d]/g, ""));
   const nama = String(form.get("nama") ?? "").trim().slice(0, 40);
+  const komisiJenis: JenisKomisi = form.get("komisi_jenis") === "rupiah" ? "rupiah" : "persen";
+  const komisiNilai = form.get("komisi_nilai") !== null ? angkaForm("komisi_nilai") : 20;
   const p = {
     id,
     kode: (String(form.get("kode") ?? "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "") || nama.toLowerCase().replace(/[^a-z0-9]+/g, "-")).slice(0, 30),
@@ -685,18 +710,22 @@ export async function adminPaketAction(_lalu: Hasil | null, form: FormData): Pro
     aktif: form.get("aktif") === "on",
     unggulan: form.get("unggulan") === "on",
     urutan: angkaForm("urutan"),
+    komisi_jenis: komisiJenis,
+    komisi_nilai: komisiNilai,
   };
   if (nama.length < 2) return { ok: false, pesan: "Nama paket wajib diisi." };
   // Harga bebas diatur admin; hanya dijaga agar muat di kolom database. 0 = paket yang hanya diberikan admin (tidak dijual).
   if (p.harga > MAKS_HARGA_PAKET) return { ok: false, pesan: `Harga maksimal Rp${MAKS_HARGA_PAKET.toLocaleString("id-ID")}.` };
   if (!(p.durasi_hari >= 1 && p.durasi_hari <= 3660)) return { ok: false, pesan: "Durasi 1–3660 hari." };
   if (p.kuota_nomor > 1000 || p.kuota_balasan > 10_000_000) return { ok: false, pesan: "Kuota terlalu besar." };
+  if (komisiJenis === "persen" && komisiNilai > 100) return { ok: false, pesan: "Komisi persentase harus 0–100%." };
+  if (komisiJenis === "rupiah" && komisiNilai > MAKS_HARGA_PAKET) return { ok: false, pesan: "Nominal komisi terlalu besar." };
   try {
     await simpanPaket(p);
   } catch {
     return { ok: false, pesan: "Kode paket sudah dipakai paket lain." };
   }
-  await catatLog(admin, id ? "ubah paket" : "buat paket", null, `${nama} · Rp${p.harga.toLocaleString("id-ID")} · ${p.kuota_nomor} nomor · ${p.kuota_balasan} balasan`);
+  await catatLog(admin, id ? "ubah paket" : "buat paket", null, `${nama} · Rp${p.harga.toLocaleString("id-ID")} · ${p.kuota_nomor} nomor · ${p.kuota_balasan} balasan · komisi ${labelKomisiPaket(komisiJenis, komisiNilai, p.harga)}`);
   revalidatePath("/admin", "layout");
   revalidatePath("/langganan");
   revalidatePath("/");
@@ -867,4 +896,118 @@ export async function adminHargaAction(_lalu: Hasil | null, form: FormData): Pro
   revalidatePath("/");
   const lewat = dilewati.length ? ` Tidak diubah: ${dilewati.map((d) => `${d.nama} (${d.alasan})`).join("; ")}.` : "";
   return { ok: true, pesan: (berubah.length ? `Paket diperbarui: ${berubah.map((b) => `${b.nama} → ${b.sesudah}`).join("; ")}.` : "Paket yang dipilih sudah sesuai simulasi.") + lewat };
+}
+
+// ---------- Afiliasi (Pengguna & Admin) ----------
+
+export async function daftarAfiliasiAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const user = await requireUser();
+  if (terlaluSering(`daftar-af:${user.id}`, 6, 10 * 60_000)) {
+    return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." };
+  }
+  const kode = String(form.get("kode") ?? "");
+  const bankNama = String(form.get("bank_nama") ?? "");
+  const bankNomor = String(form.get("bank_nomor") ?? "");
+  const bankPemilik = String(form.get("bank_pemilik") ?? "");
+  try {
+    const af = await daftarAfiliator(user.id, { kode, bankNama, bankNomor, bankPemilik });
+    revalidatePath("/afiliasi");
+    revalidatePath("/admin/afiliasi");
+    return {
+      ok: true,
+      pesan:
+        af.status === "aktif"
+          ? "Selamat! Akun afiliasi Anda sudah aktif. Bagikan tautan Anda untuk mulai mendapat komisi."
+          : "Pendaftaran afiliasi berhasil dikirim dan sedang menunggu persetujuan admin.",
+    };
+  } catch (e) {
+    return { ok: false, pesan: pesanGalat(e) };
+  }
+}
+
+export async function ubahAfiliasiAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const user = await requireUser();
+  const kode = String(form.get("kode") ?? "");
+  const bankNama = String(form.get("bank_nama") ?? "");
+  const bankNomor = String(form.get("bank_nomor") ?? "");
+  const bankPemilik = String(form.get("bank_pemilik") ?? "");
+  try {
+    await ubahProfilAfiliator(user.id, { kode, bankNama, bankNomor, bankPemilik });
+    revalidatePath("/afiliasi");
+    revalidatePath("/admin/afiliasi");
+    return { ok: true, pesan: "Profil & rekening pencairan berhasil diperbarui." };
+  } catch (e) {
+    return { ok: false, pesan: pesanGalat(e) };
+  }
+}
+
+export async function tarikKomisiAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const user = await requireUser();
+  if (terlaluSering(`tarik-af:${user.id}`, 5, 10 * 60_000)) {
+    return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." };
+  }
+  const nominal = Number(String(form.get("nominal") ?? "").replace(/[^\d]/g, ""));
+  try {
+    const p = await ajukanPenarikan(user.id, nominal);
+    revalidatePath("/afiliasi");
+    revalidatePath("/admin/afiliasi");
+    return {
+      ok: true,
+      pesan: `Pengajuan penarikan Rp${p.nominal.toLocaleString("id-ID")} berhasil dikirim dan akan segera diproses.`,
+    };
+  } catch (e) {
+    return { ok: false, pesan: pesanGalat(e) };
+  }
+}
+
+export async function adminAturanAfiliasiAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const aktif = form.get("aktif") === "on";
+  const persetujuan: ModePersetujuanAfiliasi = form.get("persetujuan") === "manual" ? "manual" : "otomatis";
+  const siklus: SiklusKomisi = form.get("siklus") === "pertama" ? "pertama" : "berulang";
+  const minTarik = Number(String(form.get("min_tarik") ?? "").replace(/[^\d]/g, ""));
+  if (!Number.isInteger(minTarik) || minTarik < 10_000 || minTarik > 100_000_000) {
+    return { ok: false, pesan: "Minimal penarikan harus Rp10.000 – Rp100.000.000." };
+  }
+  await simpanPengaturanAfiliasi({ aktif, persetujuan, siklus, minTarik });
+  await catatLog(
+    admin,
+    "ubah aturan afiliasi",
+    null,
+    `program ${aktif ? "aktif" : "nonaktif"}, pendaftaran ${persetujuan}, komisi ${siklus}, min tarik Rp${minTarik.toLocaleString("id-ID")}`
+  );
+  revalidatePath("/admin/afiliasi");
+  revalidatePath("/afiliasi");
+  return { ok: true, pesan: "Pengaturan program afiliasi tersimpan." };
+}
+
+export async function adminStatusAfiliatorAction(userId: number, status: StatusAfiliator): Promise<Hasil> {
+  const admin = await requireAdmin();
+  if (!idSah(userId) || !["menunggu", "aktif", "nonaktif"].includes(status)) {
+    return { ok: false, pesan: "Data tidak valid." };
+  }
+  return jalankanAdmin(
+    async () => {
+      await setStatusAfiliatorAdmin(admin, userId, status);
+      return `Status afiliator diubah menjadi ${status}.`;
+    },
+    "/admin/afiliasi",
+    "/afiliasi"
+  );
+}
+
+export async function adminProsesPenarikanAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const id = idSah(form.get("id"));
+  const aksi = String(form.get("aksi") ?? "");
+  if (!id || (aksi !== "manual" && aksi !== "iris" && aksi !== "tolak")) {
+    return { ok: false, pesan: "Permintaan tidak valid." };
+  }
+  const referensi = String(form.get("referensi") ?? "");
+  const catatan = String(form.get("catatan") ?? "");
+  return jalankanAdmin(
+    () => prosesPenarikanAdmin(admin, id, { aksi, referensi, catatan }),
+    "/admin/afiliasi",
+    "/afiliasi"
+  );
 }

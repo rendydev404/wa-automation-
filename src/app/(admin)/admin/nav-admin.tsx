@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, Bot, LayoutDashboard, Package, ScrollText, Settings2, Users, Wallet } from "lucide-react";
+import { ArrowLeft, Bot, LayoutDashboard, Package, ScrollText, Settings2, Share2, Users, Wallet } from "lucide-react";
 
 const MENU = [
   { href: "/admin", label: "Ringkasan", ikon: LayoutDashboard, tepat: true },
   { href: "/admin/pengguna", label: "Pengguna", ikon: Users },
   { href: "/admin/paket", label: "Paket & harga", ikon: Package },
   { href: "/admin/transaksi", label: "Transaksi", ikon: Wallet },
+  { href: "/admin/afiliasi", label: "Afiliasi", ikon: Share2 },
   { href: "/admin/ai", label: "Mesin AI", ikon: Bot },
   { href: "/admin/aturan", label: "Aturan", ikon: Settings2 },
   { href: "/admin/log", label: "Log admin", ikon: ScrollText },

@@ -20,6 +20,7 @@ import {
 import { KursInfo } from "@/components/kurs-info";
 import { type OpsiModel, PilihModel } from "@/components/pilih-model";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "@/components/ui";
+import { type JenisKomisi, hitungKomisiPaket } from "@/lib/afiliasi-def";
 import type { InfoKurs } from "@/lib/kurs-def";
 
 const ULANG_PERCOBAAN = [
@@ -455,23 +456,81 @@ export interface PaketForm {
   aktif: boolean;
   unggulan: boolean;
   urutan: number;
+  komisi_jenis: JenisKomisi;
+  komisi_nilai: number;
 }
 
 /** Satu formulir untuk membuat (tanpa `paket`) atau mengubah paket. */
 export function FormPaket({ paket }: { paket?: PaketForm }) {
   const [hasil, aksi] = useActionState(adminPaketAction, null);
   const p = paket;
+  const [jenisKomisi, setJenisKomisi] = useState<JenisKomisi>(p?.komisi_jenis ?? "persen");
+  const [nilaiKomisi, setNilaiKomisi] = useState<string>(String(p?.komisi_nilai ?? 20));
+  const [hargaTeks, setHargaTeks] = useState<string>(String(p?.harga ?? ""));
+  const hargaAngka = Number(hargaTeks.replace(/[^\d]/g, "")) || 0;
+  const nilaiAngka = Number(nilaiKomisi.replace(/[^\d]/g, "")) || 0;
+  const perkiraanKomisi = hitungKomisiPaket(hargaAngka, jenisKomisi, nilaiAngka);
   const kolom = "field text-[13px]";
   return (
     <form action={aksi} className="space-y-3">
       {p && <input type="hidden" name="id" value={p.id} />}
       <div className="grid grid-cols-2 gap-2">
         <input name="nama" aria-label="Nama paket" placeholder="Nama paket" defaultValue={p?.nama} required maxLength={40} className={kolom} />
-        <input name="harga" aria-label="Harga (Rp)" placeholder="Harga (Rp)" inputMode="numeric" defaultValue={p?.harga} required className={kolom} />
+        <input name="harga" aria-label="Harga (Rp)" placeholder="Harga (Rp)" inputMode="numeric" value={hargaTeks} onChange={(e) => setHargaTeks(e.target.value)} required className={kolom} />
         <input name="durasi_hari" aria-label="Durasi (hari)" placeholder="Durasi (hari)" inputMode="numeric" defaultValue={p?.durasi_hari ?? 30} required className={kolom} />
         <input name="kuota_nomor" aria-label="Kuota nomor" placeholder="Kuota nomor" inputMode="numeric" defaultValue={p?.kuota_nomor} required className={kolom} />
         <input name="kuota_balasan" aria-label="Kuota balasan AI" placeholder="Kuota balasan AI" inputMode="numeric" defaultValue={p?.kuota_balasan} required className={kolom} />
         <input name="urutan" aria-label="Urutan tampil" placeholder="Urutan" inputMode="numeric" defaultValue={p?.urutan ?? 0} className={kolom} />
+      </div>
+      <div className="rounded-xl border border-line bg-surface p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-[12.5px] font-semibold">Komisi afiliasi paket ini</span>
+          <div role="radiogroup" aria-label="Jenis komisi afiliasi" className="inline-flex rounded-lg border border-line bg-subtle p-0.5 text-[12px] font-semibold">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={jenisKomisi === "persen"}
+              onClick={() => setJenisKomisi("persen")}
+              className={`rounded-md px-2.5 py-1 transition-colors ${jenisKomisi === "persen" ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
+            >
+              Persentase (%)
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={jenisKomisi === "rupiah"}
+              onClick={() => setJenisKomisi("rupiah")}
+              className={`rounded-md px-2.5 py-1 transition-colors ${jenisKomisi === "rupiah" ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
+            >
+              Nominal (Rp)
+            </button>
+          </div>
+          <input type="hidden" name="komisi_jenis" value={jenisKomisi} />
+        </div>
+        <div className="mt-2.5 flex flex-wrap items-center gap-3">
+          <div className="relative w-44">
+            {jenisKomisi === "rupiah" && <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-[12.5px] font-semibold text-muted">Rp</span>}
+            <input
+              name="komisi_nilai"
+              aria-label="Nilai komisi afiliasi"
+              inputMode="numeric"
+              value={nilaiKomisi}
+              onChange={(e) => setNilaiKomisi(e.target.value.replace(/[^\d]/g, ""))}
+              required
+              className={`${kolom} tabular-nums ${jenisKomisi === "rupiah" ? "pl-8" : "pr-8"}`}
+            />
+            {jenisKomisi === "persen" && <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[12.5px] font-semibold text-muted">%</span>}
+          </div>
+          <span className="text-[12px] text-muted tabular-nums">
+            {nilaiAngka <= 0
+              ? "0 = paket ini tidak memberi komisi afiliasi."
+              : hargaAngka > 0
+                ? `Afiliator menerima Rp${perkiraanKomisi.toLocaleString("id-ID")} per pembelian.`
+                : jenisKomisi === "persen"
+                  ? `Afiliator menerima ${nilaiAngka}% dari harga beli.`
+                  : `Afiliator menerima Rp${nilaiAngka.toLocaleString("id-ID")} per pembelian.`}
+          </span>
+        </div>
       </div>
       <input name="deskripsi" aria-label="Deskripsi singkat" placeholder="Deskripsi singkat" defaultValue={p?.deskripsi} maxLength={200} className={kolom} />
       {!p && <input name="kode" aria-label="Kode (opsional)" placeholder="Kode unik (opsional, mis. bisnis-tahunan)" className={kolom} />}

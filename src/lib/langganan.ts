@@ -6,6 +6,7 @@ import { METODE_BAYAR, type MetodeBayar, hitungHarga, kuotaDariHarga, nomorDariK
 import { hermesTerkonfigurasi } from "./hermes";
 import { type KonfigMidtrans, MidtransError, type StatusBayar, buatSnap, petaStatus, statusMidtrans } from "./midtrans";
 import { KODE_CUSTOM } from "./paket-custom-def";
+import { type JenisKomisi, prosesKomisiTransaksi } from "./afiliasi";
 
 /**
  * Paket langganan, masa aktif, transaksi Midtrans, dan kuota.
@@ -28,9 +29,11 @@ export interface Paket {
   aktif: boolean;
   unggulan: boolean;
   urutan: number;
+  komisi_jenis: JenisKomisi;
+  komisi_nilai: number;
 }
 
-const KOLOM_PAKET = "id, kode, nama, harga, durasi_hari, kuota_nomor, kuota_balasan, deskripsi, aktif, unggulan, urutan";
+const KOLOM_PAKET = "id, kode, nama, harga, durasi_hari, kuota_nomor, kuota_balasan, deskripsi, aktif, unggulan, urutan, komisi_jenis, komisi_nilai";
 
 /**
  * Paket biasa. Baris cermin paket Custom (paket-custom.ts) tidak ikut, karena kartunya diatur sendiri; `custom: true`
@@ -52,19 +55,22 @@ export async function paketById(id: number): Promise<Paket | undefined> {
   return p;
 }
 
-export async function simpanPaket(p: Omit<Paket, "id"> & { id?: number }): Promise<number> {
+export async function simpanPaket(p: Omit<Paket, "id" | "komisi_jenis" | "komisi_nilai"> & { id?: number; komisi_jenis?: JenisKomisi; komisi_nilai?: number }): Promise<number> {
+  const komisiJenis: JenisKomisi = p.komisi_jenis === "rupiah" ? "rupiah" : "persen";
+  const komisiNilai = Number.isInteger(p.komisi_nilai) && (p.komisi_nilai ?? 0) >= 0 ? (p.komisi_nilai as number) : 20;
   const sql = await db();
   if (p.id) {
     // Baris paket Custom hanya diubah lewat paket-custom.ts (isinya cermin pengaturan Custom).
     await sql`
       UPDATE paket SET nama = ${p.nama}, harga = ${p.harga}, durasi_hari = ${p.durasi_hari}, kuota_nomor = ${p.kuota_nomor},
-             kuota_balasan = ${p.kuota_balasan}, deskripsi = ${p.deskripsi}, aktif = ${p.aktif}, unggulan = ${p.unggulan}, urutan = ${p.urutan}
+             kuota_balasan = ${p.kuota_balasan}, deskripsi = ${p.deskripsi}, aktif = ${p.aktif}, unggulan = ${p.unggulan}, urutan = ${p.urutan},
+             komisi_jenis = ${komisiJenis}, komisi_nilai = ${komisiNilai}
        WHERE id = ${p.id} AND kode <> ${KODE_CUSTOM}`;
     return p.id;
   }
   const [r] = await sql<{ id: number }[]>`
-    INSERT INTO paket(kode, nama, harga, durasi_hari, kuota_nomor, kuota_balasan, deskripsi, aktif, unggulan, urutan, created_at)
-    VALUES (${p.kode}, ${p.nama}, ${p.harga}, ${p.durasi_hari}, ${p.kuota_nomor}, ${p.kuota_balasan}, ${p.deskripsi}, ${p.aktif}, ${p.unggulan}, ${p.urutan}, ${sekarang()})
+    INSERT INTO paket(kode, nama, harga, durasi_hari, kuota_nomor, kuota_balasan, deskripsi, aktif, unggulan, urutan, komisi_jenis, komisi_nilai, created_at)
+    VALUES (${p.kode}, ${p.nama}, ${p.harga}, ${p.durasi_hari}, ${p.kuota_nomor}, ${p.kuota_balasan}, ${p.deskripsi}, ${p.aktif}, ${p.unggulan}, ${p.urutan}, ${komisiJenis}, ${komisiNilai}, ${sekarang()})
     RETURNING id`;
   return r.id;
 }
@@ -369,6 +375,7 @@ export async function terapkanStatus(k: KonfigMidtrans, orderId: string): Promis
     if (status !== "lunas" || t.aktif_id) return { status, baruAktif: false };
     const { id } = await aktifkan(tx, { userId: t.user_id, paketId: t.paket_id, sumber: "midtrans" });
     await tx`UPDATE transaksi SET langganan_id = ${id} WHERE id = ${t.id}`;
+    await prosesKomisiTransaksi(tx, { transaksiId: t.id, userId: t.user_id, paketId: t.paket_id, namaPaket: t.nama_paket, jumlahBayar: t.jumlah });
     segarkanKuota(t.user_id);
     return { status, baruAktif: true };
   });
@@ -458,9 +465,13 @@ export async function berikanPaketManual(
     const l = await aktifkan(tx, { userId, paketId: o.paketId, sumber: "admin", hari: o.hari, isi: o.isi });
     const kini = sekarang();
     const orderId = `ADM-${userId}-${kini}-${randomBytes(3).toString("hex")}`;
-    await tx`
+    const [trx] = await tx<{ id: number }[]>`
       INSERT INTO transaksi(order_id, user_id, paket_id, nama_paket, jumlah, status, metode, dibuat, dibayar, langganan_id, catatan)
-      VALUES (${orderId}, ${userId}, ${o.paketId}, ${l.nama}, ${jumlah}, 'lunas', ${o.metode}, ${kini}, ${kini}, ${l.id}, ${o.catatan || null})`;
+      VALUES (${orderId}, ${userId}, ${o.paketId}, ${l.nama}, ${jumlah}, 'lunas', ${o.metode}, ${kini}, ${kini}, ${l.id}, ${o.catatan || null})
+      RETURNING id`;
+    if (jumlah > 0 && o.metode !== "kompensasi") {
+      await prosesKomisiTransaksi(tx, { transaksiId: trx.id, userId, paketId: o.paketId, namaPaket: l.nama, jumlahBayar: jumlah });
+    }
     return { langgananId: l.id, orderId, nama: l.nama, mulai: l.mulai, sampai: l.sampai, kuota_nomor: l.kuota_nomor, kuota_balasan: l.kuota_balasan, diperpanjang: l.diperpanjang, jumlah };
   });
   segarkanKuota(userId);

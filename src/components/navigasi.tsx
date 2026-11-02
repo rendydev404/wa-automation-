@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CircleHelp, CreditCard, LayoutDashboard, ShieldCheck, UserRound } from "lucide-react";
+import { CircleHelp, CreditCard, LayoutDashboard, Share2, ShieldCheck, UserRound } from "lucide-react";
 import { formatNomor } from "@/lib/format";
 import type { StatusSesiWa } from "@/lib/types";
 import { TUR_DASHBOARD, TUR_NOMOR } from "./isi-tur";
@@ -93,6 +93,9 @@ export function NavUtama({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
         </TautanNav>
         <TautanNav href="/langganan" aktif={jalur === "/langganan"} ikon={<CreditCard className="size-4" aria-hidden />} tur="nav-langganan">
           Langganan
+        </TautanNav>
+        <TautanNav href="/afiliasi" aktif={jalur === "/afiliasi"} ikon={<Share2 className="size-4" aria-hidden />}>
+          Afiliasi
         </TautanNav>
         {admin && (
           <TautanNav href="/admin" aktif={jalur.startsWith("/admin")} ikon={<ShieldCheck className="size-4" aria-hidden />}>

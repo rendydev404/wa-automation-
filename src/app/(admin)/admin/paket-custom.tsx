@@ -10,6 +10,7 @@ import { PilihModel } from "@/components/pilih-model";
 import { useKursLangsung } from "@/components/kurs-langsung";
 import { Pesan, Saklar } from "@/components/ui";
 import { rapikanNomorWa } from "@/lib/format";
+import { hitungKomisiPaket } from "@/lib/afiliasi-def";
 import { METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN } from "@/lib/harga";
 import type { InfoKurs } from "@/lib/kurs-def";
 import {
@@ -354,6 +355,46 @@ export function PembangunCustom({
               </span>
             </span>
             <Saklar aktif={c.ikut_kurs && !c.harga_manual} onUbah={(v) => ubah({ ikut_kurs: v })} label="Harga mengikuti kurs USD" disabled={c.harga_manual} />
+          </div>
+
+          <div className="space-y-2.5 rounded-xl border border-line p-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span className="block text-[13px] font-semibold">Komisi afiliasi paket Custom</span>
+                <span className="hint block">Komisi yang diterima afiliator saat paket Custom dibeli.</span>
+              </div>
+              <Segmen
+                label="Jenis komisi paket Custom"
+                nilai={c.komisi_jenis}
+                pilihan={[
+                  { id: "persen", label: "Persentase (%)" },
+                  { id: "rupiah", label: "Nominal (Rp)" },
+                ]}
+                onUbah={(v) => ubah({ komisi_jenis: v, komisi_nilai: v === "persen" ? Math.min(100, c.komisi_nilai) : c.komisi_nilai })}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="w-52">
+                <InputAngka
+                  id="c-komisi"
+                  label="Nilai komisi afiliasi"
+                  nilai={c.komisi_nilai}
+                  onUbah={(v) => ubah({ komisi_nilai: v })}
+                  min={0}
+                  maks={c.komisi_jenis === "persen" ? 100 : 2_000_000_000}
+                  awalan={c.komisi_jenis === "rupiah" ? "Rp" : undefined}
+                  akhiran={c.komisi_jenis === "persen" ? "%" : undefined}
+                  kecil
+                />
+              </div>
+              <span className="text-[12px] text-muted tabular-nums">
+                {c.komisi_nilai <= 0
+                  ? "0 = tanpa komisi afiliasi."
+                  : h.harga > 0
+                    ? `Afiliator menerima ${rp(hitungKomisiPaket(h.harga, c.komisi_jenis, c.komisi_nilai))} per pembelian.`
+                    : ""}
+              </span>
+            </div>
           </div>
 
           <details className="group rounded-xl border border-line">

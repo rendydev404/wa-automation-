@@ -116,3 +116,75 @@ export function petaStatus(s: Pick<StatusMidtrans, "transaction_status" | "fraud
   }
 }
 
+
+// ---------- Midtrans Iris (Payouts / Disbursement Otomatis Afiliasi) ----------
+
+export interface KonfigIris {
+  irisKey: string;
+  produksi: boolean;
+}
+
+export function konfigIris(): KonfigIris | null {
+  const kunci = process.env.MIDTRANS_IRIS_KEY?.trim();
+  if (!kunci) return null;
+  return {
+    irisKey: kunci,
+    produksi: process.env.MIDTRANS_MODE?.trim().toLowerCase() !== "sandbox",
+  };
+}
+
+const alamatIris = (k: KonfigIris) =>
+  k.produksi ? "https://app.midtrans.com/iris/api/v1/payouts" : "https://app.sandbox.midtrans.com/iris/api/v1/payouts";
+
+/**
+ * Kirim pencairan dana otomatis lewat Midtrans Iris Payouts API.
+ * Memakai X-Idempotency-Key dari id penarikan agar aman dari pengiriman ganda.
+ */
+export async function kirimPayoutIris(
+  k: KonfigIris,
+  p: {
+    idempotencyKey: string;
+    bankKode: string;
+    nomorRekening: string;
+    namaPemilik: string;
+    emailPenerima: string;
+    nominal: number;
+    catatan: string;
+  }
+): Promise<{ referenceNo: string; status: string }> {
+  const auth = `Basic ${Buffer.from(`${k.irisKey}:`).toString("base64")}`;
+  const res = await fetch(alamatIris(k), {
+    method: "POST",
+    headers: {
+      Authorization: auth,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "X-Idempotency-Key": p.idempotencyKey,
+    },
+    body: JSON.stringify({
+      payouts: [
+        {
+          beneficiary_name: p.namaPemilik.slice(0, 100),
+          beneficiary_account: p.nomorRekening.replace(/[^0-9]/g, ""),
+          beneficiary_bank: p.bankKode.toLowerCase(),
+          beneficiary_email: p.emailPenerima,
+          amount: String(Math.round(p.nominal)),
+          notes: p.catatan.replace(/[^a-zA-Z0-9 ]/g, " ").trim().slice(0, 80) || "Komisi Afiliasi",
+        },
+      ],
+    }),
+    signal: AbortSignal.timeout(15_000),
+    cache: "no-store",
+  });
+  const d = (await res.json().catch(() => null)) as {
+    payouts?: { status?: string; reference_no?: string }[];
+    error_message?: string;
+    errors?: string[];
+  } | null;
+  const item = d?.payouts?.[0];
+  if (!res.ok || !item?.reference_no) {
+    const pesan = d?.errors?.join("; ") || d?.error_message || `HTTP ${res.status}`;
+    throw new MidtransError(`Midtrans Iris menolak pencairan: ${pesan}`);
+  }
+  return { referenceNo: item.reference_no, status: item.status ?? "queued" };
+}

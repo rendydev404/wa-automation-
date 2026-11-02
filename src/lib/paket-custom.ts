@@ -25,10 +25,11 @@ export class GalatCustom extends Error {}
 async function tulis(p: PaketCustom): Promise<void> {
   await setSettingBersama(KUNCI, JSON.stringify(p), async (tx) => {
     await tx`
-      INSERT INTO paket(kode, nama, harga, durasi_hari, kuota_nomor, kuota_balasan, deskripsi, aktif, unggulan, urutan, created_at)
-      VALUES (${KODE_CUSTOM}, ${p.nama}, ${p.harga}, ${p.durasi_hari}, ${p.kuota_nomor}, ${p.kuota_balasan}, ${p.deskripsi}, ${customBisaDibeli(p)}, false, ${URUTAN_CUSTOM}, ${sekarang()})
+      INSERT INTO paket(kode, nama, harga, durasi_hari, kuota_nomor, kuota_balasan, deskripsi, aktif, unggulan, urutan, komisi_jenis, komisi_nilai, created_at)
+      VALUES (${KODE_CUSTOM}, ${p.nama}, ${p.harga}, ${p.durasi_hari}, ${p.kuota_nomor}, ${p.kuota_balasan}, ${p.deskripsi}, ${customBisaDibeli(p)}, false, ${URUTAN_CUSTOM}, ${p.komisi_jenis}, ${p.komisi_nilai}, ${sekarang()})
       ON CONFLICT (kode) DO UPDATE SET nama = EXCLUDED.nama, harga = EXCLUDED.harga, durasi_hari = EXCLUDED.durasi_hari, kuota_nomor = EXCLUDED.kuota_nomor,
-             kuota_balasan = EXCLUDED.kuota_balasan, deskripsi = EXCLUDED.deskripsi, aktif = EXCLUDED.aktif`;
+             kuota_balasan = EXCLUDED.kuota_balasan, deskripsi = EXCLUDED.deskripsi, aktif = EXCLUDED.aktif,
+             komisi_jenis = EXCLUDED.komisi_jenis, komisi_nilai = EXCLUDED.komisi_nilai`;
   });
 }
 

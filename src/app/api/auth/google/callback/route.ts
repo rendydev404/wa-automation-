@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { COOKIE_GOOGLE, GoogleError, asal, googleSiap, selesaikanGoogle } from "@/lib/google";
 import { akunGoogle } from "@/lib/pengguna";
 import { catatLoginBerhasil, halamanAwal, mulaiSesi, pastikanAdminAwal, pendaftaranDibuka } from "@/lib/session";
+import { COOKIE_REF, terapkanReferral } from "@/lib/afiliasi";
 
 /** Kembali dari Google: verifikasi, cari/tautkan/buat akun, lalu mulai sesi login biasa. */
 export async function GET(req: Request) {
@@ -28,7 +29,14 @@ export async function GET(req: Request) {
   if (!akun) return ke(`/login?galat=${bolehDaftar ? "gagal" : "tutup"}`);
   if (akun.status === "diblokir") return ke("/login?galat=blokir");
 
+  if (akun.baru) {
+    const refKode = toples.get(COOKIE_REF)?.value;
+    if (refKode) await terapkanReferral(akun.id, refKode).catch(() => {});
+  }
+
   await catatLoginBerhasil(akun.id);
   await mulaiSesi(akun, app.startsWith("https://"));
-  return ke(halamanAwal(akun.peran));
+  const res = ke(halamanAwal(akun.peran));
+  res.cookies.delete({ name: COOKIE_REF, path: "/" });
+  return res;
 }

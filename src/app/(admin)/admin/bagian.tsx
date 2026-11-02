@@ -5,6 +5,7 @@ import { type FilterPengguna, daftarLog, daftarPengguna } from "@/lib/pengguna";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
 import { FormAi, FormBuatAkun, FormPaket, FormPengaturan } from "./form-admin";
 import { customTampil, hargaAngka, paketCustom } from "@/lib/paket-custom";
+import { labelKomisiPaket } from "@/lib/afiliasi-def";
 import { PembangunCustom } from "./paket-custom";
 import { METODE_MANUAL, acuanHarga, aturanPercobaan, daftarPaket, pemakaianNyata, riwayatTransaksi } from "@/lib/langganan";
 import { SimulasiHarga } from "./simulasi-harga";
@@ -192,7 +193,7 @@ export async function KelolaPaket() {
                   {p.unggulan && <span className="ml-1 rounded-md bg-accent-soft px-1.5 py-0.5 text-[11px] text-accent">unggulan</span>}
                 </span>
                 <span className="text-muted tabular-nums">
-                  Rp{angka(p.harga)} · {p.durasi_hari} hari · {angka(p.kuota_nomor)} nomor · {angka(p.kuota_balasan)} balasan
+                  Rp{angka(p.harga)} · {p.durasi_hari} hari · {angka(p.kuota_nomor)} nomor · {angka(p.kuota_balasan)} balasan · komisi {labelKomisiPaket(p.komisi_jenis, p.komisi_nilai, p.harga)}
                 </span>
               </summary>
               <div className="border-t border-line bg-subtle/40 p-4">

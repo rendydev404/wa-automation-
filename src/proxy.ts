@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
+import { COOKIE_REF, UMUR_COOKIE_REF, normalkanKodeRef } from "@/lib/afiliasi-def";
 
 // /api/sinkron dipanggil database (bukan browser); keabsahannya dicek lewat tanda tangan HMAC di handler-nya.
 // "/" = landing page publik; /api/auth/google* = masuk dengan Google (sebelum ada sesi);
@@ -20,15 +21,35 @@ function asalSama(req: NextRequest): boolean {
 
 /** Pemeriksaan optimistis (tanda tangan + masa berlaku). Otorisasi penuh ada di tiap aksi/handler. */
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  if (PUBLIK.has(pathname)) return NextResponse.next();
+  const { pathname, searchParams } = request.nextUrl;
+  const refParam = searchParams.get("ref");
+  const kodeRef = refParam ? normalkanKodeRef(refParam) : null;
+  const pasangRef = (res: NextResponse): NextResponse => {
+    if (kodeRef) {
+      const sebelumnnya = request.cookies.get(COOKIE_REF)?.value;
+      res.cookies.set(COOKIE_REF, kodeRef, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: UMUR_COOKIE_REF,
+      });
+      if (sebelumnnya !== kodeRef) {
+        import("@/lib/afiliasi")
+          .then((m) => m.catatKlikReferral(kodeRef))
+          .catch(() => {});
+      }
+    }
+    return res;
+  };
+
+  if (PUBLIK.has(pathname)) return pasangRef(NextResponse.next());
 
   const sesi = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
   const isApi = pathname.startsWith("/api/");
 
   // /login & /daftar selalu diteruskan: cookie yang sah tanda tangannya belum tentu masih berlaku di database
   // (mis. password diganti, akun diblokir), dan mengalihkannya dari sini akan memutar tanpa henti.
-  if (pathname === "/login" || pathname === "/daftar") return NextResponse.next();
+  if (pathname === "/login" || pathname === "/daftar") return pasangRef(NextResponse.next());
   if (!sesi) {
     if (isApi) return NextResponse.json({ error: "Sesi berakhir. Silakan login kembali." }, { status: 401, headers: { "Cache-Control": "no-store" } });
     return NextResponse.redirect(new URL("/login", request.url));
