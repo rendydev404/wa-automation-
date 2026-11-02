@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
 import { bayarPaketAction, cekBayarAction } from "@/app/actions";
+import { LacakPurchaseMeta, lacakMetaEvent } from "@/components/meta-pixel";
 import { Pesan } from "@/components/ui";
 
 /** Buat tagihan Midtrans Snap lalu pindah ke halaman pembayarannya. */
@@ -20,8 +21,12 @@ export function TombolBayar({ paketId, label, nonaktif }: { paketId: number; lab
           mulai(async () => {
             setGalat("");
             const h = await bayarPaketAction(paketId);
-            if (h.ok && h.url) window.location.assign(h.url);
-            else setGalat(h.pesan ?? "Gagal membuat pembayaran.");
+            if (h.ok && h.url) {
+              lacakMetaEvent("initiate_checkout", { num_items: 1, currency: "IDR" });
+              window.location.assign(h.url);
+            } else {
+              setGalat(h.pesan ?? "Gagal membuat pembayaran.");
+            }
           })
         }
       >
@@ -36,12 +41,12 @@ export function TombolBayar({ paketId, label, nonaktif }: { paketId: number; lab
 /** Setelah kembali dari Midtrans: tanyakan status terbaru (webhook bisa sedikit terlambat). */
 export function HasilBayar({ orderId }: { orderId: string }) {
   const router = useRouter();
-  const [hasil, setHasil] = useState<{ status?: string; pesan?: string } | null>(null);
+  const [hasil, setHasil] = useState<{ status?: string; pesan?: string; jumlah?: number; namaPaket?: string } | null>(null);
   useEffect(() => {
     let batal = false;
     void cekBayarAction(orderId).then((h) => {
       if (batal) return;
-      setHasil(h.ok ? { status: h.status } : { pesan: h.pesan });
+      setHasil(h.ok ? { status: h.status, jumlah: h.jumlah, namaPaket: h.namaPaket } : { pesan: h.pesan });
       if (h.status === "lunas") router.refresh();
     });
     return () => {
@@ -57,9 +62,14 @@ export function HasilBayar({ orderId }: { orderId: string }) {
     );
   if (hasil.status === "lunas")
     return (
-      <p role="status" className="flex items-center gap-2 rounded-2xl bg-success-soft p-4 text-[13.5px] font-semibold text-success">
-        <CheckCircle2 className="size-5" aria-hidden /> Pembayaran berhasil. Paket kamu sudah aktif.
-      </p>
+      <>
+        {hasil.jumlah && hasil.jumlah > 0 && (
+          <LacakPurchaseMeta orderId={orderId} jumlah={hasil.jumlah} namaPaket={hasil.namaPaket ?? "Paket"} />
+        )}
+        <p role="status" className="flex items-center gap-2 rounded-2xl bg-success-soft p-4 text-[13.5px] font-semibold text-success">
+          <CheckCircle2 className="size-5" aria-hidden /> Pembayaran berhasil. Paket kamu sudah aktif.
+        </p>
+      </>
     );
   if (hasil.status === "menunggu")
     return (

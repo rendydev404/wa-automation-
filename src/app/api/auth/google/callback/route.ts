@@ -4,6 +4,7 @@ import { COOKIE_GOOGLE, GoogleError, asal, googleSiap, selesaikanGoogle } from "
 import { akunGoogle } from "@/lib/pengguna";
 import { catatLoginBerhasil, halamanAwal, mulaiSesi, pastikanAdminAwal, pendaftaranDibuka } from "@/lib/session";
 import { COOKIE_REF, terapkanReferral } from "@/lib/afiliasi";
+import { COOKIE_PIXEL_REG, kirimCapiEvent } from "@/lib/meta-pixel";
 
 /** Kembali dari Google: verifikasi, cari/tautkan/buat akun, lalu mulai sesi login biasa. */
 export async function GET(req: Request) {
@@ -32,11 +33,15 @@ export async function GET(req: Request) {
   if (akun.baru) {
     const refKode = toples.get(COOKIE_REF)?.value;
     if (refKode) await terapkanReferral(akun.id, refKode).catch(() => {});
+    void kirimCapiEvent({ kunci: "complete_registration", email: identitas.email });
   }
 
   await catatLoginBerhasil(akun.id);
   await mulaiSesi(akun, app.startsWith("https://"));
   const res = ke(halamanAwal(akun.peran));
   res.cookies.delete({ name: COOKIE_REF, path: "/" });
+  if (akun.baru) {
+    res.cookies.set(COOKIE_PIXEL_REG, "1", { maxAge: 120, path: "/", httpOnly: false, sameSite: "lax" });
+  }
   return res;
 }

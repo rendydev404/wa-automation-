@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { LacakPurchaseMeta } from "@/components/meta-pixel";
 import { angka, jamWib, tanggal } from "@/lib/format";
 import { type Transaksi, langgananAktif, terapkanStatus, transaksiMilik } from "@/lib/langganan";
 import { konfigMidtrans } from "@/lib/midtrans";
@@ -87,6 +88,7 @@ async function Sukses({ t, userId }: { t: Transaksi; userId: number }) {
     : [];
   return (
     <section className="card p-6 text-center sm:p-8" aria-labelledby="judul-hasil">
+      <LacakPurchaseMeta orderId={t.order_id} jumlah={t.jumlah} namaPaket={t.nama_paket} />
       <span className="mx-auto grid size-16 place-items-center rounded-full bg-success-soft text-success">
         <CheckCircle2 className="size-9" aria-hidden />
       </span>

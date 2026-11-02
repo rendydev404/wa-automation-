@@ -1,6 +1,8 @@
 import { Suspense } from "react";
-import { Lock, Settings2 } from "lucide-react";
+import Link from "next/link";
+import { Activity, ArrowRight, Lock, Settings2 } from "lucide-react";
 import { semuaAturan } from "@/lib/aturan";
+import { pengaturanMetaPixel } from "@/lib/meta-pixel";
 import { requireAdmin } from "@/lib/session";
 import { Pengaturan } from "../bagian";
 import { FormAturan } from "./form-aturan";
@@ -30,6 +32,45 @@ async function IsiAturan() {
   );
 }
 
+async function KartuRingkasPixel() {
+  await requireAdmin();
+  const px = await pengaturanMetaPixel();
+  const aktif = px.aktif && Boolean(px.pixelId);
+  return (
+    <section className="card p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-[15px] font-bold">
+            <Activity className="size-4 text-accent" aria-hidden /> Meta Ads Pixel
+          </h2>
+          <p className="mt-0.5 text-[13px] text-muted">
+            {aktif ? (
+              <>
+                Aktif dengan ID <code className="font-mono font-semibold text-fg">{px.pixelId}</code>
+                {px.capiToken ? " + Conversions API" : ""}.
+              </>
+            ) : (
+              "Belum diaktifkan. Pasang ID Pixel untuk melacak konversi iklan Meta Ads."
+            )}
+          </p>
+        </div>
+        <span
+          className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+            aktif ? "bg-success-soft text-success" : "bg-subtle text-muted"
+          }`}
+        >
+          {aktif ? "Aktif" : "Nonaktif"}
+        </span>
+      </div>
+      <div className="mt-4">
+        <Link href="/admin/pixel" className="btn btn-ghost border border-line text-[12.5px]">
+          Kelola Meta Pixel <ArrowRight className="size-3.5" aria-hidden />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 export default function HalamanAturan() {
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -45,6 +86,9 @@ export default function HalamanAturan() {
         <div className="space-y-6">
           <Suspense fallback={<div aria-hidden className="card h-[420px] animate-denyut" />}>
             <Pengaturan />
+          </Suspense>
+          <Suspense fallback={<div aria-hidden className="card h-[140px] animate-denyut" />}>
+            <KartuRingkasPixel />
           </Suspense>
           <section className="card p-6">
             <h2 className="flex items-center gap-2 text-[15px] font-bold">

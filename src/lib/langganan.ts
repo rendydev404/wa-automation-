@@ -7,6 +7,7 @@ import { hermesTerkonfigurasi } from "./hermes";
 import { type KonfigMidtrans, MidtransError, type StatusBayar, buatSnap, petaStatus, statusMidtrans } from "./midtrans";
 import { KODE_CUSTOM } from "./paket-custom-def";
 import { type JenisKomisi, prosesKomisiTransaksi } from "./afiliasi";
+import { kirimCapiEvent } from "./meta-pixel";
 
 /**
  * Paket langganan, masa aktif, transaksi Midtrans, dan kuota.
@@ -368,7 +369,8 @@ export async function mulaiBayar(k: KonfigMidtrans, user: { id: number; email: s
 export async function terapkanStatus(k: KonfigMidtrans, orderId: string): Promise<{ status: StatusBayar; baruAktif: boolean } | null> {
   const s = await statusMidtrans(k, orderId);
   const status = petaStatus(s);
-  return transaksiDb(async (tx) => {
+  let infoCapi: { jumlah: number; namaPaket: string } | null = null;
+  const hasil = await transaksiDb(async (tx) => {
     const [t] = await tx<(Transaksi & { aktif_id: number | null })[]>`
       SELECT ${tx.unsafe(KOLOM_TRX)}, langganan_id AS aktif_id FROM transaksi WHERE order_id = ${orderId} FOR UPDATE`;
     if (!t) return null;
@@ -385,8 +387,18 @@ export async function terapkanStatus(k: KonfigMidtrans, orderId: string): Promis
     await tx`UPDATE transaksi SET langganan_id = ${id} WHERE id = ${t.id}`;
     await prosesKomisiTransaksi(tx, { transaksiId: t.id, userId: t.user_id, paketId: t.paket_id, namaPaket: t.nama_paket, jumlahBayar: t.jumlah });
     segarkanKuota(t.user_id);
+    infoCapi = { jumlah: t.jumlah, namaPaket: t.nama_paket };
     return { status, baruAktif: true };
   });
+  if (hasil?.baruAktif && infoCapi) {
+    const c = infoCapi as { jumlah: number; namaPaket: string };
+    void kirimCapiEvent({
+      kunci: "purchase",
+      eventId: orderId,
+      customData: { value: c.jumlah, currency: "IDR", content_name: c.namaPaket, content_type: "product" },
+    });
+  }
+  return hasil;
 }
 
 /** Isi paket yang disepakati khusus untuk satu akun (tidak mengubah paket mana pun). */

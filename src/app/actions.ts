@@ -25,6 +25,15 @@ import { MAKS_HARGA_PAKET, METODE_BAYAR } from "@/lib/harga";
 import { authConfigured } from "@/lib/auth";
 import { asalAplikasi, ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
 import { sekarang, setSetting } from "@/lib/db";
+import {
+  COOKIE_PIXEL_REG,
+  KUNCI_EVENT_META,
+  type KunciEventMeta,
+  ekstrakPixelId,
+  kirimCapiEvent,
+  simpanPengaturanMetaPixel,
+  ujiCapiMetaPixel,
+} from "@/lib/meta-pixel";
 import { ATURAN_ANGKA, ATURAN_SAKLAR, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
 import { type IsiKhusus, METODE_MANUAL, type MetodeManual, berikanPaketManual, hapusPaket, hentikanLangganan, mulaiBayar, paketById, riwayatTransaksi, segarkanKuota, simpanPaket, terapkanSimulasi, terapkanStatus } from "@/lib/langganan";
 import { MidtransError, konfigMidtrans } from "@/lib/midtrans";
@@ -134,6 +143,8 @@ export async function daftarAction(_lalu: Hasil | null, form: FormData): Promise
     await terapkanReferral(akun.id, refKode).catch(() => {});
     toples.delete(COOKIE_REF);
   }
+  toples.set(COOKIE_PIXEL_REG, "1", { maxAge: 120, path: "/", httpOnly: false, sameSite: "lax" });
+  void kirimCapiEvent({ kunci: "complete_registration", email });
   await catatLoginBerhasil(akun.id);
   await mulaiSesi(akun, await lewatHttps());
   redirect(halamanAwal(akun.peran));
@@ -667,7 +678,13 @@ export async function bayarPaketAction(paketId: number): Promise<Hasil & { url?:
   const paket = Number.isInteger(paketId) ? await paketById(paketId) : undefined;
   if (!paket || !paket.aktif || paket.harga < 1) return { ok: false, pesan: "Paket tidak ditemukan." };
   try {
-    return { ok: true, url: await mulaiBayar(k, user, paket, await asalAplikasi()) };
+    const url = await mulaiBayar(k, user, paket, await asalAplikasi());
+    void kirimCapiEvent({
+      kunci: "initiate_checkout",
+      email: user.email,
+      customData: { value: paket.harga, currency: "IDR", content_name: paket.nama, num_items: 1 },
+    });
+    return { ok: true, url };
   } catch (e) {
     console.error(`[bayar] gagal membuat tagihan user=${user.id}: ${e instanceof Error ? e.message : e}`);
     return { ok: false, pesan: e instanceof MidtransError ? "Pembayaran sedang tidak bisa dibuat. Coba lagi nanti." : "Terjadi kesalahan. Coba lagi." };
@@ -675,7 +692,7 @@ export async function bayarPaketAction(paketId: number): Promise<Hasil & { url?:
 }
 
 /** Kembali dari Midtrans: status terbaru ditanyakan langsung ke Midtrans (tidak menunggu webhook). */
-export async function cekBayarAction(orderId: string): Promise<Hasil & { status?: string }> {
+export async function cekBayarAction(orderId: string): Promise<Hasil & { status?: string; jumlah?: number; namaPaket?: string }> {
   const user = await requireUser();
   const k = await konfigMidtrans();
   const t = (await riwayatTransaksi({ userId: user.id, batas: 50 })).find((x) => x.order_id === orderId);
@@ -683,7 +700,7 @@ export async function cekBayarAction(orderId: string): Promise<Hasil & { status?
   try {
     const h = await terapkanStatus(k, orderId);
     revalidatePath("/langganan");
-    return { ok: true, status: h?.status };
+    return { ok: true, status: h?.status, jumlah: t.jumlah, namaPaket: t.nama_paket };
   } catch {
     return { ok: false, pesan: "Status pembayaran belum bisa dicek. Coba muat ulang sebentar lagi." };
   }
@@ -1055,4 +1072,73 @@ export async function adminProsesPenarikanAction(_lalu: Hasil | null, form: Form
     "/admin/afiliasi",
     "/afiliasi"
   );
+}
+
+// ---------- Admin: Meta Ads Pixel ----------
+
+export async function adminMetaPixelAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const ambil =
+    form instanceof FormData
+      ? (k: string) => form.get(k)
+      : (_lalu as unknown) instanceof FormData
+        ? (k: string) => (_lalu as unknown as FormData).get(k)
+        : form && typeof form === "object"
+          ? (k: string) => (form as unknown as Record<string, unknown>)[k]
+          : null;
+  if (!ambil) return { ok: false, pesan: "Data formulir tidak terbaca." };
+  const pixelMentah = String(ambil("pixel_id") ?? "");
+  const pixelId = ekstrakPixelId(pixelMentah);
+  if (pixelId === null) {
+    return {
+      ok: false,
+      pesan: "ID Meta Pixel tidak valid. Masukkan 8–25 digit angka ID Pixel atau tempel langsung kode script dari Meta Events Manager.",
+    };
+  }
+  const aktif = Boolean(pixelId) && ambil("aktif") === "on";
+  const capiToken = String(ambil("capi_token") ?? "").trim();
+  const testEventCode = String(ambil("test_event_code") ?? "").trim();
+  const event = Object.fromEntries(
+    KUNCI_EVENT_META.map((k) => [k, ambil(`ev_${k}`) === "on"])
+  ) as Record<KunciEventMeta, boolean>;
+
+  try {
+    const tersimpan = await simpanPengaturanMetaPixel({
+      aktif,
+      pixelId,
+      capiToken,
+      testEventCode,
+      event,
+    });
+    const evAktif = KUNCI_EVENT_META.filter((k) => tersimpan.event[k]).length;
+    await catatLog(
+      admin,
+      "ubah meta pixel",
+      null,
+      tersimpan.pixelId
+        ? `ID ${tersimpan.pixelId} (${tersimpan.aktif ? "aktif" : "nonaktif"}, ${evAktif}/${KUNCI_EVENT_META.length} event${tersimpan.capiToken ? ", CAPI terpasang" : ""})`
+        : "pixel dikosongkan"
+    );
+    revalidatePath("/", "layout");
+    revalidatePath("/admin", "layout");
+    return {
+      ok: true,
+      pesan: tersimpan.pixelId
+        ? tersimpan.aktif
+          ? `Meta Pixel (${tersimpan.pixelId}) tersimpan dan langsung aktif di seluruh halaman.`
+          : `ID Meta Pixel (${tersimpan.pixelId}) tersimpan dalam keadaan nonaktif.`
+        : "Meta Pixel dinonaktifkan dan dikosongkan.",
+    };
+  } catch (e) {
+    return { ok: false, pesan: e instanceof Error ? e.message : "Gagal menyimpan pengaturan Meta Pixel." };
+  }
+}
+
+export async function adminUjiMetaPixelAction(): Promise<Hasil> {
+  const admin = await requireAdmin();
+  if (terlaluSering(`uji-px:${admin.id}`, 8, 5 * 60_000)) {
+    return { ok: false, pesan: "Terlalu sering mengirim event uji. Tunggu sebentar lalu coba lagi." };
+  }
+  const ip = await ipKlien();
+  return ujiCapiMetaPixel({ ip, email: admin.email });
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Montserrat, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import { MetaPixel } from "@/components/meta-pixel-server";
 import { MEREK } from "@/lib/merek";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -26,7 +27,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="id" data-scroll-behavior="smooth" className={`${plusJakarta.variable} ${montserrat.variable} h-full antialiased`}>
-      <body className="min-h-full bg-canvas font-sans text-fg">{children}</body>
+      <body className="min-h-full bg-canvas font-sans text-fg">
+        <MetaPixel />
+        {children}
+      </body>
     </html>
   );
 }

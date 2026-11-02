@@ -153,7 +153,10 @@ try {
   const halAdminAf = await minta("GET", "/admin/afiliasi", { headers: { "accept-encoding": "identity" } });
   assert.equal(halAdminAf.status, 200);
   assert.match(halAdminAf.teks, /Afiliasi &amp; Pencairan Komisi/);
-  console.log("  /program-afiliasi (+ cookie wa_ref), /afiliasi, dan /admin/afiliasi lolos 200 OK");
+  const halAdminPx = await minta("GET", "/admin/pixel", { headers: { "accept-encoding": "identity" } });
+  assert.equal(halAdminPx.status, 200);
+  assert.match(halAdminPx.teks, /Meta Ads Pixel/);
+  console.log("  /program-afiliasi (+ cookie wa_ref), /afiliasi, /admin/afiliasi, dan /admin/pixel lolos 200 OK");
 
   console.log("\n== kecepatan endpoint (12 nomor) ==");
   await ukur("/api/wa/status", 30);
@@ -172,6 +175,34 @@ try {
   let r = await aksi("setBotAktifAction", [3, false]);
   assert.match(r.teks, /"ok":true/);
   console.log(`  setBotAktifAction: ${r.ms.toFixed(0)} ms`);
+
+  // Uji E2E penyimpanan Meta Pixel oleh admin -> tampil di halaman publik & tidak membocorkan CAPI token
+  {
+    const resPx = await aksi("adminMetaPixelAction", [
+      null,
+      {
+        aktif: "on",
+        pixel_id: "<script>fbq('init', '123456789012345'); fbq('track', 'PageView');</script>",
+        capi_token: "EAARahasiaTokenJanganBocor999",
+        test_event_code: "TEST12345",
+        ev_page_view: "on",
+        ev_lead_wa: "on",
+        ev_complete_registration: "on",
+        ev_initiate_checkout: "on",
+        ev_purchase: "on",
+      },
+    ]);
+    assert.equal(resPx.status, 200);
+    assert.match(resPx.teks, /"ok":true/);
+    assert.match(resPx.teks, /123456789012345/);
+    const landingPx = await minta("GET", "/", { headers: { cookie: "", "accept-encoding": "identity" } });
+    assert.match(landingPx.teks, /facebook\.com\/tr\?id=123456789012345/);
+    assert.ok(!landingPx.teks.includes("EAARahasiaTokenJanganBocor999"), "token CAPI tidak boleh bocor ke HTML publik");
+    const aturanPx = await minta("GET", "/admin/aturan", { headers: { "accept-encoding": "identity" } });
+    assert.equal(aturanPx.status, 200);
+    assert.match(aturanPx.teks, /123456789012345/);
+    console.log(`  adminMetaPixelAction: ${resPx.ms.toFixed(0)} ms (ekstrak ID dari script -> aktif di landing page & /admin/aturan, token CAPI aman)`);
+  }
 
   // TANPA_WHATSAPP=1 (dipakai CI): lewati bagian yang membuka koneksi sungguhan ke WhatsApp.
   if (!process.env.TANPA_WHATSAPP) {

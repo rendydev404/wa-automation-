@@ -21,6 +21,7 @@ const JALUR_DB = [
   "uji/uji-langganan.mjs",
   "uji/uji-ai.mjs",
   "uji/uji-afiliasi.mjs",
+  "uji/uji-pixel.mjs",
   "uji/uji-log.mjs",
 ];
 const TOTAL_BERKAS = JALUR_TIMER.length + JALUR_DB.length;
