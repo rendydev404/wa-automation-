@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { ArrowRight, Banknote, Check, Clock, Link2, Percent, ShieldCheck, Share2, Sparkles, TrendingUp, Users, Wallet } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { AlurAfiliasiInteraktif, KalkulatorAfiliasi, type PaketSimulasiAfiliasi } from "@/components/landing/interaktif-afiliasi";
+import { WidgetWaLanding } from "@/components/landing/widget-wa";
 import { DAFTAR_BANK, hitungKomisiPaket, labelKomisiPaket } from "@/lib/afiliasi-def";
 import { pengaturanAfiliasi } from "@/lib/afiliasi";
 import { angka } from "@/lib/format";
@@ -437,6 +438,8 @@ export default function HalamanProgramAfiliasi() {
           </div>
         </div>
       </footer>
+
+      <WidgetWaLanding />
     </div>
   );
 }

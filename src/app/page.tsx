@@ -6,6 +6,7 @@ import { DemoAlur, DemoChat } from "@/components/landing/demo";
 import { HargaLanding } from "@/components/landing/harga";
 import { Logo } from "@/components/logo";
 import { Kalkulator } from "@/components/landing/kalkulator";
+import { NOMOR_WA_TAMPIL, WidgetWaLanding, buatUrlWaDemo } from "@/components/landing/widget-wa";
 import { UMUR_HISTORI_HARI } from "@/lib/format";
 import { MEREK } from "@/lib/merek";
 
@@ -105,7 +106,15 @@ export default function Landing() {
               <Link href="/daftar" className="group inline-flex items-center gap-2 rounded-2xl bg-ink-signal px-6 py-3.5 text-[15px] font-bold text-ink shadow-[0_12px_40px_-12px_rgba(61,220,151,0.7)] transition-transform hover:-translate-y-0.5">
                 Mulai gratis <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
               </Link>
-              <a href="#cara-kerja" className="inline-flex items-center gap-2 rounded-2xl border border-ink-line px-6 py-3.5 text-[15px] font-semibold text-ink-fg transition-colors hover:bg-white/[0.05]">
+              <a
+                href={buatUrlWaDemo()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-2xl border border-ink-signal/40 bg-ink-signal/10 px-5 py-3.5 text-[15px] font-bold text-ink-signal transition-colors hover:bg-ink-signal/20"
+              >
+                <Smartphone className="size-4" aria-hidden /> Coba Tes WA ({NOMOR_WA_TAMPIL})
+              </a>
+              <a href="#cara-kerja" className="inline-flex items-center gap-2 rounded-2xl border border-ink-line px-5 py-3.5 text-[15px] font-semibold text-ink-fg transition-colors hover:bg-white/[0.05]">
                 Lihat cara kerja
               </a>
             </div>
@@ -289,7 +298,15 @@ export default function Landing() {
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-[1200px] flex-col items-center justify-between gap-3 px-4 py-8 text-[13px] text-muted sm:flex-row sm:px-6">
           <Logo />
-          <div className="flex gap-5">
+          <div className="flex flex-wrap items-center justify-center gap-5">
+            <a
+              href={buatUrlWaDemo()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-fg hover:text-accent"
+            >
+              Tes WA: {NOMOR_WA_TAMPIL}
+            </a>
             <Link href="/program-afiliasi" className="font-semibold text-accent hover:text-fg">
               Program Afiliasi
             </Link>
@@ -302,6 +319,8 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+
+      <WidgetWaLanding />
     </div>
   );
 }
