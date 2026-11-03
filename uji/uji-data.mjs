@@ -104,7 +104,7 @@ await cek("semua tabel terimpor dengan jumlah yang benar; sisa yatim tidak ikut"
 await cek("isi dan tipe kolom utuh: id, boolean, pengaturan per nomor, tanda kutip, tanggal statistik", async () => {
   const n = await semuaNomor();
   assert.deepEqual(n.map((x) => x.id), [2, 5, 9]);
-  assert.deepEqual({ ...n[0] }, { id: 2, user_id: 1, pemilik_aktif: true, sesi: "n2xdcae0179", wa_id: "6281234500001", label: "tes", nama_wa: "Toko Lama", bot_aktif: true, instruksi: "Jawab singkat.", tunggu_detik: 7, tunggu_baca_detik: 60, jeda_detik: 900, belajar: true, saring_spam: true, teruskan_ke: null, teruskan_aktif: false, created_at: kini - 8000, last_connected_at: kini - 50 });
+  assert.deepEqual({ ...n[0] }, { id: 2, user_id: 1, pemilik_aktif: true, sesi: "n2xdcae0179", wa_id: "6281234500001", label: "tes", nama_wa: "Toko Lama", bot_aktif: true, instruksi: "Jawab singkat.", tunggu_detik: 7, tunggu_baca_detik: 60, jeda_detik: 900, belajar: true, saring_spam: true, saring_prospek: true, teruskan_ke: null, teruskan_aktif: false, created_at: kini - 8000, last_connected_at: kini - 50 });
   assert.equal(n[1].bot_aktif, false);
   assert.equal(n[1].wa_id, null);
   assert.equal(n[2].label, "Outlet 'B'");
@@ -114,7 +114,7 @@ await cek("isi dan tipe kolom utuh: id, boolean, pengaturan per nomor, tanda kut
   const st = await sql`SELECT number_id, tanggal::text AS tanggal, masuk, dibalas, gagal FROM stats ORDER BY tanggal`;
   assert.deepEqual(st.map((r) => ({ ...r })), [{ number_id: 2, tanggal: "2026-10-13", masuk: 14, dibalas: 9, gagal: 1 }, { number_id: 2, tanggal: "2026-10-14", masuk: 3, dibalas: 3, gagal: 0 }]);
   const [c] = await sql`SELECT * FROM chat_state WHERE kunci = 'aaaabbbbccccddddeeeeffff00001111'`;
-  assert.deepEqual({ ...c }, { kunci: "aaaabbbbccccddddeeeeffff00001111", sesi_ke: 3, last_at: kini - 30, jeda_sampai: kini + 900, jendela_awal: kini - 60, jendela_n: 2 });
+  assert.deepEqual({ ...c }, { kunci: "aaaabbbbccccddddeeeeffff00001111", sesi_ke: 3, last_at: kini - 30, jeda_sampai: kini + 900, jendela_awal: kini - 60, jendela_n: 2, prospek: 0, strike: 0, bisu_sampai: 0 });
   assert.match(JSON.parse(await getSetting("galat_terakhir")).pesan, /HTTP 502/);
 });
 

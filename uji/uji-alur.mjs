@@ -21,6 +21,7 @@ const pg = await mulaiPg({ dir: path.join(tmp, "pg"), sementara: true });
 process.env.DATABASE_URL = pg.url;
 process.env.DATA_DIR = path.join(tmp, "data-kosong");
 process.env.AI_JEDA_ULANG_MS = "300,600";
+process.env.ML_PELUANG_AUDIT = "0"; // audit acak penyaring prospek dimatikan supaya uji pasti
 const lib = (f) => import(pathToFileURL(path.join(akar, f)).href);
 const tidur = (ms) => new Promise((r) => setTimeout(r, ms));
 const kini = () => Math.floor(Date.now() / 1000);
@@ -198,7 +199,7 @@ const stat = async (id) => {
 const kunciChat = (sesi, chat) => createHash("sha256").update(`${sesi}|${chat}`).digest("hex").slice(0, 32);
 /** Keadaan chat di memori jembatan (acuan selama chat aktif) dan di database (yang bertahan). */
 const chatMemori = (sesi, chat) => globalThis.__waBridge.antre.get(kunciChat(sesi, chat))?.chat ?? null;
-const chatDb = async (sesi, chat) => (await bridge.tulisTuntas(), (await sql`SELECT sesi_ke, last_at, jeda_sampai, jendela_awal, jendela_n FROM chat_state WHERE kunci = ${kunciChat(sesi, chat)}`)[0] ?? null);
+const chatDb = async (sesi, chat) => (await bridge.tulisTuntas(), (await sql`SELECT sesi_ke, last_at, jeda_sampai, jendela_awal, jendela_n, prospek, strike, bisu_sampai FROM chat_state WHERE kunci = ${kunciChat(sesi, chat)}`)[0] ?? null);
 const cacheNomorBasi = () => (globalThis.__waNomor.janji = null); // setelah mengubah tabel numbers langsung lewat SQL
 let urut = 0;
 const idBaru = () => `UJI${String(++urut).padStart(5, "0")}`;
@@ -219,7 +220,8 @@ const penerusUji = (id) => `62812990${String(id).padStart(5, "0")}`;
 async function nomorCepat(label) {
   const n = await tambahNomor(label);
   // 1 detik: di bawah batas dashboard (2 dtk), hanya supaya uji tidak lama
-  await sql`UPDATE numbers SET tunggu_detik = 1, tunggu_baca_detik = 3, jeda_detik = 1800, teruskan_ke = ${penerusUji(n.id)} WHERE id = ${n.id}`;
+  // Penyaring prospek dimatikan di nomor uji biasa (diuji tersendiri di bagian "Penyaring prospek").
+  await sql`UPDATE numbers SET tunggu_detik = 1, tunggu_baca_detik = 3, jeda_detik = 1800, teruskan_ke = ${penerusUji(n.id)}, saring_prospek = false WHERE id = ${n.id}`;
   cacheNomorBasi();
   return n;
 }
@@ -1234,6 +1236,198 @@ await cek("pesan suara: ditranskrip (selagi menunggu jeda balas) lalu dibaca AI;
     delete process.env.STT_API_URL;
   }
 });
+
+bagian("D6. Penyaring prospek (label AI utama + ML lokal)");
+// Giliran AI sisa uji sebelumnya dituntaskan dulu supaya hitungan balasan di bagian ini tidak tercampur.
+{
+  // Diam = tidak ada panggilan AI baru selama 1,5 dtk dan tidak ada giliran yang sedang diproses.
+  let n = -1;
+  await tunggu(async () => {
+    const diam = hermes.panggilan.length === n && ![...globalThis.__waBridge.antre.values()].some((x) => x.sedangProses);
+    n = hermes.panggilan.length;
+    if (!diam) await tidur(1500);
+    return diam;
+  }, 30000, "jembatan diam");
+}
+await bridge.tulisTuntas();
+await sql`UPDATE numbers SET saring_prospek = true WHERE id = ${A.id}`;
+cacheNomorBasi();
+const PR = await lib("src/lib/prospek.ts");
+const antreChat = (P) => globalThis.__waBridge.antre.get(kunciChat(A.sesi, P));
+/** Lawan bicara membalas seperti manusia (tidak dalam 2 dtk setelah balasan kita): detektor bot tidak menghitungnya. */
+const santai = (P) => {
+  const a = antreChat(P);
+  if (a) a.kirimAkhirMs = 0;
+};
+const statusProspek = async (P) => {
+  await bridge.tulisTuntas();
+  await PR.tulisProspekTuntas();
+  return (await sql`SELECT prospek, prospek_alasan FROM percakapan WHERE kunci = ${kunciChat(A.sesi, P)}`)[0];
+};
+const jawabBernilai = (p) =>
+  /harga|pesan|order/i.test(p.pesan)
+    ? "Harganya ada di daftar kak.\n<nilai>prospek</nilai>"
+    : /makasih/i.test(p.pesan)
+      ? "<nilai>selesai</nilai>"
+      : "Maaf kak, aku bantu seputar Toko A ya.\n<nilai>bukan</nilai>";
+async function kirimTunggu(P, teks, ke) {
+  santai(P);
+  tiba(sA, pesan(P, teks));
+  await tunggu(() => sA.terkirim.length === ke, 6000, `balasan ke-${ke} untuk "${teks}"`);
+}
+async function bisukan(P) {
+  for (const t of ["wkwk kamu bot ya", "ceritain lelucon dong", "presiden indonesia siapa"]) await kirimTunggu(P, t, sA.terkirim.length + 1);
+  assert.equal((await statusProspek(P)).prospek, 2, "dibisukan setelah 3 strike");
+}
+
+await cek("label AI tidak sampai ke pelanggan; 3 pesan bukan prospek beruntun = dibisukan; minat = dilayani lagi", async () => {
+  hermes.jawab = jawabBernilai;
+  const P = "555000701@lid";
+  const k0 = sA.terkirim.length;
+  await bisukan(P);
+  assert.equal(sA.terkirim.length, k0 + 3, "3 pesan pertama tetap dijawab (kalimat pengarah)");
+  for (const t of sA.terkirim.slice(-3)) assert.doesNotMatch(t.isi.text, /nilai|bukan</);
+  assert.match(hermes.panggilan.at(-1).sistem, /<penilaian_pesan>/);
+  const s = await statusProspek(P);
+  assert.match(s.prospek_alasan, /^Bukan prospek: 3 pesan beruntun/);
+  // ML masih magang: pesan di chat yang dibisukan dicek AI utama, tetap bukan prospek = tidak dibalas, tidak ditandai dibaca.
+  const n0 = hermes.panggilan.length;
+  const d0 = sA.dibaca.length;
+  santai(P);
+  tiba(sA, pesan(P, "lagi apa kak"));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 6000);
+  await tidur(400);
+  assert.equal(sA.terkirim.length, k0 + 3);
+  assert.equal(sA.dibaca.length, d0);
+  const [u] = await sql`SELECT abaikan FROM ai_pakai WHERE number_id = ${A.id} ORDER BY id DESC LIMIT 1`;
+  assert.equal(u.abaikan, true, "tidak memotong kuota balasan");
+  // Menanyakan hal seputar usaha: dicek, dinilai prospek, dijawab, dan chat jadi prospek.
+  await kirimTunggu(P, "kak harga paket A berapa?", k0 + 4);
+  assert.equal((await statusProspek(P)).prospek, 1);
+  await PR.tulisProspekTuntas();
+  const [c] = await sql`SELECT COUNT(*)::int AS n, COUNT(*) FILTER (WHERE sumber = 3)::int AS koreksi FROM ml_contoh WHERE number_id = ${A.id}`;
+  assert.ok(c.n >= 5, `pengalaman tercatat (${c.n})`);
+  assert.equal(c.koreksi, 1, "chat dibisukan yang ternyata prospek dipelajari sebagai koreksi");
+  hermes.jawab = null;
+});
+
+await cek("chat yang sudah prospek tidak pernah dibisukan dan tidak dibatasi jumlah balasannya", async () => {
+  hermes.jawab = jawabBernilai;
+  const P = "555000702@lid";
+  const k0 = sA.terkirim.length;
+  await kirimTunggu(P, "mau pesan 2 ya kak", k0 + 1);
+  for (let i = 0; i < 4; i++) await kirimTunggu(P, `wkwk lucu banget ${i}`, k0 + 2 + i);
+  assert.equal((await statusProspek(P)).prospek, 1);
+  hermes.jawab = null;
+});
+
+await cek("ucapan penutup yang dinilai 'selesai': tidak dibalas dan tidak memotong kuota", async () => {
+  hermes.jawab = jawabBernilai;
+  const P = "555000703@lid";
+  const k0 = sA.terkirim.length;
+  await kirimTunggu(P, "harga paket B berapa kak", k0 + 1);
+  const n0 = hermes.panggilan.length;
+  santai(P);
+  tiba(sA, pesan(P, "ok makasih kak"));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 6000);
+  await tidur(400);
+  assert.equal(sA.terkirim.length, k0 + 1);
+  const [u] = await sql`SELECT abaikan FROM ai_pakai WHERE number_id = ${A.id} ORDER BY id DESC LIMIT 1`;
+  assert.equal(u.abaikan, true);
+  hermes.jawab = null;
+});
+
+await cek("detektor bot tanpa AI: gema balasan kita, pesan panjang berulang, balasan secepat mesin", async () => {
+  hermes.jawab = jawabBernilai;
+  // Gema: lawan bicara memantulkan balasan kita persis.
+  const P1 = "555000704@lid";
+  await kirimTunggu(P1, "harga berapa kak", sA.terkirim.length + 1);
+  santai(P1);
+  tiba(sA, pesan(P1, sA.terkirim.at(-1).isi.text));
+  await tunggu(async () => (await statusProspek(P1))?.prospek === 3, 4000, "gema = bot");
+  assert.match((await statusProspek(P1)).prospek_alasan, /memantulkan/);
+  // Pesan panjang yang sama berulang (broadcast/auto-reply).
+  const P2 = "555000705@lid";
+  const promo = "Halo, kami menawarkan jasa pembuatan website murah meriah mulai 500rb";
+  await kirimTunggu(P2, promo, sA.terkirim.length + 1);
+  await kirimTunggu(P2, promo, sA.terkirim.length + 1);
+  santai(P2);
+  tiba(sA, pesan(P2, promo));
+  await tunggu(async () => (await statusProspek(P2))?.prospek === 3, 4000, "berulang = bot");
+  // Secepat mesin: 5 balasan beruntun < 2 dtk setelah balasan kita.
+  const P3 = "555000706@lid";
+  let k = sA.terkirim.length;
+  await kirimTunggu(P3, "harga 1", ++k);
+  // Balasan lawan bicara dibuat tiba tepat setelah balasan kita (tidak bergantung pada beban CPU mesin uji).
+  const cepat = () => (antreChat(P3).kirimAkhirMs = Date.now());
+  for (let i = 2; i <= 5; i++) {
+    cepat();
+    tiba(sA, pesan(P3, `harga ${i}`));
+    await tunggu(() => sA.terkirim.length === k + 1, 6000);
+    k += 1;
+  }
+  cepat();
+  tiba(sA, pesan(P3, "harga 6"));
+  await tunggu(async () => (await statusProspek(P3))?.prospek === 3, 4000, "cepat = bot");
+  await tidur(1500);
+  assert.equal(sA.terkirim.length, k, "pesan bot terakhir tidak dijawab");
+  hermes.jawab = null;
+});
+
+await cek("pemilik membalas chat yang dibisukan: pembisuan keliru dicatat, kontak jadi dikenal", async () => {
+  hermes.jawab = jawabBernilai;
+  const P = "555000707@lid";
+  await bisukan(P);
+  tiba(sA, pesan(P, "Halo kak, maaf baru balas. Ada yang bisa dibantu?", { dariSaya: true }));
+  await tunggu(async () => (await statusProspek(P))?.prospek === 1, 4000, "dipulihkan pemilik");
+  assert.equal(antreChat(P).dikenal, true);
+  await PR.tulisProspekTuntas();
+  const [m] = await sql`SELECT salah_bisu, dibisukan FROM ml_nomor WHERE number_id = ${A.id}`;
+  assert.ok(m.salah_bisu >= 1 && m.dibisukan >= 2);
+  hermes.jawab = null;
+});
+
+await cek("ML aktif: pesan iseng di chat yang dibisukan & penutup dilewati tanpa memanggil AI; kata minat tetap dicek", async () => {
+  hermes.jawab = jawabBernilai;
+  const P = "555000708@lid";
+  await bisukan(P);
+  await sql`INSERT INTO ml_nomor(number_id, aktif, ambang) VALUES (${A.id}, true, 0.6) ON CONFLICT (number_id) DO UPDATE SET aktif = true, ambang = 0.6`;
+  globalThis.__waProspek.nomor.delete(A.id); // muat ulang setelan dari database
+  const n0 = hermes.panggilan.length;
+  santai(P);
+  tiba(sA, pesan(P, "putar lagu kesukaanku dong"));
+  await tidur(1800);
+  assert.equal(hermes.panggilan.length, n0, "dilewati ML tanpa AI");
+  await kirimTunggu(P, "kak mau order paket A", sA.terkirim.length + 1);
+  // Penutup setelah jawaban yang tidak bertanya: ML mengenalinya dari pengalaman tadi ("ok makasih kak" = selesai).
+  const n1 = hermes.panggilan.length;
+  santai(P);
+  tiba(sA, pesan(P, "ok makasih kak"));
+  await tidur(1800);
+  assert.equal(hermes.panggilan.length, n1, "penutup dilewati tanpa AI");
+  await PR.tulisProspekTuntas();
+  const [m] = await sql`SELECT dihemat FROM ml_nomor WHERE number_id = ${A.id}`;
+  assert.ok(m.dihemat >= 2);
+  await sql`UPDATE ml_nomor SET aktif = false WHERE number_id = ${A.id}`;
+  globalThis.__waProspek.nomor.delete(A.id);
+  hermes.jawab = null;
+});
+
+await cek("ujian malam berjalan pada pengalaman nomor; tombol 'Layani lagi' membangunkan chat", async () => {
+  const h = await PR.ujiNomor(A.id);
+  assert.ok(h.contoh >= 10);
+  assert.equal(h.aktif, false, "pengalaman masih sedikit: tetap magang");
+  const P = "555000701@lid";
+  await bridge.tulisTuntas();
+  globalThis.__waBridge.antre.delete(kunciChat(A.sesi, P));
+  await sql`UPDATE chat_state SET prospek = 2 WHERE kunci = ${kunciChat(A.sesi, P)}`;
+  await bridge.bangunkanChat(A.id, kunciChat(A.sesi, P));
+  assert.equal((await statusProspek(P)).prospek, 0);
+  const [c] = await sql`SELECT prospek FROM chat_state WHERE kunci = ${kunciChat(A.sesi, P)}`;
+  assert.equal(c.prospek, 0);
+});
+await sql`UPDATE numbers SET saring_prospek = false WHERE id = ${A.id}`;
+cacheNomorBasi();
 
 bagian("E. Batas dan galat");
 

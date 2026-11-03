@@ -18,6 +18,8 @@ cp -r .next/static "$TMP/standalone/.next/static"
 [ -d public ] && cp -r public "$TMP/standalone/public"
 # Jangan pernah ikut terkirim: data lokal, env lokal, dan biner khusus Windows.
 rm -rf "$TMP/standalone/data" "$TMP/standalone"/.env* "$TMP/standalone/node_modules/@img"
+# onnxruntime-node membawa biner semua platform; server hanya butuh Linux. (Build di Windows/macOS: biner Linux tetap ada di paketnya.)
+for d in "$TMP"/standalone/node_modules/onnxruntime-node/bin/napi-v*; do [ -d "$d" ] && find "$d" -mindepth 1 -maxdepth 1 ! -name linux -exec rm -rf {} +; done
 echo "manual-$(date +%Y%m%d-%H%M%S)" > "$TMP/standalone/VERSI"
 cp deploy/Dockerfile deploy/docker-compose.yml "$TMP/"
 

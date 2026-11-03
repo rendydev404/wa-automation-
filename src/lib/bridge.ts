@@ -8,8 +8,10 @@ import { bisaTeruskan, kabariKuotaHabis, teruskanKePemilik } from "./penerusan";
 import type { TagTeruskan } from "./teruskan";
 import { type KirimProduk, bahanKirim, captionProduk, daftarProduk, katalogBoleh, perluDaftar, teksKatalog } from "./katalog";
 import { type Nomor, catatStat, catatTerhubung, nomorBySesi, siapDipakai } from "./numbers";
-import { catatPesan, chatDipercaya, riwayatUntukAi, tandaiSpam } from "./percakapan";
+import { catatPesan, chatDipercaya, riwayatUntukAi, tandaiProspek, tandaiSpam } from "./percakapan";
 import { alasanSpam, periksaSpam } from "./spam";
+import { type Penilaian, PELUANG_AUDIT, catatAudit, catatPengalaman, hitung, layakDicek, nilaiPesan, setelanMl, yakinLewati } from "./prospek";
+import { BATAS_STRIKE, BISU_BOT_DTK, BOT_BERUNTUN, BOT_CEPAT_MS, STATUS, type StatusChat, ULANG_BERUNTUN, adaKataMinat, berulang, gema, penutupSaja } from "./prospek-def";
 import { pelajariBalasan } from "./pelajaran";
 import { CATATAN_KODE_DIBLOKIR, TOLAK_KODE, adaKode } from "./penjaga";
 import { sttTerkonfigurasi, transkripsi } from "./stt";
@@ -34,6 +36,17 @@ import { type EventWa, digitWa, kirimGambar, kirimTeks, mengetik, padaEvent, tan
  * Spam (src/lib/spam.ts): promosi judi yang jelas tidak diantrekan sama sekali; spam lain dinilai AI (tag <abaikan>).
  * Keduanya tidak berlaku di chat yang pernah dibalas manusia atau ditandai "bukan spam", dan bisa dimatikan per nomor.
  *   Pesan spam tetap tercatat di histori (dengan tanda spam) dan tidak ditandai dibaca, jadi pemilik tetap melihatnya.
+ * Penyaring prospek (src/lib/prospek.ts, per nomor numbers.saring_prospek; tidak berlaku di chat yang pernah dibalas
+ * pemilik atau ditandai bukan spam):
+ *   - Tiap jawaban AI membawa label tersembunyi. "prospek" = chat terbukti prospek (tidak pernah dibisukan lagi);
+ *     "bukan" di chat yang belum terbukti = strike; BATAS_STRIKE strike beruntun = chat DIBISUKAN (jawaban terakhir
+ *     itu sudah berupa satu kalimat sopan yang mengarahkan); "selesai" tanpa teks = tidak dibalas.
+ *   - Chat dibisukan: pesan hanya tercatat. Dicek AI utama (tanpa mengirim apa pun kecuali AI menilainya prospek)
+ *     bila ada kata minat, ML melihat minat / kemiripan dengan knowledge, ML masih magang, atau terpilih audit.
+ *   - Ucapan penutup ("ok makasih") setelah jawaban yang tidak bertanya dilewati tanpa memanggil AI bila ML aktif.
+ *   - Detektor pola (tanpa AI): lawan bicara membalas < BOT_CEPAT_MS berturut-turut, mengulang pesan panjang yang
+ *     sama, atau memantulkan balasan kita = bot/auto-reply -> dibisukan BISU_BOT_DTK.
+ *   Tidak ada batas jumlah balasan: pelanggan yang terus bertanya dilayani tanpa batas.
  * Aturan anti-blokir: hanya membalas chat pribadi yang masuk, ada "mengetik", dibatasi per chat.
  *
  * Keadaan tiap chat (jeda, nomor sesi Hermes) dipegang di memori selama chat itu aktif
@@ -62,7 +75,13 @@ interface BarisChat {
   jeda_sampai: number;
   jendela_awal: number;
   jendela_n: number;
+  /** Penyaring prospek: STATUS (prospek-def.ts), strike beruntun, dan akhir bisu chat bot (detik epoch). */
+  prospek: StatusChat;
+  strike: number;
+  bisu_sampai: number;
 }
+
+const chatBaru = (t: number): BarisChat => ({ sesi_ke: 1, last_at: t, jeda_sampai: 0, jendela_awal: 0, jendela_n: 0, prospek: STATUS.baru, strike: 0, bisu_sampai: 0 });
 
 interface Antrean {
   numberId: number;
@@ -110,6 +129,21 @@ interface Antrean {
   ulangAi: number;
   /** >0: giliran berikutnya adalah percobaan ulang setelah AI gagal, dijadwalkan sejauh ini. */
   jedaUlangMs: number;
+  /** Pemilik pernah membalas chat ini atau menandainya bukan spam: penyaring prospek tidak berlaku. */
+  dikenal: boolean;
+  /** Balasan terakhir yang kita kirim & kapan (ms); 0 = pesan masuk sesudahnya sudah diukur detektor bot. */
+  balasanAkhir: string | null;
+  kirimAkhirMs: number;
+  /** Balasan lawan bicara yang tiba < BOT_CEPAT_MS setelah balasan kita, berturut-turut. */
+  cepat: number;
+  /** Beberapa pesan masuk terakhir (detektor pesan berulang). */
+  masukAkhir: string[];
+  /** Giliran ini hanya pengecekan chat yang dibisukan: jawaban dikirim hanya bila AI menilai pesannya prospek. */
+  modeCek: boolean;
+  /** Giliran ini audit keputusan "lewati" ML (dihitung saat label AI tiba). */
+  audit: boolean;
+  /** Penilaian ML untuk pesan yang dilewati di chat yang dibisukan (dipelajari sebagai kesalahan bila pemilik membalas). */
+  terlewat: Penilaian | null;
 }
 
 interface Keadaan {
@@ -156,10 +190,11 @@ function simpanChat(kunci: string, c: BarisChat): void {
   tulisLatar(async () => {
     const sql = await db();
     await sql`
-      INSERT INTO chat_state(kunci, sesi_ke, last_at, jeda_sampai, jendela_awal, jendela_n)
-      VALUES (${kunci}, ${b.sesi_ke}, ${b.last_at}, ${b.jeda_sampai}, ${b.jendela_awal}, ${b.jendela_n})
+      INSERT INTO chat_state(kunci, sesi_ke, last_at, jeda_sampai, jendela_awal, jendela_n, prospek, strike, bisu_sampai)
+      VALUES (${kunci}, ${b.sesi_ke}, ${b.last_at}, ${b.jeda_sampai}, ${b.jendela_awal}, ${b.jendela_n}, ${b.prospek}, ${b.strike}, ${b.bisu_sampai})
       ON CONFLICT (kunci) DO UPDATE SET sesi_ke = EXCLUDED.sesi_ke, last_at = EXCLUDED.last_at, jeda_sampai = EXCLUDED.jeda_sampai,
-                                        jendela_awal = EXCLUDED.jendela_awal, jendela_n = EXCLUDED.jendela_n`;
+                                        jendela_awal = EXCLUDED.jendela_awal, jendela_n = EXCLUDED.jendela_n,
+                                        prospek = EXCLUDED.prospek, strike = EXCLUDED.strike, bisu_sampai = EXCLUDED.bisu_sampai`;
   });
 }
 
@@ -169,7 +204,7 @@ const sisaJedaMs = (a: Antrean): number => Math.max(0, (a.chat?.jeda_sampai ?? 0
 
 function jedaChat(kunci: string, a: Antrean, detik: number): void {
   const t = sekarang();
-  a.chat = a.chat ? { ...a.chat, jeda_sampai: t + detik } : { sesi_ke: 1, last_at: t, jeda_sampai: t + detik, jendela_awal: 0, jendela_n: 0 };
+  a.chat = { ...(a.chat ?? chatBaru(t)), jeda_sampai: t + detik };
   simpanChat(kunci, a.chat);
 }
 
@@ -181,13 +216,20 @@ function ambilGiliran(kunci: string, a: Antrean): number {
   const t = sekarang();
   const b = a.chat;
   if (!b) {
-    a.chat = { sesi_ke: 1, last_at: t, jeda_sampai: 0, jendela_awal: t, jendela_n: 1 };
+    a.chat = { ...chatBaru(t), jendela_awal: t, jendela_n: 1 };
     simpanChat(kunci, a.chat);
     return 1;
   }
   a.chat = { ...b, last_at: t };
   simpanChat(kunci, a.chat);
   return b.sesi_ke;
+}
+
+/** Ubah keadaan penyaring prospek sebuah chat (memori = acuan; database & histori ditulis di latar). */
+function ubahStatus(kunci: string, a: Antrean, status: StatusChat, alasan: string | null, bisuSampai = 0): void {
+  a.chat = { ...(a.chat ?? chatBaru(sekarang())), prospek: status, strike: 0, bisu_sampai: bisuSampai };
+  simpanChat(kunci, a.chat);
+  tulisLatar(() => tandaiProspek(kunci, status, alasan));
 }
 
 /** Rapikan keluaran model ke format WhatsApp. */
@@ -333,11 +375,14 @@ async function proses(kunci: string): Promise<void> {
         // Penyedia ditentukan per akun (mode "per_paket": gratis = Hermes, berbayar = Claude API, cadangan Hermes).
         // Penyaring spam lewat AI hanya untuk chat yang belum dipercaya (lihat chatDipercaya); gagal membaca = jangan menyaring.
         // Katalog produk hanya untuk akun berbayar (dan admin); daftarnya dibaca tanpa foto.
-        const [ai, teruskan, saringSpam, katalog] = await Promise.all([
+        // Penyaring prospek: AI memberi label di jawabannya; ML menilai pesan yang sama (±6 ms) untuk belajar.
+        const pakaiNilai = nomor.saring_prospek;
+        const [ai, teruskan, saringSpam, katalog, penilaian] = await Promise.all([
           aiUntukAkun(nomor.user_id),
           bisaTeruskan(nomor),
           nomor.saring_spam ? st.tulis.then(() => chatDipercaya(kunci)).then((p) => !p, () => false) : false,
           katalogBoleh(nomor.user_id).then((ok) => (ok ? daftarProduk(nomor.id) : []), () => []),
+          pakaiNilai && pesan.trim() ? nilaiPesan(nomor.id, pesan) : null,
         ]);
         const lengkap = tanpaIngatan(ai.penyedia);
         const riwayat = st.tulis.then(() => riwayatUntukAi(kunci, { sesiBaru: sesi !== sesiLalu, tertunda, lengkap }));
@@ -345,12 +390,52 @@ async function proses(kunci: string): Promise<void> {
         const gambar = (await Promise.all(pemuatFoto.map((ambil) => ambil().catch(() => null)))).filter((f: Foto | null): f is Foto => !!f);
         const gagalFoto = pemuatFoto.length - gambar.length;
         const isiPesan = gagalFoto ? `${pesan}\n[${gagalFoto} foto gagal dimuat sehingga tidak bisa kamu lihat; minta pelanggan mengirim ulang bila perlu]` : pesan;
-        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0, riwayatLengkap: lengkap, teruskan, saringSpam, katalog });
+        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0, riwayatLengkap: lengkap, teruskan, saringSpam, katalog, nilaiPesan: pakaiNilai });
         // Sumber fakta untuk pemeriksa: pesan sistem + pesan pelanggan + seluruh chat sesi ini (Hermes hanya diberi
         // yang belum ia lihat, jadi sisanya dibaca terpisah supaya angka yang pernah disebut di chat tetap sah).
         const sumber = [sistem, isiPesan, ...(lengkap ? [] : await riwayatUntukAi(kunci, { sesiBaru: false, tertunda, lengkap: true }))].join("\n");
-        const hasil = await tanyaAiTerjaga({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, sumber, { teruskan, saringSpam, katalog: katalog.length > 0, gaya: true });
-        tulisLatar(() => catatPakai(a.numberId, hasil, gambar.length > 0, !!hasil.abaikan));
+        const hasil = await tanyaAiTerjaga({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, sumber, { teruskan, saringSpam, katalog: katalog.length > 0, gaya: true, nilai: pakaiNilai });
+        const modeCek = a.modeCek;
+        const audit = a.audit;
+        a.modeCek = false;
+        a.audit = false;
+        const label = hasil.nilai;
+        // Tidak ada yang dikirim: spam, tidak perlu dibalas (hanya label), atau pengecekan chat yang dibisukan yang
+        // ternyata tetap bukan prospek. Biaya tetap tercatat; kuota balasan pelanggan tidak terpotong.
+        const diam = !!hasil.abaikan || (!!label && !hasil.teks) || (modeCek && label !== "prospek");
+        tulisLatar(() => catatPakai(a.numberId, hasil, gambar.length > 0, diam));
+        if (penilaian && label) {
+          // Pengalaman untuk ML: label AI utama; giliran yang berujung pesanan/katalog = hasil nyata (lebih dipercaya);
+          // chat dibisukan yang ternyata prospek = koreksi.
+          const nyata = (teruskan && !!hasil.teruskan) || (katalog.length > 0 && !!hasil.kirimProduk);
+          catatPengalaman(nomor.id, penilaian, nyata ? "prospek" : label, nyata ? "hasil" : modeCek && label === "prospek" ? "koreksi" : "ai");
+          if (audit) catatAudit(nomor.id, label === "selesai" || label === "bukan");
+        }
+        if (pakaiNilai && !a.dikenal && label && !hasil.abaikan) {
+          const c = a.chat;
+          if (label === "prospek" && c?.prospek !== STATUS.prospek) ubahStatus(kunci, a, STATUS.prospek, null);
+          else if (label === "bukan" && (c?.prospek ?? STATUS.baru) === STATUS.baru) {
+            const strike = (c?.strike ?? 0) + 1;
+            if (strike >= BATAS_STRIKE) {
+              ubahStatus(kunci, a, STATUS.bisu, `Bukan prospek: ${strike} pesan beruntun di luar urusan usaha`);
+              hitung(nomor.id, "dibisukan");
+              console.info(`[bridge] chat dibisukan (bukan prospek, ${strike} strike) sesi=${a.sesi}`);
+            } else {
+              a.chat = { ...(c ?? chatBaru(sekarang())), strike };
+              simpanChat(kunci, a.chat);
+            }
+          }
+        }
+        if (diam && !hasil.abaikan) {
+          if (modeCek && label !== "prospek") {
+            console.info(`[bridge] chat dibisukan dicek AI: tetap bukan prospek, tidak dibalas sesi=${a.sesi}`);
+            catat(a, "Jawaban yang kamu susun untuk pesan terakhir TIDAK terkirim: chat ini sedang tidak dilayani karena dinilai bukan prospek.");
+          }
+          void mengetik(a.sesi, a.alamat, false);
+          a.belumDibaca.length = 0;
+          a.kutip = null;
+          return;
+        }
         if (hasil.abaikan) {
           // Dinilai spam oleh AI: tidak dibalas, tidak ditandai dibaca, tidak memotong kuota; pemilik melihatnya di histori.
           const alasan = `Dinilai AI: ${hasil.abaikan.jenis}${hasil.abaikan.alasan ? ` (${hasil.abaikan.alasan})` : ""}`;
@@ -419,6 +504,8 @@ async function proses(kunci: string): Promise<void> {
       // Id pesan dicatat sebelum pesan berangkat, jadi tidak mungkin dikira balasan manusia.
       await kirimTeks(a.sesi, a.alamat, jawaban, (id) => ingat(st.terkirim, id, 500), kutip);
       if (a.kutip === kutip) a.kutip = null;
+      a.balasanAkhir = jawaban;
+      a.kirimAkhirMs = Date.now();
       statistik(a.numberId, "dibalas");
       // Diteruskan ke pemilik hanya setelah jawabannya benar-benar sampai ke pelanggan ("sudah aku teruskan" jadi benar).
       if (tag) void teruskanKePemilik(nomor, { kunci, nama: a.namaPelanggan, telepon: a.teleponPelanggan }, tag, (id) => ingat(st.terkirim, id, 500));
@@ -451,7 +538,14 @@ async function antreanUntuk(kunci: string, numberId: number, sesi: string, alama
   if (ada) return ada;
   await st.tulis; // tulis yang masih antre untuk chat ini (bila ada) harus sudah sampai sebelum dibaca
   const sql = await db();
-  const [chat] = await sql<BarisChat[]>`SELECT sesi_ke, last_at, jeda_sampai, jendela_awal, jendela_n FROM chat_state WHERE kunci = ${kunci}`;
+  // Satu query lewat dua indeks unik: keadaan chat + apakah lawan bicara sudah dikenal pemilik (penyaring tidak berlaku).
+  const [r] = await sql<(Partial<BarisChat> & { tercatat: boolean; dikenal: boolean })[]>`
+    SELECT c.sesi_ke, c.last_at, c.jeda_sampai, c.jendela_awal, c.jendela_n, c.prospek, c.strike, c.bisu_sampai,
+           c.kunci IS NOT NULL AS tercatat, COALESCE(p.manusia_n > 0 OR p.spam = 2, false) AS dikenal
+      FROM (SELECT ${kunci}::text AS k) x
+      LEFT JOIN chat_state c ON c.kunci = x.k
+      LEFT JOIN percakapan p ON p.kunci = x.k`;
+  const { tercatat, dikenal, ...chat } = r;
   // Selagi menunggu database, event lain untuk chat yang sama tidak mungkin lewat (event satu nomor
   // diproses berurutan), tetapi tetap dijaga supaya tidak pernah ada dua antrean untuk satu chat.
   const sudah = st.antre.get(kunci);
@@ -460,7 +554,7 @@ async function antreanUntuk(kunci: string, numberId: number, sesi: string, alama
     numberId,
     sesi,
     alamat,
-    chat: chat ? { ...chat } : null,
+    chat: tercatat ? (chat as BarisChat) : null,
     teks: [],
     belumDibaca: [],
     kutip: null,
@@ -485,6 +579,14 @@ async function antreanUntuk(kunci: string, numberId: number, sesi: string, alama
     kueriLalu: "",
     ulangAi: 0,
     jedaUlangMs: 0,
+    dikenal,
+    balasanAkhir: null,
+    kirimAkhirMs: 0,
+    cepat: 0,
+    masukAkhir: [],
+    modeCek: false,
+    audit: false,
+    terlewat: null,
   };
   st.antre.set(kunci, a);
   if (st.antre.size > 500) rapikanAntrean();
@@ -506,6 +608,108 @@ function chatDibukaManusia(kunci: string): void {
   } else {
     jadwalkan(kunci, a, sisaJedaMs(a) + a.tungguBacaMs);
   }
+}
+
+/**
+ * Penyaring prospek untuk satu pesan masuk (lihat komentar di atas berkas). true = berhenti di sini: pesan sudah
+ * tercatat di histori, tidak dibalas, tidak ditandai dibaca, tidak memanggil AI.
+ */
+async function saringProspek(kunci: string, a: Antrean, nomor: Nomor, teks: string): Promise<boolean> {
+  if (!nomor.saring_prospek || a.dikenal) return false;
+  const t = sekarang();
+
+  // Detektor pola tanpa AI: lawan bicara yang bukan manusia.
+  if (a.kirimAkhirMs) {
+    a.cepat = Date.now() - a.kirimAkhirMs < BOT_CEPAT_MS ? a.cepat + 1 : 0;
+    a.kirimAkhirMs = 0;
+  }
+  const pola =
+    a.cepat >= BOT_BERUNTUN
+      ? "membalas otomatis secepat mesin"
+      : teks && gema(teks, a.balasanAkhir)
+        ? "memantulkan balasan kita"
+        : teks && berulang(teks, a.masukAkhir)
+          ? "mengirim pesan panjang yang sama berulang-ulang"
+          : null;
+  if (teks) {
+    a.masukAkhir.push(teks);
+    if (a.masukAkhir.length > ULANG_BERUNTUN) a.masukAkhir.shift();
+  }
+  if (pola) {
+    console.info(`[bridge] lawan bicara terdeteksi bot (${pola}) sesi=${a.sesi}: dibisukan ${BISU_BOT_DTK / 3600} jam`);
+    ubahStatus(kunci, a, STATUS.bot, `Terdeteksi bot/auto-reply: ${pola}`, t + BISU_BOT_DTK);
+    // Pesan bot yang masih menunggu ikut dibatalkan, termasuk jawaban yang sedang disusun.
+    a.generasi += 1;
+    a.batalKarena = "dibalas";
+    if (a.timer) clearTimeout(a.timer);
+    a.timer = null;
+    a.teks.length = 0;
+    a.foto.length = 0;
+    a.suara.clear();
+    a.belumDibaca.length = 0;
+    a.kutip = null;
+    a.siap = null;
+    a.cepat = 0;
+    a.masukAkhir.length = 0;
+    return true;
+  }
+
+  const status = a.chat?.prospek ?? STATUS.baru;
+  if (status === STATUS.bot) {
+    if ((a.chat?.bisu_sampai ?? 0) > t) return true;
+    ubahStatus(kunci, a, STATUS.baru, null);
+  }
+
+  if (status === STATUS.bisu) {
+    // Dicek AI utama (tanpa mengirim kecuali AI menilai prospek) bila ada tanda minat, ML belum aktif, atau audit.
+    const [pen, set] = await Promise.all([teks ? nilaiPesan(nomor.id, teks) : null, setelanMl(nomor.id)]);
+    const minat = !teks || adaKataMinat(teks);
+    const cek = minat || !pen || !set.aktif || layakDicek(pen, set);
+    const audit = !cek && Math.random() < PELUANG_AUDIT;
+    if (cek || audit) {
+      a.modeCek = true;
+      a.audit ||= audit;
+      return false;
+    }
+    a.terlewat = pen;
+    hitung(nomor.id, "dihemat");
+    return true;
+  }
+
+  // Ucapan penutup setelah jawaban kita yang tidak bertanya, tanpa pesan lain yang menunggu: tidak perlu dijawab.
+  if (teks && !a.teks.length && !a.sedangProses && a.balasanAkhir && !/\?\s*\W*$/.test(a.balasanAkhir) && penutupSaja(teks)) {
+    const [pen, set] = await Promise.all([nilaiPesan(nomor.id, teks), setelanMl(nomor.id)]);
+    if (pen && set.aktif && (pen.hasil.label === "selesai" || yakinLewati(pen, set))) {
+      if (Math.random() < PELUANG_AUDIT) {
+        a.audit = true;
+        return false;
+      }
+      hitung(nomor.id, "dihemat");
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Pemilik meminta chat yang dibisukan dilayani lagi (tombol di histori). Bila chat sedang aktif di memori, keadaannya
+ * diubah di sana (acuan); bila tidak, langsung di database. Pesan yang tadi dilewati dipelajari sebagai kesalahan.
+ */
+export async function bangunkanChat(numberId: number, kunci: string): Promise<void> {
+  const a = st.antre.get(kunci);
+  if (a) {
+    if (a.terlewat) catatPengalaman(numberId, a.terlewat, "prospek", "koreksi");
+    a.terlewat = null;
+    a.cepat = 0;
+    a.masukAkhir.length = 0;
+    ubahStatus(kunci, a, STATUS.baru, null);
+  } else {
+    await st.tulis;
+    const sql = await db();
+    await sql`UPDATE chat_state SET prospek = ${STATUS.baru}, strike = 0, bisu_sampai = 0 WHERE kunci = ${kunci}`;
+    await tandaiProspek(kunci, STATUS.baru, null);
+  }
+  hitung(numberId, "salah_bisu");
 }
 
 function teleponDariEvent(ev: Extract<EventWa, { jenis: "pesan" }>): string | null {
@@ -612,6 +816,16 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
     if (nomor.belajar && ev.teks.trim()) tulisLatar(() => pelajariBalasan({ numberId: nomor.id, kunci, jawaban: ev.teks, waktu }));
     // Manusia mengambil alih: batalkan jawaban AI yang sedang menunggu/disiapkan, lalu AI mundur.
     const a = await antreanUntuk(kunci, nomor.id, sesi, ev.alamat);
+    // Pemilik membalas sendiri: lawan bicara dikenal (penyaring prospek tidak berlaku lagi). Bila chat ini sedang
+    // dibisukan, pembisuannya keliru: ML belajar dari pesan yang tadi dilewatinya.
+    a.dikenal = true;
+    const st0 = a.chat?.prospek ?? STATUS.baru;
+    if (st0 === STATUS.bisu || st0 === STATUS.bot) {
+      if (st0 === STATUS.bisu) hitung(nomor.id, "salah_bisu");
+      if (a.terlewat) catatPengalaman(nomor.id, a.terlewat, "prospek", "koreksi");
+      a.terlewat = null;
+      ubahStatus(kunci, a, STATUS.prospek, null);
+    }
     if (nomor.jeda_detik > 0) jedaChat(kunci, a, nomor.jeda_detik);
     a.generasi += 1;
     a.batalKarena = "dibalas";
@@ -624,6 +838,8 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
     a.kutip = null;
     a.siap = null;
     a.dibukaManusia = false;
+    a.modeCek = false;
+    a.audit = false;
     a.aktifSampai = Date.now() + Math.max(600_000, nomor.jeda_detik * 1000);
     // AI tetap nyambung saat nanti melanjutkan: balasan ini tercatat di histori dan ikut dibaca (riwayatUntukAi).
     return;
@@ -652,6 +868,8 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   if (!teks) return;
 
   const a = await antreanUntuk(kunci, nomor.id, sesi, ev.alamat);
+  // Penyaring prospek: chat dibisukan / bot / ucapan penutup yang tidak perlu dijawab berhenti di sini (tanpa AI).
+  if (await saringProspek(kunci, a, nomor, ev.teks.trim())) return;
   if (kodeSuara && ev.suara) {
     const ambil = ev.suara;
     a.suara.set(

@@ -36,6 +36,9 @@ export interface ItemPercakapan {
   /** 0 = biasa, 1 = pernah terdeteksi spam (AI tidak membalas pesan itu), 2 = ditandai "bukan spam" oleh pemilik. */
   spam: 0 | 1 | 2;
   spam_alasan: string | null;
+  /** Penyaring prospek (prospek-def.ts STATUS): 0 = baru, 1 = prospek, 2 = dibisukan (bukan prospek), 3 = bot/auto-reply. */
+  prospek: 0 | 1 | 2 | 3;
+  prospek_alasan: string | null;
 }
 
 export interface ItemPesan {
@@ -147,7 +150,7 @@ export async function daftarPercakapan(
     // Jalur paling sering (buka halaman pertama tanpa filter): murni Index Scan berurutan pada percakapan_nomor_waktu_idx.
     baris = await sql<ItemPercakapan[]>`
       SELECT p.id, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir,
-             p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, p.spam, p.spam_alasan,
+             p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, p.spam, p.spam_alasan, p.prospek, p.prospek_alasan,
              COALESCE(cs.jeda_sampai, 0) AS jeda_sampai
         FROM percakapan p
         LEFT JOIN chat_state cs ON cs.kunci = p.kunci
@@ -160,7 +163,7 @@ export async function daftarPercakapan(
     const polaDigit = digit ? `%${digit}%` : pola;
     baris = await sql<ItemPercakapan[]>`
       SELECT p.id, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir,
-             p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, p.spam, p.spam_alasan,
+             p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, p.spam, p.spam_alasan, p.prospek, p.prospek_alasan,
              COALESCE(cs.jeda_sampai, 0) AS jeda_sampai
         FROM percakapan p
         LEFT JOIN chat_state cs ON cs.kunci = p.kunci
@@ -194,7 +197,7 @@ export async function ambilPesanPercakapan(
   const sql = await db();
   const [percakapan] = await sql<ItemPercakapan[]>`
     SELECT p.id, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir,
-           p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, p.spam, p.spam_alasan,
+           p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, p.spam, p.spam_alasan, p.prospek, p.prospek_alasan,
            COALESCE(cs.jeda_sampai, 0) AS jeda_sampai
       FROM percakapan p
       LEFT JOIN chat_state cs ON cs.kunci = p.kunci
@@ -410,4 +413,19 @@ export async function tandaiBukanSpam(numberId: number, percakapanId: number): P
   const sql = await db();
   const r = await sql`UPDATE percakapan SET spam = 2 WHERE id = ${percakapanId} AND number_id = ${numberId}`;
   return r.count;
+}
+
+// ---------- Penyaring prospek (src/lib/prospek.ts) ----------
+
+/** Cerminan keadaan penyaring prospek sebuah chat untuk histori. Keadaan acuannya di chat_state (bridge.ts). */
+export async function tandaiProspek(kunci: string, status: 0 | 1 | 2 | 3, alasan: string | null): Promise<void> {
+  const sql = await db();
+  await sql`UPDATE percakapan SET prospek = ${status}, prospek_alasan = ${alasan?.slice(0, 200) ?? null} WHERE kunci = ${kunci}`;
+}
+
+/** Kunci chat sebuah percakapan milik nomor ini (null = bukan miliknya). */
+export async function kunciPercakapan(numberId: number, percakapanId: number): Promise<string | null> {
+  const sql = await db();
+  const [r] = await sql<{ kunci: string }[]>`SELECT kunci FROM percakapan WHERE id = ${percakapanId} AND number_id = ${numberId}`;
+  return r?.kunci ?? null;
 }

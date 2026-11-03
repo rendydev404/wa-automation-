@@ -16,6 +16,8 @@ interface Gelembung {
 const sesiBaru = () => Math.random().toString(36).slice(2, 14).padEnd(8, "0");
 
 const MODE = { kosong: "tanpa knowledge", utuh: "knowledge utuh", relevan: "potongan relevan" } as const;
+/** Penilaian AI atas pesan uji (penyaring prospek). */
+const NILAI = { prospek: "dinilai prospek", netral: "dinilai netral", selesai: "dinilai penutup", bukan: "dinilai bukan prospek" } as const;
 
 /** Tebal ala WhatsApp (*teks*) dirender sebagai <b>. */
 function TeksWa({ teks }: { teks: string }) {
@@ -77,12 +79,14 @@ export function TestChat({ numberId }: { numberId: number }) {
           ...(lampiran ? { foto: lampiran } : {}),
         }),
       });
-      const d = (await res.json().catch(() => ({}))) as { teks?: string; ms?: number; mode?: keyof typeof MODE; pelajaran?: number; diblokir?: boolean; error?: string; teruskan?: { label: string; ringkasan: string } | null; abaikan?: string; katalog?: { daftar: string; foto: { id: number; caption: string }[] } | null };
+      const d = (await res.json().catch(() => ({}))) as { teks?: string; ms?: number; mode?: keyof typeof MODE; pelajaran?: number; diblokir?: boolean; error?: string; teruskan?: { label: string; ringkasan: string } | null; abaikan?: string; selesai?: boolean; nilai?: keyof typeof NILAI | null; katalog?: { daftar: string; foto: { id: number; caption: string }[] } | null };
       if (res.ok && d.abaikan) {
         setPesan((p) => [...p, { dari: "info", teks: `Tidak dibalas: terdeteksi spam. ${d.abaikan}. Di WhatsApp pesan ini hanya tercatat di histori dengan tanda Spam.` }]);
+      } else if (res.ok && d.selesai) {
+        setPesan((p) => [...p, { dari: "info", teks: "Tidak dibalas: AI menilai ini ucapan penutup dan urusannya sudah tuntas, jadi tidak perlu dijawab." }]);
       } else if (res.ok && d.teks) {
         lalu.current = isi;
-        const meta = `${((d.ms ?? 0) / 1000).toFixed(1).replace(".", ",")} dtk · ${MODE[d.mode ?? "kosong"]}${d.pelajaran ? ` · ${d.pelajaran} balasan admin` : ""}${d.diblokir ? " · kode diblokir" : ""}`;
+        const meta = `${((d.ms ?? 0) / 1000).toFixed(1).replace(".", ",")} dtk · ${MODE[d.mode ?? "kosong"]}${d.pelajaran ? ` · ${d.pelajaran} balasan admin` : ""}${d.diblokir ? " · kode diblokir" : ""}${d.nilai ? ` · ${NILAI[d.nilai]}` : ""}`;
         // Katalog: di WhatsApp dikirim sebagai pesan terpisah setelah jawaban (daftar, lalu foto + nama + harga).
         const kat = d.katalog;
         const kiriman: Gelembung[] = kat ? [...(kat.daftar ? [{ dari: "bot" as const, teks: kat.daftar }] : []), ...kat.foto.map((f) => ({ dari: "bot" as const, teks: f.caption, foto: `/api/katalog/foto?id=${f.id}` }))] : [];

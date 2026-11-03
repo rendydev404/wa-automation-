@@ -19,6 +19,9 @@ export async function register() {
     // Admin pertama dari env (instalasi baru) dibuat sebelum ada yang sempat mendaftar; gagal = dicoba lagi saat login/daftar.
     const { pastikanAdminAwal } = await import("@/lib/session");
     void pastikanAdminAwal().catch(() => {});
+    // Penyaring prospek: model ML dipanaskan di latar & ujian tiap malam (src/lib/prospek.ts).
+    const { mulaiPenyaringProspek } = await import("@/lib/prospek");
+    mulaiPenyaringProspek();
     // Histori percakapan yang lebih lama dari 30 hari dihapus berkala.
     const { mulaiPembersihanHistori } = await import("@/lib/percakapan");
     mulaiPembersihanHistori();

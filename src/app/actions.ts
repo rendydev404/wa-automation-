@@ -41,7 +41,7 @@ import { tanggal } from "@/lib/format";
 import { GalatCustom, customTampil, periksaCustom, ringkasCustom, simpanPaketCustom } from "@/lib/paket-custom";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
 import { geserProduk, hapusProduk, katalogBoleh, setTersedia } from "@/lib/katalog";
-import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringSpam, setTeruskan, siapDipakai, tambahNomor, ubahNomor } from "@/lib/numbers";
+import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringProspek, setSaringSpam, setTeruskan, siapDipakai, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { kabariPaketAktif, ujiTeruskan } from "@/lib/penerusan";
 import { PERLU_PENERUS } from "@/lib/teruskan";
 import { cekPassword, verifyPassword } from "@/lib/password";
@@ -65,7 +65,8 @@ import {
   tandaiTurSelesai,
   ubahNama,
 } from "@/lib/pengguna";
-import { hapusPercakapan, tandaiBukanSpam } from "@/lib/percakapan";
+import { hapusPercakapan, kunciPercakapan, tandaiBukanSpam } from "@/lib/percakapan";
+import { bangunkanChat } from "@/lib/bridge";
 import { konfigurasi as konfigurasiSinkron, setNomorSinkron, statusSinkron } from "@/lib/sinkron";
 import {
   MAKS_GAGAL_LOGIN,
@@ -424,6 +425,23 @@ export async function bukanSpamAction(numberId: number, percakapanId: number): P
   if (!Number.isInteger(percakapanId)) return { ok: false, pesan: "Percakapan tidak valid." };
   if (!(await tandaiBukanSpam(numberId, percakapanId))) return { ok: false, pesan: "Percakapan tidak ditemukan." };
   return { ok: true, pesan: "Ditandai bukan spam. Pesan berikutnya dari kontak ini dijawab AI seperti biasa." };
+}
+
+/** Chat yang dibisukan penyaring prospek dilayani AI lagi mulai pesan berikutnya (opsional; penyaring belajar dari ini). */
+export async function bangunkanChatAction(numberId: number, percakapanId: number): Promise<Hasil> {
+  if (!(await nomorUntuk(await requireUser(), numberId))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  if (!Number.isInteger(percakapanId)) return { ok: false, pesan: "Percakapan tidak valid." };
+  const kunci = await kunciPercakapan(numberId, percakapanId);
+  if (!kunci) return { ok: false, pesan: "Percakapan tidak ditemukan." };
+  await bangunkanChat(numberId, kunci);
+  return { ok: true, pesan: "Pesan berikutnya dari kontak ini dijawab AI lagi." };
+}
+
+export async function setSaringProspekAction(id: number, aktif: boolean): Promise<Hasil> {
+  if (!(await nomorUntuk(await requireUser(), id))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  await setSaringProspek(id, aktif);
+  revalidatePath(`/nomor/${id}`);
+  return { ok: true };
 }
 
 export async function setSaringSpamAction(id: number, aktif: boolean): Promise<Hasil> {

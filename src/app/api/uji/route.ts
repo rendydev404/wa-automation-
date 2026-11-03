@@ -72,12 +72,15 @@ export async function POST(req: Request) {
     teruskan,
     saringSpam,
     katalog,
+    nilaiPesan: nomor.saring_prospek,
   });
   // Nama mesin/model, biaya, dan galat mentah hanya untuk admin; pengguna biasa tidak perlu tahu mesin di baliknya.
   const admin = user.peran === "admin";
   try {
-    const j = await tanyaAiTerjaga({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, [sistem, pesan, ...semuaRiwayat].join("\n"), { teruskan, saringSpam, katalog: katalog.length > 0, gaya: true });
+    const j = await tanyaAiTerjaga({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, [sistem, pesan, ...semuaRiwayat].join("\n"), { teruskan, saringSpam, katalog: katalog.length > 0, gaya: true, nilai: nomor.saring_prospek });
     if (j.abaikan) return NextResponse.json({ teks: "", ms: j.ms, abaikan: `Dinilai AI: ${j.abaikan.jenis}${j.abaikan.alasan ? ` (${j.abaikan.alasan})` : ""}` });
+    // AI menilai pesan ini tidak perlu dibalas (ucapan penutup saat urusan sudah tuntas).
+    if (!j.teks && j.nilai) return NextResponse.json({ teks: "", ms: j.ms, selesai: true, nilai: j.nilai });
     // Penjaga yang sama dengan WhatsApp, supaya hasil uji mencerminkan yang benar-benar terkirim.
     const diblokir = adaKode(j.teks);
     const teks = diblokir ? TOLAK_KODE : formatWa(j.teks);
@@ -88,6 +91,8 @@ export async function POST(req: Request) {
       karakterKonteks: konteks.karakter,
       pelajaran,
       diblokir,
+      // Penilaian AI atas pesan ini (penyaring prospek): prospek / netral / selesai / bukan.
+      nilai: j.nilai,
       // Untuk admin yang menguji: mesin & model yang menjawab, biayanya, dan draf pertama yang ditolak pemeriksa
       // (jenis pelanggarannya) lalu ditulis ulang / diganti jawaban aman.
       ...(admin ? { model: j.model, biayaUsd: j.biayaUsd, koreksi: j.pelanggaran.map((x) => x.jenis), aman: j.aman } : {}),

@@ -8,6 +8,7 @@ import { tarifModel } from "./tarif";
 import { type JenisAbaikan, ambilAbaikan, buangTagAbaikan } from "./spam";
 import { type TagTeruskan, ambilTeruskan } from "./teruskan";
 import { type KirimProduk, ambilKirimProduk } from "./katalog-def";
+import { type Label, ambilNilai } from "./prospek-def";
 import type { Foto } from "./types";
 
 /**
@@ -319,6 +320,8 @@ export interface JawabanTerjaga extends JawabanAi {
   kirimProduk: KirimProduk | null;
   /** AI menilai pesan ini spam (hanya bila opsi.saringSpam): tidak ada yang dikirim, `teks` kosong. */
   abaikan: { jenis: JenisAbaikan; alasan: string } | null;
+  /** Penilaian AI atas pesan terakhir (hanya bila opsi.nilai, lihat prospek-def.ts). `teks` kosong = tidak perlu dibalas. */
+  nilai: Label | null;
 }
 
 /**
@@ -329,13 +332,19 @@ export interface JawabanTerjaga extends JawabanAi {
 export async function tanyaAiTerjaga(
   r: PermintaanAi,
   sumber: string,
-  opsiJaga: { teruskan?: boolean; saringSpam?: boolean; katalog?: boolean; gaya?: boolean } = {}
+  opsiJaga: { teruskan?: boolean; saringSpam?: boolean; katalog?: boolean; gaya?: boolean; nilai?: boolean } = {}
 ): Promise<JawabanTerjaga> {
   const j1 = await tanyaAi(r);
+  // Tag penilaian pesan selalu dibuang dari teks pelanggan; labelnya dipakai hanya bila diminta.
+  const n1 = ambilNilai(j1.teks);
+  j1.teks = n1.teks;
+  const nilai = opsiJaga.nilai ? n1.nilai : null;
   // Jawaban berupa tag <abaikan> saja: pesan dinilai spam. Tidak diperiksa/ditulis ulang karena tidak ada yang dikirim.
   const abaikan = opsiJaga.saringSpam ? ambilAbaikan(j1.teks) : null;
-  if (abaikan) return { ...j1, teks: "", pelanggaran: [], ditulisUlang: false, aman: false, teruskan: null, kirimProduk: null, abaikan };
+  if (abaikan) return { ...j1, teks: "", pelanggaran: [], ditulisUlang: false, aman: false, teruskan: null, kirimProduk: null, abaikan, nilai };
   j1.teks = buangTagAbaikan(j1.teks);
+  // Hanya tag penilaian tanpa jawaban (mis. "ok makasih" saat urusan sudah tuntas): tidak ada yang dikirim.
+  if (nilai && !j1.teks) return { ...j1, teks: "", pelanggaran: [], ditulisUlang: false, aman: false, teruskan: null, kirimProduk: null, abaikan: null, nilai };
   // `gaya`: pemeriksaan gaya robot memakai pesan pelanggan (ditanya "ini bot?" = boleh menjawab jujur).
   const opsi = { adaFoto: !!r.gambar?.length, teruskan: !!opsiJaga.teruskan, katalog: !!opsiJaga.katalog, ...(opsiJaga.gaya ? { pesanPelanggan: r.pesan } : {}) };
   // Tag teruskan & kirim katalog dibuang dari teks pelanggan; penerusan dari draf yang lolos, atau dari draf mana pun
@@ -347,7 +356,7 @@ export async function tanyaAiTerjaga(
   };
   const d1 = pisah(j1.teks);
   const p1 = periksaJawaban(j1.teks, sumber, opsi);
-  if (!p1.length) return { ...j1, teks: d1.teks, pelanggaran: [], ditulisUlang: false, aman: false, teruskan: d1.tag, kirimProduk: d1.produk, abaikan: null };
+  if (!p1.length) return { ...j1, teks: d1.teks, pelanggaran: [], ditulisUlang: false, aman: false, teruskan: d1.tag, kirimProduk: d1.produk, abaikan: null, nilai };
 
   // Sesi Hermes terpisah supaya draf yang ditolak tidak masuk ingatan percakapan aslinya.
   const j2 = await tanyaAi({ ...r, sessionId: `${r.sessionId}-koreksi`, sistem: `${r.sistem}\n\n${pesanKoreksi(j1.teks, p1, opsi.teruskan, opsi.katalog)}` });
@@ -359,10 +368,10 @@ export async function tanyaAiTerjaga(
     tokenKeluar: tambah(j1.tokenKeluar, j2.tokenKeluar),
     biayaUsd: tambah(j1.biayaUsd, j2.biayaUsd),
   };
-  j2.teks = buangTagAbaikan(j2.teks);
+  j2.teks = buangTagAbaikan(ambilNilai(j2.teks).teks);
   const d2 = pisah(j2.teks);
   // Sisa pelanggaran hanya soal gaya (masih terdengar robot): tulisan ulang tetap lebih baik daripada jawaban aman.
   const p2 = periksaJawaban(j2.teks, sumber, opsi).filter((x) => x.jenis !== "robotik");
-  if (!p2.length) return { ...gabung, teks: d2.teks, pelanggaran: p1, ditulisUlang: true, aman: false, teruskan: d2.tag, kirimProduk: d2.produk, abaikan: null };
-  return { ...gabung, teks: JAWABAN_AMAN, pelanggaran: p1, ditulisUlang: true, aman: true, teruskan: d2.tag ?? d1.tag, kirimProduk: null, abaikan: null };
+  if (!p2.length) return { ...gabung, teks: d2.teks, pelanggaran: p1, ditulisUlang: true, aman: false, teruskan: d2.tag, kirimProduk: d2.produk, abaikan: null, nilai };
+  return { ...gabung, teks: JAWABAN_AMAN, pelanggaran: p1, ditulisUlang: true, aman: true, teruskan: d2.tag ?? d1.tag, kirimProduk: null, abaikan: null, nilai };
 }

@@ -29,6 +29,8 @@ jobs:
       cancel-in-progress: true
     env:
       NEXT_TELEMETRY_DISABLED: "1"
+      # onnxruntime-node (ML penyaring prospek): jangan unduh biner CUDA (ratusan MB) saat npm ci; cukup CPU.
+      ONNXRUNTIME_NODE_INSTALL: skip
     steps:
       - uses: actions/checkout@v4
 
@@ -76,6 +78,8 @@ jobs:
           cp -r .next/static paket/standalone/.next/static
           if [ -d public ]; then cp -r public paket/standalone/public; fi
           rm -rf paket/standalone/data paket/standalone/.env* paket/standalone/node_modules/@img
+          # onnxruntime-node membawa biner semua platform (±290 MB); server hanya butuh Linux.
+          for d in paket/standalone/node_modules/onnxruntime-node/bin/napi-v*; do [ -d "$d" ] && find "$d" -mindepth 1 -maxdepth 1 ! -name linux -exec rm -rf {} +; done
           echo "$GITHUB_SHA" > paket/standalone/VERSI
           cp deploy/Dockerfile deploy/docker-compose.yml paket/
           GZIP=-1 tar czf paket.tgz -C paket .

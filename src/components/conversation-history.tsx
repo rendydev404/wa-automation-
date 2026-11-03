@@ -10,6 +10,7 @@ import {
   Copy,
   Loader2,
   MessagesSquare,
+  MicOff,
   RefreshCw,
   Search,
   ShieldAlert,
@@ -18,7 +19,7 @@ import {
   User,
   X,
 } from "lucide-react";
-import { bukanSpamAction, hapusPercakapanAction } from "@/app/actions";
+import { bangunkanChatAction, bukanSpamAction, hapusPercakapanAction } from "@/app/actions";
 import { angka, formatNomor, jamWib, kunciHariWib, tanggal, UMUR_HISTORI_HARI, waktuSingkatWib } from "@/lib/format";
 import type { FilterPercakapan, ItemPercakapan, ItemPesan, PeranPesan, RingkasanPercakapan } from "@/lib/percakapan";
 import { Pill, TombolKonfirmasi } from "./ui";
@@ -317,6 +318,16 @@ export function HistoriPercakapan({
     }
   }
 
+  async function bangunkan(id: number) {
+    setMenandai(true);
+    try {
+      const h = await bangunkanChatAction(numberId, id);
+      if (h.ok) setDaftar((d) => d.map((p) => (p.id === id ? { ...p, prospek: 0, prospek_alasan: null } : p)));
+    } finally {
+      setMenandai(false);
+    }
+  }
+
   async function hapusSemua() {
     const h = await hapusPercakapanAction(numberId);
     if (h.ok) {
@@ -504,6 +515,11 @@ export function HistoriPercakapan({
                                 <ShieldAlert className="size-3" aria-hidden /> Spam
                               </span>
                             )}
+                            {item.prospek >= 2 && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-subtle px-1.5 py-0.5 font-medium text-muted">
+                                <MicOff className="size-3" aria-hidden /> {item.prospek === 3 ? "Bot" : "Dibisukan"}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </button>
@@ -557,6 +573,7 @@ export function HistoriPercakapan({
                       <p className="truncate text-[14px] font-bold text-fg">{namaTampil(percakapanAktif)}</p>
                       {percakapanAktif.jeda_sampai > kini && <Pill nada="kuning">AI sedang jeda (ditangani manusia)</Pill>}
                       {percakapanAktif.spam === 1 && <Pill nada="merah">Spam</Pill>}
+                      {percakapanAktif.prospek === 1 && <Pill nada="hijau">Prospek</Pill>}
                     </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
                       {percakapanAktif.telepon && (
@@ -597,6 +614,22 @@ export function HistoriPercakapan({
                   <button type="button" onClick={() => void bukanSpam(percakapanAktif.id)} disabled={menandai} className="btn btn-ghost h-8 border border-line bg-surface px-3 text-xs">
                     {menandai && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
                     Bukan spam, balas seperti biasa
+                  </button>
+                </div>
+              )}
+
+              {percakapanAktif.prospek >= 2 && (
+                <div role="status" className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-subtle px-4 py-2.5 text-[12.5px] sm:px-5">
+                  <p className="min-w-0 flex-1 text-fg">
+                    <span className="font-semibold">{percakapanAktif.prospek === 3 ? "AI berhenti membalas: lawan bicara terdeteksi bot." : "AI tidak lagi melayani chat ini: dinilai bukan prospek."}</span>{" "}
+                    <span className="text-muted">
+                      {percakapanAktif.prospek_alasan ? `${percakapanAktif.prospek_alasan}. ` : ""}
+                      {percakapanAktif.prospek === 3 ? "Dicoba lagi otomatis setelah 6 jam." : "Otomatis dilayani lagi bila kontak ini menanyakan hal seputar usaha Anda."}
+                    </span>
+                  </p>
+                  <button type="button" onClick={() => void bangunkan(percakapanAktif.id)} disabled={menandai} className="btn btn-ghost h-8 border border-line bg-surface px-3 text-xs">
+                    {menandai && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+                    Layani lagi
                   </button>
                 </div>
               )}

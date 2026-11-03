@@ -2,7 +2,8 @@
 
 import { useActionState, useOptimistic, useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
-import { hapusNomorAction, setBotAktifAction, setSaringSpamAction, setSinkronAction, ubahNomorAction } from "@/app/actions";
+import { hapusNomorAction, setBotAktifAction, setSaringProspekAction, setSaringSpamAction, setSinkronAction, ubahNomorAction } from "@/app/actions";
+import type { StatusMl } from "@/lib/prospek";
 import { LencanaSesi } from "./connection-card";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "./ui";
 import { useSesiNomor } from "./wa-status";
@@ -72,6 +73,59 @@ function SaklarSpam({ id, aktif: awal }: { id: number; aktif: boolean }) {
   );
 }
 
+/** Angka ringkas ML untuk pemilik: tahap belajar dan hasil yang terukur (bukan klaim). */
+function RingkasMl({ ml }: { ml: StatusMl }) {
+  const akurasiAudit = ml.diaudit >= 10 ? Math.round((ml.audit_benar / ml.diaudit) * 100) : null;
+  const butir = [
+    { label: "Tahap", nilai: ml.aktif ? "Aktif" : "Magang" },
+    { label: "Pengalaman", nilai: ml.pengalaman.toLocaleString("id-ID") },
+    { label: "AI dihemat", nilai: ml.dihemat.toLocaleString("id-ID") },
+    { label: "Akurasi", nilai: akurasiAudit !== null ? `${akurasiAudit}%` : ml.presisi !== null ? `${Math.round(ml.presisi * 100)}%` : "–" },
+  ];
+  return (
+    <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {butir.map((b) => (
+        <div key={b.label} className="rounded-lg bg-surface px-3 py-2">
+          <dt className="text-[11px] text-muted">{b.label}</dt>
+          <dd className="text-[13.5px] font-bold tabular-nums">{b.nilai}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function SaklarProspek({ id, aktif: awal, ml }: { id: number; aktif: boolean; ml: StatusMl }) {
+  const [aktif, setAktif] = useOptimistic(awal);
+  const [, mulai] = useTransition();
+  return (
+    <div className="space-y-3 rounded-xl bg-subtle/70 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[13px] font-bold">Saring yang bukan prospek</p>
+          <p className="mt-0.5 text-[12.5px] text-muted">{aktif ? "Chat iseng & bot tidak dilayani terus-menerus" : "Semua chat dilayani AI tanpa penyaringan"}</p>
+        </div>
+        <Saklar
+          aktif={aktif}
+          label="Saring yang bukan prospek"
+          onUbah={(v) =>
+            mulai(async () => {
+              setAktif(v);
+              await setSaringProspekAction(id, v);
+            })
+          }
+        />
+      </div>
+      {aktif && <RingkasMl ml={ml} />}
+      <p className="hint">
+        AI menilai setiap pesan. Pelanggan yang bertanya, memesan, atau komplain dilayani tanpa batas. Setelah 3 pesan beruntun yang jelas di luar
+        urusan usaha, chat dibisukan; chat bot/auto-reply dibisukan 6 jam. Machine learning di server belajar sendiri dari setiap penilaian dan
+        hasilnya. Selama tahap magang ia hanya mengamati. Setelah lolos ujian malam, ia mulai menghemat panggilan AI. Chat yang pernah Anda
+        balas sendiri tidak pernah disaring, dan chat yang dibisukan tetap tercatat di histori.
+      </p>
+    </div>
+  );
+}
+
 export function SaklarSinkron({ id, aktif: awal, siap, keterangan }: { id: number; aktif: boolean; siap: boolean; keterangan: string }) {
   const [aktif, setAktif] = useOptimistic(awal);
   const [galat, setGalat] = useState<string | null>(null);
@@ -110,6 +164,8 @@ export function NumberSettings({
   tungguBacaDetik,
   jedaDetik,
   saringSpam,
+  saringProspek,
+  ml,
 }: {
   id: number;
   label: string;
@@ -118,6 +174,8 @@ export function NumberSettings({
   tungguBacaDetik: number;
   jedaDetik: number;
   saringSpam: boolean;
+  saringProspek: boolean;
+  ml: StatusMl;
 }) {
   const [hasil, aksi] = useActionState(ubahNomorAction, null);
   // Tampilkan dalam menit bila pas kelipatan 60 (mis. 1800 -> 30 menit), selain itu dalam detik.
@@ -202,6 +260,8 @@ export function NumberSettings({
             diam dan tidak Anda balas tetap dijawab AI begitu waktunya habis.
           </p>
         </fieldset>
+
+        <SaklarProspek id={id} aktif={saringProspek} ml={ml} />
 
         <SaklarSpam id={id} aktif={saringSpam} />
 

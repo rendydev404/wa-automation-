@@ -23,6 +23,7 @@ import { siapDipakai, statHarian, tanggalWib } from "@/lib/numbers";
 import { nomorUntuk } from "@/lib/akses";
 import { daftarPelajaran, jumlahPelajaran } from "@/lib/pelajaran";
 import { ambilPesanPercakapan, daftarPercakapan, ringkasanPercakapan } from "@/lib/percakapan";
+import { statusMl } from "@/lib/prospek";
 import { ModalPenerus } from "@/components/modal-penerus";
 import { requireUser } from "@/lib/session";
 import { TUR_NOMOR } from "@/components/isi-tur";
@@ -70,7 +71,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   const admin = user.peran === "admin";
 
   const hari = hariTerakhir(tanggalWib(), 7);
-  const [dokumen, sinkronIds, statusSs, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran, tur, diteruskan, teruskanDiizinkan, produk, katalogAktif] = await Promise.all([
+  const [dokumen, sinkronIds, statusSs, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran, tur, diteruskan, teruskanDiizinkan, produk, katalogAktif, ml] = await Promise.all([
     daftarDokumen(id),
     admin ? nomorSinkron() : Promise.resolve([] as number[]),
     admin ? statusSinkron() : Promise.resolve(null),
@@ -84,6 +85,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
     saklar("teruskan_diizinkan"),
     daftarProduk(id),
     admin ? Promise.resolve(true) : katalogBoleh(nomor.user_id),
+    statusMl(id),
   ]);
   const chatPertama = daftarChat.daftar[0] ? await ambilPesanPercakapan(id, daftarChat.daftar[0].id) : null;
   const total = dokumen.reduce((n, d) => n + d.jumlah_karakter, 0);
@@ -233,6 +235,8 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               tungguBacaDetik={nomor.tunggu_baca_detik}
               jedaDetik={nomor.jeda_detik}
               saringSpam={nomor.saring_spam}
+              saringProspek={nomor.saring_prospek}
+              ml={ml}
             />
           </div>
         </div>

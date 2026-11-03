@@ -853,6 +853,41 @@ await cek("penyaring spam lokal (uji/data-spam.json): 0 pesan pelanggan salah ta
   assert.equal(S.buangTagAbaikan("Halo kak!\n<abaikan>terpotong"), "Halo kak!");
 });
 
+await cek("penyaring prospek: tag penilaian dipisah dari jawaban; penutup, kata minat, detektor bot; kNN & vektor int8", async () => {
+  const P = await lib("src/lib/prospek-def.ts");
+  assert.deepEqual(P.ambilNilai("Halo kak, ada yang bisa dibantu?\n<nilai>netral</nilai>"), { teks: "Halo kak, ada yang bisa dibantu?", nilai: "netral" });
+  assert.deepEqual(P.ambilNilai("<nilai>selesai</nilai>"), { teks: "", nilai: "selesai" });
+  assert.deepEqual(P.ambilNilai('Maaf kak\n<nilai label="bukan"/>'), { teks: "Maaf kak", nilai: "bukan" });
+  assert.deepEqual(P.ambilNilai("Siap kak\n<nilai>entah</nilai>"), { teks: "Siap kak", nilai: null }, "label tak dikenal diabaikan, tag tetap dibuang");
+  for (const t of ["ok makasih kak 🙏", "siap kak", "👍", "Terima kasih banyak min", "oke deh"]) assert.equal(P.penutupSaja(t), true, t);
+  for (const t of ["baik kak saya pesan 2", "oke, berapa ongkirnya?", "makasih, besok ambil jam 3", "halo kak"]) assert.equal(P.penutupSaja(t), false, t);
+  assert.equal(P.adaKataMinat("kak brp hrg nya"), true);
+  assert.equal(P.adaKataMinat("wkwk lucu"), false);
+  const balasan = "Halo Kak, terima kasih sudah menghubungi Toko A. Ada yang bisa dibantu?";
+  assert.equal(P.gema(`${balasan} 😊`, balasan), true);
+  assert.equal(P.gema("terima kasih", balasan), false, "pesan pendek tidak dianggap gema");
+  const promo = "Promo spesial hari ini diskon 50% untuk semua produk kami";
+  assert.equal(P.berulang(promo, [promo, promo]), true);
+  assert.equal(P.berulang("p", ["p", "p"]), false, "'p' berulang dari pelanggan yang tidak sabar bukan bot");
+  // Vektor int8: kemiripan nyaris sama dengan float32; kNN memilih label tetangga terdekat.
+  const acak = (s) => {
+    const v = new Float32Array(P.DIM).map((_, i) => Math.sin(i * s));
+    const n = Math.hypot(...v);
+    return v.map((x) => x / n);
+  };
+  const [a, b, c] = [acak(1.1), acak(2.3), acak(3.7)];
+  const bank = P.bankKosong(3);
+  P.tambahKeBank(bank, P.kodeVektor(a), P.idLabel("prospek"), 1);
+  P.tambahKeBank(bank, P.kodeVektor(b), P.idLabel("bukan"), 1);
+  P.tambahKeBank(bank, P.kodeVektor(c), P.idLabel("selesai"), 1);
+  assert.equal(P.kodeVektor(a).length, 388);
+  assert.equal(P.nilaiKnn(a, [bank]).label, "prospek");
+  assert.equal(P.nilaiKnn(b, [bank]).label, "bukan");
+  assert.ok(Math.abs(P.nilaiKnn(a, [bank]).simMaks - 1) < 0.005);
+  assert.ok(P.peluangLewati(P.nilaiKnn(c, [bank])) > 0.9);
+  assert.equal(P.nilaiKnn(a, [bank], { lewati: (_, i) => i === 0 }).label !== "prospek" || bank.n === 1, true, "leave-one-out melewati contoh itu sendiri");
+});
+
 await sql.end({ timeout: 2 });
 await pg.berhenti();
 console.log(`\nLOLOS ${lolos} uji modul AI`);
