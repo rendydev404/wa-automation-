@@ -7,6 +7,7 @@ import { GrafikAktivitas } from "@/components/grafik-aktivitas";
 import { NumbersList } from "@/components/numbers-list";
 import { KartuTerhubung, PanelSistem, PeringatanAi } from "@/components/ringkasan-langsung";
 import { KartuStat, KartuUtama, Meter } from "@/components/stat";
+import { PanelSyaratNomor } from "@/components/syarat-nomor";
 import { TombolTambahNomor } from "@/components/tambah-nomor";
 import { angka } from "@/lib/format";
 import { daftarNomor, siapDipakai, statHarian, tanggalWib } from "@/lib/numbers";
@@ -37,6 +38,7 @@ export default function Beranda() {
         </div>
       </div>
       <PeringatanAi />
+      <PanelSyaratNomor />
       <Suspense fallback={<div aria-hidden className="card h-36 animate-denyut" />}>
         <KartuLangganan tautan />
       </Suspense>

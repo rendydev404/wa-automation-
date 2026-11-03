@@ -1,10 +1,11 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, BookOpenText, Camera, Check, GraduationCap, Hand, History, Lock, Share2, ShieldCheck, Smartphone, Zap } from "lucide-react";
+import { ArrowRight, BookOpenText, Camera, Check, GraduationCap, Hand, History, Lock, Share2, ShieldCheck, Smartphone, TriangleAlert, Zap } from "lucide-react";
 import { DemoAlur, DemoChat } from "@/components/landing/demo";
 import { HargaLanding } from "@/components/landing/harga";
 import { Logo } from "@/components/logo";
+import { ALASAN_SYARAT, JUDUL_SYARAT, SYARAT_NOMOR } from "@/components/syarat-nomor";
 import { Kalkulator } from "@/components/landing/kalkulator";
 import { WidgetWaLanding } from "@/components/landing/widget-wa";
 import { UMUR_HISTORI_HARI } from "@/lib/format";
@@ -36,7 +37,7 @@ const KEAMANAN = [
 
 const FAQ = [
   { t: "Apakah nomor WhatsApp saya aman?", j: "Nomor tersambung sebagai perangkat tertaut, sama seperti WhatsApp Web. Anda bisa memutusnya kapan saja dari dashboard atau dari HP (Perangkat tertaut → Keluar)." },
-  { t: "Bisa dipakai WhatsApp Business?", j: "Bisa. WhatsApp biasa maupun WhatsApp Business, selama bisa membuka menu Perangkat tertaut." },
+  { t: "Bisa dipakai WhatsApp Business?", j: "Bisa. WhatsApp biasa maupun WhatsApp Business, selama bisa membuka menu Perangkat tertaut. Matikan dulu balasan otomatis bawaan WhatsApp Business (Pesan salam & Pesan tidak di tempat) dan layanan auto-reply lain di nomor itu, supaya pelanggan tidak menerima balasan ganda." },
   { t: "Bagaimana kalau AI tidak tahu jawabannya?", j: "AI dilarang menebak. Bila informasinya tidak ada di base knowledge, AI berkata terus terang dan meneruskan ke Anda." },
   { t: "Berapa nomor yang bisa saya sambungkan?", j: "Akun gratis mendapat 1 nomor. Butuh lebih banyak nomor untuk tim atau beberapa lini layanan? Pilih paket Bisnis atau Pro di bagian Harga." },
   { t: "Apa yang terjadi kalau kuota balasan AI habis?", j: "AI berhenti membalas sementara dan chat tetap masuk ke HP-mu seperti biasa. Perpanjang atau naikkan paket, AI langsung aktif lagi." },
@@ -178,6 +179,35 @@ export default function Landing() {
           </div>
           <div className="mt-12">
             <DemoAlur />
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- Syarat nomor ---------- */}
+      <section id="syarat-nomor" aria-labelledby="judul-syarat-nomor" className="mx-auto max-w-[1200px] scroll-mt-8 px-4 pt-20 sm:px-6 lg:pt-28">
+        <div className="rounded-[28px] border border-warning/30 bg-warning-soft/50 p-6 sm:p-10">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-center">
+            <div>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-3 py-1 text-[12px] font-bold tracking-[0.06em] text-warning uppercase">
+                <TriangleAlert className="size-3.5" aria-hidden /> Syarat nomor
+              </span>
+              <h2 id="judul-syarat-nomor" className="mt-4 text-2xl font-extrabold tracking-tight sm:text-3xl">
+                {JUDUL_SYARAT}
+              </h2>
+              <p className="mt-3 text-[15px] leading-relaxed text-muted">{ALASAN_SYARAT}</p>
+            </div>
+            <ul className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+              {SYARAT_NOMOR.map((x, i) => (
+                <li key={x.judul} className="rounded-2xl border border-line bg-surface p-5 shadow-card">
+                  <div className="flex items-center justify-between">
+                    <x.ikon className="size-5 text-warning" aria-hidden />
+                    <span className="text-[12px] font-bold text-faint tabular-nums">0{i + 1}</span>
+                  </div>
+                  <p className="mt-3 text-[14.5px] font-bold">{x.judul}</p>
+                  <p className="mt-1 text-[13.5px] leading-relaxed text-muted">{x.teks}</p>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </section>

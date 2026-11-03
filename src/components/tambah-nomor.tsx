@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { Plus, QrCode, X } from "lucide-react";
 import { tambahNomorAction } from "@/app/actions";
+import { SyaratNomorRingkas } from "./syarat-nomor";
 import { Pesan, SubmitButton } from "./ui";
 
 /**
@@ -82,6 +83,14 @@ function DialogTambah({ tutup }: { tutup: () => void }) {
           Nama nomor
         </label>
         <input id={`${id}-label`} name="label" required maxLength={60} autoFocus placeholder="mis. CS Utama" className="field" />
+        <div className="mt-4">
+          <SyaratNomorRingkas />
+        </div>
+        {/* Persetujuan cukup di browser: syarat ini soal cara pemilik memakai nomornya, bukan hal yang bisa diperiksa server. */}
+        <label className="mt-3 flex cursor-pointer items-start gap-2.5 text-[13px]">
+          <input type="checkbox" required className="mt-0.5 size-4 shrink-0 accent-accent" />
+          <span>Saya sudah memastikan nomor ini tidak memakai balasan otomatis lain.</span>
+        </label>
         <div className="mt-2 min-h-5">
           <Pesan ok={false}>{hasil?.pesan}</Pesan>
         </div>
