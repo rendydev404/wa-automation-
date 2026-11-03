@@ -214,6 +214,7 @@ export async function hapusPengguna(admin: User, id: number): Promise<void> {
   const sql = await db();
   await sql`DELETE FROM users WHERE id = ${id}`; // numbers & turunannya ikut terhapus (ON DELETE CASCADE)
   segarkanNomor();
+  segarkanAiAkun(id);
   await catatLog(admin, "hapus akun", u.email, `${u.jumlah_nomor} nomor ikut dihapus`);
 }
 

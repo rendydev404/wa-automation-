@@ -153,7 +153,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
           <section className="card p-6">
             <h2 className="text-[15px] font-bold">Tindakan akun</h2>
             <div className="mt-4">
-              <AksiAkun id={u.id} admin={u.peran === "admin"} diriSendiri={diriSendiri} />
+              <AksiAkun id={u.id} nama={u.nama} email={u.email} jumlahNomor={nomor.length} admin={u.peran === "admin"} diriSendiri={diriSendiri} />
             </div>
           </section>
         </div>
@@ -243,7 +243,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               <h2 className="text-[15px] font-bold text-danger">Hapus akun</h2>
               <p className="mt-0.5 text-[13px] text-muted">Semua nomor, knowledge, dan histori percakapannya ikut terhapus permanen.</p>
               <div className="mt-4">
-                <HapusAkun id={u.id} email={u.email} />
+                <HapusAkun id={u.id} nama={u.nama} email={u.email} jumlahNomor={nomor.length} />
               </div>
             </section>
           )}

@@ -3,7 +3,7 @@ import { ArrowDown, Bot, ChevronRight, CreditCard, Package, ShieldCheck, Sparkle
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna } from "@/lib/pengguna";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
-import { FormAi, FormBuatAkun, FormPaket, FormPengaturan } from "./form-admin";
+import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, TombolHapusPengguna } from "./form-admin";
 import { customTampil, hargaAngka, paketCustom } from "@/lib/paket-custom";
 import { labelKomisiPaket } from "@/lib/afiliasi-def";
 import { PembangunCustom } from "./paket-custom";
@@ -321,7 +321,7 @@ export async function Transaksi() {
 }
 
 export async function TabelPengguna({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const sp = await searchParams;
   const cari = typeof sp.q === "string" ? sp.q : "";
   const filter = (FILTER.find((f) => f.nilai === sp.f)?.nilai ?? "semua") as FilterPengguna;
@@ -369,7 +369,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
               <th className="px-3 py-3">Status</th>
               <th className="px-3 py-3 text-right">Nomor</th>
               <th className="px-3 py-3">Login terakhir</th>
-              <th className="px-5 py-3 text-right" aria-label="Buka" />
+              <th className="px-5 py-3 text-right">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -403,9 +403,17 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
                 </td>
                 <td className="px-3 py-3 text-muted">{u.login_terakhir ? waktuSingkatWib(u.login_terakhir) : `Daftar ${tanggal(u.created_at)}`}</td>
                 <td className="px-5 py-3 text-right">
-                  <Link href={`/admin/pengguna/${u.id}`} aria-label={`Kelola ${u.email}`} className="inline-grid size-8 place-items-center rounded-lg text-faint transition-colors group-hover:bg-surface group-hover:text-fg">
-                    <ChevronRight className="size-4" aria-hidden />
-                  </Link>
+                  <div className="inline-flex items-center justify-end gap-1.5">
+                    {u.id !== admin.id && <TombolHapusPengguna id={u.id} nama={u.nama} email={u.email} jumlahNomor={u.jumlah_nomor} mode="baris" />}
+                    <Link
+                      href={`/admin/pengguna/${u.id}`}
+                      aria-label={`Kelola ${u.email}`}
+                      className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-2.5 text-[12px] font-semibold text-muted transition-colors hover:border-line-strong hover:bg-surface hover:text-fg"
+                    >
+                      <span>Kelola</span>
+                      <ChevronRight className="size-3.5" aria-hidden />
+                    </Link>
+                  </div>
                 </td>
               </tr>
             ))}

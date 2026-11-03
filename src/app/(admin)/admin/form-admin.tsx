@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { Copy, KeyRound, Loader2, LogOut, Trash2, Unplug } from "lucide-react";
+import { AlertTriangle, Copy, KeyRound, Loader2, LogOut, Trash2, Unplug, X } from "lucide-react";
 import {
   adminBlokirAction,
   adminBuatAkunAction,
@@ -20,6 +20,7 @@ import {
 } from "@/app/actions";
 import { KursInfo } from "@/components/kurs-info";
 import { type OpsiModel, PilihModel } from "@/components/pilih-model";
+import { PilihOpsi } from "@/components/pilih-opsi";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "@/components/ui";
 import { type JenisKomisi, hitungKomisiPaket } from "@/lib/afiliasi-def";
 import type { InfoKurs } from "@/lib/kurs-def";
@@ -162,6 +163,11 @@ export function FormPengaturan({
   );
 }
 
+const PILIHAN_PERAN = [
+  { id: "user", label: "Pengguna" },
+  { id: "admin", label: "Admin" },
+] as const;
+
 export function FormBuatAkun() {
   const [hasil, aksi] = useActionState(adminBuatAkunAction, null);
   const ref = useRef<HTMLFormElement>(null);
@@ -174,10 +180,7 @@ export function FormBuatAkun() {
       <input name="email" aria-label="Email" type="email" placeholder="Email" required className="field" />
       <input name="password" aria-label="Password awal" type="text" placeholder="Password awal (min. 10, huruf + angka)" required minLength={10} autoComplete="off" className="field" />
       <div className="grid grid-cols-2 gap-3">
-        <select name="peran" aria-label="Peran" className="field">
-          <option value="user">Pengguna</option>
-          <option value="admin">Admin</option>
-        </select>
+        <PilihOpsi name="peran" nilai="user" opsi={PILIHAN_PERAN} label="Peran" />
         <input name="kuota" aria-label="Kuota nomor" type="number" min={0} max={100} placeholder="Kuota (bawaan)" className="field" />
       </div>
       <div className="flex items-center gap-3">
@@ -275,7 +278,21 @@ export function FormBlokir({ id, diblokir, alasan }: { id: number; diblokir: boo
   );
 }
 
-export function AksiAkun({ id, admin, diriSendiri }: { id: number; admin: boolean; diriSendiri: boolean }) {
+export function AksiAkun({
+  id,
+  nama = "",
+  email = "",
+  jumlahNomor = 0,
+  admin,
+  diriSendiri,
+}: {
+  id: number;
+  nama?: string;
+  email?: string;
+  jumlahNomor?: number;
+  admin: boolean;
+  diriSendiri: boolean;
+}) {
   const [pw, setPw] = useState<string | null>(null);
   const [pesan, setPesan] = useState<{ ok: boolean; teks: string } | null>(null);
   const [tunggu, mulai] = useTransition();
@@ -310,6 +327,7 @@ export function AksiAkun({ id, admin, diriSendiri }: { id: number; admin: boolea
             {admin ? "Jadikan pengguna biasa" : "Jadikan admin"}
           </button>
         )}
+        {!diriSendiri && email && <TombolHapusPengguna id={id} nama={nama} email={email} jumlahNomor={jumlahNomor} alihkan mode="tombol" />}
         {tunggu && <Loader2 className="size-4 animate-spin self-center text-muted" aria-hidden />}
       </div>
       {pw && (
@@ -343,33 +361,186 @@ export function PutuskanWa({ id, jumlah }: { id: number; jumlah: number }) {
   );
 }
 
-export function HapusAkun({ id, email }: { id: number; email: string }) {
+/**
+ * Tombol + dialog modal konfirmasi kustom untuk menghapus pengguna (baik dari tabel daftar pengguna
+ * maupun dari halaman detail pengguna).
+ */
+export function TombolHapusPengguna({
+  id,
+  nama,
+  email,
+  jumlahNomor,
+  alihkan = false,
+  mode = "baris",
+}: {
+  id: number;
+  nama: string;
+  email: string;
+  jumlahNomor: number;
+  alihkan?: boolean;
+  mode?: "baris" | "tombol";
+}) {
+  const [buka, setBuka] = useState(false);
+  const [galat, setGalat] = useState("");
+  const [tunggu, mulai] = useTransition();
+
+  useEffect(() => {
+    if (!buka) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !tunggu) setBuka(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [buka, tunggu]);
+
+  return (
+    <>
+      {mode === "baris" ? (
+        <button
+          type="button"
+          onClick={() => {
+            setGalat("");
+            setBuka(true);
+          }}
+          aria-label={`Hapus pengguna ${email}`}
+          title={`Hapus ${email}`}
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-2.5 text-[12px] font-semibold text-muted transition-colors hover:border-danger/40 hover:bg-danger-soft hover:text-danger"
+        >
+          <Trash2 className="size-3.5" aria-hidden />
+          <span className="hidden sm:inline">Hapus</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            setGalat("");
+            setBuka(true);
+          }}
+          className="btn btn-ghost border border-danger/30 text-danger hover:bg-danger-soft"
+        >
+          <Trash2 className="size-4" aria-hidden />
+          Hapus pengguna
+        </button>
+      )}
+
+      {buka && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={`judul-hapus-${id}`}
+          className="fixed inset-0 z-50 grid place-items-center bg-ink/50 p-4 text-left"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !tunggu) setBuka(false);
+          }}
+        >
+          <div className="card w-full max-w-md animate-masuk overflow-hidden border border-line bg-surface p-6 shadow-pop">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-danger-soft text-danger">
+                  <AlertTriangle className="size-5" aria-hidden />
+                </span>
+                <div>
+                  <h3 id={`judul-hapus-${id}`} className="text-[16px] font-bold text-fg">
+                    Hapus Pengguna?
+                  </h3>
+                  <p className="text-[12.5px] text-muted">Tindakan ini permanen dan tidak bisa dibatalkan.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={tunggu}
+                onClick={() => setBuka(false)}
+                aria-label="Tutup dialog"
+                className="grid size-8 place-items-center rounded-lg text-muted transition-colors hover:bg-subtle hover:text-fg"
+              >
+                <X className="size-4" aria-hidden />
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-line bg-subtle/60 p-3.5 text-[13px]">
+              <p className="truncate font-semibold text-fg">{nama || "(tanpa nama)"}</p>
+              <p className="truncate font-mono text-[12px] text-muted">{email}</p>
+              <p className="mt-1.5 text-[12px] text-muted">
+                Perangkat terkait: <span className="font-semibold text-fg">{jumlahNomor} nomor WhatsApp</span>
+              </p>
+            </div>
+
+            <p className="mt-3.5 text-[12.5px] leading-relaxed text-muted">
+              Semua sesi WhatsApp tertaut akan dicabut, dan seluruh data nomor, knowledge base, katalog produk, serta histori percakapan akun ini akan dihapus permanen.
+            </p>
+
+            {galat && (
+              <div className="mt-3">
+                <Pesan ok={false}>{galat}</Pesan>
+              </div>
+            )}
+
+            <div className="mt-5 flex items-center justify-end gap-2.5">
+              <button type="button" disabled={tunggu} onClick={() => setBuka(false)} className="btn btn-ghost border border-line">
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={tunggu}
+                onClick={() =>
+                  mulai(async () => {
+                    const h = await adminHapusAction(id, email, alihkan);
+                    if (h && !h.ok) {
+                      setGalat(h.pesan ?? "Gagal menghapus pengguna.");
+                    } else {
+                      setBuka(false);
+                    }
+                  })
+                }
+                className="btn bg-danger text-white hover:opacity-90"
+              >
+                {tunggu ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Trash2 className="size-4" aria-hidden />}
+                Ya, hapus permanen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function HapusAkun({ id, nama = "", email, jumlahNomor = 0 }: { id: number; nama?: string; email: string; jumlahNomor?: number }) {
   const [ketik, setKetik] = useState("");
   const [galat, setGalat] = useState("");
   const [tunggu, mulai] = useTransition();
   return (
     <div className="space-y-3">
-      <label htmlFor="konfirmasi-hapus" className="label">
-        Ketik <span className="font-mono">{email}</span> untuk menghapus
-      </label>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <input id="konfirmasi-hapus" value={ketik} onChange={(e) => setKetik(e.target.value)} autoComplete="off" className="field" />
-        <button
-          type="button"
-          disabled={tunggu || ketik.trim().toLowerCase() !== email}
-          className="btn bg-danger text-white hover:opacity-90"
-          onClick={() =>
-            mulai(async () => {
-              const h = await adminHapusAction(id, ketik);
-              if (h && !h.ok) setGalat(h.pesan ?? "Gagal.");
-            })
-          }
-        >
-          {tunggu && <Loader2 className="size-4 animate-spin" aria-hidden />}
-          Hapus akun & semua nomornya
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <TombolHapusPengguna id={id} nama={nama} email={email} jumlahNomor={jumlahNomor} alihkan mode="tombol" />
       </div>
-      {galat && <Pesan ok={false}>{galat}</Pesan>}
+      <div className="border-t border-line pt-3">
+        <label htmlFor="konfirmasi-hapus" className="label">
+          Atau ketik <span className="font-mono">{email}</span> untuk menghapus langsung
+        </label>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input id="konfirmasi-hapus" value={ketik} onChange={(e) => setKetik(e.target.value)} placeholder={email} autoComplete="off" className="field" />
+          <button
+            type="button"
+            disabled={tunggu || ketik.trim().toLowerCase() !== email}
+            className="btn bg-danger text-white hover:opacity-90"
+            onClick={() =>
+              mulai(async () => {
+                const h = await adminHapusAction(id, ketik, true);
+                if (h && !h.ok) setGalat(h.pesan ?? "Gagal.");
+              })
+            }
+          >
+            {tunggu && <Loader2 className="size-4 animate-spin" aria-hidden />}
+            Hapus akun & semua nomornya
+          </button>
+        </div>
+        {galat && (
+          <div className="mt-2">
+            <Pesan ok={false}>{galat}</Pesan>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

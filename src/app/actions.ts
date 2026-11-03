@@ -555,11 +555,11 @@ export async function adminPutuskanWaAction(id: number): Promise<Hasil> {
   }, `/admin/pengguna/${id}`);
 }
 
-export async function adminHapusAction(id: number, konfirmasi: string): Promise<Hasil> {
+export async function adminHapusAction(id: number, konfirmasi?: string, alihkan = true): Promise<Hasil> {
   const admin = await requireAdmin();
   const u = idSah(id) ? await penggunaById(id) : undefined;
   if (!u) return { ok: false, pesan: "Pengguna tidak ditemukan." };
-  if (konfirmasi.trim().toLowerCase() !== u.email) return { ok: false, pesan: "Ketik email pengguna persis untuk konfirmasi." };
+  if (konfirmasi !== undefined && konfirmasi.trim().toLowerCase() !== u.email) return { ok: false, pesan: "Ketik email pengguna persis untuk konfirmasi." };
   if (u.id === admin.id) return { ok: false, pesan: "Anda tidak bisa menghapus akun Anda sendiri." };
   try {
     // Sesi WhatsApp tiap nomor dicabut dulu; bila satu gagal, akun tidak dihapus (tidak ada sesi yatim).
@@ -569,7 +569,9 @@ export async function adminHapusAction(id: number, konfirmasi: string): Promise<
     return { ok: false, pesan: pesanGalat(e) };
   }
   revalidatePath("/admin", "layout");
-  redirect("/admin/pengguna");
+  revalidatePath("/admin/pengguna");
+  if (alihkan) redirect("/admin/pengguna");
+  return { ok: true, pesan: `Pengguna ${u.email} berhasil dihapus.` };
 }
 
 export async function adminBuatAkunAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
