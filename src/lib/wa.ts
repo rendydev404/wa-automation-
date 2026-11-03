@@ -137,13 +137,30 @@ export const digitWa = (id: string | null | undefined): string => (id ?? "").spl
 const sudahTertaut = (creds: { me?: { id?: string; name?: string }; account?: unknown }): boolean =>
   !!creds.me?.id && (creds.me.id.includes(":") || !!creds.account || creds.me.name !== "~");
 
-function simpanPemetaanDiri(sock: WASocket, creds: { me?: { id?: string; lid?: string } }): void {
-  const id = creds.me?.id;
-  const lid = creds.me?.lid;
-  const store = (sock.signalRepository?.lidMapping as { storeLIDPNMappings?: (p: { lid: string; pn: string }[]) => Promise<unknown> } | undefined)?.storeLIDPNMappings;
-  if (id && lid && typeof store === "function") {
-    void store.call(sock.signalRepository.lidMapping, [{ lid, pn: id }]).catch(() => {});
+function simpanPemetaanPasangan(B: Baileys, sock: WASocket, pn: string | undefined, lid: string | undefined): void {
+  if (!pn || !lid || !B.isPnUser(pn) || !B.isLidUser(lid)) return;
+  const lm = sock.signalRepository?.lidMapping as unknown as
+    | {
+        storeLIDPNMappings?: (p: { lid: string; pn: string }[]) => Promise<unknown>;
+        mappingCache?: { set?: (k: string, v: string) => unknown };
+      }
+    | undefined;
+  if (!lm) return;
+  // Panggil storeLIDPNMappings lebih dulu agar pemeriksaan cache-miss untuk penulisan DB tetap berjalan,
+  // lalu isi mappingCache secara sinkron agar dekripsi pesan pertama (getDecryptionJid) langsung memakai LID.
+  if (typeof lm.storeLIDPNMappings === "function") {
+    void lm.storeLIDPNMappings([{ lid, pn }]).catch(() => {});
   }
+  const pnUser = B.jidDecode(pn)?.user;
+  const lidUser = B.jidDecode(lid)?.user;
+  if (pnUser && lidUser && typeof lm.mappingCache?.set === "function") {
+    lm.mappingCache.set(`pn:${pnUser}`, lidUser);
+    lm.mappingCache.set(`lid:${lidUser}`, pnUser);
+  }
+}
+
+function simpanPemetaanDiri(B: Baileys, sock: WASocket, creds: { me?: { id?: string; lid?: string } }): void {
+  simpanPemetaanPasangan(B, sock, creds.me?.id, creds.me?.lid);
 }
 
 const tidur = (ms: number) => new Promise<null>((r) => setTimeout(() => r(null), ms));
@@ -491,7 +508,7 @@ async function sambung(s: Sesi): Promise<void> {
       generateHighQualityLinkPreview: false,
       shouldIgnoreJid: abaikanJid,
     });
-    simpanPemetaanDiri(sock, auth.creds);
+    simpanPemetaanDiri(B, sock, auth.creds);
     // Baileys bawaan mengirim NACK error="500" (UnhandledError) setiap ada pesan dari JID yang diabaikan
     // (grup, status, saluran). Ribuan NACK 500 membuat server WhatsApp memutus stream atau mencabut perangkat
     // (401 device_removed). Di sini pesan yang diabaikan langsung diberi ACK bersih tanpa error="500".
@@ -499,29 +516,52 @@ async function sambung(s: Sesi): Promise<void> {
     if (ws && typeof ws.emit === "function" && typeof sock.sendMessageAck === "function") {
       const emitAsli = ws.emit.bind(ws);
       ws.emit = (ev: string, ...args: unknown[]) => {
-        if (ev === "CB:message") {
+        if (ev === "CB:success") {
+          // Baileys 7 baru menyalin `node.attrs.lid` ke `creds.me.lid` setelah 3 round-trip jaringan
+          // (uploadPreKeys, passiveIq, digestKeyBundle). Catat secara sinkron begitu `<success>` tiba agar
+          // pesan peer dari iPhone yang masuk selama jeda tersebut langsung dikenali sebagai `fromMe`.
+          const node = args[0] as { attrs?: Record<string, string> } | undefined;
+          const lidNode = node?.attrs?.lid;
+          if (lidNode && B.isLidUser(lidNode)) {
+            s.lidTersimpan = lidNode;
+            if (auth.creds.me && sudahTertaut(auth.creds)) {
+              auth.creds.me.lid = lidNode;
+              auth.simpanCreds();
+              simpanPemetaanDiri(B, sock, auth.creds);
+            }
+          } else if (node?.attrs && !lidNode) {
+            const lidCadangan = auth.creds.me?.lid || s.lidTersimpan;
+            if (lidCadangan && B.isLidUser(lidCadangan)) node.attrs.lid = lidCadangan;
+          }
+        } else if (ev === "CB:message") {
           const node = args[0] as { attrs?: Record<string, string> } | undefined;
           const dari = node?.attrs?.from;
           if (dari && dari !== "@s.whatsapp.net" && abaikanJid(dari)) {
             void sock.sendMessageAck(node as never).catch(() => {});
             return true;
           }
+          const pnAlt = node?.attrs?.sender_pn || node?.attrs?.participant_pn || node?.attrs?.peer_recipient_pn;
+          const lidAlt = node?.attrs?.sender_lid || node?.attrs?.participant_lid || node?.attrs?.peer_recipient_lid;
+          // Simpan pemetaan PN<->LID ke cache secara sinkron SEBELUM `getDecryptionJid` berjalan di Baileys 7.
+          if (dari && B.isLidUser(dari) && pnAlt && B.isPnUser(pnAlt)) {
+            simpanPemetaanPasangan(B, sock, pnAlt, dari);
+          } else if (dari && B.isPnUser(dari) && lidAlt && B.isLidUser(lidAlt)) {
+            simpanPemetaanPasangan(B, sock, dari, lidAlt);
+          }
           // Di beberapa iPhone (iOS), pesan protokol peer (APP_STATE_SYNC_KEY_SHARE / HISTORY_SYNC_NOTIFICATION)
           // dikirim dari LID pemilik sebelum `me.lid` tercatat di `<success>`. Tanpa `me.lid`, Baileys 7 menganggap
           // `fromMe = false` dan membuang kunci sinkronisasi tersebut sebagai spoofed message.
           if (dari && auth.creds.me?.id && !auth.creds.me.lid && sudahTertaut(auth.creds)) {
-            const pnAlt = node?.attrs?.sender_pn || node?.attrs?.participant_pn || node?.attrs?.peer_recipient_pn;
-            const lidAlt = node?.attrs?.sender_lid || node?.attrs?.participant_lid || node?.attrs?.peer_recipient_lid;
             if (B.isLidUser(dari) && (node?.attrs?.category === "peer" || (pnAlt && B.areJidsSameUser(pnAlt, auth.creds.me.id)))) {
               auth.creds.me.lid = dari;
               s.lidTersimpan = dari;
               auth.simpanCreds();
-              simpanPemetaanDiri(sock, auth.creds);
+              simpanPemetaanDiri(B, sock, auth.creds);
             } else if (lidAlt && B.isLidUser(lidAlt) && B.areJidsSameUser(dari, auth.creds.me.id)) {
               auth.creds.me.lid = lidAlt;
               s.lidTersimpan = lidAlt;
               auth.simpanCreds();
-              simpanPemetaanDiri(sock, auth.creds);
+              simpanPemetaanDiri(B, sock, auth.creds);
             }
           }
         }
@@ -561,7 +601,7 @@ async function sambung(s: Sesi): Promise<void> {
 
     if (sudahTertaut(auth.creds)) {
       s.terpasang = true;
-      simpanPemetaanDiri(sock, auth.creds);
+      simpanPemetaanDiri(B, sock, auth.creds);
     }
     if (u.registered && s.status === "SCAN_QR_CODE") {
       s.baruTertaut = true;
