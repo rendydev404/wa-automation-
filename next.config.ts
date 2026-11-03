@@ -42,6 +42,8 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
+      // Logo kanal pembayaran: berkas statis kecil, disimpan browser seminggu (ganti logo = ganti nama berkas).
+      { source: "/logo-bayar/:berkas", headers: [{ key: "Cache-Control", value: "public, max-age=604800" }] },
       {
         source: "/:path*",
         headers: [

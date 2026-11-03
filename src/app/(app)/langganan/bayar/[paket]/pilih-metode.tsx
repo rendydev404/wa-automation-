@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Check, Loader2, QrCode, ShieldCheck, Wallet } from "lucide-react";
 import { bayarPaketAction } from "@/app/actions";
+import { LogoKanal } from "@/components/logo-kanal";
 import { lacakMetaEvent } from "@/components/meta-pixel";
 import { Pesan } from "@/components/ui";
 import { KANAL_BAYAR, type KanalBayar } from "@/lib/harga";
@@ -56,6 +57,7 @@ export function PilihMetode({ paketId, harga, kanal }: { paketId: number; harga:
                       }`}
                     >
                       <input type="radio" name="kanal" value={x} checked={aktif} onChange={() => setPilih(x)} className="sr-only" />
+                      <LogoKanal kanal={x} />
                       <span className="min-w-0 flex-1">
                         <span className="block text-[13.5px] font-semibold">{KANAL_BAYAR[x].label}</span>
                         <span className="block truncate text-[12px] text-muted">{KANAL_BAYAR[x].info}</span>

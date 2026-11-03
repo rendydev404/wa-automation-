@@ -81,6 +81,7 @@ async function Tagihan({ t }: { t: T }) {
     <div className="space-y-4">
       <InstruksiBayar
         orderId={t.order_id}
+        kanal={kanal}
         labelKanal={`${KANAL_BAYAR[kanal].label} · Paket ${t.nama_paket}`}
         namaAplikasi={kanal === "gopay" ? "GoPay" : kanal === "shopeepay" ? "ShopeePay" : undefined}
         jumlah={t.jumlah}

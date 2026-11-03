@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, Clock, Copy, Download, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { batalBayarAction } from "@/app/actions";
+import { LogoKanal } from "@/components/logo-kanal";
 import { Pill, TombolKonfirmasi } from "@/components/ui";
+import type { KanalBayar } from "@/lib/harga";
 import { type BitQr, jalurQr } from "@/lib/qr";
 
 /** Jeda polling status ke server kita: rapat di menit-menit awal (saat orang biasanya membayar), lalu makin jarang. */
@@ -165,6 +167,7 @@ function Baris({ label, nilai, salin }: { label: string; nilai: string; salin?: 
 
 export function InstruksiBayar({
   orderId,
+  kanal,
   labelKanal,
   namaAplikasi,
   jumlah,
@@ -175,6 +178,7 @@ export function InstruksiBayar({
   langkah,
 }: {
   orderId: string;
+  kanal: KanalBayar;
   labelKanal: string;
   /** Untuk tombol deeplink: "GoPay" / "ShopeePay". */
   namaAplikasi?: string;
@@ -195,11 +199,14 @@ export function InstruksiBayar({
   return (
     <section className="card overflow-hidden" aria-labelledby="judul-tagihan">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
-        <div>
-          <h1 id="judul-tagihan" className="text-[17px] font-bold tracking-tight">
-            Selesaikan pembayaran
-          </h1>
-          <p className="text-[12.5px] text-muted">{labelKanal}</p>
+        <div className="flex min-w-0 items-center gap-3">
+          <LogoKanal kanal={kanal} ukuran="lg" />
+          <div className="min-w-0">
+            <h1 id="judul-tagihan" className="text-[17px] font-bold tracking-tight">
+              Selesaikan pembayaran
+            </h1>
+            <p className="text-[12.5px] text-muted">{labelKanal}</p>
+          </div>
         </div>
         {habis ? <Pill nada="abu">Waktu habis</Pill> : <Pill nada="kuning">Menunggu pembayaran</Pill>}
       </div>
