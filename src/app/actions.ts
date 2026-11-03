@@ -21,7 +21,7 @@ import {
 } from "@/lib/afiliasi";
 import { nomorUntuk } from "@/lib/akses";
 import { kunciAnthropic, kursUsd, perkiraanPerBalasan } from "@/lib/ai";
-import { MAKS_HARGA_PAKET, METODE_BAYAR } from "@/lib/harga";
+import { KANAL_BAYAR, MAKS_HARGA_PAKET, METODE_BAYAR, kanalSah } from "@/lib/harga";
 import { authConfigured } from "@/lib/auth";
 import { asalAplikasi, ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
 import { sekarang, setSetting } from "@/lib/db";
@@ -35,8 +35,8 @@ import {
   ujiCapiMetaPixel,
 } from "@/lib/meta-pixel";
 import { ATURAN_ANGKA, ATURAN_SAKLAR, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
-import { type IsiKhusus, METODE_MANUAL, type MetodeManual, berikanPaketManual, hapusPaket, hentikanLangganan, mulaiBayar, paketById, riwayatTransaksi, segarkanKuota, simpanPaket, terapkanSimulasi, terapkanStatus } from "@/lib/langganan";
-import { MidtransError, konfigMidtrans } from "@/lib/midtrans";
+import { type IsiKhusus, METODE_MANUAL, type MetodeManual, batalkanBayar, berikanPaketManual, hapusPaket, hentikanLangganan, mulaiBayar, ORDER_SAH, paketById, segarkanKuota, simpanPaket, terapkanSimulasi } from "@/lib/langganan";
+import { MidtransError, kanalAktif, konfigMidtrans } from "@/lib/midtrans";
 import { tanggal } from "@/lib/format";
 import { GalatCustom, customTampil, periksaCustom, ringkasCustom, simpanPaketCustom } from "@/lib/paket-custom";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
@@ -700,40 +700,48 @@ export async function selesaiTurAction(nama: string): Promise<void> {
 
 // ---------- Langganan & pembayaran ----------
 
-/** Buat tagihan paket di Midtrans Snap; browser lalu dibawa ke halaman pembayarannya. */
-export async function bayarPaketAction(paketId: number): Promise<Hasil & { url?: string }> {
+/**
+ * Buat tagihan paket lewat Midtrans Core API dengan kanal pilihan pelanggan; browser lalu dibawa ke halaman instruksi
+ * bayar kita sendiri. Klik ganda / tagihan yang sama yang masih berlaku = order_id yang sama (tanpa charge baru).
+ */
+export async function bayarPaketAction(paketId: number, kanal: string): Promise<Hasil & { orderId?: string }> {
   const user = await requireUser();
   if (terlaluSering(`bayar:${user.id}`, 10, 10 * 60_000)) return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." };
   const k = await konfigMidtrans();
   if (!k) return { ok: false, pesan: "Pembayaran belum diaktifkan admin." };
+  if (!kanalSah(kanal) || !kanalAktif().includes(kanal)) return { ok: false, pesan: "Metode pembayaran ini sedang tidak tersedia. Pilih metode lain." };
   const paket = Number.isInteger(paketId) ? await paketById(paketId) : undefined;
   if (!paket || !paket.aktif || paket.harga < 1) return { ok: false, pesan: "Paket tidak ditemukan." };
   try {
-    const url = await mulaiBayar(k, user, paket, await asalAplikasi());
-    void kirimCapiEvent({
-      kunci: "initiate_checkout",
-      email: user.email,
-      customData: { value: paket.harga, currency: "IDR", content_name: paket.nama, num_items: 1 },
-    });
-    return { ok: true, url };
+    const h = await mulaiBayar(k, user, paket, kanal, await asalAplikasi());
+    if (h.baru) {
+      void kirimCapiEvent({
+        kunci: "initiate_checkout",
+        email: user.email,
+        customData: { value: paket.harga, currency: "IDR", content_name: paket.nama, num_items: 1 },
+      });
+      revalidatePath("/langganan");
+    }
+    return { ok: true, orderId: h.orderId };
   } catch (e) {
-    console.error(`[bayar] gagal membuat tagihan user=${user.id}: ${e instanceof Error ? e.message : e}`);
-    return { ok: false, pesan: e instanceof MidtransError ? "Pembayaran sedang tidak bisa dibuat. Coba lagi nanti." : "Terjadi kesalahan. Coba lagi." };
+    console.error(`[bayar] gagal membuat tagihan user=${user.id} kanal=${kanal}: ${e instanceof Error ? e.message : e}`);
+    if (e instanceof MidtransError && e.kode === "402") return { ok: false, pesan: `${KANAL_BAYAR[kanal].label} belum aktif. Pilih metode pembayaran lain.` };
+    return { ok: false, pesan: e instanceof MidtransError ? "Tagihan sedang tidak bisa dibuat. Coba lagi sebentar lagi atau pilih metode lain." : "Terjadi kesalahan. Coba lagi." };
   }
 }
 
-/** Kembali dari Midtrans: status terbaru ditanyakan langsung ke Midtrans (tidak menunggu webhook). */
-export async function cekBayarAction(orderId: string): Promise<Hasil & { status?: string; jumlah?: number; namaPaket?: string }> {
+/** Pelanggan membatalkan tagihannya yang belum dibayar. */
+export async function batalBayarAction(orderId: string): Promise<Hasil & { status?: string }> {
   const user = await requireUser();
   const k = await konfigMidtrans();
-  const t = (await riwayatTransaksi({ userId: user.id, batas: 50 })).find((x) => x.order_id === orderId);
-  if (!k || !t) return { ok: false, pesan: "Transaksi tidak ditemukan." };
+  if (!k || !ORDER_SAH.test(orderId)) return { ok: false, pesan: "Tagihan tidak ditemukan." };
   try {
-    const h = await terapkanStatus(k, orderId);
+    const status = await batalkanBayar(k, user.id, orderId);
+    if (!status) return { ok: false, pesan: "Tagihan tidak ditemukan." };
     revalidatePath("/langganan");
-    return { ok: true, status: h?.status, jumlah: t.jumlah, namaPaket: t.nama_paket };
+    return status === "dibatalkan" ? { ok: true, status } : { ok: false, status, pesan: status === "lunas" ? "Tagihan ini sudah dibayar." : "Tagihan ini sudah tidak bisa dibatalkan." };
   } catch {
-    return { ok: false, pesan: "Status pembayaran belum bisa dicek. Coba muat ulang sebentar lagi." };
+    return { ok: false, pesan: "Tagihan belum bisa dibatalkan. Coba lagi sebentar lagi." };
   }
 }
 

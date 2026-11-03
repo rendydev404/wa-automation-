@@ -1,4 +1,4 @@
-// Uji paket langganan, kuota balasan AI, dan pembayaran Midtrans (API Midtrans tiruan lewat fetch).
+// Uji paket langganan, kuota balasan AI, dan pembayaran Midtrans Core API (API Midtrans tiruan lewat fetch).
 // PostgreSQL 15 sungguhan (uji/pg-lokal.mjs). Pakai: node --import ./uji/loader.mjs uji/uji-langganan.mjs
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -21,6 +21,7 @@ const lib = (f) => import(pathToFileURL(path.join(akar, f)).href);
 const { db, setSetting, sekarang } = await lib("src/lib/db.ts");
 const L = await lib("src/lib/langganan.ts");
 const M = await lib("src/lib/midtrans.ts");
+const H0 = await lib("src/lib/harga.ts");
 const P = await lib("src/lib/pengguna.ts");
 const { tambahNomor } = await lib("src/lib/numbers.ts");
 const AI = await lib("src/lib/ai.ts");
@@ -193,54 +194,194 @@ await cek("tanda tangan notifikasi: SHA-512(order+status+gross+serverKey) sah; d
   assert.equal(M.tandaTanganSah({ ...n, signature_key: sigLain }, [SK]), false);
 });
 
-await cek("peta status Midtrans: settlement/capture-accept lunas, challenge menunggu, expire, deny/cancel gagal, refund", async () => {
+await cek("peta status Midtrans: settlement/capture-accept lunas, challenge menunggu, expire, cancel dibatalkan, deny gagal, refund", async () => {
   const p = (transaction_status, fraud_status) => M.petaStatus({ transaction_status, fraud_status });
   assert.deepEqual(
-    [p("settlement"), p("capture", "accept"), p("capture", "challenge"), p("capture", "deny"), p("pending"), p("expire"), p("deny"), p("cancel"), p("refund")],
-    ["lunas", "lunas", "menunggu", "gagal", "menunggu", "kedaluwarsa", "gagal", "gagal", "dikembalikan"]
+    [p("settlement"), p("capture", "accept"), p("capture", "challenge"), p("capture", "deny"), p("pending"), p("expire"), p("deny"), p("cancel"), p("failure"), p("refund")],
+    ["lunas", "lunas", "menunggu", "gagal", "menunggu", "kedaluwarsa", "gagal", "dibatalkan", "gagal", "dikembalikan"]
   );
+  // expiry_time Midtrans = waktu WIB tanpa zona
+  assert.equal(M.waktuMidtrans("2026-11-03 10:15:00"), Date.UTC(2026, 10, 3, 3, 15) / 1000);
+  assert.equal(M.waktuMidtrans("bukan waktu"), null);
 });
 
+// ---- Midtrans Core API tiruan: /v2/charge, /v2/{order}/status, /v2/{order}/cancel ----
 const asli = globalThis.fetch;
-let midtrans = { status: "pending", gross: null };
+/** Status per order di "Midtrans"; `gross` = nominal palsu untuk uji nominal tidak cocok. */
+const dunia = new Map();
+let tiruan = { tolak: null, jeda: 0, tolakBatal: false };
 const panggilan = [];
+const QRIS = "00020101021226620014COM.GO-JEK.WWW01189360091434506451760210G4506451760303UMI51440014ID.CO.QRIS.WWW0215ID10243228429300303UMI5204581253033605405990005802ID5907Uji Toko6007JAKARTA61051234062070703A0163044B2F";
+const jawab = (d, status = 200) => new Response(JSON.stringify(d), { status });
+/** Detik epoch -> "YYYY-MM-DD HH:mm:ss" WIB, format expiry_time Midtrans. */
+const wib = (detik) => new Date((detik + 7 * 3600) * 1000).toISOString().slice(0, 19).replace("T", " ");
 globalThis.fetch = async (url, o) => {
   const u = String(url);
-  panggilan.push({ url: u, auth: o?.headers?.Authorization, body: o?.body ? JSON.parse(o.body) : null });
-  if (u === "https://app.midtrans.com/snap/v1/transactions")
-    return new Response(JSON.stringify({ token: "tok-uji", redirect_url: "https://app.midtrans.com/snap/v4/redirection/tok-uji" }), { status: 201 });
-  const m = u.match(/^https:\/\/api\.midtrans\.com\/v2\/(.+)\/status$/);
+  const body = o?.body ? JSON.parse(o.body) : null;
+  panggilan.push({ url: u, method: o?.method ?? "GET", auth: o?.headers?.Authorization, body });
+  if (u === "https://api.midtrans.com/v2/charge") {
+    if (tiruan.jeda) await new Promise((r) => setTimeout(r, tiruan.jeda));
+    if (tiruan.tolak) return jawab({ status_code: tiruan.tolak, status_message: "Payment channel is not activated." }); // HTTP 200, galat di badan
+    const { order_id, gross_amount } = body.transaction_details;
+    if (dunia.has(order_id)) return jawab({ status_code: "406", status_message: "Duplicate order ID." });
+    dunia.set(order_id, { status: "pending", gross: null, payment_type: body.payment_type });
+    const dasar = { status_code: "201", transaction_status: "pending", order_id, gross_amount: `${gross_amount}.00`, payment_type: body.payment_type, expiry_time: wib(sekarang() + body.custom_expiry.expiry_duration * 60) };
+    const aksi = (nama) => ({ name: nama, method: "GET", url: `https://api.midtrans.com/v2/${body.payment_type}/${order_id}/${nama}` });
+    switch (body.payment_type) {
+      case "qris":
+        return jawab({ ...dasar, qr_string: QRIS, actions: [aksi("generate-qr-code")] });
+      case "gopay":
+        return jawab({ ...dasar, actions: [aksi("generate-qr-code"), aksi("deeplink-redirect"), aksi("get-status")] });
+      case "shopeepay":
+        return jawab({ ...dasar, actions: [aksi("deeplink-redirect")] });
+      case "echannel":
+        return jawab({ ...dasar, bill_key: "778899001122", biller_code: "70012" });
+      case "bank_transfer":
+        return body.bank_transfer.bank === "permata"
+          ? jawab({ ...dasar, permata_va_number: "8562000012345678" })
+          : jawab({ ...dasar, va_numbers: [{ bank: body.bank_transfer.bank, va_number: `${body.bank_transfer.bank === "bca" ? "12345" : "98800"}${String(dunia.size).padStart(6, "0")}` }] });
+    }
+    return jawab({ status_code: "400", status_message: "payment_type tidak dikenal" });
+  }
+  let m = u.match(/^https:\/\/api\.midtrans\.com\/v2\/(.+)\/status$/);
   if (m) {
     const order_id = decodeURIComponent(m[1]);
+    const d = dunia.get(order_id);
     const t = (await sql`SELECT jumlah FROM transaksi WHERE order_id = ${order_id}`)[0];
-    return new Response(JSON.stringify({ order_id, status_code: "200", gross_amount: `${midtrans.gross ?? t?.jumlah}.00`, transaction_status: midtrans.status, payment_type: "qris" }));
+    if (!d) return jawab({ status_code: "404", status_message: "Transaction doesn't exist." }, 404);
+    return jawab({ order_id, status_code: "200", gross_amount: `${d.gross ?? t?.jumlah}.00`, transaction_status: d.status, payment_type: d.payment_type });
+  }
+  m = u.match(/^https:\/\/api\.midtrans\.com\/v2\/(.+)\/cancel$/);
+  if (m) {
+    const d = dunia.get(decodeURIComponent(m[1]));
+    if (!d || d.status !== "pending" || tiruan.tolakBatal) return jawab({ status_code: "412", status_message: "Merchant cannot modify the status of the transaction" });
+    d.status = "cancel";
+    return jawab({ status_code: "200", transaction_status: "cancel" });
   }
   return new Response("{}", { status: 404 });
 };
+const charge = () => panggilan.filter((p) => p.url.endsWith("/v2/charge"));
+const pembeli = { id: budi.id, email: "budi@uji.test", nama: "Budi" };
+const tunggu = async (fn, ms = 2000) => {
+  for (const akhir = Date.now() + ms; Date.now() < akhir; await new Promise((r) => setTimeout(r, 10))) if (await fn()) return;
+  assert.fail("menunggu terlalu lama");
+};
 
 let orderId;
-await cek("bayar paket: tagihan tercatat 'menunggu', Snap dipanggil dengan nominal & Basic auth server key, kembali ke /langganan/selesai", async () => {
-  const url = await L.mulaiBayar(k, { id: budi.id, email: "budi@uji.test", nama: "Budi" }, starter, "https://wa.uji");
-  assert.equal(url, "https://app.midtrans.com/snap/v4/redirection/tok-uji");
-  const snap = panggilan.find((p) => p.url.includes("/snap/v1/"));
-  assert.equal(snap.auth, `Basic ${Buffer.from(`${SK}:`).toString("base64")}`);
-  assert.equal(snap.body.transaction_details.gross_amount, 99000);
-  orderId = snap.body.transaction_details.order_id;
+await cek("bayar QRIS: charge Core API dengan Basic auth server key, nominal & batas waktu; isi QR & batas bayar tersimpan, tagihan 'menunggu'", async () => {
+  const t0 = performance.now();
+  const h = await L.mulaiBayar(k, pembeli, starter, "qris", "https://wa.uji");
+  console.log(`      (mulaiBayar QRIS dengan Midtrans tiruan: ${(performance.now() - t0).toFixed(1)} ms)`);
+  assert.equal(h.baru, true);
+  orderId = h.orderId;
   assert.match(orderId, new RegExp(`^WA-${budi.id}-\\d+-[0-9a-f]{6}$`));
-  assert.equal(snap.body.callbacks.finish, `https://wa.uji/langganan/selesai?order=${encodeURIComponent(orderId)}`);
-  // Halaman hasil bayar hanya membuka transaksi milik pengguna itu sendiri.
-  assert.equal((await L.transaksiMilik(budi.id, orderId)).order_id, orderId);
+  assert.match(orderId, L.ORDER_SAH);
+  const [c] = charge();
+  assert.equal(c.method, "POST");
+  assert.equal(c.auth, `Basic ${Buffer.from(`${SK}:`).toString("base64")}`);
+  assert.equal(c.body.payment_type, "qris");
+  assert.deepEqual(c.body.transaction_details, { order_id: orderId, gross_amount: 99000 });
+  assert.deepEqual(c.body.custom_expiry, { expiry_duration: 15, unit: "minute" });
+  assert.equal(c.body.item_details[0].price, 99000);
+  // Halaman tagihan hanya membuka transaksi milik pengguna itu sendiri, lengkap dengan data instruksinya.
+  const t = await L.transaksiMilik(budi.id, orderId);
+  assert.deepEqual([t.status, t.jumlah, t.kanal, t.bayar], ["menunggu", 99000, "qris", { qr: QRIS }]);
+  assert.ok(Math.abs(t.kedaluwarsa - (sekarang() + 15 * 60)) <= 2, "batas bayar dari expiry_time Midtrans (WIB)");
   assert.equal(await L.transaksiMilik(budi.id + 9999, orderId), undefined);
-  assert.equal(await L.transaksiMilik(budi.id, 'WA-0-0-abc'), undefined);
-  const [t] = await sql`SELECT status, jumlah, snap_token FROM transaksi WHERE order_id = ${orderId}`;
-  assert.deepEqual({ ...t }, { status: "menunggu", jumlah: 99000, snap_token: "tok-uji" });
+  assert.equal(await L.transaksiMilik(budi.id, "WA-0-0-abc"), undefined);
+  // Daftar riwayat tidak ikut membawa isi QR / nomor VA (payload kecil).
+  assert.equal("bayar" in (await L.riwayatTransaksi({ userId: budi.id }))[0], false);
+});
+
+
+await cek("idempoten: klik ulang / 3 permintaan serentak paket+kanal sama = tagihan yang sama, tanpa charge baru", async () => {
+  const n = charge().length;
+  const h = await L.mulaiBayar(k, pembeli, starter, "qris", "https://wa.uji");
+  assert.deepEqual(h, { orderId, baru: false });
+  const serentak = await Promise.all([1, 2, 3].map(() => L.mulaiBayar(k, pembeli, starter, "qris", "https://wa.uji")));
+  assert.deepEqual(new Set(serentak.map((x) => x.orderId)), new Set([orderId]));
+  assert.equal(charge().length, n);
+  // Sisa waktu < 2 menit: tidak dipakai ulang (pelanggan tidak sempat membayar) -> tagihan baru.
+  await sql`UPDATE transaksi SET kedaluwarsa = ${sekarang() + 60} WHERE order_id = ${orderId}`;
+  const baru = await L.mulaiBayar(k, pembeli, starter, "qris", "https://wa.uji");
+  assert.equal(baru.baru, true);
+  assert.notEqual(baru.orderId, orderId);
+  // ... dan tagihan lama dibatalkan di Midtrans (di latar) supaya tidak terbayar dua kali.
+  await tunggu(async () => (await sql`SELECT status FROM transaksi WHERE order_id = ${orderId}`)[0].status === "dibatalkan");
+  assert.ok(panggilan.some((p) => p.url.endsWith(`/v2/${orderId}/cancel`) && p.method === "POST"));
+  orderId = baru.orderId;
+});
+
+await cek("klik ganda serentak dengan charge lambat: dua permintaan mengantre di kunci per pengguna, hanya SATU charge", async () => {
+  const n = charge().length;
+  tiruan.jeda = 150;
+  try {
+    const [a, b] = await Promise.all([L.mulaiBayar(k, pembeli, bisnis, "bca", "https://wa.uji"), L.mulaiBayar(k, pembeli, bisnis, "bca", "https://wa.uji")]);
+    assert.equal(a.orderId, b.orderId);
+    assert.deepEqual([a.baru, b.baru].sort(), [false, true]);
+  } finally {
+    tiruan.jeda = 0;
+  }
+  assert.equal(charge().length, n + 1);
+  const t = await L.transaksiMilik(budi.id, (await L.tagihanMenunggu(budi.id, bisnis.id))?.order_id ?? "-");
+  assert.equal(charge().at(-1).body.bank_transfer.bank, "bca");
+  assert.match(t.bayar.va, /^12345\d{6}$/);
+  assert.deepEqual(charge().at(-1).body.custom_expiry, { expiry_duration: 1440, unit: "minute" });
+  // Tagihan QRIS Starter yang masih menunggu ikut dibatalkan (satu tagihan aktif per pengguna).
+  await tunggu(async () => (await sql`SELECT status FROM transaksi WHERE order_id = ${orderId}`)[0].status === "dibatalkan");
+});
+
+await cek("data instruksi per kanal: BNI/BRI va_numbers, Permata, Mandiri bill key + kode perusahaan, GoPay QR+deeplink, ShopeePay deeplink", async () => {
+  const kasus = [
+    ["bni", { payment_type: "bank_transfer", bank_transfer: { bank: "bni" } }, (b) => assert.match(b.va, /^98800\d{6}$/)],
+    ["bri", { payment_type: "bank_transfer", bank_transfer: { bank: "bri" } }, (b) => assert.match(b.va, /^98800\d{6}$/)],
+    ["permata", { payment_type: "bank_transfer", bank_transfer: { bank: "permata" } }, (b) => assert.deepEqual(b, { va: "8562000012345678" })],
+    ["mandiri", { payment_type: "echannel" }, (b) => assert.deepEqual(b, { va: "778899001122", biller: "70012" })],
+    ["gopay", { payment_type: "gopay" }, (b) => assert.deepEqual(Object.keys(b).sort(), ["deeplink", "qrUrl"])],
+    ["shopeepay", { payment_type: "shopeepay" }, (b) => assert.match(b.deeplink, /deeplink-redirect$/)],
+  ];
+  for (const [kanal, harap, periksa] of kasus) {
+    const h = await L.mulaiBayar(k, pembeli, bisnis, kanal, "https://wa.uji");
+    const c = charge().at(-1).body;
+    for (const [kunci, nilai] of Object.entries(harap)) assert.deepEqual(c[kunci], nilai, `${kanal}.${kunci}`);
+    if (kanal === "mandiri") assert.ok(c.echannel.bill_info1 && c.echannel.bill_info2);
+    if (kanal === "gopay") assert.deepEqual(c.gopay, { enable_callback: true, callback_url: `https://wa.uji/langganan/tagihan/${encodeURIComponent(h.orderId)}` });
+    if (kanal === "shopeepay") assert.equal(c.shopeepay.callback_url, `https://wa.uji/langganan/tagihan/${encodeURIComponent(h.orderId)}`);
+    const t = await L.transaksiMilik(budi.id, h.orderId);
+    assert.equal(t.kanal, kanal);
+    periksa(t.bayar);
+  }
+  // Ganti metode berkali-kali: hanya tagihan terakhir yang masih menunggu.
+  await tunggu(async () => (await sql`SELECT COUNT(*)::int AS n FROM transaksi WHERE user_id = ${budi.id} AND status = 'menunggu'`)[0].n === 1);
+});
+
+await cek("charge ditolak (kanal belum aktif = status_code 402 di HTTP 200; order ganda 406): galat jelas, TIDAK ada tagihan yatim, kanal disembunyikan", async () => {
+  const sebelum = (await sql`SELECT COUNT(*)::int AS n FROM transaksi`)[0].n;
+  tiruan.tolak = "402";
+  try {
+    await assert.rejects(L.mulaiBayar(k, pembeli, starter, "shopeepay", "https://wa.uji"), (e) => e instanceof M.MidtransError && e.kode === "402");
+    tiruan.tolak = "406";
+    await assert.rejects(L.mulaiBayar(k, pembeli, starter, "bri", "https://wa.uji"), (e) => e.kode === "406");
+  } finally {
+    tiruan.tolak = null;
+  }
+  assert.equal((await sql`SELECT COUNT(*)::int AS n FROM transaksi`)[0].n, sebelum);
+  assert.equal(M.kanalAktif().includes("shopeepay"), false); // pembeli lain tidak ikut gagal
+  assert.equal(M.kanalAktif().includes("bri"), true);
+  globalThis.__waKanalMati.clear();
+  process.env.MIDTRANS_KANAL = "qris, bca ,gopay";
+  assert.deepEqual(M.kanalAktif(), ["qris", "gopay", "bca"]); // urut seperti KANAL_BAYAR
+  delete process.env.MIDTRANS_KANAL;
+  assert.equal(M.kanalAktif().length, Object.keys(H0.KANAL_BAYAR).length);
+  assert.deepEqual([H0.kanalSah("bca"), H0.kanalSah("kartu"), H0.kanalSah("toString")], [true, false, false]);
 });
 
 await cek("status dari API Midtrans: pending tetap menunggu; settlement = lunas & paket aktif TEPAT SEKALI walau notifikasi berulang", async () => {
-  midtrans = { status: "pending", gross: null };
+  const h = await L.mulaiBayar(k, pembeli, starter, "qris", "https://wa.uji");
+  orderId = h.orderId;
   assert.deepEqual(await L.terapkanStatus(k, orderId), { status: "menunggu", baruAktif: false });
   assert.equal(await L.langgananAktif(budi.id), undefined);
-  midtrans = { status: "settlement", gross: null };
+  dunia.get(orderId).status = "settlement";
   assert.deepEqual(await L.terapkanStatus(k, orderId), { status: "lunas", baruAktif: true });
   assert.deepEqual(await L.terapkanStatus(k, orderId), { status: "lunas", baruAktif: false }); // notifikasi ulang
   const a = await L.langgananAktif(budi.id);
@@ -249,24 +390,69 @@ await cek("status dari API Midtrans: pending tetap menunggu; settlement = lunas 
   const [t] = await sql`SELECT status, metode, dibayar IS NOT NULL AS dibayar, langganan_id FROM transaksi WHERE order_id = ${orderId}`;
   assert.deepEqual({ ...t }, { status: "lunas", metode: "qris", dibayar: true, langganan_id: a.id });
   assert.equal((await sql`SELECT COUNT(*)::int AS n FROM langganan WHERE user_id = ${budi.id} AND sampai > ${sekarang()}`)[0].n, 1);
+  // Tagihan lunas tidak dipakai ulang: beli lagi = tagihan baru.
+  assert.equal((await L.mulaiBayar(k, pembeli, starter, "qris", "https://wa.uji")).baru, true);
+});
+
+await cek("polling status: dari DB tanpa memanggil Midtrans; cadangan webhook paling sering tiap 20 dtk, segera sekali setelah batas lewat; milik orang lain = null", async () => {
+  const h = await L.mulaiBayar(k, pembeli, bisnis, "qris", "https://wa.uji");
+  const statusKe = () => panggilan.filter((p) => p.url.endsWith(`/v2/${h.orderId}/status`)).length;
+  const t0 = performance.now();
+  for (let i = 0; i < 20; i++) assert.equal(await L.statusTagihan(k, budi.id, h.orderId), "menunggu");
+  console.log(`      (statusTagihan dari DB: ${((performance.now() - t0) / 20).toFixed(2)} ms per polling)`);
+  assert.equal(statusKe(), 0, "tagihan baru: Midtrans belum ditanya");
+  assert.equal(await L.statusTagihan(k, lain.id, h.orderId), null);
+  // Webhook tidak sampai: setelah jeda, Midtrans ditanya sekali dan hasilnya diterapkan.
+  dunia.get(h.orderId).status = "settlement";
+  globalThis.__waCekBayar.set(h.orderId, Date.now() - L.JEDA_CEK_MIDTRANS - 1);
+  assert.equal(await L.statusTagihan(k, budi.id, h.orderId), "lunas");
+  assert.equal(await L.statusTagihan(k, budi.id, h.orderId), "lunas");
+  assert.equal(statusKe(), 1);
+  // Batas bayar lewat: langsung dipastikan sekali (tanpa menunggu jeda), lalu kembali dijatah.
+  const x = await L.mulaiBayar(k, pembeli, starter, "bca", "https://wa.uji");
+  await sql`UPDATE transaksi SET kedaluwarsa = ${sekarang() - 1} WHERE order_id = ${x.orderId}`;
+  globalThis.__waCekBayar.set(x.orderId, Date.now() - 5_000); // dibuat 5 dtk lalu, sebelum batasnya lewat
+  dunia.get(x.orderId).status = "expire";
+  assert.equal(await L.statusTagihan(k, budi.id, x.orderId), "kedaluwarsa");
+  // Tanpa konfigurasi Midtrans: status DB saja.
+  assert.equal(await L.statusTagihan(null, budi.id, x.orderId), "kedaluwarsa");
+});
+
+await cek("batalkan tagihan: milik sendiri -> 'dibatalkan' di Midtrans & DB; sudah dibayar (Midtrans menolak batal) -> status sebenarnya; orang lain = null", async () => {
+  const a = await L.mulaiBayar(k, pembeli, starter, "bni", "https://wa.uji");
+  assert.equal(await L.batalkanBayar(k, lain.id, a.orderId), null);
+  assert.equal(await L.batalkanBayar(k, budi.id, a.orderId), "dibatalkan");
+  assert.equal((await L.transaksiMilik(budi.id, a.orderId)).status, "dibatalkan");
+  assert.equal(await L.batalkanBayar(k, budi.id, a.orderId), "dibatalkan"); // dua kali: tidak memanggil Midtrans lagi
+  assert.equal(panggilan.filter((p) => p.url.endsWith(`/v2/${a.orderId}/cancel`)).length, 1);
+  const b = await L.mulaiBayar(k, pembeli, starter, "bri", "https://wa.uji");
+  dunia.get(b.orderId).status = "settlement";
+  tiruan.tolakBatal = true;
+  try {
+    assert.equal(await L.batalkanBayar(k, budi.id, b.orderId), "lunas");
+  } finally {
+    tiruan.tolakBatal = false;
+  }
 });
 
 await cek("nominal dari Midtrans berbeda dengan tagihan = TIDAK diaktifkan; order tak dikenal = null", async () => {
-  const o2 = await L.mulaiBayar(k, { id: budi.id, email: "budi@uji.test", nama: "Budi" }, bisnis, "https://wa.uji").then(() => panggilan.at(-1).body.transaction_details.order_id);
-  midtrans = { status: "settlement", gross: 1000 };
+  const { orderId: o2 } = await L.mulaiBayar(k, pembeli, bisnis, "permata", "https://wa.uji");
+  Object.assign(dunia.get(o2), { status: "settlement", gross: 1000 });
+  const sebelum = (await L.langgananAktif(budi.id)).id;
   const h = await L.terapkanStatus(k, o2);
   assert.equal(h.baruAktif, false);
   assert.equal((await sql`SELECT status FROM transaksi WHERE order_id = ${o2}`)[0].status, "menunggu");
-  assert.equal((await L.langgananAktif(budi.id)).nama_paket, "Starter");
-  midtrans = { status: "expire", gross: null };
+  assert.equal((await L.langgananAktif(budi.id)).id, sebelum);
+  Object.assign(dunia.get(o2), { status: "expire", gross: null });
   assert.equal((await L.terapkanStatus(k, o2)).status, "kedaluwarsa");
+  dunia.set("WA-999-1-abcdef", { status: "settlement", gross: 5000, payment_type: "qris" }); // dikenal Midtrans, tidak ada di DB kita
   assert.equal(await L.terapkanStatus(k, "WA-999-1-abcdef"), null);
 });
 
 await cek("riwayat transaksi per pengguna & semua (admin), terbaru dulu", async () => {
   const milik = await L.riwayatTransaksi({ userId: budi.id });
-  assert.equal(milik.length, 2);
-  assert.ok(milik[0].dibuat >= milik[1].dibuat);
+  assert.ok(milik.length >= 10);
+  assert.ok(milik.every((t, i) => i === 0 || milik[i - 1].dibuat >= t.dibuat));
   const semua = await L.riwayatTransaksi({});
   assert.equal(semua[0].email, "budi@uji.test");
 });
@@ -475,17 +661,17 @@ await cek("paket Custom dibayar/diberikan seperti paket biasa: kuota dari isi pa
   await L.berikanPaket(lain.id, id);
   assert.equal((await L.hakAkun({ id: lain.id, peran: "user" })).balasan, 20000);
   const fetchAsli = globalThis.fetch;
-  let snap;
+  let charge;
   globalThis.fetch = async (_url, o) => {
-    snap = JSON.parse(o.body);
-    return new Response(JSON.stringify({ token: "tok-custom", redirect_url: "https://app.midtrans.com/snap/v4/redirection/tok-custom" }), { status: 201 });
+    charge = JSON.parse(o.body);
+    return new Response(JSON.stringify({ status_code: "201", transaction_status: "pending", va_numbers: [{ bank: "bca", va_number: "12345000999" }], expiry_time: "2026-11-04 10:00:00" }));
   };
   try {
-    await L.mulaiBayar(k, { id: lain.id, email: "lain@uji.test", nama: "Lain" }, await L.paketById(id), "https://wa.uji");
+    await L.mulaiBayar(k, { id: lain.id, email: "lain@uji.test", nama: "Lain" }, await L.paketById(id), "bca", "https://wa.uji");
   } finally {
     globalThis.fetch = fetchAsli;
   }
-  assert.equal(snap.transaction_details.gross_amount, 401000);
+  assert.equal(charge.transaction_details.gross_amount, 401000);
   await L.hentikanLangganan(lain.id);
 });
 

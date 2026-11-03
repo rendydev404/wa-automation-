@@ -458,6 +458,17 @@ const MIGRASI: string[] = [
     dilatih     bigint NOT NULL DEFAULT 0
   );
   `,
+  // v18: pembayaran lewat Midtrans Core API di halaman sendiri (src/lib/midtrans.ts). transaksi.kanal: kanal pilihan
+  //   pelanggan (qris, bca, gopay, ...); bayar: data instruksi (nomor VA / isi QRIS / deeplink); kedaluwarsa: batas
+  //   bayar (detik epoch). Status baru 'dibatalkan' (cancel). Indeks parsial: tagihan menunggu per pengguna, dipakai
+  //   untuk memakai ulang tagihan yang sama (tanpa charge ganda) dan membatalkan tagihan lama saat ganti metode.
+  `
+  ALTER TABLE transaksi ADD COLUMN kanal text, ADD COLUMN bayar jsonb, ADD COLUMN kedaluwarsa bigint;
+  ALTER TABLE transaksi DROP CONSTRAINT transaksi_status_check;
+  ALTER TABLE transaksi ADD CONSTRAINT transaksi_status_check
+    CHECK (status IN ('menunggu', 'lunas', 'gagal', 'kedaluwarsa', 'dibatalkan', 'dikembalikan'));
+  CREATE INDEX transaksi_menunggu_idx ON transaksi (user_id) WHERE status = 'menunggu' AND kanal IS NOT NULL;
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

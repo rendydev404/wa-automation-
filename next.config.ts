@@ -33,6 +33,13 @@ const nextConfig: NextConfig = {
     // Unggahan PDF maksimal 10 MB (+ overhead multipart).
     proxyClientMaxBodySize: "12mb",
   },
+  // Halaman hasil bayar lama (callback Snap) -> halaman tagihan Core API yang menggantikannya.
+  async redirects() {
+    return [
+      { source: "/langganan/selesai", has: [{ type: "query", key: "order", value: "(?<order>WA-[0-9]+-[0-9]+-[0-9a-f]+)" }], destination: "/langganan/tagihan/:order", permanent: false },
+      { source: "/langganan/selesai", destination: "/langganan", permanent: false },
+    ];
+  },
   async headers() {
     return [
       {

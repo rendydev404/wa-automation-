@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { terapkanStatus } from "@/lib/langganan";
+import { ORDER_SAH, terapkanStatus } from "@/lib/langganan";
 import { type StatusMidtrans, konfigMidtrans, tandaTanganSah } from "@/lib/midtrans";
 
 /**
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   if (!k) return NextResponse.json({ ok: false }, { status: 503 });
   const n = (await req.json().catch(() => null)) as Partial<StatusMidtrans> | null;
   if (!n || !tandaTanganSah(n, k.kunciTandaTangan ?? [k.serverKey])) return NextResponse.json({ ok: false }, { status: 403 });
-  if (!/^WA-\d+-\d+-[0-9a-f]+$/.test(n.order_id ?? "")) return NextResponse.json({ ok: true }); // bukan transaksi aplikasi ini
+  if (!ORDER_SAH.test(n.order_id ?? "")) return NextResponse.json({ ok: true }); // bukan transaksi aplikasi ini
   try {
     const h = await terapkanStatus(k, n.order_id!);
     if (h?.baruAktif) console.log(`[bayar] lunas, paket aktif order=${n.order_id}`);

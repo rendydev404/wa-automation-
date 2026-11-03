@@ -277,6 +277,7 @@ const STATUS_TRX: Record<string, string> = {
   lunas: "bg-success-soft text-success",
   gagal: "bg-danger-soft text-danger",
   kedaluwarsa: "bg-subtle text-muted",
+  dibatalkan: "bg-subtle text-muted",
   dikembalikan: "bg-subtle text-muted",
 };
 

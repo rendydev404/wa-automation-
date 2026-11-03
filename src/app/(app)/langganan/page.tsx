@@ -1,14 +1,15 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { Check, CreditCard, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Check, CreditCard, Sparkles } from "lucide-react";
 import { KartuLangganan } from "@/components/kartu-langganan";
 import { angka, tanggal, UMUR_HISTORI_HARI } from "@/lib/format";
+import { KANAL_BAYAR } from "@/lib/harga";
 import { METODE_MANUAL, daftarPaket, hakAkun, riwayatTransaksi } from "@/lib/langganan";
 import { konfigMidtrans } from "@/lib/midtrans";
 import { customTampil, idPaketCustom, paketCustom, tautanCustom } from "@/lib/paket-custom";
 import { KartuCustom, TombolWaCustom } from "@/components/kartu-custom";
 import { requireUser } from "@/lib/session";
-import { HasilBayar, TombolBayar } from "./bayar";
 import { MEREK } from "@/lib/merek";
 
 export const metadata: Metadata = { title: `Langganan · ${MEREK}` };
@@ -18,19 +19,17 @@ const STATUS: Record<string, { label: string; kelas: string }> = {
   lunas: { label: "Lunas", kelas: "bg-success-soft text-success" },
   gagal: { label: "Gagal", kelas: "bg-danger-soft text-danger" },
   kedaluwarsa: { label: "Kedaluwarsa", kelas: "bg-subtle text-muted" },
+  dibatalkan: { label: "Dibatalkan", kelas: "bg-subtle text-muted" },
   dikembalikan: { label: "Dikembalikan", kelas: "bg-subtle text-muted" },
 };
 
-export default function HalamanLangganan(props: PageProps<"/langganan">) {
+export default function HalamanLangganan() {
   return (
     <div className="space-y-6 lg:space-y-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight sm:text-[28px]">Langganan</h1>
         <p className="mt-1 text-muted">Paket aktif, sisa kuota balasan AI, dan pembayaran.</p>
       </div>
-      <Suspense fallback={null}>
-        <Kembali searchParams={props.searchParams} />
-      </Suspense>
       <Suspense fallback={<div aria-hidden className="card h-40 animate-denyut" />}>
         <KartuLangganan />
       </Suspense>
@@ -44,10 +43,17 @@ export default function HalamanLangganan(props: PageProps<"/langganan">) {
   );
 }
 
-/** Kembali dari halaman pembayaran Midtrans (?order=...): status dicek langsung ke Midtrans. */
-async function Kembali({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const order = (await searchParams).order;
-  return typeof order === "string" && /^WA-\d+-\d+-[0-9a-f]+$/.test(order) ? <HasilBayar orderId={order} /> : null;
+/** Ke halaman checkout kita sendiri (pilih metode -> instruksi bayar). Tautan biasa: tanpa JavaScript tambahan. */
+function TombolBayar({ paketId, label, nonaktif }: { paketId: number; label: string; nonaktif: boolean }) {
+  return nonaktif ? (
+    <button type="button" disabled className="btn btn-primary w-full">
+      {label}
+    </button>
+  ) : (
+    <Link href={`/langganan/bayar/${paketId}`} className="btn btn-primary w-full">
+      {label} <ArrowRight className="size-4" aria-hidden />
+    </Link>
+  );
 }
 
 async function Paket() {
@@ -103,7 +109,7 @@ async function Paket() {
         )}
       </div>
       <p className="mt-3 text-[12.5px] text-muted">
-        Bayar lewat QRIS, transfer bank (virtual account), e-wallet, atau kartu. Perpanjang paket yang sama = masa & kuota ditambahkan. Ganti paket = paket baru mulai hari itu.
+        Bayar lewat QRIS, virtual account (BCA, BNI, BRI, Mandiri, Permata), GoPay, atau ShopeePay. Perpanjang paket yang sama = masa & kuota ditambahkan. Ganti paket = paket baru mulai hari itu.
       </p>
     </section>
   );
@@ -125,15 +131,15 @@ async function Riwayat() {
               <span className="font-semibold">Paket {t.nama_paket}</span> · Rp{angka(t.jumlah)}
               <span className="block text-[12px] text-faint">
                 {tanggal(t.dibuat)} · {t.order_id}
-                {t.metode ? ` · ${t.metode in METODE_MANUAL ? METODE_MANUAL[t.metode as keyof typeof METODE_MANUAL] : t.metode.replace(/_/g, " ")}` : ""}
+                {t.kanal ? ` · ${KANAL_BAYAR[t.kanal].label}` : t.metode ? ` · ${t.metode in METODE_MANUAL ? METODE_MANUAL[t.metode as keyof typeof METODE_MANUAL] : t.metode.replace(/_/g, " ")}` : ""}
               </span>
             </span>
             <span className="flex items-center gap-2">
               <span className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${STATUS[t.status]?.kelas ?? ""}`}>{STATUS[t.status]?.label ?? t.status}</span>
-              {t.status === "menunggu" && t.redirect_url && (
-                <a href={t.redirect_url} className="btn btn-ghost border border-line">
+              {t.status === "menunggu" && (t.kanal || t.redirect_url) && (
+                <Link href={`/langganan/tagihan/${encodeURIComponent(t.order_id)}`} className="btn btn-ghost">
                   Lanjutkan bayar
-                </a>
+                </Link>
               )}
             </span>
           </li>

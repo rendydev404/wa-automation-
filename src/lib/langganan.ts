@@ -2,9 +2,9 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { type Tx, db, getSetting, sekarang, transaksi as transaksiDb } from "./db";
 import { MODEL_BAWAAN, type Penyedia, kunciAnthropic, kursUsd, pengaturanAi, perkiraanPerBalasan } from "./ai";
-import { METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hitungHarga, kuotaDariHarga, nomorDariKuota } from "./harga";
+import { type KanalBayar, METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hitungHarga, kuotaDariHarga, nomorDariKuota } from "./harga";
 import { hermesTerkonfigurasi } from "./hermes";
-import { type KonfigMidtrans, MidtransError, type StatusBayar, buatSnap, petaStatus, statusMidtrans } from "./midtrans";
+import { type InstruksiBayar, type KonfigMidtrans, MidtransError, type StatusBayar, batalkanCharge, buatCharge, petaStatus, statusMidtrans } from "./midtrans";
 import { KODE_CUSTOM } from "./paket-custom-def";
 import { type JenisKomisi, prosesKomisiTransaksi } from "./afiliasi";
 import { kirimCapiEvent } from "./meta-pixel";
@@ -314,14 +314,21 @@ export interface Transaksi {
   jumlah: number;
   status: StatusBayar;
   metode: string | null;
+  /** Kanal Core API pilihan pelanggan (null = transaksi Snap lama / pembayaran manual admin). */
+  kanal: KanalBayar | null;
   redirect_url: string | null;
   dibuat: number;
   dibayar: number | null;
+  /** Batas bayar (detik epoch); null = transaksi lama / manual. */
+  kedaluwarsa: number | null;
   /** Catatan pembayaran manual dari admin (referensi transfer, dsb.). */
   catatan: string | null;
 }
 
-const KOLOM_TRX = "id, order_id, user_id, paket_id, nama_paket, jumlah, status, metode, redirect_url, dibuat, dibayar, catatan";
+/** Bentuk order_id tagihan Midtrans aplikasi ini (lihat mulaiBayar). */
+export const ORDER_SAH = /^WA-\d+-\d+-[0-9a-f]+$/;
+
+const KOLOM_TRX = "id, order_id, user_id, paket_id, nama_paket, jumlah, status, metode, kanal, redirect_url, dibuat, dibayar, kedaluwarsa, catatan";
 
 export async function riwayatTransaksi(opsi: { userId?: number; batas?: number }): Promise<(Transaksi & { email?: string })[]> {
   const sql = await db();
@@ -335,30 +342,123 @@ export async function riwayatTransaksi(opsi: { userId?: number; batas?: number }
   ];
 }
 
-/** Satu transaksi milik pengguna ini (undefined bila tidak ada atau milik orang lain). */
-export async function transaksiMilik(userId: number, orderId: string): Promise<Transaksi | undefined> {
+/** Satu transaksi milik pengguna ini beserta data instruksi bayarnya (undefined bila tidak ada atau milik orang lain). */
+export async function transaksiMilik(userId: number, orderId: string): Promise<(Transaksi & { bayar: InstruksiBayar | null }) | undefined> {
   const sql = await db();
-  const [t] = await sql<Transaksi[]>`SELECT ${sql.unsafe(KOLOM_TRX)} FROM transaksi WHERE order_id = ${orderId} AND user_id = ${userId}`;
+  const [t] = await sql<(Transaksi & { bayar: InstruksiBayar | null })[]>`
+    SELECT ${sql.unsafe(KOLOM_TRX)}, bayar FROM transaksi WHERE order_id = ${orderId} AND user_id = ${userId}`;
   return t;
 }
 
-/** Buat tagihan paket di Midtrans Snap; mengembalikan halaman pembayaran. */
-export async function mulaiBayar(k: KonfigMidtrans, user: { id: number; email: string; nama: string }, paket: Paket, asalApp: string): Promise<string> {
-  if (!paket.aktif || paket.harga < 1) throw new MidtransError("Paket ini tidak bisa dibeli."); // harga 0 = hanya diberikan admin
-  const orderId = `WA-${user.id}-${sekarang()}-${randomBytes(3).toString("hex")}`;
+/** Tagihan Core API milik pengguna untuk paket ini yang masih bisa dibayar (lewat indeks parsial transaksi_menunggu_idx). */
+export async function tagihanMenunggu(userId: number, paketId: number): Promise<{ order_id: string; kanal: KanalBayar; kedaluwarsa: number } | undefined> {
   const sql = await db();
-  await sql`
-    INSERT INTO transaksi(order_id, user_id, paket_id, nama_paket, jumlah, status, dibuat)
-    VALUES (${orderId}, ${user.id}, ${paket.id}, ${paket.nama}, ${paket.harga}, 'menunggu', ${sekarang()})`;
-  const snap = await buatSnap(k, {
-    orderId,
-    jumlah: paket.harga,
-    item: { id: paket.kode, nama: `Paket ${paket.nama} (${paket.durasi_hari} hari)` },
-    pelanggan: { nama: user.nama || user.email.split("@")[0], email: user.email },
-    selesaiUrl: `${asalApp}/langganan/selesai?order=${encodeURIComponent(orderId)}`,
+  const [t] = await sql<{ order_id: string; kanal: KanalBayar; kedaluwarsa: number }[]>`
+    SELECT order_id, kanal, kedaluwarsa FROM transaksi
+     WHERE user_id = ${userId} AND status = 'menunggu' AND kanal IS NOT NULL AND paket_id = ${paketId} AND kedaluwarsa > ${sekarang()}
+     ORDER BY dibuat DESC, id DESC LIMIT 1`;
+  return t;
+}
+
+/** Kunci advisory (berpasangan dengan id pengguna): satu pembuatan tagihan pada satu waktu per pengguna. */
+const KUNCI_BAYAR = 72727402;
+/** Tagihan menunggu dengan paket & kanal yang sama dipakai ulang selama sisa waktunya minimal segini (detik). */
+const SISA_PAKAI_ULANG = 120;
+
+/** Kapan status tagihan terakhir ditanyakan ke Midtrans (ms), per order: penjatah pemeriksaan cadangan webhook. */
+const gc = globalThis as unknown as { __waCekBayar?: Map<string, number> };
+const cekTerakhir = (gc.__waCekBayar ??= new Map());
+/** Jeda minimal antar-pertanyaan ke Midtrans untuk satu tagihan yang sedang dipantau. */
+export const JEDA_CEK_MIDTRANS = 20_000;
+
+function catatCek(orderId: string): void {
+  const kini = Date.now();
+  if (cekTerakhir.size > 500) for (const [o, t] of cekTerakhir) if (kini - t > 600_000) cekTerakhir.delete(o);
+  cekTerakhir.set(orderId, kini);
+}
+
+/**
+ * Buat tagihan paket lewat Midtrans Core API dengan kanal pilihan pelanggan; mengembalikan order_id untuk halaman
+ * instruksi bayar. Idempoten: klik ganda / dua tab mengantre di kunci advisory per pengguna, dan tagihan menunggu
+ * dengan paket, kanal, dan nominal yang sama (masih berlaku) dipakai ulang tanpa charge baru. Tagihan lain yang
+ * masih menunggu dibatalkan di latar supaya tidak terbayar dua kali.
+ */
+export async function mulaiBayar(
+  k: KonfigMidtrans,
+  user: { id: number; email: string; nama: string },
+  paket: Paket,
+  kanal: KanalBayar,
+  asalApp: string
+): Promise<{ orderId: string; baru: boolean }> {
+  if (!paket.aktif || paket.harga < 1) throw new MidtransError("Paket ini tidak bisa dibeli."); // harga 0 = hanya diberikan admin
+  let lama: string[] = [];
+  const hasil = await transaksiDb(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(${KUNCI_BAYAR}, ${user.id})`;
+    const kini = sekarang();
+    const menunggu = await tx<{ order_id: string; paket_id: number | null; kanal: string; jumlah: number; kedaluwarsa: number | null }[]>`
+      SELECT order_id, paket_id, kanal, jumlah, kedaluwarsa FROM transaksi
+       WHERE user_id = ${user.id} AND status = 'menunggu' AND kanal IS NOT NULL`;
+    const sama = menunggu.find((t) => t.paket_id === paket.id && t.kanal === kanal && t.jumlah === paket.harga && (t.kedaluwarsa ?? 0) > kini + SISA_PAKAI_ULANG);
+    if (sama) return { orderId: sama.order_id, baru: false };
+    lama = menunggu.map((t) => t.order_id);
+    const orderId = `WA-${user.id}-${kini}-${randomBytes(3).toString("hex")}`;
+    const c = await buatCharge(k, {
+      orderId,
+      jumlah: paket.harga,
+      kanal,
+      item: { id: paket.kode, nama: `Paket ${paket.nama} (${paket.durasi_hari} hari)` },
+      pelanggan: { nama: user.nama || user.email.split("@")[0], email: user.email },
+      kembaliUrl: `${asalApp}/langganan/tagihan/${encodeURIComponent(orderId)}`,
+    });
+    // Baris ditulis setelah charge berhasil: charge yang ditolak tidak meninggalkan tagihan yatim. Notifikasi "pending"
+    // yang tiba sebelum commit diabaikan webhook (order belum ada), dan memang tidak mengubah apa pun.
+    await tx`
+      INSERT INTO transaksi(order_id, user_id, paket_id, nama_paket, jumlah, status, kanal, bayar, kedaluwarsa, dibuat)
+      VALUES (${orderId}, ${user.id}, ${paket.id}, ${paket.nama}, ${paket.harga}, 'menunggu', ${kanal}, ${tx.json(c.bayar as Record<string, string | undefined>)}, ${c.kedaluwarsa}, ${kini})`;
+    return { orderId, baru: true };
   });
-  await sql`UPDATE transaksi SET snap_token = ${snap.token}, redirect_url = ${snap.redirectUrl} WHERE order_id = ${orderId}`;
-  return snap.redirectUrl;
+  if (hasil.baru) {
+    catatCek(hasil.orderId); // baru dibuat: pemeriksaan cadangan pertama ke Midtrans setelah JEDA_CEK_MIDTRANS
+    if (lama.length) void Promise.all(lama.map((o) => batalkan(k, o))).catch(() => {});
+  }
+  return hasil;
+}
+
+/** Batalkan satu tagihan di Midtrans; ditolak (sudah dibayar / kedaluwarsa) = status sebenarnya diambil ulang. */
+async function batalkan(k: KonfigMidtrans, orderId: string): Promise<StatusBayar | null> {
+  if (await batalkanCharge(k, orderId).catch(() => false)) {
+    const sql = await db();
+    await sql`UPDATE transaksi SET status = 'dibatalkan' WHERE order_id = ${orderId} AND status = 'menunggu'`;
+    return "dibatalkan";
+  }
+  return (await terapkanStatus(k, orderId).catch(() => null))?.status ?? null;
+}
+
+/** Pelanggan membatalkan tagihannya sendiri yang masih menunggu. null = bukan miliknya. */
+export async function batalkanBayar(k: KonfigMidtrans, userId: number, orderId: string): Promise<StatusBayar | null> {
+  const sql = await db();
+  const [t] = await sql<{ status: StatusBayar }[]>`SELECT status FROM transaksi WHERE order_id = ${orderId} AND user_id = ${userId}`;
+  if (!t) return null;
+  if (t.status !== "menunggu") return t.status;
+  return batalkan(k, orderId);
+}
+
+/**
+ * Status tagihan untuk polling halaman instruksi bayar: satu query lewat indeks unik order_id. Webhook adalah sumber
+ * utama; bila terlambat atau tidak sampai, status ditanyakan ke Midtrans paling sering tiap JEDA_CEK_MIDTRANS per
+ * tagihan, dan segera sekali setelah batas bayar lewat. null = bukan milik pengguna ini.
+ */
+export async function statusTagihan(k: KonfigMidtrans | null, userId: number, orderId: string): Promise<StatusBayar | null> {
+  const sql = await db();
+  const [t] = await sql<{ status: StatusBayar; kedaluwarsa: number | null }[]>`
+    SELECT status, kedaluwarsa FROM transaksi WHERE order_id = ${orderId} AND user_id = ${userId}`;
+  if (!t) return null;
+  if (t.status !== "menunggu" || !k) return t.status;
+  const lalu = cekTerakhir.get(orderId) ?? 0;
+  const lewat = t.kedaluwarsa !== null && t.kedaluwarsa * 1000 <= Date.now() && lalu < t.kedaluwarsa * 1000;
+  if (!lewat && Date.now() - lalu < JEDA_CEK_MIDTRANS) return t.status;
+  catatCek(orderId);
+  return (await terapkanStatus(k, orderId).catch(() => null))?.status ?? t.status;
 }
 
 /**

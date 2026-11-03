@@ -28,6 +28,24 @@ export const METODE_BAYAR = {
 } as const;
 export type MetodeBayar = keyof typeof METODE_BAYAR;
 
+/**
+ * Kanal Midtrans Core API yang bisa dipilih pelanggan di halaman bayar kita sendiri. `metode` = golongan tarifnya di
+ * METODE_BAYAR. `menit` = umur tagihan sebelum kedaluwarsa. Kartu kredit tidak ada di sini: Core API mewajibkan
+ * tokenisasi kartu di browser (client key + 3DS), jadi kartu hanya bisa dicatat admin secara manual.
+ */
+export const KANAL_BAYAR = {
+  qris: { label: "QRIS", info: "Scan dari aplikasi e-wallet atau m-banking apa pun", metode: "qris", grup: "QRIS", menit: 15 },
+  gopay: { label: "GoPay", info: "Buka aplikasi Gojek / GoPay", metode: "ewallet", grup: "E-wallet", menit: 15 },
+  shopeepay: { label: "ShopeePay", info: "Buka aplikasi Shopee di HP ini", metode: "ewallet", grup: "E-wallet", menit: 15 },
+  bca: { label: "BCA Virtual Account", info: "BCA mobile, KlikBCA, atau ATM BCA", metode: "va", grup: "Virtual account", menit: 1440 },
+  bni: { label: "BNI Virtual Account", info: "BNI Mobile Banking atau ATM", metode: "va", grup: "Virtual account", menit: 1440 },
+  bri: { label: "BRI Virtual Account", info: "BRImo atau ATM BRI", metode: "va", grup: "Virtual account", menit: 1440 },
+  mandiri: { label: "Mandiri Bill Payment", info: "Livin' by Mandiri atau ATM Mandiri", metode: "va", grup: "Virtual account", menit: 1440 },
+  permata: { label: "Permata Virtual Account", info: "PermataMobile X atau ATM", metode: "va", grup: "Virtual account", menit: 1440 },
+} as const satisfies Record<string, { label: string; info: string; metode: MetodeBayar; grup: string; menit: number }>;
+export type KanalBayar = keyof typeof KANAL_BAYAR;
+export const kanalSah = (x: unknown): x is KanalBayar => typeof x === "string" && Object.hasOwn(KANAL_BAYAR, x);
+
 export interface AcuanHarga {
   /** Biaya dasar satu balasan AI dalam USD (tarif resmi model x profil token nyata). */
   biayaBalasanUsd: number;
