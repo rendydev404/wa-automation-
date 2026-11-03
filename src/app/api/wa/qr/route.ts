@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { sesiDanNomor } from "@/lib/akses";
 import type { QrWa } from "@/lib/types";
-import { infoSesi, qr } from "@/lib/wa";
+import { infoSesi, kodePairing, qr } from "@/lib/wa";
 
 /** QR untuk satu nomor. Matriksnya (±0,7 KB) hanya dikirim bila berubah, supaya polling tetap ringan. */
 export async function GET(req: Request) {
@@ -17,6 +17,8 @@ export async function GET(req: Request) {
       hasil.hash = kode.hash;
       if (url.searchParams.get("h") !== kode.hash) hasil.qr = kode.kode;
     }
+    const kp = kodePairing(nomor.sesi);
+    if (kp) hasil.kodePairing = kp;
   }
   return NextResponse.json(hasil, { headers: { "Cache-Control": "no-store" } });
 }

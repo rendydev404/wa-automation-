@@ -133,6 +133,13 @@ function buatSoket(config) {
     async resyncAppState(k) {
       s.resync = k;
     },
+    async requestPairingCode(nomorHp) {
+      s.pairingNomor = nomorHp;
+      config.auth.creds.pairingCode = "ABCD1234";
+      config.auth.creds.me = { id: `${nomorHp}@s.whatsapp.net`, name: "~" };
+      ev.emit("creds.update", config.auth.creds);
+      return "ABCD1234";
+    },
     async logout() {
       s.keluar += 1;
     },
@@ -1442,6 +1449,69 @@ await cek("nomor dihapus: sesi hilang dari memori dan database", async () => {
   assert.equal(s.keluar, 1);
   assert.equal(await auth(n.sesi), 0);
   assert.equal(wa.infoSesi(n.sesi).status, "BELUM_ADA");
+});
+
+await cek("kompatibilitas iOS (iPhone) & kode tautan nomor telepon (pairing code 8 digit)", async () => {
+  const n = await nomorCepat("Toko iOS");
+  const awal = soket.length;
+  const p = wa.hubungkan(n.sesi);
+  const s1 = await tunggu(() => soket[awal], 2000);
+  s1.pancar("connection.update", { qr: "2@IOS-QR-1,a,b,c,1" });
+  await p;
+
+  // 1) Minta kode pairing dengan nomor 08xx -> dinormalisasi ke 628xx, menghasilkan kode 8 karakter
+  const kode = await wa.mintaKodePairing(n.sesi, "0812-3456-7890");
+  assert.equal(kode, "ABCD1234");
+  assert.equal(s1.pairingNomor, "6281234567890");
+  assert.equal(wa.kodePairing(n.sesi), "ABCD1234");
+  // Kredensial sementara `{ id: "628...@s.whatsapp.net", name: "~" }` tidak boleh disimpan sebagai `me` di DB sebelum tertaut
+  await tungguTulis(n.sesi);
+  const [barisSementara] = await sql`SELECT teks FROM wa_auth WHERE sesi = ${n.sesi} AND kunci = 'creds'`;
+  assert.equal(JSON.parse(barisSementara.teks).me, undefined, "placeholder pairing belum dianggap tertaut di DB");
+
+  // 2) Bila kode pairing kedaluwarsa (408) sebelum dimasukkan di HP: sesi bersih & pesan jelas
+  s1.tutup(408);
+  assert.equal(wa.infoSesi(n.sesi).status, "FAILED");
+  assert.match(wa.infoSesi(n.sesi).alasan, /Kode tautan kedaluwarsa/);
+  assert.equal(await auth(n.sesi), 0);
+
+  // 3) Tautkan ulang dengan kode pairing sampai selesai + simulasi urutan event khas iPhone (iOS)
+  const p2 = wa.hubungkan(n.sesi);
+  const s2 = await tunggu(() => soket[awal + 1], 2000);
+  s2.pancar("connection.update", { qr: "2@IOS-QR-2,a,b,c,1" });
+  await p2;
+  await wa.mintaKodePairing(n.sesi, "+62 811-0000-0099");
+  // HP memasukkan kode -> stage companion_finish (`registered: true`) langsung mengubah status ke STARTING
+  s2.pancar("creds.update", { registered: true });
+  assert.equal(wa.infoSesi(n.sesi).status, "STARTING");
+  assert.equal(wa.kodePairing(n.sesi), null);
+  // Lalu pair-success tiba membawa me.id (:device) & me.lid
+  s2.pancar("creds.update", {
+    account: { details: "x" },
+    me: { id: "6281100000099:4@s.whatsapp.net", lid: "777000199:4@lid" },
+  });
+  s2.pancar("connection.update", { isNewLogin: true, qr: undefined });
+  s2.tutup(515);
+
+  const s3 = await tunggu(() => soket[awal + 2], 2000);
+  // Di beberapa akun/server, `<success>` mengirim `me: { ...me, lid: undefined }` — `lid` tidak boleh hilang!
+  s3.pancar("creds.update", { me: { id: "6281100000099:4@s.whatsapp.net", lid: undefined } });
+  assert.equal(s3.config.auth.creds.me.lid, "777000199:4@lid", "me.lid tetap terjaga agar pesan peer iOS tidak dibuang");
+  s3.pancar("connection.update", { connection: "open" });
+  await tidur(30);
+  // Saat `open` di iPhone reguler (belum ada `name` dan belum ada `myAppStateKeyId`), `critical_block` diminta
+  // tetapi `accountSyncCounter` tetap 0 sampai `myAppStateKeyId` benar-benar tiba dari iPhone.
+  assert.deepEqual(s3.resync, ["critical_block"]);
+  assert.equal(s3.config.auth.creds.accountSyncCounter ?? 0, 0);
+
+  // Kunci app-state & dirty bit tiba belakangan dari iPhone -> wajib disinkronkan penuh & dirty bit dibersihkan
+  s3.pancar("creds.update", { myAppStateKeyId: "IOS-KEY-1", lastAccountSyncTimestamp: 1777700999 });
+  await tidur(50);
+  assert.deepEqual(s3.resync, ["critical_block", "critical_unblock_low"]);
+  assert.equal(s3.config.auth.creds.accountSyncCounter, 1);
+  assert.deepEqual(s3.dirtyCleaned, [{ type: "account_sync", ts: 1777700999 }]);
+
+  await wa.hapusSesi(n.sesi);
 });
 
 // =====================================================================================

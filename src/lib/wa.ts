@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { ConnectionState, SocketConfig, WAMessage, WASocket, proto } from "baileys";
 import { type BitQr, kemasQr } from "./qr";
+import { rapikanNomorWa } from "./format";
 import { type Foto, MAKS_FOTO_BYTE, MIME_FOTO, type SesiNomor } from "./types";
 import { type AuthSesi, bukaAuth, hapusAuth, rapikanAuthYatim, sesiTerpasang, tungguSemuaTulis } from "./wa-auth";
 
@@ -79,6 +80,12 @@ interface Sesi {
   alasan: string | null;
   qr: string | null;
   qrBit: { hash: string; kode: BitQr } | null;
+  /** Kode tautan 8 karakter saat pengguna memilih menautkan dengan nomor telepon. */
+  kodePairing: string | null;
+  /** LID akun sendiri yang dipertahankan agar tidak terhapus bila `<success>` tidak menyertakan atribut `lid`. */
+  lidTersimpan: string | null;
+  /** Baru saja berhasil pair-success / companion_finish pada soket ini dan menunggu sambung ulang ke sesi penuh. */
+  baruTertaut: boolean;
   /** Naik tiap soket dibuat atau sengaja diputus; event dari soket sebelumnya diabaikan. */
   gen: number;
   gagal: number;
@@ -122,6 +129,22 @@ const KODE = { keluar: 401, ditolak: 403, versiDitolak: 405, waktuHabis: 408, ti
 const baileys = (): Promise<Baileys> => (st.lib ??= import("baileys"));
 
 export const digitWa = (id: string | null | undefined): string => (id ?? "").split("@")[0].split(":")[0].replace(/\D/g, "");
+
+/**
+ * Nomor benar-benar sudah tertaut bila punya `me.id` hasil pemasangan perangkat (mengandung `:device` atau `account`),
+ * bukan sekadar placeholder sementara `{ id: "...@s.whatsapp.net", name: "~" }` saat meminta kode pairing.
+ */
+const sudahTertaut = (creds: { me?: { id?: string; name?: string }; account?: unknown }): boolean =>
+  !!creds.me?.id && (creds.me.id.includes(":") || !!creds.account || creds.me.name !== "~");
+
+function simpanPemetaanDiri(sock: WASocket, creds: { me?: { id?: string; lid?: string } }): void {
+  const id = creds.me?.id;
+  const lid = creds.me?.lid;
+  const store = (sock.signalRepository?.lidMapping as { storeLIDPNMappings?: (p: { lid: string; pn: string }[]) => Promise<unknown> } | undefined)?.storeLIDPNMappings;
+  if (id && lid && typeof store === "function") {
+    void store.call(sock.signalRepository.lidMapping, [{ lid, pn: id }]).catch(() => {});
+  }
+}
 
 const tidur = (ms: number) => new Promise<null>((r) => setTimeout(() => r(null), ms));
 
@@ -189,6 +212,9 @@ function sesiAtauBaru(nama: string): Sesi {
       alasan: null,
       qr: null,
       qrBit: null,
+      kodePairing: null,
+      lidTersimpan: null,
+      baruTertaut: false,
       gen: 0,
       gagal: 0,
       terpasang: false,
@@ -427,6 +453,7 @@ async function sambung(s: Sesi): Promise<void> {
   s.timer = null;
   s.status = "STARTING";
   s.qr = s.qrBit = null;
+  s.kodePairing = null;
 
   let B: Baileys;
   let auth: AuthSesi;
@@ -437,7 +464,16 @@ async function sambung(s: Sesi): Promise<void> {
     if (s.gen !== gen) return;
     auth = await bukaAuth(B, s.nama);
     if (s.gen !== gen) return;
-    if (auth.creds.me?.id) s.terpasang = true;
+    if (sudahTertaut(auth.creds)) {
+      s.terpasang = true;
+      const lidAwal = auth.creds.me?.lid || auth.creds.signalIdentities?.[0]?.identifier?.name;
+      if (lidAwal && B.isLidUser(lidAwal)) {
+        s.lidTersimpan = lidAwal;
+        if (auth.creds.me && !auth.creds.me.lid) auth.creds.me.lid = lidAwal;
+      }
+    } else if (auth.creds.me) {
+      delete auth.creds.me;
+    }
     const log = pencatat(s.nama);
     const abaikanJid = (jid: string | undefined): boolean => !!(B.isJidGroup(jid) || B.isJidBroadcast(jid) || B.isJidNewsletter(jid));
     sock = B.makeWASocket({
@@ -455,6 +491,7 @@ async function sambung(s: Sesi): Promise<void> {
       generateHighQualityLinkPreview: false,
       shouldIgnoreJid: abaikanJid,
     });
+    simpanPemetaanDiri(sock, auth.creds);
     // Baileys bawaan mengirim NACK error="500" (UnhandledError) setiap ada pesan dari JID yang diabaikan
     // (grup, status, saluran). Ribuan NACK 500 membuat server WhatsApp memutus stream atau mencabut perangkat
     // (401 device_removed). Di sini pesan yang diabaikan langsung diberi ACK bersih tanpa error="500".
@@ -468,6 +505,24 @@ async function sambung(s: Sesi): Promise<void> {
           if (dari && dari !== "@s.whatsapp.net" && abaikanJid(dari)) {
             void sock.sendMessageAck(node as never).catch(() => {});
             return true;
+          }
+          // Di beberapa iPhone (iOS), pesan protokol peer (APP_STATE_SYNC_KEY_SHARE / HISTORY_SYNC_NOTIFICATION)
+          // dikirim dari LID pemilik sebelum `me.lid` tercatat di `<success>`. Tanpa `me.lid`, Baileys 7 menganggap
+          // `fromMe = false` dan membuang kunci sinkronisasi tersebut sebagai spoofed message.
+          if (dari && auth.creds.me?.id && !auth.creds.me.lid && sudahTertaut(auth.creds)) {
+            const pnAlt = node?.attrs?.sender_pn || node?.attrs?.participant_pn || node?.attrs?.peer_recipient_pn;
+            const lidAlt = node?.attrs?.sender_lid || node?.attrs?.participant_lid || node?.attrs?.peer_recipient_lid;
+            if (B.isLidUser(dari) && (node?.attrs?.category === "peer" || (pnAlt && B.areJidsSameUser(pnAlt, auth.creds.me.id)))) {
+              auth.creds.me.lid = dari;
+              s.lidTersimpan = dari;
+              auth.simpanCreds();
+              simpanPemetaanDiri(sock, auth.creds);
+            } else if (lidAlt && B.isLidUser(lidAlt) && B.areJidsSameUser(dari, auth.creds.me.id)) {
+              auth.creds.me.lid = lidAlt;
+              s.lidTersimpan = lidAlt;
+              auth.simpanCreds();
+              simpanPemetaanDiri(sock, auth.creds);
+            }
           }
         }
         return emitAsli(ev, ...args);
@@ -493,18 +548,40 @@ async function sambung(s: Sesi): Promise<void> {
 
   sock.ev.on("creds.update", (u) => {
     if (s.gen !== gen) return;
+    const lidBaru = u.me?.lid || auth.creds.me?.lid || u.signalIdentities?.[0]?.identifier?.name || auth.creds.signalIdentities?.[0]?.identifier?.name;
+    if (lidBaru && B.isLidUser(lidBaru)) s.lidTersimpan = lidBaru;
+    if (auth.creds.me && !auth.creds.me.lid && s.lidTersimpan) auth.creds.me.lid = s.lidTersimpan;
+
+    // Jangan tulis `me` sementara (`{ id: "...@s.whatsapp.net", name: "~" }` dari requestPairingCode) ke DB
+    // sebelum pemasangan perangkat benar-benar selesai, agar sesi yang batal tidak dianggap sudah terpasang.
+    const meSementara = auth.creds.me && !sudahTertaut(auth.creds) ? auth.creds.me : undefined;
+    if (meSementara) delete auth.creds.me;
     auth.simpanCreds();
-    const nama = u.me?.name;
+    if (meSementara) auth.creds.me = meSementara;
+
+    if (sudahTertaut(auth.creds)) {
+      s.terpasang = true;
+      simpanPemetaanDiri(sock, auth.creds);
+    }
+    if (u.registered && s.status === "SCAN_QR_CODE") {
+      s.baruTertaut = true;
+      s.qr = s.qrBit = null;
+      s.kodePairing = null;
+      s.status = "STARTING";
+      s.alasan = null;
+      lepasTunggu(s);
+    }
+    const nama = u.me?.name && u.me.name !== "~" ? u.me.name : undefined;
     if (nama && nama !== s.namaWa) {
       s.namaWa = nama;
       if (s.status === "WORKING" && s.waId) void kabari({ jenis: "terhubung", sesi: s.nama, waId: s.waId, nama });
     }
-    // Saat kunci app-state pertama tiba dari HP (khususnya WA Business yang sudah punya nama bisnis sejak pair-success),
-    // wajib jalankan resync awal dan bersihkan dirty bit account_sync agar tidak dicabut WA setelah ±20 menit.
+    // Saat kunci app-state pertama tiba dari HP (baik iPhone/Android biasa maupun WA Business),
+    // wajib jalankan resync awal dan bersihkan dirty bit account_sync agar tautan tidak gagal/dicabut WA.
     if (u.myAppStateKeyId && !auth.creds.accountSyncCounter) {
       sinkronAwal(sock, auth, ["critical_block", "critical_unblock_low"]);
     }
-    if (u.lastAccountSyncTimestamp && !auth.creds.accountSyncCounter && typeof sock.cleanDirtyBits === "function") {
+    if (u.lastAccountSyncTimestamp && typeof sock.cleanDirtyBits === "function") {
       void sock.cleanDirtyBits("account_sync", u.lastAccountSyncTimestamp).catch(() => {});
     }
   });
@@ -534,7 +611,9 @@ function sinkronAwal(sock: WASocket, auth: AuthSesi, koleksi: readonly ("critica
   void sock
     .resyncAppState(koleksi, false)
     .then(() => {
-      if (!auth.creds.accountSyncCounter) {
+      // Hanya tandai selesai bila myAppStateKeyId sudah ada; bila dipanggil saat `open` sebelum HP mengirim
+      // APP_STATE_SYNC_KEY_SHARE (umum di iOS), biarkan 0 agar disinkronkan ulang begitu kunci tiba.
+      if (!auth.creds.accountSyncCounter && auth.creds.myAppStateKeyId) {
         auth.creds.accountSyncCounter = 1;
         auth.simpanCreds();
       }
@@ -549,23 +628,35 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
     s.status = "SCAN_QR_CODE";
     lepasTunggu(s);
   }
+  if (u.isNewLogin) {
+    s.terpasang = true;
+    s.baruTertaut = true;
+    s.qr = s.qrBit = null;
+    s.kodePairing = null;
+    s.status = "STARTING";
+    s.alasan = null;
+    lepasTunggu(s);
+  }
 
   if (u.connection === "open") {
     s.status = "WORKING";
     s.terpasang = true;
+    s.baruTertaut = false;
     s.qr = s.qrBit = null;
+    s.kodePairing = null;
     s.gagal = 0;
     s.alasan = null;
     s.mengetik = 0;
     s.online = false;
     s.waId = digitWa(sock.user?.id) || s.waId;
-    s.namaWa = sock.user?.name ?? s.namaWa;
+    const nama = sock.user?.name && sock.user.name !== "~" ? sock.user.name : null;
+    s.namaWa = nama ?? s.namaWa;
     console.info(`[wa ${s.nama}] terhubung`);
     if (s.waId) void kabari({ jenis: "terhubung", sesi: s.nama, waId: s.waId, nama: s.namaWa });
     // Nama profil sendiri & kelengkapan tautan perangkat datang lewat sinkronisasi pengaturan.
     // Untuk WA Business, sock.user.name sudah terisi dari sertifikat bisnis saat pairing, sehingga
     // kita tetap wajib menyinkronkan critical_block bila accountSyncCounter masih 0.
-    if (!sock.user?.name) sinkronAwal(sock, auth, ["critical_block"]);
+    if (!nama) sinkronAwal(sock, auth, ["critical_block"]);
     else if (!auth.creds.accountSyncCounter && auth.creds.myAppStateKeyId) sinkronAwal(sock, auth, ["critical_block", "critical_unblock_low"]);
     lepasTunggu(s);
     return;
@@ -573,16 +664,19 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
   if (u.connection !== "close") return;
 
   const kode = (u.lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)?.output?.statusCode ?? 0;
-  const terpasang = !!auth.creds.me?.id;
+  const terpasang = sudahTertaut(auth.creds);
+  const pakaiKode = !!s.kodePairing;
   s.sock = null;
   s.qr = s.qrBit = null;
+  s.kodePairing = null;
   s.mengetik = 0;
   s.online = false;
   if (s.timerOffline) clearTimeout(s.timerOffline);
   s.timerOffline = null;
 
-  if (kode === KODE.mulaiUlang) {
-    void sambung(s); // normal tepat setelah QR dipindai
+  if (kode === KODE.mulaiUlang || (s.baruTertaut && terpasang && kode !== KODE.keluar && kode !== KODE.versiDitolak)) {
+    s.baruTertaut = false;
+    void sambung(s); // normal tepat setelah QR dipindai atau kode tautan diterima
     return;
   }
   if (kode === KODE.versiDitolak && s.gagal < 2) {
@@ -594,14 +688,18 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
     return;
   }
   if (kode === KODE.keluar || !terpasang) {
-    // Dikeluarkan secara eksplisit dari HP (401), atau QR tidak jadi dipindai: kunci yang tersisa tidak berguna lagi.
+    // Dikeluarkan secara eksplisit dari HP (401), atau QR/kode tidak jadi dimasukkan: kunci sementara dibuang.
     s.terpasang = false;
+    s.baruTertaut = false;
+    s.lidTersimpan = null;
     void hapusAuth(s.nama).catch((e) => console.error(`[wa ${s.nama}] gagal membuang kredensial:`, e));
     s.status = terpasang ? "STOPPED" : "FAILED";
     s.alasan = terpasang
       ? "Perangkat ini dikeluarkan dari WhatsApp di HP. Pindai QR lagi untuk menautkan."
       : kode === KODE.waktuHabis
-        ? "Kode QR tidak dipindai tepat waktu. Tampilkan QR baru untuk menautkan."
+        ? pakaiKode
+          ? "Kode tautan kedaluwarsa sebelum dimasukkan di HP. Minta kode baru atau pindai QR untuk menautkan."
+          : "Kode QR tidak dipindai tepat waktu. Tampilkan QR baru untuk menautkan."
         : "Koneksi ke WhatsApp terputus sebelum nomor ditautkan. Coba lagi.";
     console.info(`[wa ${s.nama}] ${terpasang ? "dikeluarkan dari WhatsApp" : "berhenti sebelum ditautkan"} (kode ${kode})`);
     lepasTunggu(s);
@@ -684,12 +782,52 @@ export function infoSesi(nama: string): SesiNomor {
  */
 export async function hubungkan(nama: string): Promise<void> {
   const s = sesiAtauBaru(nama);
-  if (s.sock && s.status !== "FAILED" && s.status !== "STOPPED") return;
+  if (s.sock && s.status !== "FAILED" && s.status !== "STOPPED") {
+    if (s.status === "STARTING") await Promise.race([new Promise<void>((r) => s.tunggu.push(r)), tidur(4_000)]);
+    return;
+  }
   s.gagal = 0;
   s.alasan = null;
   const pasti = new Promise<void>((r) => s.tunggu.push(r));
   await sambung(s);
   await Promise.race([pasti, tidur(4_000)]);
+}
+
+/** Kode tautan 8 karakter yang sedang aktif untuk sesi ini (null bila tidak ada / sudah terhubung). */
+export function kodePairing(nama: string): string | null {
+  const s = st.sesi.get(nama);
+  return s?.status === "SCAN_QR_CODE" ? s.kodePairing : null;
+}
+
+/**
+ * Minta kode tautan 8 karakter dari WhatsApp untuk menautkan perangkat lewat nomor telepon
+ * (alternatif selain memindai QR, sama seperti "Tautkan dengan nomor telepon" di WhatsApp Web).
+ */
+export async function mintaKodePairing(nama: string, nomorHp: string): Promise<string> {
+  const digit = rapikanNomorWa(nomorHp);
+  if (!digit) throw new WaError("Nomor WhatsApp tidak valid (contoh: 0812-3456-7890).");
+  const s = sesiAtauBaru(nama);
+  if (s.status === "WORKING") throw new WaError("Nomor ini sudah terhubung ke WhatsApp.");
+  if (!s.sock || s.status === "FAILED" || s.status === "STOPPED") {
+    await hubungkan(nama);
+  } else if (s.status === "STARTING" && !s.qr) {
+    await Promise.race([new Promise<void>((r) => s.tunggu.push(r)), tidur(6_000)]);
+  }
+  if ((s.status as SesiNomor["status"]) === "WORKING") throw new WaError("Nomor ini sudah terhubung ke WhatsApp.");
+  const sock = s.sock;
+  if (!sock || s.status !== "SCAN_QR_CODE") {
+    throw new WaError(s.alasan || "Sesi WhatsApp belum siap. Klik Hubungkan ulang lalu coba lagi.");
+  }
+  if (typeof sock.requestPairingCode !== "function") {
+    throw new WaError("Koneksi WhatsApp belum mendukung kode tautan.");
+  }
+  const mentah = await denganBatas(sock.requestPairingCode(digit), 15_000, "meminta kode tautan");
+  const kode = String(mentah ?? "")
+    .replace(/[^A-Z0-9]/gi, "")
+    .toUpperCase();
+  if (kode.length !== 8) throw new WaError("Gagal mendapatkan kode 8 karakter dari WhatsApp. Coba lagi.");
+  s.kodePairing = kode;
+  return kode;
 }
 
 async function putus(s: Sesi, keluar: boolean): Promise<void> {
@@ -701,9 +839,14 @@ async function putus(s: Sesi, keluar: boolean): Promise<void> {
   const terhubung = s.status === "WORKING";
   s.sock = null;
   s.status = "STOPPED";
-  if (keluar) s.terpasang = false;
+  if (keluar) {
+    s.terpasang = false;
+    s.lidTersimpan = null;
+  }
+  s.baruTertaut = false;
   s.alasan = null;
   s.qr = s.qrBit = null;
+  s.kodePairing = null;
   s.waId = null;
   s.mengetik = 0;
   s.online = false;

@@ -6,7 +6,7 @@ import { MEREK_BELAKANG, MEREK_DEPAN } from "@/lib/merek";
  * Panahnya berupa potongan, sehingga mengikuti warna latar (putih di latar terang, gelap di sidebar).
  * Path yang sama dipakai src/app/icon.svg; ubah keduanya bersamaan.
  */
-const PATH_TANDA = "M23.74 76.26A50 40.5 0 1 1 85.06 70.68L50 98.6L50 79.8L36.9 79.8L64.45 52.25L72.3 60.1L79.12 29.22L48.25 36.05L56.1 43.9Z";
+export const PATH_TANDA = "M23.74 76.26A50 40.5 0 1 1 85.06 70.68L50 98.6L50 79.8L36.9 79.8L64.45 52.25L72.3 60.1L79.12 29.22L48.25 36.05L56.1 43.9Z";
 
 export function TandaMerek({ className = "" }: { className?: string }) {
   return (

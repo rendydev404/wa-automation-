@@ -34,4 +34,6 @@ export interface QrWa {
   /** Matriks kode QR; hanya dikirim bila berbeda dari `h` yang dipegang klien. */
   qr?: BitQr;
   hash?: string;
+  /** Kode tautan 8 karakter bila pengguna memilih menautkan dengan nomor telepon. */
+  kodePairing?: string | null;
 }

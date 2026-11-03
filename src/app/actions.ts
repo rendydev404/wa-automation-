@@ -81,7 +81,7 @@ import {
   requireAdmin,
   requireUser,
 } from "@/lib/session";
-import { WaError, hapusSesi, hubungkan, logout } from "@/lib/wa";
+import { WaError, hapusSesi, hubungkan, logout, mintaKodePairing } from "@/lib/wa";
 
 export interface Hasil {
   ok: boolean;
@@ -201,6 +201,17 @@ export async function hubungkanWaAction(id: number): Promise<Hasil> {
   try {
     await hubungkan(nomor.sesi);
     return { ok: true };
+  } catch (e) {
+    return { ok: false, pesan: pesanGalat(e) };
+  }
+}
+
+export async function kodePairingWaAction(id: number, telepon: string): Promise<Hasil & { kode?: string }> {
+  const nomor = await nomorUntuk(await requireUser(), id);
+  if (!nomor) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  try {
+    const kode = await mintaKodePairing(nomor.sesi, telepon);
+    return { ok: true, kode };
   } catch (e) {
     return { ok: false, pesan: pesanGalat(e) };
   }
