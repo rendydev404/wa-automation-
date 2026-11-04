@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
-import { Check } from "lucide-react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Check, ClipboardPaste } from "lucide-react";
 import { mintaOtpAction, resetPasswordOtpAction, verifikasiOtpAction } from "@/app/actions";
 import { Pesan, SubmitButton } from "@/components/ui";
 
@@ -29,10 +30,24 @@ function Tahap({ kini }: { kini: Langkah }) {
   );
 }
 
+/** Ambil 6 digit dari teks apa pun yang ditempel ("3 0 7 5 5 0", "Kode: 307550", dsb.). */
+const digitKode = (teks: string) => teks.replace(/\D/g, "").slice(0, 6);
+
+/**
+ * Tautan dari email kode (/lupa-password?email=...) langsung membuka tahap "Kode OTP" dengan email terisi,
+ * jadi pengguna tinggal menempel kodenya. Bungkus dengan <Suspense> (useSearchParams).
+ */
+export function LupaPasswordDariTautan() {
+  const email = (useSearchParams().get("email") ?? "").trim().slice(0, 254);
+  return <LupaPasswordForm emailAwal={/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : ""} />;
+}
+
 /** Tiga tahap di satu halaman: email terdaftar -> kode OTP -> password baru. Berhasil = langsung masuk (redirect dari server). */
-export function LupaPasswordForm() {
-  const [langkah, setLangkah] = useState<Langkah>(0);
-  const [email, setEmail] = useState("");
+export function LupaPasswordForm({ emailAwal = "" }: { emailAwal?: string }) {
+  const [langkah, setLangkah] = useState<Langkah>(emailAwal ? 1 : 0);
+  const [email, setEmail] = useState(emailAwal);
+  const [kode, setKode] = useState("");
+  const formKode = useRef<HTMLFormElement>(null);
   const [token, setToken] = useState("");
   const [bolehUlangPada, setBolehUlangPada] = useState(0);
   const [kini, setKini] = useState(0); // diisi saat kode terkirim (Date.now() tidak boleh dipanggil saat prerender)
@@ -56,6 +71,17 @@ export function LupaPasswordForm() {
     return h;
   }, null);
   const [reset, aksiReset] = useActionState(resetPasswordOtpAction, null);
+
+  // Tombol "Tempel kode": baca papan klip, ambil 6 digitnya, lalu langsung verifikasi.
+  const tempel = async () => {
+    try {
+      const d = digitKode(await navigator.clipboard.readText());
+      setKode(d);
+      if (d.length === 6) requestAnimationFrame(() => formKode.current?.requestSubmit());
+    } catch {
+      document.getElementById("kode")?.focus(); // izin papan klip ditolak: tempel manual (Ctrl+V / tekan lama)
+    }
+  };
 
   // Hitung mundur tombol "Kirim ulang"; berhenti sendiri begitu jedanya lewat.
   const sisaDtk = Math.max(0, Math.ceil((bolehUlangPada - kini) / 1000));
@@ -87,13 +113,18 @@ export function LupaPasswordForm() {
     return (
       <div className="space-y-4">
         <Tahap kini={1} />
-        <Pesan ok={!!minta?.ok}>{minta?.pesan}</Pesan>
-        <form action={aksiVerif} className="space-y-4">
+        <Pesan ok={!!minta?.ok}>{minta?.pesan ?? `Masukkan kode 6 digit yang kami kirim ke ${email}.`}</Pesan>
+        <form ref={formKode} action={aksiVerif} className="space-y-4">
           <input type="hidden" name="email" value={email} />
           <div>
-            <label htmlFor="kode" className="label">
-              Kode 6 digit
-            </label>
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <label htmlFor="kode" className="label mb-0">
+                Kode 6 digit
+              </label>
+              <button type="button" onClick={tempel} className="flex items-center gap-1 text-[13px] font-semibold text-accent hover:underline">
+                <ClipboardPaste className="size-3.5" aria-hidden /> Tempel kode
+              </button>
+            </div>
             <input
               id="kode"
               name="kode"
@@ -101,9 +132,10 @@ export function LupaPasswordForm() {
               autoComplete="one-time-code"
               pattern="[0-9]{6}"
               minLength={6}
-              maxLength={6}
               required
               autoFocus
+              value={kode}
+              onChange={(e) => setKode(digitKode(e.target.value))}
               className="field text-center text-lg tracking-[0.4em] tabular-nums"
             />
           </div>

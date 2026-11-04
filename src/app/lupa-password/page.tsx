@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { KartuAuth } from "@/components/kartu-auth";
 import { MEREK } from "@/lib/merek";
-import { LupaPasswordForm } from "./lupa-form";
+import { LupaPasswordDariTautan, LupaPasswordForm } from "./lupa-form";
 
 export const metadata: Metadata = { title: `Lupa password · ${MEREK}` };
 
@@ -20,7 +21,9 @@ export default function LupaPasswordPage() {
         </>
       }
     >
-      <LupaPasswordForm />
+      <Suspense fallback={<LupaPasswordForm />}>
+        <LupaPasswordDariTautan />
+      </Suspense>
     </KartuAuth>
   );
 }

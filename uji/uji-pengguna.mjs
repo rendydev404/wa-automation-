@@ -250,9 +250,11 @@ await cek("lupa password 3 tahap: email tak terdaftar/diblokir ditolak jelas tan
     assert.match(e.mentah, /^From: ChatGerCep <uji@gmail\.test>$/m);
     const kode = e.judul.match(/^(\d{6}) adalah kode/)[1];
     assert.ok(e.mentah.split(kode).length - 1 >= 2, "kode ada di judul dan teks biasa");
-    // HTML (quoted-printable): tiap digit di kotaknya sendiri, urut; ikon dari public/email/, tanpa emoji.
+    // HTML (quoted-printable): kode dalam satu blok teks (sekali pilih = 6 digit tersalin); tombol langsung ke tahap kode
+    // dengan email terisi; ikon dari public/email/, tanpa emoji.
     const html = e.mentah.replace(/=\r?\n/g, "").replace(/=3D/g, "=");
-    assert.match(html, new RegExp([...kode].map((d) => `>${d}</div>`).join("[\\s\\S]*?")));
+    assert.match(html, new RegExp(`user-select:all">${kode}</td>`));
+    assert.ok(html.includes('href="https://app.uji/lupa-password?email=sari%40uji.test"'), "tombol membuka tahap kode untuk email ini");
     assert.match(html, /\/email\/kunci\.png/);
     assert.ok(!/&#(?:128272|9201|128737|9888);/.test(html), "tanpa emoji");
     assert.match(e.mentah, /multipart\/alternative/);

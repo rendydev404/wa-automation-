@@ -86,7 +86,7 @@ export interface IsiEmail {
   subjudul: string;
   sapaan?: string;
   paragraf: string[];
-  /** Kode OTP: ditampilkan per digit dalam kotak. */
+  /** Kode OTP: satu blok teks yang mudah disalin. */
   kode?: string;
   /** Keterangan di bawah kode, mis. "Berlaku 10 menit · sampai 10.13 WIB". */
   berlaku?: string;
@@ -115,13 +115,11 @@ export function htmlEmail(o: IsiEmail): string {
     asal ? `<td style="padding-right:10px;vertical-align:middle"><img src="${aman(asal)}/apple-icon.png" width="34" height="34" alt="" style="display:block;border:0;border-radius:9px"></td>` : ""
   }<td style="vertical-align:middle;font-family:${HURUF};font-size:20px;font-weight:800;letter-spacing:-0.3px;color:#ffffff">Chat<span style="color:${W.sinyal}">GerCep</span></td></tr></table>`;
 
+  // Kode dalam SATU blok teks (bukan kotak per digit): ketuk dua kali / tekan lama langsung memilih ke-6 digit untuk
+  // disalin. Email tidak bisa menjalankan JavaScript, jadi tombol "Salin" sungguhan tidak mungkin; user-select:all
+  // membuat satu ketukan memilih seluruh kode di Apple Mail & aplikasi yang mendukungnya.
   const kode = o.kode
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:6px auto 12px"><tr>${[...o.kode]
-        .map(
-          (d) =>
-            `<td style="padding:0 3px"><div style="width:40px;height:54px;line-height:54px;text-align:center;border-radius:12px;background:${W.kanvas};border:1px solid ${W.garis};border-bottom:3px solid ${W.aksen};font-family:${MONO};font-size:28px;font-weight:700;color:${W.teks}">${aman(d)}</div></td>`
-        )
-        .join("")}</tr></table>${
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:6px auto 8px"><tr><td style="padding:12px 18px 12px 28px;border-radius:14px;background:${W.kanvas};border:1px solid ${W.garis};border-bottom:3px solid ${W.aksen};font-family:${MONO};font-size:32px;line-height:1.1;font-weight:700;letter-spacing:10px;color:${W.teks};-webkit-user-select:all;user-select:all">${aman(o.kode)}</td></tr></table><p style="margin:0 0 12px;text-align:center;font-family:${HURUF};font-size:12px;color:${W.redup}">Tekan lama atau ketuk dua kali kodenya untuk menyalin</p>${
         o.berlaku
           ? `<p style="margin:0 0 22px;text-align:center"><span style="display:inline-block;padding:6px 12px;border-radius:999px;background:${W.aksenLembut};font-family:${HURUF};font-size:12.5px;font-weight:600;color:${W.aksen}">${ikon("jam", 14, "margin:-2px 6px 0 0")}${aman(o.berlaku)}</span></p>`
           : ""
