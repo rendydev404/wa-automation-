@@ -46,7 +46,7 @@ export function KalkulatorAfiliasi({
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
       {/* Panel Kontrol Kiri */}
-      <div className="flex flex-col justify-between rounded-3xl border border-line bg-surface p-6 shadow-card sm:p-8">
+      <div className="flex flex-col justify-between rounded-3xl border border-line bg-surface p-5 shadow-card sm:p-8">
         <div>
           <span className="text-[12.5px] font-bold tracking-[0.08em] text-muted uppercase">
             1. Pilih Paket yang Dibeli Pelanggan Referral
@@ -86,10 +86,10 @@ export function KalkulatorAfiliasi({
 
           <div className="mt-7 border-t border-line pt-6">
             <div className="flex items-baseline justify-between gap-3">
-              <label htmlFor="slider-referral" className="text-[12.5px] font-bold tracking-[0.08em] text-muted uppercase">
+              <label htmlFor="slider-referral" className="min-w-0 text-[12.5px] font-bold tracking-[0.08em] text-muted uppercase">
                 2. Jumlah Pelanggan yang Membeli Paket
               </label>
-              <span className="text-2xl font-extrabold text-accent tabular-nums">
+              <span className="shrink-0 text-2xl font-extrabold text-accent tabular-nums">
                 {jumlahPembeli} <span className="text-[13.5px] font-semibold text-muted">pembeli</span>
               </span>
             </div>
@@ -135,34 +135,34 @@ export function KalkulatorAfiliasi({
       </div>
 
       {/* Panel Hasil Kanan */}
-      <div className="flex flex-col justify-between rounded-3xl border border-ink-line bg-ink p-6 text-ink-fg shadow-card sm:p-8">
+      <div className="flex flex-col justify-between rounded-3xl border border-ink-line bg-ink p-5 text-ink-fg shadow-card sm:p-8">
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-ink-signal/30 bg-ink-signal/10 px-3 py-1 text-[12px] font-bold text-ink-signal">
-            <TrendingUp className="size-3.5" aria-hidden /> Estimasi Komisi yang Anda Dapatkan
+            <TrendingUp className="size-3.5 shrink-0" aria-hidden /> Estimasi Komisi yang Anda Dapatkan
           </div>
 
           <div className="mt-6">
             <p className="text-[13px] font-semibold text-ink-muted">
               Total Komisi dari {jumlahPembeli} Pembeli Paket {paketAktif.nama}
             </p>
-            <p className="mt-1.5 text-4xl font-extrabold tracking-tight text-white tabular-nums sm:text-[44px]">
+            <p className="mt-1.5 text-[32px] leading-tight font-extrabold tracking-tight break-words text-white tabular-nums sm:text-[44px]">
               Rp{angka(totalKomisi)}
             </p>
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-4 rounded-2xl border border-ink-line bg-white/[0.03] p-4">
-            <div>
+          <div className="mt-6 grid grid-cols-2 gap-3 rounded-2xl border border-ink-line bg-white/[0.03] p-3.5 sm:gap-4 sm:p-4">
+            <div className="min-w-0">
               <p className="text-[12px] font-semibold text-ink-muted">Komisi / 1 Pembeli</p>
-              <p className="mt-1 text-lg font-extrabold text-ink-signal tabular-nums">
+              <p className="mt-1 text-base font-extrabold text-ink-signal tabular-nums sm:text-lg">
                 +Rp{angka(komisiPerPembeli)}
               </p>
               <p className="mt-0.5 text-[11.5px] text-ink-muted">
                 {labelKomisi ? `Tarif ${labelKomisi} dari paket` : "Sesuai pengaturan paket"}
               </p>
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[12px] font-semibold text-ink-muted">Harga Paket {paketAktif.nama}</p>
-              <p className="mt-1 text-lg font-extrabold text-white tabular-nums">
+              <p className="mt-1 text-base font-extrabold text-white tabular-nums sm:text-lg">
                 Rp{angka(paketAktif.harga)}
               </p>
               <p className="mt-0.5 text-[11.5px] text-ink-muted">
@@ -263,62 +263,18 @@ export function AlurAfiliasiInteraktif({ domainContoh }: { domainContoh: string 
     setTimeout(() => setTersalin(false), 1800);
   }
 
-  return (
-    <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-      {/* Daftar Langkah */}
-      <div className="space-y-3">
-        {LANGKAH_INTERAKTIF.map((l, idx) => {
-          const aktif = idx === langkahAktif;
-          const Ikon = l.ikon;
-          return (
-            <button
-              key={l.nomor}
-              type="button"
-              onClick={() => setLangkahAktif(idx)}
-              className={`w-full rounded-3xl border p-5 text-left transition-all ${
-                aktif
-                  ? "border-accent bg-surface shadow-pop"
-                  : "border-line bg-surface/60 hover:border-accent/30 hover:bg-surface"
-              }`}
-            >
-              <div className="flex items-start gap-4">
-                <span
-                  className={`grid size-11 shrink-0 place-items-center rounded-2xl text-[13.5px] font-extrabold transition-colors ${
-                    aktif ? "bg-accent text-on-accent" : "bg-subtle text-muted"
-                  }`}
-                >
-                  <Ikon className="size-5" aria-hidden />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11.5px] font-extrabold tracking-[0.08em] text-accent uppercase">
-                      Langkah {l.nomor}
-                    </span>
-                    {aktif && (
-                      <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-[11px] font-bold text-accent">
-                        Sedang dilihat
-                      </span>
-                    )}
-                  </div>
-                  <h3 className="mt-1 text-[16.5px] font-bold text-fg">{l.judul}</h3>
-                  <p className="mt-1 text-[13.5px] leading-relaxed text-muted">{l.ringkas}</p>
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Pratinjau Interaktif Ringan */}
-      <div className="rounded-3xl border border-ink-line bg-ink p-6 text-ink-fg shadow-card sm:p-8">
-        <div className="flex items-center justify-between border-b border-ink-line pb-4">
-          <div className="flex items-center gap-2">
-            <span className="size-2.5 rounded-full bg-ink-signal" />
+  // Pratinjau yang sama dipakai di dua tempat: di bawah langkah yang diketuk (mobile, supaya perubahannya langsung
+  // terlihat tanpa menggulir) dan di kolom kanan (layar lebar).
+  const pratinjau = (
+      <div className="rounded-3xl border border-ink-line bg-ink p-5 text-ink-fg shadow-card sm:p-8">
+        <div className="flex items-center justify-between gap-3 border-b border-ink-line pb-4">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="size-2.5 shrink-0 rounded-full bg-ink-signal" />
             <span className="text-[12.5px] font-bold text-white">
               Simulasi Dashboard Afiliasi · Langkah 0{langkahAktif + 1}
             </span>
           </div>
-          <span className="rounded-lg border border-ink-line bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-semibold text-ink-muted">
+          <span className="hidden shrink-0 rounded-lg border border-ink-line bg-white/[0.04] px-2.5 py-1 text-[11.5px] font-semibold text-ink-muted sm:inline">
             Interaktif
           </span>
         </div>
@@ -328,7 +284,7 @@ export function AlurAfiliasiInteraktif({ domainContoh }: { domainContoh: string 
             <p className="text-[13px] text-ink-muted">
               Sistem otomatis membangkitkan kode referral unik acak untuk akun Anda begitu mendaftar:
             </p>
-            <div className="flex items-center justify-between rounded-2xl border border-ink-line bg-white/[0.04] px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink-line bg-white/[0.04] px-4 py-3">
               <div>
                 <span className="text-[11px] font-bold text-ink-muted uppercase">Kode Referral Acak Sistem</span>
                 <p className="mt-0.5 font-mono text-lg font-extrabold text-white">{kodeDemo}</p>
@@ -344,7 +300,7 @@ export function AlurAfiliasiInteraktif({ domainContoh }: { domainContoh: string 
             <div className="rounded-2xl border border-ink-line bg-white/[0.03] p-4">
               <span className="text-[11.5px] font-semibold text-ink-muted">Link Siap Bagikan</span>
               <div className="mt-1.5 flex items-center justify-between gap-2">
-                <code className="truncate text-[13.5px] font-bold text-ink-signal">{linkDemo}</code>
+                <code className="min-w-0 truncate text-[13px] font-bold text-ink-signal sm:text-[13.5px]">{linkDemo}</code>
                 <button
                   type="button"
                   onClick={salinDemo}
@@ -360,25 +316,25 @@ export function AlurAfiliasiInteraktif({ domainContoh }: { domainContoh: string 
 
         {langkahAktif === 1 && (
           <div className="mt-6 space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-2xl border border-ink-line bg-white/[0.03] p-4">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
+              <div className="rounded-2xl border border-ink-line bg-white/[0.03] p-3.5 sm:p-4">
                 <MousePointerClick className="size-4 text-ink-signal" aria-hidden />
                 <p className="mt-2 text-2xl font-extrabold text-white tabular-nums">428</p>
                 <p className="text-[11.5px] text-ink-muted">Klik Link Referral</p>
               </div>
-              <div className="rounded-2xl border border-ink-line bg-white/[0.03] p-4">
+              <div className="rounded-2xl border border-ink-line bg-white/[0.03] p-3.5 sm:p-4">
                 <Users className="size-4 text-ink-signal" aria-hidden />
                 <p className="mt-2 text-2xl font-extrabold text-white tabular-nums">64</p>
                 <p className="text-[11.5px] text-ink-muted">User Mendaftar</p>
               </div>
-              <div className="rounded-2xl border border-ink-line bg-white/[0.03] p-4">
+              <div className="col-span-2 rounded-2xl border border-ink-line bg-white/[0.03] p-3.5 sm:col-span-1 sm:p-4">
                 <ShieldCheck className="size-4 text-ink-signal" aria-hidden />
                 <p className="mt-2 text-2xl font-extrabold text-ink-signal tabular-nums">Otomatis</p>
                 <p className="text-[11.5px] text-ink-muted">Atribusi Referral</p>
               </div>
             </div>
             <div className="rounded-2xl border border-ink-line bg-white/[0.03] p-4 text-[13px] text-ink-muted">
-              Saat calon pengguna membuka <code className="font-bold text-white">{linkDemo}</code>, sistem melacak referral secara otomatis. Baik daftar via Email maupun Google OAuth, akun mereka langsung terhubung ke kode Anda.
+              Saat calon pengguna membuka <code className="font-bold break-all text-white">{linkDemo}</code>, sistem melacak referral secara otomatis. Baik daftar via Email maupun Google OAuth, akun mereka langsung terhubung ke kode Anda.
             </div>
           </div>
         )}
@@ -392,15 +348,15 @@ export function AlurAfiliasiInteraktif({ domainContoh }: { domainContoh: string 
             ].map((item) => (
               <div
                 key={item.email}
-                className="flex items-center justify-between gap-3 rounded-2xl border border-ink-line bg-white/[0.03] px-4 py-3"
+                className="flex items-center justify-between gap-3 rounded-2xl border border-ink-line bg-white/[0.03] px-3.5 py-3 sm:px-4"
               >
-                <div>
+                <div className="min-w-0">
                   <p className="text-[13.5px] font-bold text-white">{item.paket}</p>
                   <p className="text-[12px] text-ink-muted">
                     Oleh {item.email} · Transaksi Rp{angka(item.harga)} · {item.waktu}
                   </p>
                 </div>
-                <span className="rounded-xl bg-ink-signal/15 px-3 py-1.5 text-[13px] font-extrabold text-ink-signal tabular-nums">
+                <span className="shrink-0 rounded-xl bg-ink-signal/15 px-2.5 py-1.5 text-[12.5px] font-extrabold text-ink-signal tabular-nums sm:px-3 sm:text-[13px]">
                   +Rp{angka(item.komisi)}
                 </span>
               </div>
@@ -410,7 +366,7 @@ export function AlurAfiliasiInteraktif({ domainContoh }: { domainContoh: string 
 
         {langkahAktif === 3 && (
           <div className="mt-6 space-y-4">
-            <div className="flex items-center justify-between rounded-2xl border border-ink-line bg-white/[0.03] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink-line bg-white/[0.03] p-4">
               <div>
                 <p className="text-[12px] font-semibold text-ink-muted">Saldo Siap Dicairkan</p>
                 <p className="mt-1 text-2xl font-extrabold text-white tabular-nums">Rp1.450.000</p>
@@ -420,7 +376,7 @@ export function AlurAfiliasiInteraktif({ domainContoh }: { domainContoh: string 
               </span>
             </div>
             <div className="rounded-2xl border border-ink-line bg-white/[0.03] p-4">
-              <div className="flex items-center justify-between text-[12.5px]">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[12.5px]">
                 <span className="font-semibold text-ink-muted">Metode Pencairan Terdaftar</span>
                 <span className="font-bold text-ink-signal">Terverifikasi</span>
               </div>
@@ -432,9 +388,9 @@ export function AlurAfiliasiInteraktif({ domainContoh }: { domainContoh: string 
           </div>
         )}
 
-        <div className="mt-5 flex items-center justify-between border-t border-ink-line pt-4 text-[12px] text-ink-muted">
-          <span>{LANGKAH_INTERAKTIF[langkahAktif].sorotan}</span>
-          <div className="flex gap-1.5">
+        <div className="mt-5 flex items-center justify-between gap-3 border-t border-ink-line pt-4 text-[12px] text-ink-muted">
+          <span className="min-w-0">{LANGKAH_INTERAKTIF[langkahAktif].sorotan}</span>
+          <div className="flex shrink-0 gap-1.5">
             {LANGKAH_INTERAKTIF.map((l, i) => (
               <button
                 key={l.nomor}
@@ -449,6 +405,59 @@ export function AlurAfiliasiInteraktif({ domainContoh }: { domainContoh: string 
           </div>
         </div>
       </div>
+  );
+
+  return (
+    <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+      {/* Daftar Langkah */}
+      <div className="space-y-3">
+        {LANGKAH_INTERAKTIF.map((l, idx) => {
+          const aktif = idx === langkahAktif;
+          const Ikon = l.ikon;
+          return (
+            <div key={l.nomor}>
+              <button
+                type="button"
+                onClick={() => setLangkahAktif(idx)}
+                aria-pressed={aktif}
+                className={`w-full rounded-3xl border p-4 text-left transition-all sm:p-5 ${
+                  aktif
+                    ? "border-accent bg-surface shadow-pop"
+                    : "border-line bg-surface/60 hover:border-accent/30 hover:bg-surface"
+                }`}
+              >
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <span
+                    className={`grid size-10 shrink-0 place-items-center rounded-2xl text-[13.5px] font-extrabold transition-colors sm:size-11 ${
+                      aktif ? "bg-accent text-on-accent" : "bg-subtle text-muted"
+                    }`}
+                  >
+                    <Ikon className="size-5" aria-hidden />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11.5px] font-extrabold tracking-[0.08em] text-accent uppercase">
+                        Langkah {l.nomor}
+                      </span>
+                      {aktif && (
+                        <span className="hidden rounded-full bg-accent-soft px-2.5 py-0.5 text-[11px] font-bold text-accent lg:inline">
+                          Sedang dilihat
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="mt-1 text-[15.5px] font-bold text-fg sm:text-[16.5px]">{l.judul}</h3>
+                    <p className="mt-1 text-[13.5px] leading-relaxed text-muted">{l.ringkas}</p>
+                  </div>
+                </div>
+              </button>
+              {aktif && <div className="mt-3 lg:hidden">{pratinjau}</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Pratinjau Interaktif Ringan (layar lebar) */}
+      <div className="hidden lg:block">{pratinjau}</div>
     </div>
   );
 }
