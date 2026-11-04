@@ -787,13 +787,7 @@ await cek("katalog: fitur akun berbayar (gratis tidak, berlangganan & admin bole
   assert.deepEqual((await KAT.daftarProduk(n.id)).map((p) => p.id), [b]);
 });
 
-await cek("penerusan selalu aktif selama nomor penerus terisi (saklar per nomor lama diabaikan)", async () => {
-  const PN = await lib("src/lib/penerusan.ts");
-  assert.equal(await PN.bisaTeruskan({ teruskan_ke: "6281234567890", teruskan_aktif: false }), true);
-  assert.equal(await PN.bisaTeruskan({ teruskan_ke: null, teruskan_aktif: true }), false);
-});
-
-await cek("KPI admin: pendapatan, pelanggan berbayar, balasan, biaya AI, penerusan, tagihan menunggu, langganan berakhir & kuota menipis dibanding 30 hari sebelumnya", async () => {
+await cek("KPI admin: pendapatan, pelanggan berbayar, balasan, biaya AI, tagihan menunggu, langganan berakhir & kuota menipis dibanding 30 hari sebelumnya", async () => {
   const K = await lib("src/lib/kpi.ts");
   const HARI = 86400;
   const kini = sekarang();
@@ -817,10 +811,6 @@ await cek("KPI admin: pendapatan, pelanggan berbayar, balasan, biaya AI, penerus
     ('KPI-3', ${u.id}, 'KPI Uji', 99000, 'menunggu', ${kini - HARI}, NULL),
     ('KPI-4', ${u.id}, 'KPI Uji', 70000, 'menunggu', ${kini - 9 * HARI}, NULL)`;
   await sql`INSERT INTO stats(number_id, tanggal, masuk, dibalas) VALUES (${n.id}, ${wib(kini)}, 5, 4), (${n.id}, ${wib(kini - 35 * HARI)}, 3, 2)`;
-  await sql`INSERT INTO teruskan(number_id, chat, jenis, ringkasan, tujuan, status, created_at) VALUES
-    (${n.id}, 'c1', 'pesanan', 'pesan 2', '62811', 'terkirim', ${kini - HARI}),
-    (${n.id}, 'c2', 'uji', 'uji', '62811', 'terkirim', ${kini}),
-    (${n.id}, 'c3', 'keluhan', 'gagal kirim', '62811', 'gagal', ${kini})`;
 
   const b = await K.kpiAdmin();
   const beda = (f) => f(b) - f(a);
@@ -837,7 +827,6 @@ await cek("KPI admin: pendapatan, pelanggan berbayar, balasan, biaya AI, penerus
   assert.deepEqual([beda((k) => k.balasan.kini), beda((k) => k.balasan.masuk), beda((k) => k.balasan.lalu)], [4, 5, 2]);
   assert.equal(b.balasan.harian.at(-1).dibalas - a.balasan.harian.at(-1).dibalas, 4);
   assert.ok(Math.abs(beda((k) => k.biayaAiUsd.kini) - 0.1) < 1e-9 && Math.abs(beda((k) => k.biayaAiUsd.lalu) - 0.5) < 1e-9);
-  assert.equal(beda((k) => k.diteruskan.kini), 1, "uji & gagal tidak dihitung");
   assert.deepEqual([beda((k) => k.menunggu.jumlah), beda((k) => k.menunggu.nilai)], [1, 99000], "tagihan > 7 hari tidak dihitung");
   assert.deepEqual([beda((k) => k.akun.total), beda((k) => k.akun.pengguna), beda((k) => k.akun.baruKini)], [1, 1, 1]);
   assert.equal(beda((k) => k.nomor.total), 1);

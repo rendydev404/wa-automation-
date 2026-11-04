@@ -24,7 +24,6 @@ export interface KpiAdmin {
   balasan: { kini: number; lalu: number; masuk: number; harian: { tanggal: string; masuk: number; dibalas: number }[] };
   biayaAiUsd: { kini: number; lalu: number };
   akun: { total: number; pengguna: number; aktif: number; diblokir: number; admin: number; baruKini: number; baruLalu: number };
-  diteruskan: { kini: number; lalu: number };
   /** Pembayaran Midtrans yang dibuat 7 hari terakhir dan belum lunas. */
   menunggu: { jumlah: number; nilai: number };
   /** Langganan yang berakhir dalam 7 hari (belum diperpanjang). */
@@ -54,7 +53,7 @@ export async function kpiAdmin(): Promise<KpiAdmin> {
   const hari = tanggalTerakhir(kini, PERIODE_HARI);
   const tglAwal = hari[0];
 
-  const [pend, pendHarian, bayar, bayarHarian, perPaket, stat, statHarian, biaya, akun, terus, tunggu, berakhir, menipis, nomor] = await Promise.all([
+  const [pend, pendHarian, bayar, bayarHarian, perPaket, stat, statHarian, biaya, akun, tunggu, berakhir, menipis, nomor] = await Promise.all([
     sql<{ kini: string; lalu: string; n: number }[]>`
       SELECT COALESCE(SUM(jumlah) FILTER (WHERE dibayar >= ${awal}), 0)::bigint AS kini,
              COALESCE(SUM(jumlah) FILTER (WHERE dibayar < ${awal}), 0)::bigint AS lalu,
@@ -100,9 +99,6 @@ export async function kpiAdmin(): Promise<KpiAdmin> {
              COUNT(*) FILTER (WHERE created_at >= ${awal})::int AS "baruKini",
              COUNT(*) FILTER (WHERE created_at >= ${awalLalu} AND created_at < ${awal})::int AS "baruLalu"
         FROM users`,
-    sql<{ kini: number; lalu: number }[]>`
-      SELECT COUNT(*) FILTER (WHERE created_at >= ${awal})::int AS kini, COUNT(*) FILTER (WHERE created_at < ${awal})::int AS lalu
-        FROM teruskan WHERE status = 'terkirim' AND jenis <> 'uji' AND created_at >= ${awalLalu}`,
     sql<{ jumlah: number; nilai: string }[]>`
       SELECT COUNT(*)::int AS jumlah, COALESCE(SUM(jumlah), 0)::bigint AS nilai
         FROM transaksi WHERE status = 'menunggu' AND dibuat >= ${kini - 7 * HARI}`,
@@ -143,7 +139,6 @@ export async function kpiAdmin(): Promise<KpiAdmin> {
     },
     biayaAiUsd: { kini: biaya[0].kini, lalu: biaya[0].lalu },
     akun: akun[0],
-    diteruskan: terus[0],
     menunggu: { jumlah: tunggu[0].jumlah, nilai: Number(tunggu[0].nilai) },
     berakhir: [...berakhir],
     kuotaMenipis: [...menipis],

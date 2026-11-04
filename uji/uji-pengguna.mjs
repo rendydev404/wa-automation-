@@ -217,9 +217,10 @@ const pakaiSmtp = () => {
   process.env.GMAIL_APP_PASSWORD = "abcd abcd abcd abcd"; // seperti ditampilkan Google: spasinya dibuang
   process.env.SMTP_HOST = "127.0.0.1";
   process.env.SMTP_PORT = String(smtp.port);
+  process.env.APP_URL = "https://app.uji"; // ikon email dimuat dari sini
 };
 const lepasSmtp = () => {
-  for (const k of ["GMAIL_USER", "GMAIL_APP_PASSWORD", "SMTP_HOST", "SMTP_PORT"]) delete process.env[k];
+  for (const k of ["GMAIL_USER", "GMAIL_APP_PASSWORD", "SMTP_HOST", "SMTP_PORT", "APP_URL"]) delete process.env[k];
 };
 // Email dikirim di latar (tidak ditunggu permintaan): tunggu sampai sejumlah n diterima server SMTP.
 const tungguEmail = async (n) => {
@@ -248,7 +249,12 @@ await cek("lupa password 3 tahap: email tak terdaftar/diblokir ditolak jelas tan
     assert.deepEqual([e.user, e.pass, e.dari, e.ke], [smtp.user, smtp.pass, smtp.user, ["sari@uji.test"]], "login App Password tanpa spasi, pengirim = akun Gmail");
     assert.match(e.mentah, /^From: ChatGerCep <uji@gmail\.test>$/m);
     const kode = e.judul.match(/^(\d{6}) adalah kode/)[1];
-    assert.ok(e.mentah.split(kode).length - 1 >= 3, "kode ada di judul, teks, dan HTML");
+    assert.ok(e.mentah.split(kode).length - 1 >= 2, "kode ada di judul dan teks biasa");
+    // HTML (quoted-printable): tiap digit di kotaknya sendiri, urut; ikon dari public/email/, tanpa emoji.
+    const html = e.mentah.replace(/=\r?\n/g, "").replace(/=3D/g, "=");
+    assert.match(html, new RegExp([...kode].map((d) => `>${d}</div>`).join("[\\s\\S]*?")));
+    assert.match(html, /\/email\/kunci\.png/);
+    assert.ok(!/&#(?:128272|9201|128737|9888);/.test(html), "tanpa emoji");
     assert.match(e.mentah, /multipart\/alternative/);
     const [r] = await sql`SELECT kode_hash, kedaluwarsa - dibuat AS umur FROM reset_password WHERE user_id = ${sari.id}`;
     assert.match(r.kode_hash, /^[0-9a-f]{64}$/);

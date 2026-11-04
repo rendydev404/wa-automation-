@@ -8,7 +8,6 @@ import {
   ChevronRight,
   CircleCheck,
   Clock,
-  Forward,
   Gauge,
   Phone,
   TrendingUp,
@@ -135,9 +134,9 @@ export async function KpiRingkasan() {
           )}
           <p className="mt-1">Total {angka(k.nomor.total)} nomor dibuat pengguna</p>
         </Pendukung>
-        <Pendukung ikon={<Forward className="size-4" aria-hidden />} label={`Diteruskan ke pemilik · ${PERIODE_HARI} hari`} nilai={angka(k.diteruskan.kini)}>
-          <Delta kini={k.diteruskan.kini} lalu={k.diteruskan.lalu} pembanding={PEMBANDING} />
-          <p className="mt-1">Pesanan, keluhan & permintaan yang diteruskan AI</p>
+        <Pendukung href="/admin/pengguna" ikon={<CalendarClock className="size-4" aria-hidden />} label="Langganan berakhir" nilai={angka(k.berakhir.length)}>
+          <p>{k.berakhir.length ? "Belum diperpanjang" : "Tidak ada yang berakhir"}</p>
+          <p className="mt-1">Dalam 7 hari ke depan · {angka(k.kuotaMenipis.length)} kuota menipis</p>
         </Pendukung>
         <Pendukung href="/admin/transaksi" ikon={<Clock className="size-4" aria-hidden />} label="Pembayaran menunggu" nilai={angka(k.menunggu.jumlah)}>
           <p>{k.menunggu.jumlah ? `Rp${angka(k.menunggu.nilai)} belum dibayar` : "Tidak ada tagihan tertunda"}</p>

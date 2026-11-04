@@ -36,7 +36,7 @@ const SKENARIO: { kunci: string; label: string; ikon: typeof Coffee; data: Props
         { dari: "pelanggan", teks: "Kak masih buka? Ada paket hemat?" },
         { dari: "ai", teks: "Halo Kak! Kami buka sampai 22.00 ✨ Paket Hemat (nasi + ayam bakar + es teh) Rp25.000. Mau diantar atau ambil sendiri?" },
         { dari: "pelanggan", teks: "Diantar ya ke Jl. Melati 5" },
-        { dari: "ai", teks: "Siap! Ongkir ke Jl. Melati Rp8.000, estimasi 30 menit. Pesanan saya teruskan ke admin untuk konfirmasi 🙏" },
+        { dari: "ai", teks: "Siap! Ongkir ke Jl. Melati Rp8.000, estimasi 30 menit. Admin kami konfirmasi pesanannya di chat ini ya 🙏" },
       ],
     },
   },

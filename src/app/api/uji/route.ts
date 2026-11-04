@@ -4,9 +4,6 @@ import { tanpaIngatan, tanyaAiTerjaga } from "@/lib/ai";
 import { aiUntukAkun } from "@/lib/langganan";
 import { susunSistem } from "@/lib/knowledge";
 import { TOLAK_KODE, adaKode } from "@/lib/penjaga";
-import { bisaTeruskan } from "@/lib/penerusan";
-import { siapDipakai } from "@/lib/numbers";
-import { JENIS_TERUSKAN, PERLU_PENERUS } from "@/lib/teruskan";
 import { type Foto, MAKS_FOTO_BYTE } from "@/lib/types";
 import { sesiDanNomor } from "@/lib/akses";
 import { terlaluSering } from "@/lib/batas";
@@ -37,7 +34,6 @@ export async function POST(req: Request) {
   const teksPesan = b?.pesan?.trim() ?? "";
   const sesi = b?.sesi ?? "";
   if (!nomor) return NextResponse.json({ error: "Nomor tidak ditemukan." }, { status: 404 });
-  if (!siapDipakai(nomor)) return NextResponse.json({ error: PERLU_PENERUS }, { status: 400 });
   // Foto uji (opsional): data URL gambar yang sudah diperkecil di browser, diperlakukan sama dengan foto dari WhatsApp.
   let gambar: Foto[] = [];
   if (b?.foto) {
@@ -56,9 +52,8 @@ export async function POST(req: Request) {
   // Percakapan uji sejauh ini (dikirim browser). Penyedia tanpa ingatan (Claude API) menerimanya di pesan sistem;
   // untuk semua penyedia ia juga sumber fakta bagi pemeriksa jawaban.
   // Penyedia sama seperti balasan WhatsApp nomor ini (menurut paket pemilik nomor bila mode "per_paket").
-  const [ai, teruskan, katalog] = await Promise.all([
+  const [ai, katalog] = await Promise.all([
     aiUntukAkun(nomor.user_id),
-    bisaTeruskan(nomor),
     katalogBoleh(nomor.user_id).then((ok) => (ok || user.peran === "admin" ? daftarProduk(nomor.id) : [])),
   ]);
   const lengkap = tanpaIngatan(ai.penyedia);
@@ -69,7 +64,6 @@ export async function POST(req: Request) {
     adaFoto: gambar.length > 0,
     riwayat: lengkap ? semuaRiwayat : [],
     riwayatLengkap: lengkap,
-    teruskan,
     saringSpam,
     katalog,
     nilaiPesan: nomor.saring_prospek,
@@ -77,7 +71,7 @@ export async function POST(req: Request) {
   // Nama mesin/model, biaya, dan galat mentah hanya untuk admin; pengguna biasa tidak perlu tahu mesin di baliknya.
   const admin = user.peran === "admin";
   try {
-    const j = await tanyaAiTerjaga({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, [sistem, pesan, ...semuaRiwayat].join("\n"), { teruskan, saringSpam, katalog: katalog.length > 0, gaya: true, nilai: nomor.saring_prospek });
+    const j = await tanyaAiTerjaga({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, [sistem, pesan, ...semuaRiwayat].join("\n"), { saringSpam, katalog: katalog.length > 0, gaya: true, nilai: nomor.saring_prospek });
     if (j.abaikan) return NextResponse.json({ teks: "", ms: j.ms, abaikan: `Dinilai AI: ${j.abaikan.jenis}${j.abaikan.alasan ? ` (${j.abaikan.alasan})` : ""}` });
     // AI menilai pesan ini tidak perlu dibalas (ucapan penutup saat urusan sudah tuntas).
     if (!j.teks && j.nilai) return NextResponse.json({ teks: "", ms: j.ms, selesai: true, nilai: j.nilai });
@@ -96,8 +90,6 @@ export async function POST(req: Request) {
       // Untuk admin yang menguji: mesin & model yang menjawab, biayanya, dan draf pertama yang ditolak pemeriksa
       // (jenis pelanggarannya) lalu ditulis ulang / diganti jawaban aman.
       ...(admin ? { model: j.model, biayaUsd: j.biayaUsd, koreksi: j.pelanggaran.map((x) => x.jenis), aman: j.aman } : {}),
-      // Di WhatsApp ini dikirim ke nomor pribadi pemilik; di uji hanya ditampilkan.
-      teruskan: j.teruskan ? { label: JENIS_TERUSKAN[j.teruskan.jenis].label, ringkasan: j.teruskan.ringkasan } : null,
       // Di WhatsApp ini dikirim sebagai pesan terpisah setelah jawaban: daftar katalog dan/atau foto produk.
       katalog: kirimanUji(katalog, j.kirimProduk, teks),
     });

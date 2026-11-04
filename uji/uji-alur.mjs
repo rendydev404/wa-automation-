@@ -111,7 +111,8 @@ function buatSoket(config) {
     get user() {
       return config.auth.creds.me;
     },
-    signalRepository: { lidMapping: { getLIDForPN: async (pn) => petaLid.get(pn) ?? null } },
+    peta: [],
+    signalRepository: { lidMapping: { getLIDForPN: async (pn) => petaLid.get(pn) ?? null, storeLIDPNMappings: async (daftar) => void s.peta.push(...daftar) } },
     async sendMessageAck(node, errorCode) {
       s.acks.push({ from: node?.attrs?.from, errorCode });
     },
@@ -130,6 +131,7 @@ function buatSoket(config) {
     },
     async sendPresenceUpdate(t, jid) {
       s.presensi.push(jid ? `${t}:${jid}` : t);
+      if (t === "composing" || t === "paused") s.urutan.push(t === "composing" ? "ketik" : "berhenti");
     },
     async resyncAppState(k) {
       s.resync = k;
@@ -214,14 +216,11 @@ function pesan(jid, isi, o = {}) {
 const tiba = (s, ...m) => s.pancar("messages.upsert", { messages: m, type: "notify" });
 const dibaca = (s, jid, o = {}) => s.pancar("messages.update", [{ key: { remoteJid: jid, id: o.id ?? "X", fromMe: !!o.dariSaya }, update: { status: o.status ?? 4 } }]);
 
-/** Nomor penerus wajib diisi supaya AI membalas (siapDipakai); penerusannya sendiri mati kecuali dinyalakan uji. */
-const penerusUji = (id) => `62812990${String(id).padStart(5, "0")}`;
-
 async function nomorCepat(label) {
   const n = await tambahNomor(label);
   // 1 detik: di bawah batas dashboard (2 dtk), hanya supaya uji tidak lama
   // Penyaring prospek dimatikan di nomor uji biasa (diuji tersendiri di bagian "Penyaring prospek").
-  await sql`UPDATE numbers SET tunggu_detik = 1, tunggu_baca_detik = 3, jeda_detik = 1800, teruskan_ke = ${penerusUji(n.id)}, saring_prospek = false WHERE id = ${n.id}`;
+  await sql`UPDATE numbers SET tunggu_detik = 1, tunggu_baca_detik = 3, jeda_detik = 1800, saring_prospek = false WHERE id = ${n.id}`;
   cacheNomorBasi();
   return n;
 }
@@ -255,7 +254,7 @@ await cek("nomor baru tanpa sesi berstatus BELUM_ADA dan tidak membuat soket", (
   assert.equal(soket.length, 0);
 });
 
-await cek("hubungkan() membuat soket hemat: tanpa riwayat, tetap offline, grup/status/saluran dibuang", async () => {
+await cek("hubungkan() membuat soket hemat: tanpa riwayat, tetap offline, grup/saluran/daftar siaran dibuang, status diproses Baileys", async () => {
   const p = wa.hubungkan(A.sesi);
   const s = await tunggu(() => soket[0]);
   assert.equal(wa.infoSesi(A.sesi).status, "STARTING");
@@ -265,7 +264,9 @@ await cek("hubungkan() membuat soket hemat: tanpa riwayat, tetap offline, grup/s
   assert.equal(c.emitOwnEvents, false);
   assert.equal(c.shouldSyncHistoryMessage({}), false);
   assert.equal(c.shouldIgnoreJid("120363000000000000@g.us"), true);
-  assert.equal(c.shouldIgnoreJid("status@broadcast"), true);
+  // Status (story) kontak wajib diberi tanda terima resmi oleh Baileys; ditolak/di-ack polos = pesan tertahan.
+  assert.equal(c.shouldIgnoreJid("status@broadcast"), false);
+  assert.equal(c.shouldIgnoreJid("1234567890@broadcast"), true);
   assert.equal(c.shouldIgnoreJid("120363111111111111@newsletter"), true);
   assert.equal(c.shouldIgnoreJid("6281234567890@s.whatsapp.net"), false);
   assert.equal(c.shouldIgnoreJid("555000111@lid"), false);
@@ -326,7 +327,8 @@ await cek("QR dipindai: kredensial tersimpan, soket dimulai ulang (515), lalu te
   s.tutup(515); // soket baru harus membaca kredensial yang BARU saja ditulis (tulisnya masih di perjalanan)
   sA = await tunggu(() => soket[2], 1000, "soket baru segera setelah 515");
   assert.equal(sA.config.auth.creds.me.id, "6281100000001:5@s.whatsapp.net"); // dimuat dari database
-  assert.equal(await auth(A.sesi), 1);
+  // creds + pasangan LID<->PN milik nomor ini (ditulis saat kredensial dibuka, lihat rapikanPemetaanDiri)
+  assert.equal(await auth(A.sesi), 3);
   sA.pancar("connection.update", { connection: "open" });
   const i = wa.infoSesi(A.sesi);
   assert.equal(i.status, "WORKING");
@@ -347,7 +349,7 @@ await cek("event dari soket lama diabaikan", async () => {
   soket[1].pancar("connection.update", { qr: "2@BASI,x,y,z,1" });
   soket[0].tutup(401);
   assert.equal(wa.infoSesi(A.sesi).status, "WORKING");
-  assert.equal(await auth(A.sesi), 1);
+  assert.equal(await auth(A.sesi), 3, "kredensial + pasangan LID milik sendiri tetap utuh");
 });
 
 // =====================================================================================
@@ -362,10 +364,15 @@ await cek("pesan masuk: menunggu manusia dulu (tanpa tanda-baca/mengetik), lalu 
   assert.equal(hermes.panggilan.length, 0);
   assert.deepEqual(sA.dibaca, []);
   assert.deepEqual(sA.presensi, []);
-  await tunggu(() => sA.terkirim.length === 1, 5000, "balasan terkirim");
+  // AI baru menyusun jawaban: belum ada tanda-baca maupun "mengetik" (manusia tidak mengetik di chat yang belum dibuka).
+  await tunggu(() => hermes.panggilan.length === 1, 3000, "AI dipanggil");
+  assert.deepEqual(sA.dibaca, []);
+  assert.deepEqual(sA.presensi, []);
+  await tunggu(() => sA.terkirim.length === 1, 7000, "balasan terkirim");
   const h = hermes.panggilan[0];
+  // tunggu_detik 1 dtk dipakai sebagai batas bawah, ditambah acak sampai 40%.
   assert.ok(h.at - t0 >= 950, `AI dipanggil setelah tunggu_detik (${h.at - t0} ms)`);
-  assert.ok(h.at - t0 < 1400, `tanpa jeda tambahan dari database (${h.at - t0} ms)`);
+  assert.ok(h.at - t0 < 1400 * 1.4, `tanpa jeda tambahan dari database (${h.at - t0} ms)`);
   assert.equal(h.pesan, "Halo, buka jam berapa?");
   assert.equal(h.sesi, `wa-${kunciChat(A.sesi, P1).slice(0, 24)}-1`);
   assert.match(h.sistem, /KODEUNIK-A/);
@@ -373,10 +380,11 @@ await cek("pesan masuk: menunggu manusia dulu (tanpa tanda-baca/mengetik), lalu 
   assert.equal(k.jid, P1);
   assert.equal(k.isi.text, "*Jawaban* untuk: Halo, buka jam berapa?"); // markdown -> format WhatsApp
   assert.equal(k.isi.linkPreview, null);
-  // Jeda mengetik minimal dihitung dari mulai memproses (termasuk menyusun konteks), bukan dari panggilan AI.
-  assert.ok(k.at - t0 >= 1000 + 1150, `ada jeda mengetik minimal sebelum balasan (${k.at - t0} ms setelah pesan tiba)`);
+  // Lama mengetik ikut panjang jawaban (39 huruf: 1.500 + 39 x 25 ms = 2.475 ms, diacak ±20%), dihitung setelah dibaca.
+  assert.ok(k.at - h.at >= 2475 * 0.8 - 50, `ada jeda mengetik sebelum balasan (${k.at - h.at} ms setelah AI dipanggil)`);
   assert.deepEqual(sA.dibaca, [[{ remoteJid: P1, id, fromMe: false }]]);
-  assert.deepEqual(sA.urutan, ["baca", "kirim"]);
+  // Urutan seperti manusia: baca, mengetik, berhenti, baru kirim.
+  assert.deepEqual(sA.urutan, ["baca", "ketik", "berhenti", "kirim"]);
   await tidur(100);
   assert.deepEqual(sA.presensi, ["available", `composing:${P1}`, `paused:${P1}`]);
   assert.deepEqual(await stat(A.id), { masuk: 1, dibalas: 1, gagal: 0 });
@@ -404,7 +412,7 @@ await cek("pesan beruntun digabung jadi satu giliran AI; semuanya ditandai dibac
   tiba(sA, pesan(P1, "dua", { id: ids[1] }));
   await tidur(250);
   tiba(sA, pesan(P1, "tiga", { id: ids[2] }));
-  await tunggu(() => sA.terkirim.length === 2, 5000);
+  await tunggu(() => sA.terkirim.length === 2, 8000);
   assert.equal(hermes.panggilan.length, n0 + 1);
   assert.equal(hermes.panggilan.at(-1).pesan, "satu\ndua\ntiga");
   assert.equal(hermes.panggilan.at(-1).sesi, hermes.panggilan[0].sesi); // percakapan yang sama
@@ -414,7 +422,7 @@ await cek("pesan beruntun digabung jadi satu giliran AI; semuanya ditandai dibac
   );
 });
 
-// Setelah jeda mengetik minimal (1.200 ms) & tunggu_detik (1.000 ms) terbukti di atas, percepat untuk Bagian C.
+// Setelah lama mengetik & tunggu_detik (1.000 ms + acak) terbukti di atas, percepat untuk Bagian C.
 globalThis.__waBridge.minMengetikMs = 20;
 globalThis.__waBridge.tungguMs = 300;
 
@@ -462,8 +470,9 @@ await cek("grup, status, saluran, pesan protokol, reaksi, pesan kosong, chat den
   assert.equal(globalThis.__waBridge.antre.size, antre0);
 });
 
-await cek("pesan lama (menumpuk saat offline) dan pesan ganda", async () => {
+await cek("pesan lama (menumpuk saat offline / ditahan WhatsApp): tidak dijawab tapi TETAP tercatat; pesan ganda sekali", async () => {
   const n0 = hermes.panggilan.length;
+  const m0 = (await stat(A.id)).masuk;
   tiba(sA, pesan("555000302@lid", "pesan 5 menit lalu", { waktu: kini() - 300 }));
   const id = idBaru();
   tiba(sA, pesan("555000303@lid", "sekali saja", { id }));
@@ -472,6 +481,8 @@ await cek("pesan lama (menumpuk saat offline) dan pesan ganda", async () => {
   await tidur(850);
   assert.equal(hermes.panggilan.length, n0 + 1);
   assert.equal(hermes.panggilan.at(-1).pesan, "sekali saja");
+  assert.equal((await stat(A.id)).masuk, m0 + 2, "pesan terlambat ikut dihitung");
+  assert.equal((await sql`SELECT COUNT(*)::int AS n FROM pesan_chat WHERE teks = 'pesan 5 menit lalu'`)[0].n, 1, "pesan terlambat masuk histori");
 });
 
 await cek("balasan otomatis dimatikan: pesan dihitung tetapi tidak dijawab", async () => {
@@ -568,9 +579,6 @@ await cek("kuota balasan AI pemilik habis: pesan tercatat tetapi AI diam; kuota 
   const [u] = await sql`INSERT INTO users(email, password_hash, created_at) VALUES ('kuota@uji.test', 'x', ${kini()}) RETURNING id`;
   await sql`UPDATE numbers SET user_id = ${u.id} WHERE id = ${A.id}`;
   cacheNomorBasi();
-  const PEMILIK_KUOTA = "6281200002222";
-  await sql`UPDATE numbers SET teruskan_ke = ${PEMILIK_KUOTA}, teruskan_aktif = true WHERE id = ${A.id}`;
-  cacheNomorBasi();
   await setSetting("kuota_percobaan", "0");
   L.segarkanKuota();
   const n0 = hermes.panggilan.length;
@@ -582,20 +590,9 @@ await cek("kuota balasan AI pemilik habis: pesan tercatat tetapi AI diam; kuota 
   await tidur(750);
   assert.equal(hermes.panggilan.length, n0, "AI tidak dipanggil saat kuota habis");
   assert.equal((await stat(A.id)).masuk, m0 + 2, "pesan tetap dihitung masuk");
-  // Pemilik dikabari lewat WA pribadinya, sekali saja walau dua pelanggan tidak terbalas.
-  const kabar = sA.terkirim.slice(kirim0);
-  assert.equal(kabar.length, 1);
-  assert.equal(kabar[0].jid, `${PEMILIK_KUOTA}@s.whatsapp.net`);
-  assert.match(kabar[0].isi.text, /Kuota balasan AI habis[\s\S]*Kuota percobaan gratis sudah habis \(\d+ dari 0 balasan AI terpakai\)[\s\S]*Pilih paket untuk melanjutkan/);
-  const [rk] = await sql`SELECT jenis, status, pelanggan FROM teruskan WHERE number_id = ${A.id} AND chat = 'kuota'`;
-  assert.deepEqual({ ...rk }, { jenis: "lainnya", status: "terkirim", pelanggan: "Sistem: kuota habis" });
-  // Notifikasi dikirim langsung lewat WhatsApp tanpa AI: tidak tercatat sebagai pemakaian, kuota balasan tidak terpotong.
-  assert.equal((await sql`SELECT COUNT(*)::int AS n FROM ai_pakai`)[0].n, pakai0, "notifikasi tidak memakai kuota balasan AI");
-  tiba(sA, pesan("555000316@lid", "p"));
-  await tidur(750);
-  assert.equal(sA.terkirim.length, kirim0 + 1, "periode kuota yang sama tidak dikabari dua kali");
-  await sql`UPDATE numbers SET teruskan_ke = ${penerusUji(A.id)}, teruskan_aktif = false WHERE id = ${A.id}`;
-  cacheNomorBasi();
+  // Tidak ada pesan apa pun yang dikirim, juga tidak ke pemilik: pesan tanpa diminta memicu blokir WhatsApp.
+  assert.equal(sA.terkirim.length, kirim0, "tidak ada pesan keluar saat kuota habis");
+  assert.equal((await sql`SELECT COUNT(*)::int AS n FROM ai_pakai`)[0].n, pakai0, "kuota balasan AI tidak terpotong");
   await setSetting("kuota_percobaan", "100");
   L.segarkanKuota();
   const k0 = sA.terkirim.length;
@@ -606,81 +603,33 @@ await cek("kuota balasan AI pemilik habis: pesan tercatat tetapi AI diam; kuota 
   cacheNomorBasi();
 });
 
-await cek("teruskan ke pemilik: tag dibuang dari balasan pelanggan, ringkasan terkirim ke WA pribadi pemilik & tercatat", async () => {
-  const PEMILIK = "6281200001111";
-  await sql`UPDATE numbers SET teruskan_ke = ${PEMILIK}, teruskan_aktif = true WHERE id = ${A.id}`;
+await cek("bot hanya membalas chat yang masuk: sisa tag <teruskan> dibuang, tidak ada pesan ke nomor lain, AI diberi aturan serah ke tim", async () => {
+  // Kolom lama nomor penerus diabaikan: walau terisi, tidak ada yang dikirim ke sana dan chat dari nomor itu dibalas biasa.
+  const LAMA = "6281200001111";
+  await sql`UPDATE numbers SET teruskan_ke = ${LAMA}, teruskan_aktif = true WHERE id = ${A.id}`;
   cacheNomorBasi();
   hermes.jawab = (p) =>
-    /pesan 2 nasi/.test(p.pesan) ? 'Siap Kak, pesanannya sudah aku teruskan ke pemilik ya 🙏\n<teruskan jenis="pesanan">Nama: Rina\nPesanan: 2 nasi ayam\nDiambil: jam 12</teruskan>' : null;
+    /pesan 2 nasi/.test(p.pesan) ? 'Siap Kak, datanya sudah lengkap. Tim kami balas langsung di chat ini ya 🙏\n<teruskan jenis="pesanan">Nama: Rina\nPesanan: 2 nasi ayam</teruskan>' : null;
   const n0 = hermes.panggilan.length;
   const k0 = sA.terkirim.length;
   tiba(sA, { ...pesan("6285500000307@s.whatsapp.net", "mau pesan 2 nasi ayam, ambil jam 12, atas nama Rina"), pushName: "Rina" });
-  await tunggu(() => sA.terkirim.length >= k0 + 2, 5000, "balasan pelanggan + penerusan");
-  const baru = sA.terkirim.slice(k0);
-  const kePelanggan = baru.find((k) => k.jid === "6285500000307@s.whatsapp.net");
-  const kePemilik = baru.find((k) => k.jid === `${PEMILIK}@s.whatsapp.net`);
-  assert.ok(kePelanggan && kePemilik, JSON.stringify(baru.map((b) => b.jid)));
-  assert.equal(kePelanggan.isi.text, "Siap Kak, pesanannya sudah aku teruskan ke pemilik ya 🙏");
-  assert.match(kePemilik.isi.text, /Pesanan baru/);
-  assert.match(kePemilik.isi.text, /Dari: Rina · \+62 855-0000-0307/);
-  assert.match(kePemilik.isi.text, /Pesanan: 2 nasi ayam/);
-  assert.match(kePemilik.isi.text, /wa\.me\/6285500000307/);
-  assert.ok(baru.indexOf(kePelanggan) < baru.indexOf(kePemilik), "diteruskan setelah balasan pelanggan terkirim");
-  // AI diberi aturan teruskan & aturan inti versi teruskan
-  const p = hermes.panggilan[n0];
-  assert.match(p.sistem, /Kamu BISA meneruskan pesan ke pemilik usaha/);
-  assert.match(p.sistem, /satu-satunya tindakanmu adalah meneruskan/);
-  const [r] = await sql`SELECT jenis, ringkasan, tujuan, status, pelanggan FROM teruskan WHERE number_id = ${A.id} ORDER BY id DESC LIMIT 1`;
-  assert.deepEqual({ ...r }, { jenis: "pesanan", ringkasan: "Nama: Rina\nPesanan: 2 nasi ayam\nDiambil: jam 12", tujuan: PEMILIK, status: "terkirim", pelanggan: "Rina · +6285500000307" });
-  // Gema pesan keluar ke pemilik & balasan pemilik dari WA pribadinya: bukan chat pelanggan, AI tidak menjawab
-  const n1 = hermes.panggilan.length;
-  const k1 = sA.terkirim.length;
-  tiba(sA, pesan(`${PEMILIK}@s.whatsapp.net`, kePemilik.isi.text, { dariSaya: true, id: kePemilik.id }));
-  tiba(sA, pesan(`${PEMILIK}@s.whatsapp.net`, "oke, saya siapkan"));
-  await tidur(750);
-  assert.equal(hermes.panggilan.length, n1);
-  assert.equal(sA.terkirim.length, k1);
-  hermes.jawab = null;
-});
-
-await cek("teruskan dimatikan admin (saklar sistem): tag tetap dibuang dari balasan pelanggan dan TIDAK ada pesan ke pemilik; AI diberi tahu ia tidak bisa meneruskan", async () => {
-  // Saklar lama per nomor tidak lagi mematikan penerusan (nomor penerus wajib = penerusan selalu aktif).
-  const { setSetting } = await lib("src/lib/db.ts");
-  await sql`UPDATE numbers SET teruskan_aktif = false WHERE id = ${A.id}`;
-  await setSetting("teruskan_diizinkan", "0");
-  cacheNomorBasi();
-  hermes.jawab = (p) => (/pesan 3 nasi/.test(p.pesan) ? 'Baik Kak, pesanannya aku rangkum ya.\n<teruskan jenis="pesanan">Nama: Budi</teruskan>' : null);
-  const n0 = hermes.panggilan.length;
-  const k0 = sA.terkirim.length;
-  tiba(sA, pesan("6285500000308@s.whatsapp.net", "mau pesan 3 nasi"));
   await tunggu(() => sA.terkirim.length > k0, 5000, "balasan pelanggan");
-  await tidur(200);
+  await tidur(300);
   const baru = sA.terkirim.slice(k0);
-  assert.equal(baru.length, 1);
-  assert.equal(baru[0].isi.text, "Baik Kak, pesanannya aku rangkum ya.");
-  assert.match(hermes.panggilan[n0].sistem, /Penerusan ke pemilik TIDAK aktif/);
+  assert.deepEqual(baru.map((b) => b.jid), ["6285500000307@s.whatsapp.net"], "hanya satu pesan, ke chat yang bertanya");
+  assert.equal(baru[0].isi.text, "Siap Kak, datanya sudah lengkap. Tim kami balas langsung di chat ini ya 🙏");
+  const p = hermes.panggilan[n0];
+  assert.match(p.sistem, /<aturan_serah_tim>/);
+  assert.doesNotMatch(p.sistem, /meneruskan pesan ke pemilik|<teruskan jenis/);
+  assert.equal((await sql`SELECT COUNT(*)::int AS n FROM teruskan WHERE created_at >= ${kini() - 60}`)[0].n, 0, "tidak ada penerusan tercatat");
   hermes.jawab = null;
-  await setSetting("teruskan_diizinkan", "1");
-  await sql`UPDATE numbers SET teruskan_ke = ${penerusUji(A.id)} WHERE id = ${A.id}`;
-  cacheNomorBasi();
-});
-
-await cek("nomor penerus wajib: tanpa nomor penerus pesan tetap tercatat tetapi AI diam; diisi lagi = AI membalas", async () => {
+  // Chat dari nomor lama itu kini chat biasa: dibalas seperti pelanggan lain.
+  const n1 = hermes.panggilan.length;
+  tiba(sA, pesan(`${LAMA}@s.whatsapp.net`, "halo, masih buka?"));
+  await tunggu(() => hermes.panggilan.length === n1 + 1, 4000, "chat dari nomor lama dibalas");
+  await tunggu(() => sA.terkirim.length > k0 + 1, 4000, "balasan terkirim");
   await sql`UPDATE numbers SET teruskan_ke = NULL, teruskan_aktif = false WHERE id = ${A.id}`;
   cacheNomorBasi();
-  const n0 = hermes.panggilan.length;
-  const m0 = (await stat(A.id)).masuk;
-  const k0 = sA.terkirim.length;
-  tiba(sA, pesan("555000309@lid", "halo, buka?"));
-  await tidur(750);
-  assert.equal(hermes.panggilan.length, n0, "AI tidak dipanggil tanpa nomor penerus");
-  assert.equal(sA.terkirim.length, k0, "tidak ada balasan");
-  assert.equal((await stat(A.id)).masuk, m0 + 1, "pesan tetap dihitung masuk");
-  await sql`UPDATE numbers SET teruskan_ke = ${penerusUji(A.id)} WHERE id = ${A.id}`;
-  cacheNomorBasi();
-  tiba(sA, pesan("555000310@lid", "halo lagi"));
-  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000, "AI membalas setelah nomor penerus diisi");
-  await tunggu(() => sA.terkirim.length > k0, 4000, "balasan terkirim");
 });
 
 // =====================================================================================
@@ -763,7 +712,8 @@ await cek("chat dibuka di HP selagi menunggu: AI menahan diri selama tunggu_baca
   assert.equal(hermes.panggilan.length, n0, "belum dijawab: manusia sedang membuka chat");
   await tunggu(() => hermes.panggilan.length === n0 + 1, 3000);
   const selang = hermes.panggilan.at(-1).at - t0;
-  assert.ok(selang >= 3200 && selang < 4200, `diambil alih ±3 dtk setelah dibuka (${selang} ms)`);
+  // tunggu_baca_detik 3 dtk = batas bawah, ditambah acak sampai 40% (3–4,2 dtk setelah dibuka).
+  assert.ok(selang >= 3200 && selang < 4200 + 1300, `diambil alih 3–4,2 dtk setelah dibuka (${selang} ms)`);
   await tunggu(() => sA.terkirim.at(-1)?.jid === P3, 4000);
 });
 
@@ -1574,10 +1524,19 @@ await cek("proteksi anti-putus: ACK bersih JID diabaikan (tanpa NACK 500), sinkr
   sA.ws.emit("CB:message", { tag: "message", attrs: { from: "120363000000000000@g.us", id: "MSG-G1" } });
   sA.ws.emit("CB:message", { tag: "message", attrs: { from: "status@broadcast", id: "MSG-S1" } });
   sA.ws.emit("CB:message", { tag: "message", attrs: { from: "6281234567890@s.whatsapp.net", id: "MSG-P1" } });
-  assert.equal(cbTerpanggil, 1, "hanya chat pribadi yang diteruskan ke CB:message Baileys");
-  assert.deepEqual(sA.acks, [
-    { from: "120363000000000000@g.us", errorCode: undefined },
-    { from: "status@broadcast", errorCode: undefined },
+  assert.equal(cbTerpanggil, 2, "chat pribadi & status diteruskan ke Baileys (status butuh tanda terima resmi)");
+  assert.deepEqual(sA.acks, [{ from: "120363000000000000@g.us", errorCode: undefined }]);
+
+  // Pemetaan PN<->LID: pesan dari HP pemilik dipetakan untuk PENERIMA, tidak pernah ke alamat pemilik sendiri.
+  const me = sA.config.auth.creds.me;
+  sA.peta.length = 0;
+  sA.ws.emit("CB:message", { tag: "message", attrs: { from: me.id, recipient: "6281299990000@s.whatsapp.net", peer_recipient_lid: "555000901@lid", id: "MSG-P2" } });
+  sA.ws.emit("CB:message", { tag: "message", attrs: { from: "555000902@lid", sender_pn: "6281299990002@s.whatsapp.net", id: "MSG-P3" } });
+  sA.ws.emit("CB:message", { tag: "message", attrs: { from: "555000903@lid", sender_pn: me.id.replace(/:\d+@/, "@"), id: "MSG-P4" } });
+  await tidur(20);
+  assert.deepEqual(sA.peta, [
+    { lid: "555000901@lid", pn: "6281299990000@s.whatsapp.net" },
+    { lid: "555000902@lid", pn: "6281299990002@s.whatsapp.net" },
   ]);
 
   // Simulasi WA Business: accountSyncCounter diset ke 0 lalu kunci app-state & dirty bit tiba

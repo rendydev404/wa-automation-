@@ -58,6 +58,31 @@ await cek("kredensial baru bila belum ada, lalu tersimpan & terbaca sama persis"
   assert.equal(b.creds.registrationId, a.creds.registrationId);
 });
 
+await cek("pemetaan LID milik nomor sendiri yang rusak (bug hook lama) dirapikan saat sesi dibuka; pemetaan pelanggan utuh", async () => {
+  // n1: PN 6281234567890, LID 99887766 (dari uji di atas). Pola kerusakan sama dengan yang ditemukan di produksi.
+  const teks = (v) => JSON.stringify(v);
+  await sql`INSERT INTO wa_auth(sesi, kunci, teks) VALUES
+    (${n1.sesi}, 'lid-mapping:628138321263', ${teks("99887766")}),
+    (${n1.sesi}, 'lid-mapping:99887766_reverse', ${teks("6285718546991")}),
+    (${n1.sesi}, 'lid-mapping:555123_reverse', ${teks("6281234567890")}),
+    (${n1.sesi}, 'lid-mapping:628999', ${teks("555999")}),
+    (${n1.sesi}, 'lid-mapping:555999_reverse', ${teks("628999")})
+    ON CONFLICT (sesi, kunci) DO UPDATE SET teks = EXCLUDED.teks`;
+  await bukaAuth(B, n1.sesi);
+  const peta = Object.fromEntries((await sql`SELECT kunci, teks FROM wa_auth WHERE sesi = ${n1.sesi} AND kunci LIKE 'lid-mapping:%'`).map((r) => [r.kunci, JSON.parse(r.teks)]));
+  assert.deepEqual(peta, {
+    "lid-mapping:6281234567890": "99887766",
+    "lid-mapping:99887766_reverse": "6281234567890",
+    "lid-mapping:628999": "555999",
+    "lid-mapping:555999_reverse": "628999",
+  });
+  // Sudah rapi = tidak ada tulisan lagi (dibuka berkali-kali saat sambung ulang).
+  const sebelum = (await sql`SELECT xmin::text AS x FROM wa_auth WHERE sesi = ${n1.sesi} AND kunci = 'lid-mapping:6281234567890'`)[0].x;
+  await bukaAuth(B, n1.sesi);
+  assert.equal((await sql`SELECT xmin::text AS x FROM wa_auth WHERE sesi = ${n1.sesi} AND kunci = 'lid-mapping:6281234567890'`)[0].x, sebelum);
+  await sql`DELETE FROM wa_auth WHERE sesi = ${n1.sesi} AND kunci LIKE 'lid-mapping:%'`;
+});
+
 const a1 = await bukaAuth(B, n1.sesi); // penulis (cache-nya terisi)
 const dingin = async () => (await bukaAuth(B, n1.sesi)).keys; // pembaca ber-cache kosong: selalu dari database
 const sesiBiner = randomBytes(900);

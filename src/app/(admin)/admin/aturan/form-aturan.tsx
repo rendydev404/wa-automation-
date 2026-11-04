@@ -8,21 +8,18 @@ import { ATURAN_ANGKA, ATURAN_SAKLAR, type AturanSistem, type KunciAngka, type K
 const CONTOH_GLOBAL = [
   "Jangan pernah menjanjikan diskon atau gratis ongkir kecuali tertulis di base knowledge.",
   "Jangan membahas politik, agama, atau SARA; arahkan kembali ke produk dengan sopan.",
-  "Bila pelanggan marah atau mengancam, minta maaf singkat lalu teruskan ke pemilik nomor.",
+  "Bila pelanggan marah atau mengancam, minta maaf singkat dan bilang tim kami akan membalas langsung di chat ini.",
   "Selalu tutup jawaban yang berisi harga dengan ajakan memesan.",
 ];
 
 /** Kelompok tampilan; urutan sama dengan formulir. */
 const KELOMPOK: { judul: string; ket: string; angka: KunciAngka[]; saklar: KunciSaklar[] }[] = [
   { judul: "Biaya & panjang balasan", ket: "Pagar biaya per balasan di Claude API.", angka: ["maks_token_balasan"], saklar: [] },
-  { judul: "Penerusan ke nomor pemilik", ket: "AI meringkas hal yang butuh manusia (pesanan siap diproses, keluhan, bukti bayar) lalu mengirimnya ke nomor pribadi pengguna.", angka: ["teruskan_maks_harian"], saklar: ["teruskan_diizinkan"] },
   { judul: "Pengingat di workspace pengguna", ket: "Banner di paling atas semua halaman pengguna.", angka: ["peringatan_kuota_persen"], saklar: ["banner_knowledge"] },
 ];
 
 /** Angka yang hanya berlaku bila saklarnya aktif: diredupkan (tetap terkirim) saat saklar mati. */
-const IKUT_SAKLAR: Partial<Record<KunciAngka, KunciSaklar>> = {
-  teruskan_maks_harian: "teruskan_diizinkan",
-};
+const IKUT_SAKLAR: Partial<Record<KunciAngka, KunciSaklar>> = {};
 
 export function FormAturan({ nilai }: { nilai: AturanSistem }) {
   const [hasil, aksi] = useActionState(adminAturanAction, null);

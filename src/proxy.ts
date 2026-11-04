@@ -61,6 +61,7 @@ export async function proxy(request: NextRequest) {
 }
 
 // Ikon aplikasi (src/app/icon.svg, apple-icon.png) harus terbuka tanpa login: dipakai tab peramban & layar utama HP.
+// public/email/ juga: ikon di email (dimuat aplikasi email tanpa sesi).
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png|robots.txt).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png|robots.txt|email/).*)"],
 };

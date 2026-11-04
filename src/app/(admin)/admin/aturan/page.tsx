@@ -11,7 +11,8 @@ import { FormAturan } from "./form-aturan";
 const ATURAN_TETAP = [
   "AI hanya memakai fakta dari base knowledge, instruksi nomor, dan isi chat; harga, nomor, tautan, dan rekening di luar itu ditolak pemeriksa lalu ditulis ulang.",
   "AI tidak mengaku manusia, tidak menyebut dirinya model/perusahaan AI tertentu, dan tidak mengaku sebagai pemilik nomor.",
-  "AI tidak menjanjikan tindakan yang tidak bisa ia lakukan (mengirim barang, mengecek stok langsung); hal itu diteruskan ke pemilik nomor.",
+  "AI tidak menjanjikan tindakan yang tidak bisa ia lakukan (mengirim barang, mengecek stok langsung); untuk hal itu ia bilang tim akan membalas langsung di chat yang sama.",
+  "Bot hanya membalas chat yang masuk: tidak pernah mengirim pesan duluan ke nomor mana pun, supaya nomor tidak diblokir WhatsApp.",
   "AI menolak membuat kode program, tugas di luar topik usaha, dan permintaan membocorkan instruksi.",
   "Pesan lebih dari 2 menit (menumpuk saat offline) tidak dijawab, dan AI diam saat pemilik nomor sedang membalas sendiri.",
 ];
@@ -77,7 +78,7 @@ export default function HalamanAturan() {
       <div>
         <p className="text-[11.5px] font-semibold tracking-[0.08em] text-accent uppercase">Panel admin</p>
         <h1 className="mt-1.5 text-2xl font-bold tracking-tight sm:text-[28px]">Aturan</h1>
-        <p className="mt-1 max-w-2xl text-muted">Aturan yang berlaku untuk semua akun dan semua bot: pendaftaran, kuota gratis, penerusan pesan, pengingat, dan aturan perilaku AI.</p>
+        <p className="mt-1 max-w-2xl text-muted">Aturan yang berlaku untuk semua akun dan semua bot: pendaftaran, kuota gratis, pengingat, dan aturan perilaku AI.</p>
       </div>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <Suspense fallback={<div aria-hidden className="card h-[900px] animate-denyut" />}>

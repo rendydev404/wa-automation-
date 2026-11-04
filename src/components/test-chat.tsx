@@ -9,8 +9,6 @@ interface Gelembung {
   teks: string;
   meta?: string;
   foto?: string;
-  /** Hal yang di WhatsApp akan diteruskan ke nomor pribadi pemilik. */
-  teruskan?: { label: string; ringkasan: string } | null;
 }
 
 const sesiBaru = () => Math.random().toString(36).slice(2, 14).padEnd(8, "0");
@@ -79,7 +77,7 @@ export function TestChat({ numberId }: { numberId: number }) {
           ...(lampiran ? { foto: lampiran } : {}),
         }),
       });
-      const d = (await res.json().catch(() => ({}))) as { teks?: string; ms?: number; mode?: keyof typeof MODE; pelajaran?: number; diblokir?: boolean; error?: string; teruskan?: { label: string; ringkasan: string } | null; abaikan?: string; selesai?: boolean; nilai?: keyof typeof NILAI | null; katalog?: { daftar: string; foto: { id: number; caption: string }[] } | null };
+      const d = (await res.json().catch(() => ({}))) as { teks?: string; ms?: number; mode?: keyof typeof MODE; pelajaran?: number; diblokir?: boolean; error?: string; abaikan?: string; selesai?: boolean; nilai?: keyof typeof NILAI | null; katalog?: { daftar: string; foto: { id: number; caption: string }[] } | null };
       if (res.ok && d.abaikan) {
         setPesan((p) => [...p, { dari: "info", teks: `Tidak dibalas: terdeteksi spam. ${d.abaikan}. Di WhatsApp pesan ini hanya tercatat di histori dengan tanda Spam.` }]);
       } else if (res.ok && d.selesai) {
@@ -90,7 +88,7 @@ export function TestChat({ numberId }: { numberId: number }) {
         // Katalog: di WhatsApp dikirim sebagai pesan terpisah setelah jawaban (daftar, lalu foto + nama + harga).
         const kat = d.katalog;
         const kiriman: Gelembung[] = kat ? [...(kat.daftar ? [{ dari: "bot" as const, teks: kat.daftar }] : []), ...kat.foto.map((f) => ({ dari: "bot" as const, teks: f.caption, foto: `/api/katalog/foto?id=${f.id}` }))] : [];
-        setPesan((p) => [...p, { dari: "bot", teks: d.teks!, meta, teruskan: d.teruskan }, ...kiriman]);
+        setPesan((p) => [...p, { dari: "bot", teks: d.teks!, meta }, ...kiriman]);
       } else setPesan((p) => [...p, { dari: "galat", teks: d.error ?? `Gagal (HTTP ${res.status}).` }]);
     } catch {
       setPesan((p) => [...p, { dari: "galat", teks: "Koneksi terputus." }]);
@@ -136,12 +134,6 @@ export function TestChat({ numberId }: { numberId: number }) {
               )}
               {g.dari === "bot" ? <TeksWa teks={g.teks} /> : g.teks}
             </div>
-            {g.teruskan && (
-              <div className="mt-1.5 max-w-[85%] rounded-xl border border-dashed border-accent/50 bg-accent-soft/30 px-3 py-2 text-[12px]">
-                <p className="font-semibold text-accent">Diteruskan ke WhatsApp pribadi pemilik: {g.teruskan.label}</p>
-                <p className="mt-0.5 whitespace-pre-line text-muted">{g.teruskan.ringkasan}</p>
-              </div>
-            )}
             {g.meta && <p className="mt-1 pl-1 text-[11px] text-faint">{g.meta}</p>}
           </div>
         ))}

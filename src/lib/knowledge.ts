@@ -3,11 +3,11 @@ import { db, sekarang, transaksi } from "./db";
 import type { Nomor } from "./numbers";
 import { konteksPelajaran, saringKueri } from "./pelajaran";
 import { aturanGlobal, blokAturanAdmin } from "./aturan";
-import { aturanInti } from "./pemeriksa";
+import { ATURAN_INTI } from "./pemeriksa";
 import { ATURAN_SPAM } from "./spam";
 import { ATURAN_NILAI } from "./prospek-def";
 import { type Produk, blokKatalog } from "./katalog-def";
-import { ATURAN_TANPA_TERUSKAN, ATURAN_TERUSKAN } from "./teruskan";
+import { ATURAN_SERAH_TIM } from "./teruskan";
 import { ATURAN_TOPIK } from "./penjaga";
 
 /**
@@ -265,8 +265,6 @@ export interface OpsiSistem {
   adaFoto?: boolean;
   /** `riwayat` = seluruh percakapan sesi ini (penyedia AI tanpa ingatan sesi), bukan hanya yang belum dilihat. */
   riwayatLengkap?: boolean;
-  /** Nomor ini bisa meneruskan ke WhatsApp pribadi pemilik (src/lib/teruskan.ts). */
-  teruskan?: boolean;
   /** Pasang aturan spam (src/lib/spam.ts): AI boleh membalas dengan tag <abaikan> untuk spam yang jelas. */
   saringSpam?: boolean;
   /** Pasang aturan penilaian pesan (src/lib/prospek-def.ts): AI memberi label prospek/netral/selesai/bukan di tiap jawaban. */
@@ -356,6 +354,6 @@ export async function susunSistem(
   // Paling akhir dan di luar blok admin: batas topik berlaku untuk semua nomor dan tidak bisa ditimpa knowledge.
   if (opsi.saringSpam) bagian.push(ATURAN_SPAM);
   if (opsi.nilaiPesan) bagian.push(ATURAN_NILAI);
-  bagian.push(opsi.teruskan ? ATURAN_TERUSKAN : ATURAN_TANPA_TERUSKAN, ATURAN_TOPIK, aturanInti(!!opsi.teruskan));
+  bagian.push(ATURAN_SERAH_TIM, ATURAN_TOPIK, ATURAN_INTI);
   return { sistem: bagian.join("\n\n"), konteks, pelajaran: pelajaran.n };
 }

@@ -92,6 +92,39 @@ async function tulisPasti(sesi: string, kerja: () => Promise<void>): Promise<voi
   }
 }
 
+/**
+ * Pemetaan PN<->LID milik nomor ini sendiri harus saling menunjuk dan tidak dipakai nomor lain. Versi lama hook
+ * CB:message memasangkan LID pemilik dengan nomor PENERIMA setiap kali pemilik membalas dari HP, sehingga chat
+ * pelanggan bisa dianggap chat dengan diri sendiri dan sesi enkripsinya tercampur. Yang dirapikan:
+ *   - PN lain yang menunjuk ke LID nomor ini, dan LID lain yang (balik) menunjuk ke PN nomor ini: dihapus;
+ *   - PN <-> LID nomor ini sendiri: ditulis ulang saling menunjuk.
+ * Pemetaan pelanggan (dibutuhkan Baileys) akan dipelajari ulang dari pesan berikutnya.
+ */
+export async function rapikanPemetaanDiri(sesi: string, pn: string | undefined, lid: string | undefined): Promise<number> {
+  if (!pn || !lid || !/^\d+$/.test(pn) || !/^\d+$/.test(lid)) return 0;
+  const sql = await db();
+  const kPn = `lid-mapping:${pn}`;
+  const kLid = `lid-mapping:${lid}_reverse`;
+  const [{ buang, betul }] = await sql<{ buang: number; betul: number }[]>`
+    WITH buang AS (
+      DELETE FROM wa_auth
+       WHERE sesi = ${sesi} AND kunci LIKE 'lid-mapping:%'
+         AND ((kunci NOT LIKE '%\\_reverse' AND teks = ${JSON.stringify(lid)} AND kunci <> ${kPn})
+           OR (kunci LIKE '%\\_reverse' AND teks = ${JSON.stringify(pn)} AND kunci <> ${kLid}))
+      RETURNING 1
+    ), betul AS (
+      INSERT INTO wa_auth(sesi, kunci, teks)
+      VALUES (${sesi}, ${kPn}, ${JSON.stringify(lid)}), (${sesi}, ${kLid}, ${JSON.stringify(pn)})
+      ON CONFLICT (sesi, kunci) DO UPDATE SET teks = EXCLUDED.teks, biner = NULL
+       WHERE wa_auth.teks IS DISTINCT FROM EXCLUDED.teks
+      RETURNING 1
+    )
+    SELECT (SELECT COUNT(*) FROM buang)::int AS buang, (SELECT COUNT(*) FROM betul)::int AS betul`;
+  // Menulis pasangan milik sendiri yang belum ada itu biasa (sesi baru); yang patut dicatat hanya pemetaan rusak.
+  if (buang) console.warn(`[wa ${sesi}] ${buang} pemetaan LID rusak milik nomor ini dibuang`);
+  return buang + betul;
+}
+
 export interface AuthSesi {
   creds: AuthenticationCreds;
   keys: SignalKeyStore;
@@ -106,10 +139,15 @@ export async function bukaAuth(B: Baileys, sesi: string): Promise<AuthSesi> {
     return jenis === "app-state-sync-key" && o ? B.proto.Message.AppStateSyncKeyData.fromObject(o as object) : o;
   };
 
-  // Lewat antrean: bila sesi ini baru saja dihapus (logout), yang terbaca adalah keadaan sesudahnya.
+  // Lewat antrean: bila sesi ini baru saja dihapus (logout), yang terbaca adalah keadaan sesudahnya. Pemetaan
+  // LID milik nomor ini dirapikan di langkah yang sama, sebelum soket & cache-nya ada (tidak bisa balapan).
   const awal = await berurutan(sesi, async () => {
     const sql = await db();
     const [r] = await sql<{ teks: string | null }[]>`SELECT teks FROM wa_auth WHERE sesi = ${sesi} AND kunci = 'creds'`;
+    if (r?.teks) {
+      const me = (JSON.parse(r.teks) as { me?: { id?: string; lid?: string } }).me;
+      await rapikanPemetaanDiri(sesi, B.jidDecode(me?.id)?.user, B.jidDecode(me?.lid)?.user);
+    }
     return r?.teks ?? null;
   });
   const creds = awal ? (JSON.parse(awal, B.BufferJSON.reviver) as AuthenticationCreds) : B.initAuthCreds();

@@ -2,7 +2,7 @@
 
 import { startTransition, useActionState, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { CalendarClock, Check, CircleAlert, Loader2, MessageCircle, Sparkles } from "lucide-react";
+import { CalendarClock, Check, CircleAlert, Loader2, Sparkles } from "lucide-react";
 import { adminBerikanPaketAction } from "@/app/actions";
 import { Pesan } from "@/components/ui";
 import { angka, tanggal } from "@/lib/format";
@@ -49,7 +49,6 @@ export function BerikanPaket({
   sekarang: aktif,
   kini,
   saran,
-  bisaKabari,
 }: {
   userId: number;
   paket: PaketPilihan[];
@@ -58,8 +57,6 @@ export function BerikanPaket({
   kini: number;
   /** Rumus & asumsi Paket Custom, untuk harga saran isi khusus; null bila tarif model acuan tidak diketahui. */
   saran: { spek: SpekCustom; konteks: KonteksHarga } | null;
-  /** Akun punya nomor WhatsApp yang tersambung dan bernomor penerus (tujuan kabar). */
-  bisaKabari: boolean;
 }) {
   const [hasil, aksi, menyimpan] = useActionState(adminBerikanPaketAction, null);
   const [pilih, setPilih] = useState<number | "khusus" | null>(null);
@@ -70,7 +67,6 @@ export function BerikanPaket({
   const [metode, setMetode] = useState<Metode>("manual_transfer");
   const [jumlah, setJumlah] = useState(0);
   const [catatan, setCatatan] = useState("");
-  const [kabari, setKabari] = useState(bisaKabari);
   const [tanya, setTanya] = useState(false);
 
   const p = typeof pilih === "number" ? paket.find((x) => x.id === pilih) : undefined;
@@ -123,7 +119,6 @@ export function BerikanPaket({
     fd.set("metode", metode);
     fd.set("jumlah", String(kompensasi ? 0 : jumlah));
     fd.set("catatan", catatan);
-    if (kabari && bisaKabari) fd.set("kabari", "on");
     startTransition(() => aksi(fd));
   };
 
@@ -271,11 +266,6 @@ export function BerikanPaket({
             Pembayaran: {METODE.find((m) => m.id === metode)?.label}
             {!kompensasi && ` · ${rp(jumlah)}`} · tercatat di Transaksi
           </p>
-          <label className={`flex items-center gap-2 pt-1 ${bisaKabari ? "" : "opacity-60"}`}>
-            <input type="checkbox" checked={kabari && bisaKabari} onChange={(e) => setKabari(e.target.checked)} disabled={!bisaKabari} className="size-4 accent-[var(--c-accent)]" />
-            <MessageCircle className="size-3.5 text-muted" aria-hidden />
-            {bisaKabari ? "Kabari pelanggan lewat WhatsApp (ke nomor penerusnya)" : "Kabar WhatsApp tidak tersedia: akun belum punya nomor tersambung dengan nomor penerus"}
-          </label>
         </div>
       )}
 

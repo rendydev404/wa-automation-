@@ -36,7 +36,12 @@ const samaHex = (a: string, b: string): boolean => {
   return x.length === y.length && x.length > 0 && timingSafeEqual(x, y);
 };
 
-export type HasilMinta = "terkirim" | "tidak-terdaftar" | "diblokir";
+const asalApp = (): string => (process.env.APP_URL ?? "").replace(/\/+$/, "");
+const wib = (o: Intl.DateTimeFormatOptions) => (detik: number) => new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", ...o }).format(new Date(detik * 1000));
+const jamWib = wib({ hour: "2-digit", minute: "2-digit" });
+const tanggalWib = wib({ day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+export type HasilMinta ="terkirim" | "tidak-terdaftar" | "diblokir";
 
 /** Kirim kode OTP ke akun terdaftar. Galat hanya bila pengiriman email belum dikonfigurasi. */
 export async function mintaOtp(emailMentah: string): Promise<HasilMinta> {
@@ -63,14 +68,21 @@ export async function mintaOtp(emailMentah: string): Promise<HasilMinta> {
     judul: `${kode} adalah kode reset password ${MEREK}`,
     teks: `Halo ${u.nama || ""},\n\nKode untuk mengatur ulang password akun ${MEREK} Anda: ${kode}\nBerlaku ${OTP.menit} menit. Jangan berikan kode ini kepada siapa pun, termasuk yang mengaku dari ${MEREK}.\n\nBukan Anda yang meminta? Abaikan email ini; password Anda tidak berubah.`,
     html: htmlEmail({
-      merek: MEREK,
+      pratinjau: `Kode berlaku ${OTP.menit} menit. Jangan berikan kepada siapa pun.`,
+      ikon: "kunci",
       judul: "Kode reset password",
+      subjudul: `Gunakan kode ini untuk membuat password baru akun ${MEREK} Anda.`,
+      sapaan: `Halo ${u.nama?.trim() || "Kak"},`,
+      paragraf: [`Kami menerima permintaan untuk mengatur ulang password akun ${email}. Masukkan kode berikut di halaman Lupa password:`],
       kode,
-      paragraf: [
-        `Masukkan kode di atas di halaman Lupa password. Kode berlaku ${OTP.menit} menit.`,
-        `Jangan berikan kode ini kepada siapa pun, termasuk yang mengaku dari ${MEREK}.`,
-        "Bukan Anda yang meminta? Abaikan email ini; password Anda tidak berubah.",
-      ],
+      berlaku: `Berlaku ${OTP.menit} menit · sampai ${jamWib(kini + OTP.menit * 60)} WIB`,
+      tombol: asalApp() ? { teks: "Buka halaman Lupa password", url: `${asalApp()}/lupa-password` } : undefined,
+      peringatan: {
+        nada: "waspada",
+        judul: "Jaga kerahasiaan kode ini",
+        teks: `Jangan berikan kode ini kepada siapa pun, termasuk yang mengaku dari ${MEREK}. Tim kami tidak pernah meminta kode lewat chat atau telepon.`,
+      },
+      catatan: "Bukan Anda yang meminta? Abaikan email ini; password Anda tetap aman dan tidak berubah.",
     }),
   }).catch((e) => console.error(`[lupa-password] email gagal dikirim user=${u.id}: ${e instanceof Error ? e.message : e}`));
   return "terkirim";
@@ -134,9 +146,19 @@ export async function gantiPasswordDenganToken(emailMentah: string, tokenMentah:
     judul: `Password akun ${MEREK} Anda baru saja diganti`,
     teks: `Password akun ${MEREK} Anda baru saja diganti lewat kode email, dan semua perangkat lain sudah dikeluarkan.\n\nBukan Anda? Segera hubungi admin ${MEREK}.`,
     html: htmlEmail({
-      merek: MEREK,
-      judul: "Password Anda diganti",
-      paragraf: ["Password akun Anda baru saja diganti lewat kode email, dan semua perangkat lain sudah dikeluarkan.", `Bukan Anda? Segera hubungi admin ${MEREK}.`],
+      pratinjau: "Password akun Anda baru saja diganti. Semua perangkat lain sudah dikeluarkan.",
+      ikon: "cek",
+      judul: "Password berhasil diganti",
+      subjudul: "Akun Anda sekarang memakai password baru.",
+      sapaan: `Halo ${u.nama?.trim() || "Kak"},`,
+      paragraf: [`Password akun ${MEREK} Anda baru saja diganti lewat kode email. Demi keamanan, semua perangkat lain sudah dikeluarkan otomatis.`],
+      rincian: [
+        ["Akun", u.email],
+        ["Waktu", `${tanggalWib(sekarang())} WIB`],
+        ["Perangkat lain", "Sudah dikeluarkan"],
+      ],
+      tombol: asalApp() ? { teks: "Masuk ke akun", url: `${asalApp()}/login` } : undefined,
+      peringatan: { nada: "bahaya", judul: "Bukan Anda yang mengganti?", teks: `Segera atur ulang password lewat halaman Lupa password, lalu hubungi admin ${MEREK}.` },
     }),
   }).catch((e) => console.error(`[lupa-password] pemberitahuan gagal dikirim user=${u.id}: ${e instanceof Error ? e.message : e}`));
   return u;

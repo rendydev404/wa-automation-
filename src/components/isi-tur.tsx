@@ -78,19 +78,6 @@ export const TUR_NOMOR: LangkahTur[] = [
     isi: <p>Ketik pertanyaan seperti pelanggan, mis. &quot;harga paket berapa?&quot;. Jawaban di sini sama persis dengan yang akan dikirim ke WhatsApp, tapi tidak dikirim ke siapa pun.</p>,
   },
   {
-    sasaran: "teruskan",
-    judul: "4. Terima pesanan di WhatsApp pribadimu",
-    isi: (
-      <>
-        <p>
-          AI tidak bisa memasak atau mengecek transfer. Isi <b className="text-fg">nomor WhatsApp pribadimu</b> di sini: setiap ada pesanan lengkap, bukti bayar, keluhan, atau
-          pelanggan minta bicara dengan manusia, AI mengirim ringkasannya ke nomor itu.
-        </p>
-        <p>Klik &quot;Kirim pesan uji&quot; untuk memastikan nomornya benar.</p>
-      </>
-    ),
-  },
-  {
     sasaran: "saklar-bot",
     judul: "Nyalakan / matikan AI",
     isi: <p>Saklar ini menghidupkan atau mematikan balasan AI di nomor ini. Kalau mati, semua chat kamu balas sendiri.</p>,

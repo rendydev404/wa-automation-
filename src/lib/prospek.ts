@@ -40,7 +40,7 @@ import {
  *
  * Belajar dari pengalaman (semua otomatis, ml_contoh):
  *   1. label AI utama di setiap giliran (sumber 1);
- *   2. hasil nyata: giliran yang berujung pesanan/pembayaran/katalog diteruskan ke pemilik (sumber 2, bobot lebih);
+ *   2. hasil nyata: giliran yang berujung pengiriman katalog (sumber 2, bobot lebih);
  *   3. kesalahan: chat yang dibisukan tetapi kemudian dibalas pemilik sendiri, atau audit yang membuktikan ML keliru
  *      (sumber 3, bobot terbesar).
  *   Contoh baru langsung dipakai (kNN tidak perlu dilatih ulang). Tiap malam setiap nomor diuji leave-one-out pada

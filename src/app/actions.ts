@@ -41,9 +41,7 @@ import { tanggal } from "@/lib/format";
 import { GalatCustom, customTampil, periksaCustom, ringkasCustom, simpanPaketCustom } from "@/lib/paket-custom";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
 import { geserProduk, hapusProduk, katalogBoleh, setTersedia } from "@/lib/katalog";
-import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringProspek, setSaringSpam, setTeruskan, siapDipakai, tambahNomor, ubahNomor } from "@/lib/numbers";
-import { kabariPaketAktif, ujiTeruskan } from "@/lib/penerusan";
-import { PERLU_PENERUS } from "@/lib/teruskan";
+import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringProspek, setSaringSpam, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { cekPassword, verifyPassword } from "@/lib/password";
 import { type ItemPelajaran, daftarPelajaran, hapusPelajaran } from "@/lib/pelajaran";
 import {
@@ -334,7 +332,6 @@ export async function ubahNomorAction(_lalu: Hasil | null, form: FormData): Prom
 export async function setBotAktifAction(id: number, aktif: boolean): Promise<Hasil> {
   const nomor = await nomorUntuk(await requireUser(), id);
   if (!nomor) return { ok: false, pesan: "Nomor tidak ditemukan." };
-  if (aktif && !siapDipakai(nomor)) return { ok: false, pesan: PERLU_PENERUS };
   await setBotAktif(id, aktif);
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${id}`);
@@ -377,25 +374,6 @@ export async function hapusNomorAction(id: number): Promise<Hasil> {
   redirect("/dashboard");
 }
 
-// ---------- Teruskan ke pemilik ----------
-
-/** Nomor WhatsApp pribadi penerima pesan yang diteruskan AI (pesanan, bukti bayar, keluhan) + saklar aktif. */
-export async function teruskanAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
-  const id = Number(form.get("number_id"));
-  const nomor = await nomorUntuk(await requireUser(), id);
-  if (!nomor) return { ok: false, pesan: "Nomor tidak ditemukan." };
-  const mentah = String(form.get("teruskan_ke") ?? "").trim();
-  // Wajib diisi: tanpa nomor penerus, nomor bisnis tidak bisa dipakai (lihat siapDipakai).
-  if (!mentah) return { ok: false, pesan: "Nomor WhatsApp penerus wajib diisi. Tanpa nomor ini AI tidak membalas di nomor bisnis ini." };
-  const ke = rapikanNomorWa(mentah);
-  if (!ke) return { ok: false, pesan: "Nomor WhatsApp tidak valid. Contoh: 0812 3456 7890 atau +62 812 3456 7890." };
-  if (ke === nomor.wa_id) return { ok: false, pesan: "Isi dengan nomor lain (WhatsApp pribadi Anda), bukan nomor bisnis yang dibalas AI ini." };
-  await setTeruskan(id, { ke, aktif: true }); // penerusan selalu aktif selama nomor penerus terisi
-  revalidatePath("/dashboard");
-  revalidatePath(`/nomor/${id}`);
-  return { ok: true, pesan: "Tersimpan. Pesanan, keluhan, bukti bayar, dan hal penting lain selalu diteruskan ke nomor ini." };
-}
-
 // ---------- Katalog produk (tambah/ubah lewat /api/katalog karena membawa foto) ----------
 
 async function produkMilik(numberId: number, tulis: boolean): Promise<{ id: number } | null> {
@@ -428,22 +406,6 @@ export async function geserProdukAction(numberId: number, id: number, arah: -1 |
   await geserProduk(n.id, id, arah);
   revalidatePath(`/nomor/${n.id}`);
   return { ok: true };
-}
-
-/** Kirim pesan uji dari nomor bisnis ke nomor pribadi: memastikan nomornya benar & WhatsApp-nya menerima. */
-export async function ujiTeruskanAction(id: number): Promise<Hasil> {
-  const user = await requireUser();
-  const nomor = await nomorUntuk(user, id);
-  if (!nomor) return { ok: false, pesan: "Nomor tidak ditemukan." };
-  if (!nomor.teruskan_ke) return { ok: false, pesan: "Simpan nomor WhatsApp penerima dulu." };
-  if (terlaluSering(`uji-teruskan:${user.id}`, 5, 10 * 60_000)) return { ok: false, pesan: "Terlalu sering. Coba lagi beberapa menit lagi." };
-  try {
-    await ujiTeruskan(nomor, nomor.teruskan_ke);
-  } catch (e) {
-    return { ok: false, pesan: `Gagal mengirim: ${pesanGalat(e)} Pastikan nomor bisnis ini sedang terhubung.` };
-  }
-  revalidatePath(`/nomor/${id}`);
-  return { ok: true, pesan: "Pesan uji terkirim. Cek WhatsApp pribadi Anda." };
 }
 
 // ---------- Base knowledge ----------
@@ -711,7 +673,7 @@ export async function adminPengaturanAction(_lalu: Hasil | null, form: FormData)
   return { ok: true, pesan: "Pengaturan tersimpan." };
 }
 
-/** Aturan sistem (src/lib/aturan.ts): batas laju, panjang balasan, peringatan kuota, penerusan, aturan global semua bot. */
+/** Aturan sistem (src/lib/aturan.ts): batas laju, panjang balasan, peringatan kuota, aturan global semua bot. */
 export async function adminAturanAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   const admin = await requireAdmin();
   const nilai: [string, string][] = [];
@@ -984,7 +946,6 @@ export async function adminBerikanPaketAction(_lalu: Hasil | null, form: FormDat
   const catatan = String(form.get("catatan") ?? "").trim().slice(0, 300);
 
   const h = await berikanPaketManual(u.id, { paketId, isi, hari: hari ?? undefined, metode: metode as MetodeManual, jumlah, catatan });
-  const kabar = form.get("kabari") === "on" ? await kabariPaketAktif(u.id, h) : null;
   await catatLog(
     admin,
     h.diperpanjang ? "perpanjang paket" : "berikan paket",
@@ -993,10 +954,9 @@ export async function adminBerikanPaketAction(_lalu: Hasil | null, form: FormDat
   );
   revalidatePath(`/admin/pengguna/${u.id}`);
   revalidatePath("/admin/transaksi");
-  const pesanKabar = kabar === "terkirim" ? " Pelanggan sudah dikabari lewat WhatsApp." : kabar === "gagal" ? " Kabar WhatsApp gagal terkirim." : kabar === "dilewati" ? " Kabar WhatsApp dilewati (tidak ada nomor yang tersambung dengan nomor penerus)." : "";
   return {
     ok: true,
-    pesan: `${h.nama} ${h.diperpanjang ? "diperpanjang" : "aktif"} untuk ${u.email} sampai ${tanggal(h.sampai)}. Pembayaran tercatat (${h.orderId}).${pesanKabar}`,
+    pesan: `${h.nama} ${h.diperpanjang ? "diperpanjang" : "aktif"} untuk ${u.email} sampai ${tanggal(h.sampai)}. Pembayaran tercatat (${h.orderId}).`,
   };
 }
 

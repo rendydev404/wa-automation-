@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Bot, ChevronRight, FileText, MessageCircleMore, TriangleAlert, Users } from "lucide-react";
+import { Bot, ChevronRight, FileText, MessageCircleMore, Users } from "lucide-react";
 import { ConnectionCard } from "@/components/connection-card";
 import { HistoriPercakapan } from "@/components/conversation-history";
 import { KnowledgePanel } from "@/components/knowledge-panel";
@@ -10,21 +10,16 @@ import { PanelPelajaran } from "@/components/panel-pelajaran";
 import { HapusNomor, LencanaTerhubung, NumberSettings, SaklarBot, SaklarSinkron } from "@/components/number-settings";
 import { KartuStat, Meter, Sparkline } from "@/components/stat";
 import { TestChat } from "@/components/test-chat";
-import { PanelTeruskan } from "@/components/panel-teruskan";
 import { PanelKatalog } from "@/components/panel-katalog";
 import { daftarProduk, katalogBoleh } from "@/lib/katalog";
-import { saklar } from "@/lib/aturan";
-import { riwayatTeruskan } from "@/lib/penerusan";
-import { JENIS_TERUSKAN, PERLU_PENERUS } from "@/lib/teruskan";
 import { sekarang } from "@/lib/db";
-import { angka, formatNomor, tanggal, waktuSingkatWib } from "@/lib/format";
+import { angka, formatNomor, tanggal } from "@/lib/format";
 import { BATAS_UTUH, daftarDokumen } from "@/lib/knowledge";
-import { siapDipakai, statHarian, tanggalWib } from "@/lib/numbers";
+import { statHarian, tanggalWib } from "@/lib/numbers";
 import { nomorUntuk } from "@/lib/akses";
 import { daftarPelajaran, jumlahPelajaran } from "@/lib/pelajaran";
 import { ambilPesanPercakapan, daftarPercakapan, ringkasanPercakapan } from "@/lib/percakapan";
 import { statusMl } from "@/lib/prospek";
-import { ModalPenerus } from "@/components/modal-penerus";
 import { requireUser } from "@/lib/session";
 import { TUR_NOMOR } from "@/components/isi-tur";
 import { TurOtomatis } from "@/components/tur";
@@ -72,7 +67,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   const admin = user.peran === "admin";
 
   const hari = hariTerakhir(tanggalWib(), 7);
-  const [dokumen, sinkronIds, statusSs, sinkronCgIds, statusCg, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran, tur, diteruskan, teruskanDiizinkan, produk, katalogAktif, ml] = await Promise.all([
+  const [dokumen, sinkronIds, statusSs, sinkronCgIds, statusCg, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran, tur, produk, katalogAktif, ml] = await Promise.all([
     daftarDokumen(id, admin),
     admin ? nomorSinkron() : Promise.resolve([] as number[]),
     admin ? statusSinkron() : Promise.resolve(null),
@@ -84,8 +79,6 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
     jumlahPelajaran(id),
     daftarPelajaran(id),
     turSelesai(user.id),
-    riwayatTeruskan(id, 10),
-    saklar("teruskan_diizinkan"),
     daftarProduk(id),
     admin ? Promise.resolve(true) : katalogBoleh(nomor.user_id),
     statusMl(id),
@@ -113,21 +106,9 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
           </div>
         </div>
         <div className="card flex items-center px-4 py-3 sm:min-w-64" data-tur="saklar-bot">
-          <SaklarBot id={nomor.id} aktif={!!nomor.bot_aktif} label={nomor.label} adaPenerus={siapDipakai(nomor)} />
+          <SaklarBot id={nomor.id} aktif={!!nomor.bot_aktif} label={nomor.label} />
         </div>
       </header>
-
-      {!siapDipakai(nomor) &&
-        (nomor.user_id === user.id ? (
-          // Pemilik nomor: wajib mengisi dulu (modal tidak bisa ditutup).
-          <ModalPenerus numberId={nomor.id} label={nomor.label} waBisnis={nomor.wa_id} />
-        ) : (
-          // Admin yang melihat nomor milik pengguna lain: hanya pemberitahuan, tidak dikunci.
-          <a href="#teruskan" className="flex items-center gap-2.5 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-[13px] font-medium text-warning hover:underline">
-            <TriangleAlert className="size-4 shrink-0" aria-hidden />
-            {PERLU_PENERUS}
-          </a>
-        ))}
 
       <section aria-label="Statistik nomor ini" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <KartuStat
@@ -210,23 +191,6 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
         <div className="min-w-0 space-y-6">
           <div id="uji" data-tur="uji">
             <TestChat numberId={nomor.id} />
-          </div>
-          <div id="teruskan" data-tur="teruskan">
-            <PanelTeruskan
-              numberId={nomor.id}
-              teruskanKe={nomor.teruskan_ke}
-              diizinkan={teruskanDiizinkan}
-              waBisnis={nomor.wa_id}
-              riwayat={diteruskan.map((r) => ({
-                id: r.id,
-                label: JENIS_TERUSKAN[r.jenis].label,
-                ikon: JENIS_TERUSKAN[r.jenis].ikon,
-                pelanggan: r.pelanggan,
-                ringkasan: r.ringkasan,
-                status: r.status,
-                waktu: waktuSingkatWib(r.created_at, sekarang()),
-              }))}
-            />
           </div>
           {admin && <SaklarSinkron jenis="cg" id={nomor.id} aktif={sinkronCgIds.includes(nomor.id)} siap keterangan={statusCg ? teksStatusSinkron(statusCg) : ""} />}
           {admin && <SaklarSinkron jenis="ss" id={nomor.id} aktif={sinkronIds.includes(nomor.id)} siap={!!konfigurasiSinkron()} keterangan={statusSs ? teksStatusSinkron(statusSs) : ""} />}

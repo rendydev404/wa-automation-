@@ -10,7 +10,7 @@ import { KartuStat, KartuUtama, Meter } from "@/components/stat";
 import { PanelSyaratNomor } from "@/components/syarat-nomor";
 import { TombolTambahNomor } from "@/components/tambah-nomor";
 import { angka } from "@/lib/format";
-import { daftarNomor, siapDipakai, statHarian, tanggalWib } from "@/lib/numbers";
+import { daftarNomor, statHarian, tanggalWib } from "@/lib/numbers";
 import { TUR_DASHBOARD } from "@/components/isi-tur";
 import { TurOtomatis } from "@/components/tur";
 import { turSelesai } from "@/lib/pengguna";
@@ -109,7 +109,7 @@ async function Ringkasan() {
       {user.peran === "admin" ? (
         <div className="grid gap-4 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <GrafikAktivitas titik={tren} />
-          <PanelSistem botAktif={nomor.filter((n) => n.bot_aktif && siapDipakai(n)).length} total={nomor.length} dokumen={dokumen} karakter={karakter} />
+          <PanelSistem botAktif={nomor.filter((n) => n.bot_aktif).length} total={nomor.length} dokumen={dokumen} karakter={karakter} />
         </div>
       ) : (
         <GrafikAktivitas titik={tren} />
@@ -121,7 +121,6 @@ async function Ringkasan() {
           wa_id: n.wa_id,
           label: n.label,
           bot_aktif: !!n.bot_aktif,
-          ada_penerus: siapDipakai(n),
           jumlah_dokumen: n.jumlah_dokumen,
           jumlah_karakter: n.jumlah_karakter,
           dibalas_hari_ini: n.dibalas_hari_ini,

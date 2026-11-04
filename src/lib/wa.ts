@@ -188,20 +188,50 @@ async function kabari(ev: EventWa): Promise<void> {
   }
 }
 
-/** Baileys mencatat lewat antarmuka mirip pino; yang diteruskan hanya galat, satu baris ringkas. */
+/**
+ * Baileys mencatat lewat antarmuka mirip pino. Galat diteruskan satu baris ringkas; peringatan juga (dulu dibuang,
+ * padahal di situ petunjuk pesan yang tertahan: "received error in ack", "Buffer timeout", gagal dekripsi), tetapi
+ * dibatasi: pesan peringatan yang sama paling sering sekali per JEDA_PERINGATAN_MS per nomor.
+ * Bila WhatsApp memutus stream berulang kali karena stanza yang SAMA belum di-ack, pesan pelanggan bisa tertahan
+ * di belakangnya: dicatat sebagai galat yang jelas supaya tidak lagi diam-diam.
+ */
+const JEDA_PERINGATAN_MS = 600_000;
+// Di tingkat modul (bukan per soket): soket dibuat ulang tiap sambung ulang, hitungannya harus tetap berlanjut.
+const peringatanTerakhir = new Map<string, number>();
+const ackBerulang = new Map<string, number>();
 function pencatat(nama: string): SocketConfig["logger"] {
   const diam = () => {};
+  const ringkas = (obj: unknown, msg?: string): string => {
+    const o = (typeof obj === "object" && obj ? obj : {}) as Record<string, unknown>;
+    const rinci = [o.err, o.error, o.trace].map((v) => (v instanceof Error ? v.message : typeof v === "string" ? v.split("\n")[0] : "")).find(Boolean) || ringkasNode(o.fullErrorNode);
+    return [msg ?? (typeof obj === "string" ? obj : ""), rinci].filter(Boolean).join(": ").slice(0, 300);
+  };
   const l: SocketConfig["logger"] = {
-    level: "error",
+    level: "warn",
     child: () => l,
     trace: diam,
     debug: diam,
     info: diam,
-    warn: diam,
+    warn(obj: unknown, msg?: string) {
+      const teks = ringkas(obj, msg);
+      const kunci = `${nama}:${(msg ?? teks).slice(0, 80)}`;
+      const kini = Date.now();
+      if (kini - (peringatanTerakhir.get(kunci) ?? 0) < JEDA_PERINGATAN_MS) return;
+      if (peringatanTerakhir.size > 1000) peringatanTerakhir.clear();
+      peringatanTerakhir.set(kunci, kini);
+      console.warn(`[wa ${nama}] ${teks}`);
+    },
     error(obj: unknown, msg?: string) {
-      const o = (typeof obj === "object" && obj ? obj : {}) as Record<string, unknown>;
-      const rinci = [o.err, o.error, o.trace].map((v) => (v instanceof Error ? v.message : typeof v === "string" ? v.split("\n")[0] : "")).find(Boolean) || ringkasNode(o.fullErrorNode);
-      console.error(`[wa ${nama}] ${[msg ?? (typeof obj === "string" ? obj : ""), rinci].filter(Boolean).join(": ").slice(0, 300)}`);
+      const teks = ringkas(obj, msg);
+      console.error(`[wa ${nama}] ${teks}`);
+      const id = /ack\{[^}]*"id":"([^"]+)"/.exec(teks)?.[1];
+      if (id) {
+        const k = `${nama}:${id}`;
+        const n = (ackBerulang.get(k) ?? 0) + 1;
+        if (ackBerulang.size > 500) ackBerulang.clear();
+        ackBerulang.set(k, n);
+        if (n >= 3) console.error(`[wa ${nama}] WhatsApp mengirim ulang stanza ${id} ${n}x tanpa ack yang diterima: pesan pelanggan bisa tertahan di belakangnya`);
+      }
     },
   };
   return l;
@@ -252,8 +282,26 @@ function lepasTunggu(s: Sesi): void {
   for (const fn of s.tunggu.splice(0)) fn();
 }
 
+/**
+ * Event satu nomor diproses berurutan. Satu tugas yang menggantung (mis. jaringan/database tidak menjawab) tidak
+ * boleh menahan semua pesan berikutnya selamanya: lewat BATAS_TUGAS_MS antrean jalan terus (tugas lama tetap
+ * selesai sendiri di latar) dan kejadiannya dicatat.
+ */
+const BATAS_TUGAS_MS = 120_000;
 function antre(s: Sesi, kerja: () => Promise<void> | void): void {
-  s.rantai = s.rantai.then(kerja).catch((e) => console.error(`[wa ${s.nama}] gagal memproses event:`, e));
+  s.rantai = s.rantai
+    .then(() => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const batas = new Promise<void>((r) => {
+        timer = setTimeout(() => {
+          console.error(`[wa ${s.nama}] memproses event lebih dari ${BATAS_TUGAS_MS / 1000} dtk; antrean dilanjutkan`);
+          r();
+        }, BATAS_TUGAS_MS);
+        timer.unref?.();
+      });
+      return Promise.race([Promise.resolve().then(kerja), batas]).finally(() => clearTimeout(timer));
+    })
+    .catch((e) => console.error(`[wa ${s.nama}] gagal memproses event:`, e));
 }
 
 /**
@@ -492,7 +540,14 @@ async function sambung(s: Sesi): Promise<void> {
       delete auth.creds.me;
     }
     const log = pencatat(s.nama);
-    const abaikanJid = (jid: string | undefined): boolean => !!(B.isJidGroup(jid) || B.isJidBroadcast(jid) || B.isJidNewsletter(jid));
+    // Grup, saluran, dan daftar siaran tidak pernah dilayani. Status (story) kontak SENGAJA tidak diabaikan di
+    // tingkat soket: WhatsApp menuntut tanda terima resminya. Bila ditolak (NACK 500 bawaan) perangkat dicabut;
+    // bila hanya di-ack polos, server mengirim ulang status yang sama dan memutus stream tiap ±50 menit
+    // (`stream:error > ack{"class":"status"}`) sementara pesan pelanggan tertahan di belakangnya, berjam-jam,
+    // pada nomor yang kontaknya banyak memasang status. Baileys yang memprosesnya; pesanTiba lalu membuangnya
+    // karena bukan chat pribadi, jadi tidak pernah sampai ke AI.
+    const abaikanJid = (jid: string | undefined): boolean =>
+      !!jid && !!(B.isJidGroup(jid) || B.isJidNewsletter(jid) || (B.isJidBroadcast(jid) && !B.isJidStatusBroadcast(jid)));
     sock = B.makeWASocket({
       auth: { creds: auth.creds, keys: auth.keys },
       ...(st.versi ? { version: st.versi } : {}),
@@ -540,13 +595,24 @@ async function sambung(s: Sesi): Promise<void> {
             void sock.sendMessageAck(node as never).catch(() => {});
             return true;
           }
-          const pnAlt = node?.attrs?.sender_pn || node?.attrs?.participant_pn || node?.attrs?.peer_recipient_pn;
-          const lidAlt = node?.attrs?.sender_lid || node?.attrs?.participant_lid || node?.attrs?.peer_recipient_lid;
+          const a = node?.attrs ?? {};
+          // Alamat alternatif PENGIRIM saja. `peer_recipient_*` milik PENERIMA (pesan yang diketik di HP pemilik),
+          // jadi tidak pernah dipasangkan dengan `from`.
+          const pnAlt = a.sender_pn || a.participant_pn;
+          const lidAlt = a.sender_lid || a.participant_lid;
+          const milikSendiri = (j: string | undefined): boolean =>
+            !!j && (B.areJidsSameUser(j, auth.creds.me?.id) || B.areJidsSameUser(j, auth.creds.me?.lid || s.lidTersimpan || undefined));
           // Simpan pemetaan PN<->LID ke cache secara sinkron SEBELUM `getDecryptionJid` berjalan di Baileys 7.
-          if (dari && B.isLidUser(dari) && pnAlt && B.isPnUser(pnAlt)) {
-            simpanPemetaanPasangan(B, sock, pnAlt, dari);
-          } else if (dari && B.isPnUser(dari) && lidAlt && B.isLidUser(lidAlt)) {
-            simpanPemetaanPasangan(B, sock, dari, lidAlt);
+          if (dari && !milikSendiri(dari)) {
+            // Pesan dari lawan bicara: alamat pengirim <-> alamat alternatif pengirim itu sendiri.
+            if (B.isLidUser(dari) && pnAlt && B.isPnUser(pnAlt) && !milikSendiri(pnAlt)) simpanPemetaanPasangan(B, sock, pnAlt, dari);
+            else if (B.isPnUser(dari) && lidAlt && B.isLidUser(lidAlt) && !milikSendiri(lidAlt)) simpanPemetaanPasangan(B, sock, dari, lidAlt);
+          } else if (dari && a.recipient && !milikSendiri(a.recipient)) {
+            // Pesan dari perangkat pemilik sendiri (HP): pemetaannya milik PENERIMA, bukan pengirim.
+            if (B.isLidUser(a.recipient) && a.peer_recipient_pn && B.isPnUser(a.peer_recipient_pn) && !milikSendiri(a.peer_recipient_pn))
+              simpanPemetaanPasangan(B, sock, a.peer_recipient_pn, a.recipient);
+            else if (B.isPnUser(a.recipient) && a.peer_recipient_lid && B.isLidUser(a.peer_recipient_lid) && !milikSendiri(a.peer_recipient_lid))
+              simpanPemetaanPasangan(B, sock, a.recipient, a.peer_recipient_lid);
           }
           // Di beberapa iPhone (iOS), pesan protokol peer (APP_STATE_SYNC_KEY_SHARE / HISTORY_SYNC_NOTIFICATION)
           // dikirim dari LID pemilik sebelum `me.lid` tercatat di `<success>`. Tanpa `me.lid`, Baileys 7 menganggap

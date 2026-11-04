@@ -10,7 +10,6 @@ import { kanalAktif, konfigMidtrans } from "./midtrans";
 import { MEREK } from "./merek";
 import { type PaketCustom, customTampil, hargaAngka, paketCustom } from "./paket-custom";
 import { DAFTAR_BANK, type PengaturanAfiliasi, UMUR_COOKIE_REF, hitungKomisiPaket, pengaturanAfiliasi } from "./afiliasi";
-import { saklar } from "./aturan";
 import { perbaruiDokumenOtomatis } from "./sinkron";
 
 /**
@@ -133,11 +132,10 @@ export interface DataCg {
   /** null = pembayaran online belum dipasang di server. */
   kanal: KanalBayar[] | null;
   afiliasi: PengaturanAfiliasi;
-  teruskan: boolean;
 }
 
 async function ambilData(): Promise<DataCg> {
-  const [paket, custom, percobaan, nomorGratis, pendaftaran, midtrans, kanal, afiliasi, teruskan] = await Promise.all([
+  const [paket, custom, percobaan, nomorGratis, pendaftaran, midtrans, kanal, afiliasi] = await Promise.all([
     daftarPaket(),
     paketCustom(),
     aturanPercobaan(),
@@ -146,9 +144,8 @@ async function ambilData(): Promise<DataCg> {
     konfigMidtrans(),
     kanalAktif(),
     pengaturanAfiliasi(),
-    saklar("teruskan_diizinkan"),
   ]);
-  return { paket: paket.filter((p) => p.harga > 0), custom, percobaan, nomorGratis, pendaftaran: pendaftaran !== "tutup", kanal: midtrans ? kanal : null, afiliasi, teruskan };
+  return { paket: paket.filter((p) => p.harga > 0), custom, percobaan, nomorGratis, pendaftaran: pendaftaran !== "tutup", kanal: midtrans ? kanal : null, afiliasi };
 }
 
 async function susun(): Promise<void> {
@@ -317,12 +314,12 @@ export function susunTeksCg(d: DataCg, per: string): string {
         "- Setiap jawaban AI diperiksa otomatis sebelum dikirim; angka, tautan, atau janji yang tidak ada di knowledge ditolak supaya AI tidak mengarang.",
         "- Bila pemilik membalas sendiri dari HP, AI otomatis diam sementara di chat itu (lama jedanya bisa diatur per nomor). AI juga belajar dari balasan manusia.",
         `- Katalog produk berfoto (maks ${angka(BATAS_KATALOG.produk)} produk, paket berbayar): AI mengirim foto, nama, dan harga produk saat diminta.`,
-        ...(d.teruskan ? ["- Pesanan, keluhan, bukti bayar, dan permintaan bicara dengan manusia diringkas lalu diteruskan ke WhatsApp pribadi pemilik."] : []),
+        "- AI hanya membalas chat yang masuk dan tidak pernah mengirim pesan duluan ke nomor lain. Untuk pesanan, bukti bayar, atau keluhan, AI merapikan datanya di chat itu lalu pemilik membalas langsung dari HP.",
         "- AI bisa melihat foto dari pelanggan dan menyaring spam (spam tidak memotong kuota). Ada juga penyaring prospek yang bisa dinyalakan per nomor supaya kuota tidak habis untuk chat iseng.",
         `- Histori percakapan tampil di dashboard dan disimpan ${UMUR_HISTORI_HARI} hari. Ada menu Uji bot untuk mencoba jawaban AI sebelum dipakai.`,
         "- Data tiap akun terpisah: nomor, knowledge, katalog, dan histori tidak bisa dilihat akun lain.",
       ],
-      "fitur, bisa apa, kelebihan, cara kerja, scan qr, sambung nomor, banyak nomor, knowledge, pdf, upload, katalog, foto produk, teruskan, notifikasi, histori, riwayat chat, uji bot, spam, belajar, 24 jam, keamanan, data aman"
+      "fitur, bisa apa, kelebihan, cara kerja, scan qr, sambung nomor, banyak nomor, knowledge, pdf, upload, katalog, foto produk, pesanan, notifikasi, histori, riwayat chat, uji bot, spam, belajar, 24 jam, keamanan, data aman"
     )
   );
 

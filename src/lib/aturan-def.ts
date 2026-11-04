@@ -20,22 +20,9 @@ export const ATURAN_ANGKA = {
     max: 50,
     bantu: "Banner muncul di semua halaman workspace pengguna bila sisa kuota balasan ≤ angka ini. 0 = tanpa peringatan.",
   },
-  teruskan_maks_harian: {
-    label: "Maksimal pesan diteruskan per nomor per hari",
-    satuan: "pesan",
-    bawaan: 100,
-    min: 1,
-    max: 1000,
-    bantu: "Pagar bila AI atau pelanggan memicu terlalu banyak penerusan ke nomor pemilik.",
-  },
 } as const satisfies Record<string, { label: string; satuan: string; bawaan: number; min: number; max: number; bantu: string }>;
 
 export const ATURAN_SAKLAR = {
-  teruskan_diizinkan: {
-    label: "Izinkan AI meneruskan pesan ke nomor pemilik",
-    bawaan: true,
-    bantu: "Pesanan, keluhan, bukti bayar, dan permintaan bicara dengan manusia diringkas lalu dikirim ke nomor WhatsApp pribadi yang dipasang pengguna.",
-  },
   banner_knowledge: {
     label: "Ingatkan pelanggan berbayar yang belum mengisi base knowledge",
     bawaan: true,
