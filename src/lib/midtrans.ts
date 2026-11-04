@@ -143,7 +143,11 @@ function instruksiDari(kanal: KanalBayar, d: JawabCharge): InstruksiBayar {
     case "qris":
       return { qr: d.qr_string };
     case "gopay":
-      return d.qr_string ? { qr: d.qr_string, deeplink: aksi("deeplink-redirect") } : { qrUrl: aksi("generate-qr-code"), deeplink: aksi("deeplink-redirect") };
+      // Isi QR mentah bila dikirim; bila tidak, gambar QR (v2 = QRIS dinamis GoPay, dipakai bila ada). Gambarnya
+      // diambil server kita lewat /api/langganan/qr, bukan langsung oleh browser (lihat gambarQrGopay).
+      return d.qr_string
+        ? { qr: d.qr_string, deeplink: aksi("deeplink-redirect") }
+        : { qrUrl: aksi("generate-qr-code-v2") ?? aksi("generate-qr-code"), deeplink: aksi("deeplink-redirect") };
     case "shopeepay":
       return { deeplink: aksi("deeplink-redirect") };
     case "mandiri":
@@ -153,6 +157,29 @@ function instruksiDari(kanal: KanalBayar, d: JawabCharge): InstruksiBayar {
     default:
       return { va: (d.va_numbers?.find((v) => v.bank === kanal) ?? d.va_numbers?.[0])?.va_number };
   }
+}
+
+/**
+ * Gambar QR GoPay dari URL `generate-qr-code` Midtrans, diambil dari server: browser tidak bergantung pada akses ke
+ * api.midtrans.com, dan kegagalan (mis. QRIS dinamis GoPay belum aktif di akun) terlihat di log, bukan gambar rusak.
+ * Hanya URL di host API Midtrans yang diambil. null = Midtrans tidak mengirim gambar.
+ */
+export async function gambarQrGopay(k: KonfigMidtrans, url: string): Promise<{ jenis: string; isi: ArrayBuffer } | null> {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" || !["api.midtrans.com", "api.sandbox.midtrans.com"].includes(u.hostname)) return null;
+  const res = await fetch(u, { headers: { Authorization: otorisasi(k), Accept: "image/*" }, signal: AbortSignal.timeout(15_000), cache: "no-store" });
+  const jenis = res.headers.get("content-type")?.split(";")[0].trim() ?? "";
+  if (!res.ok || !jenis.startsWith("image/")) {
+    const isi = (await res.text().catch(() => "")).slice(0, 200);
+    console.error(`[midtrans] QR GoPay tidak tersedia (HTTP ${res.status}, ${jenis || "tanpa content-type"}): ${isi}`);
+    return null;
+  }
+  return { jenis, isi: await res.arrayBuffer() };
 }
 
 /** "2026-11-03 10:15:00" (WIB, format Midtrans) -> detik epoch. */

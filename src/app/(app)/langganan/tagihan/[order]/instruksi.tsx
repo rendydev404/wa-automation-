@@ -142,6 +142,56 @@ function GambarQr({ qr, nama }: { qr: BitQr; nama: string }) {
   );
 }
 
+/**
+ * QR GoPay berupa gambar dari Midtrans, lewat server kita (/api/langganan/qr). Bila Midtrans tidak memberi gambar
+ * (mis. QRIS dinamis GoPay belum aktif di akun), tampilkan cara lain alih-alih gambar rusak.
+ */
+function QrGambar({ orderId, gantiHref }: { orderId: string; gantiHref: string | null }) {
+  const [status, setStatus] = useState<"muat" | "ok" | "gagal">("muat");
+  const img = useRef<HTMLImageElement>(null);
+  // Gambar bisa selesai (atau gagal) dimuat sebelum React terpasang, jadi onLoad/onError terlewat: cek sekali di sini.
+  useEffect(() => {
+    const i = img.current;
+    if (i?.complete) setStatus(i.naturalWidth > 0 ? "ok" : "gagal");
+  }, []);
+  if (status === "gagal") {
+    return (
+      <div role="status" className="rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-[13px] text-warning">
+        Kode QR GoPay sedang tidak tersedia. Buka halaman ini dari HP yang terpasang aplikasi Gojek / GoPay lalu ketuk <strong className="font-semibold">Buka GoPay</strong>
+        {gantiHref ? (
+          <>
+            , atau{" "}
+            <Link href={gantiHref} className="font-semibold underline">
+              ganti metode pembayaran
+            </Link>
+            .
+          </>
+        ) : (
+          "."
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="flex justify-center">
+      <div className="relative size-60 sm:size-64">
+        {status === "muat" && <div aria-hidden className="absolute inset-0 animate-denyut rounded-xl border border-line bg-subtle" />}
+        {/* eslint-disable-next-line @next/next/no-img-element -- gambar dinamis per tagihan dari route kita sendiri */}
+        <img
+          ref={img}
+          src={`/api/langganan/qr?order=${encodeURIComponent(orderId)}`}
+          alt="Kode QR GoPay"
+          width={256}
+          height={256}
+          onLoad={() => setStatus("ok")}
+          onError={() => setStatus("gagal")}
+          className={`size-full rounded-xl border border-line bg-white object-contain ${status === "ok" ? "" : "opacity-0"}`}
+        />
+      </div>
+    </div>
+  );
+}
+
 export interface DataBayar {
   va?: string;
   biller?: string;
@@ -238,13 +288,7 @@ export function InstruksiBayar({
         ) : (
           <div className="space-y-3">
             {bayar.qr && <GambarQr qr={bayar.qr} nama={orderId} />}
-            {!bayar.qr && bayar.qrUrl && (
-              <div className="flex justify-center">
-                {/* Gambar QR GoPay dari Midtrans (tidak mengirim kunci apa pun); dimuat hanya untuk kanal ini. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={bayar.qrUrl} alt="Kode QR GoPay" width={256} height={256} className="size-60 rounded-xl border border-line bg-white sm:size-64" />
-              </div>
-            )}
+            {!bayar.qr && bayar.qrUrl && <QrGambar orderId={orderId} gantiHref={gantiHref} />}
             {bayar.biller && <Baris label="Kode perusahaan" nilai={bayar.biller} />}
             {bayar.va && <Baris label={bayar.biller ? "Kode bayar" : "Nomor virtual account"} nilai={kelompok(bayar.va)} salin={bayar.va} />}
             {bayar.deeplink && (

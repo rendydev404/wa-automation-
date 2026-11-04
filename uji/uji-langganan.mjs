@@ -332,11 +332,13 @@ await cek("klik ganda serentak dengan charge lambat: dua permintaan mengantre di
   await tunggu(async () => (await sql`SELECT status FROM transaksi WHERE order_id = ${orderId}`)[0].status === "dibatalkan");
 });
 
-await cek("data instruksi per kanal: BNI/BRI va_numbers, Permata, Mandiri bill key + kode perusahaan, GoPay QR+deeplink, ShopeePay deeplink", async () => {
+await cek("data instruksi per kanal: BNI/BRI/BSI/CIMB va_numbers, Permata, Mandiri bill key + kode perusahaan, GoPay QR+deeplink, ShopeePay deeplink", async () => {
   const kasus = [
     ["bni", { payment_type: "bank_transfer", bank_transfer: { bank: "bni" } }, (b) => assert.match(b.va, /^98800\d{6}$/)],
     ["bri", { payment_type: "bank_transfer", bank_transfer: { bank: "bri" } }, (b) => assert.match(b.va, /^98800\d{6}$/)],
     ["permata", { payment_type: "bank_transfer", bank_transfer: { bank: "permata" } }, (b) => assert.deepEqual(b, { va: "8562000012345678" })],
+    ["bsi", { payment_type: "bank_transfer", bank_transfer: { bank: "bsi" } }, (b) => assert.match(b.va, /^98800\d{6}$/)],
+    ["cimb", { payment_type: "bank_transfer", bank_transfer: { bank: "cimb" } }, (b) => assert.match(b.va, /^98800\d{6}$/)],
     ["mandiri", { payment_type: "echannel" }, (b) => assert.deepEqual(b, { va: "778899001122", biller: "70012" })],
     ["gopay", { payment_type: "gopay" }, (b) => assert.deepEqual(Object.keys(b).sort(), ["deeplink", "qrUrl"])],
     ["shopeepay", { payment_type: "shopeepay" }, (b) => assert.match(b.deeplink, /deeplink-redirect$/)],

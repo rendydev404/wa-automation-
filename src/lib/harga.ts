@@ -40,6 +40,8 @@ export const KANAL_BAYAR = {
   bca: { label: "BCA Virtual Account", info: "BCA mobile, KlikBCA, atau ATM BCA", metode: "va", grup: "Virtual account", menit: 1440 },
   bni: { label: "BNI Virtual Account", info: "BNI Mobile Banking atau ATM", metode: "va", grup: "Virtual account", menit: 1440 },
   bri: { label: "BRI Virtual Account", info: "BRImo atau ATM BRI", metode: "va", grup: "Virtual account", menit: 1440 },
+  bsi: { label: "BSI Virtual Account", info: "BSI Mobile atau ATM BSI", metode: "va", grup: "Virtual account", menit: 1440 },
+  cimb: { label: "CIMB Niaga Virtual Account", info: "OCTO Mobile atau ATM CIMB Niaga", metode: "va", grup: "Virtual account", menit: 1440 },
   mandiri: { label: "Mandiri Bill Payment", info: "Livin' by Mandiri atau ATM Mandiri", metode: "va", grup: "Virtual account", menit: 1440 },
   permata: { label: "Permata Virtual Account", info: "PermataMobile X atau ATM", metode: "va", grup: "Virtual account", menit: 1440 },
 } as const satisfies Record<string, { label: string; info: string; metode: MetodeBayar; grup: string; menit: number }>;

@@ -90,6 +90,30 @@ function caraBayar(kanal: KanalBayar, kode?: string): Cara[] {
         },
         antarBank("BRI", "002"),
       ];
+    case "bsi":
+      return [
+        {
+          judul: "BSI Mobile",
+          langkah: [<>Pilih <B>Bayar</B> lalu <B>E-Commerce</B>, kemudian pilih <B>Midtrans</B>.</>, <>Masukkan nomor virtual account di atas.</>, <>Periksa detail tagihan, lalu masukkan PIN.</>],
+        },
+        {
+          judul: "ATM BSI",
+          langkah: [<>Pilih <B>Bayar/Beli</B>, <B>E-Commerce</B>, lalu <B>Midtrans</B>.</>, <>Masukkan nomor virtual account, periksa detailnya, lalu konfirmasi.</>],
+        },
+        antarBank("BSI", "451"),
+      ];
+    case "cimb":
+      return [
+        {
+          judul: "OCTO Mobile",
+          langkah: [<>Pilih <B>Transfer</B> lalu <B>Rekening Ponsel / CIMB Niaga</B> (atau menu <B>Bayar Tagihan</B>, <B>Virtual Account</B>).</>, <>Masukkan nomor virtual account di atas.</>, <>Periksa detail tagihan, lalu konfirmasi.</>],
+        },
+        {
+          judul: "ATM CIMB Niaga",
+          langkah: [<>Pilih <B>Pembayaran</B> lalu <B>Virtual Account</B>.</>, <>Masukkan nomor virtual account, periksa detailnya, lalu konfirmasi.</>],
+        },
+        antarBank("CIMB Niaga", "022"),
+      ];
     case "mandiri":
       return [
         {
