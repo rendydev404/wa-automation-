@@ -255,6 +255,8 @@ await cek("lupa password 3 tahap: email tak terdaftar/diblokir ditolak jelas tan
     const html = e.mentah.replace(/=\r?\n/g, "").replace(/=3D/g, "=");
     assert.match(html, new RegExp(`user-select:all">${kode}</td>`));
     assert.ok(html.includes('href="https://app.uji/lupa-password?email=sari%40uji.test"'), "tombol membuka tahap kode untuk email ini");
+    assert.ok(html.includes(`href="https://app.uji/lupa-password?email=sari%40uji.test#salin=${kode}"`), "tombol Salin kode: kode di #fragmen (tidak terkirim ke server)");
+    assert.match(html, />Salin kode</);
     assert.match(html, /\/email\/kunci\.png/);
     assert.ok(!/&#(?:128272|9201|128737|9888);/.test(html), "tanpa emoji");
     assert.match(e.mentah, /multipart\/alternative/);

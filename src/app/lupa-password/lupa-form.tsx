@@ -35,7 +35,8 @@ const digitKode = (teks: string) => teks.replace(/\D/g, "").slice(0, 6);
 
 /**
  * Tautan dari email kode (/lupa-password?email=...) langsung membuka tahap "Kode OTP" dengan email terisi,
- * jadi pengguna tinggal menempel kodenya. Bungkus dengan <Suspense> (useSearchParams).
+ * jadi pengguna tinggal menempel kodenya; tombol "Salin kode" menambahkan #salin=<kode>. Bungkus dengan <Suspense>
+ * (useSearchParams).
  */
 export function LupaPasswordDariTautan() {
   const email = (useSearchParams().get("email") ?? "").trim().slice(0, 254);
@@ -47,6 +48,7 @@ export function LupaPasswordForm({ emailAwal = "" }: { emailAwal?: string }) {
   const [langkah, setLangkah] = useState<Langkah>(emailAwal ? 1 : 0);
   const [email, setEmail] = useState(emailAwal);
   const [kode, setKode] = useState("");
+  const [info, setInfo] = useState("");
   const formKode = useRef<HTMLFormElement>(null);
   const [token, setToken] = useState("");
   const [bolehUlangPada, setBolehUlangPada] = useState(0);
@@ -83,6 +85,24 @@ export function LupaPasswordForm({ emailAwal = "" }: { emailAwal?: string }) {
     }
   };
 
+  // Tombol "Salin kode" di email: #salin=123456 dibaca sekali di browser (server tidak pernah melihat fragmen), lalu
+  // kode disalin ke papan klip, diisi ke kolom, dan dihapus dari alamat supaya tidak tertinggal di layar/riwayat.
+  useEffect(() => {
+    const m = /^#salin=(\d{6})$/.exec(location.hash);
+    if (!m || !emailAwal) return;
+    const k = m[1];
+    history.replaceState(null, "", location.pathname + location.search);
+    (navigator.clipboard?.writeText(k) ?? Promise.reject(new Error("papan klip tidak tersedia")))
+      .then(
+        () => true,
+        () => false,
+      )
+      .then((disalin) => {
+        setKode(k);
+        setInfo(`Kode ${k} sudah ${disalin ? "disalin dan " : ""}terisi otomatis. Tinggal klik Verifikasi kode.`);
+      });
+  }, [emailAwal]);
+
   // Hitung mundur tombol "Kirim ulang"; berhenti sendiri begitu jedanya lewat.
   const sisaDtk = Math.max(0, Math.ceil((bolehUlangPada - kini) / 1000));
   useEffect(() => {
@@ -113,7 +133,7 @@ export function LupaPasswordForm({ emailAwal = "" }: { emailAwal?: string }) {
     return (
       <div className="space-y-4">
         <Tahap kini={1} />
-        <Pesan ok={!!minta?.ok}>{minta?.pesan ?? `Masukkan kode 6 digit yang kami kirim ke ${email}.`}</Pesan>
+        <Pesan ok={minta ? minta.ok : true}>{minta?.pesan ?? (info || `Masukkan kode 6 digit yang kami kirim ke ${email}.`)}</Pesan>
         <form ref={formKode} action={aksiVerif} className="space-y-4">
           <input type="hidden" name="email" value={email} />
           <div>

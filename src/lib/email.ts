@@ -93,6 +93,8 @@ export interface IsiEmail {
   /** Baris rincian (label, nilai), mis. akun & waktu. */
   rincian?: [string, string][];
   tombol?: { teks: string; url: string };
+  /** Tombol garis di kiri `tombol`, mis. "Salin kode". */
+  tombolKedua?: { teks: string; url: string };
   peringatan?: { nada: "waspada" | "bahaya"; judul: string; teks: string };
   catatan?: string;
 }
@@ -135,8 +137,11 @@ export function htmlEmail(o: IsiEmail): string {
         .join("")}</table>`
     : "";
 
+  const kedua = o.tombolKedua
+    ? `<td style="border-radius:12px;background:#ffffff;border:1.5px solid ${W.aksen}"><a href="${aman(o.tombolKedua.url)}" style="display:inline-block;padding:12.5px 22px;font-family:${HURUF};font-size:15px;font-weight:700;color:${W.aksen};text-decoration:none;border-radius:12px">${aman(o.tombolKedua.teks)}</a></td><td style="width:10px"></td>`
+    : "";
   const tombol = o.tombol
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:6px auto 22px"><tr><td style="border-radius:12px;background:${W.aksen}"><a href="${aman(o.tombol.url)}" style="display:inline-block;padding:14px 26px;font-family:${HURUF};font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:12px">${aman(o.tombol.teks)}${ikon("panah", 16, "margin:-2px 0 0 8px")}</a></td></tr></table>`
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:6px auto 22px"><tr>${kedua}<td style="border-radius:12px;background:${W.aksen}"><a href="${aman(o.tombol.url)}" style="display:inline-block;padding:14px 26px;font-family:${HURUF};font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:12px">${aman(o.tombol.teks)}${ikon("panah", 16, "margin:-2px 0 0 8px")}</a></td></tr></table>`
     : "";
 
   const peringatan = o.peringatan

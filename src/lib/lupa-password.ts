@@ -76,7 +76,10 @@ export async function mintaOtp(emailMentah: string): Promise<HasilMinta> {
       paragraf: [`Kami menerima permintaan untuk mengatur ulang password akun ${email}. Salin kode berikut, lalu tempel di halaman Lupa password:`],
       kode,
       berlaku: `Berlaku ${OTP.menit} menit · sampai ${jamWib(kini + OTP.menit * 60)} WIB`,
-      // Langsung ke tahap "Kode OTP" dengan email terisi: pengguna tinggal menempel kode, tanpa mengetik email lagi.
+      // Keduanya langsung ke tahap "Kode OTP" dengan email terisi. Email tidak bisa menjalankan JavaScript, jadi
+      // "Salin kode" membuka halaman yang menyalin kode ke papan klip sekaligus mengisinya. Kode ditaruh di #fragmen:
+      // tidak pernah terkirim ke server/log; halaman menghapusnya dari alamat begitu dibaca.
+      tombolKedua: asalApp() ? { teks: "Salin kode", url: `${asalApp()}/lupa-password?email=${encodeURIComponent(email)}#salin=${kode}` } : undefined,
       tombol: asalApp() ? { teks: "Masukkan kode", url: `${asalApp()}/lupa-password?email=${encodeURIComponent(email)}` } : undefined,
       peringatan: {
         nada: "waspada",
