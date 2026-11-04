@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   // unpdf membawa pdf.js sendiri; biarkan dimuat dari node_modules, jangan dibundel.
   // baileys (WhatsApp) murni ESM dengan protobuf & WASM: dimuat apa adanya saat dibutuhkan.
   // onnxruntime-node (model ML penyaring prospek) membawa pustaka native: dimuat dari node_modules.
-  serverExternalPackages: ["unpdf", "baileys", "postgres", "onnxruntime-node"],
+  serverExternalPackages: ["unpdf", "baileys", "postgres", "onnxruntime-node", "nodemailer"],
   // Aturan umum bot dibaca saat jalan (src/lib/soul.ts) untuk penyedia AI tanpa Hermes: ikut ke build standalone.
   // Model ML penyaring prospek (src/lib/ml/embed.ts) & contoh awalnya (src/lib/prospek.ts) juga dibaca saat jalan.
   // Pustaka native onnxruntime dimuat lewat require dinamis (tidak terlacak): Linux untuk server, Windows x64 untuk uji

@@ -16,6 +16,7 @@
     "baileys": "7.0.0-rc14",
     "lucide-react": "^1.56.0",
     "next": "16.4.3",
+    "nodemailer": "10.1.7",
     "onnxruntime-node": "1.30.0",
     "postgres": "3.4.9",
     "react": "19.3.0",
@@ -28,6 +29,7 @@
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^24.19.2",
+    "@types/nodemailer": "8.0.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "embedded-postgres": "15.18.0-beta.17",
