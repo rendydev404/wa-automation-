@@ -480,6 +480,11 @@ const MIGRASI: string[] = [
     percobaan   integer NOT NULL DEFAULT 0
   );
   `,
+  // v20: lupa password tiga tahap (email -> kode -> password baru). Kode yang benar ditukar token reset sekali pakai;
+  //   yang disimpan hanya HMAC-nya dan batas waktunya.
+  `
+  ALTER TABLE reset_password ADD COLUMN token_hash text, ADD COLUMN token_kedaluwarsa bigint;
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

@@ -227,7 +227,7 @@ const tungguEmail = async (n) => {
 };
 const bukanKode = (k) => (k === "000000" ? "111111" : "000000");
 
-await cek("lupa password: kode 6 digit lewat SMTP Gmail (App Password), tersimpan sebagai HMAC; email tak terdaftar/diblokir tanpa email & tanpa galat; jeda kirim ulang; sekali pakai; sesi lama keluar & kunci login dibuka", async () => {
+await cek("lupa password 3 tahap: email tak terdaftar/diblokir ditolak jelas tanpa email; kode lewat SMTP Gmail (HMAC saja yang disimpan); kode benar = token sekali pakai; token = password baru, sesi lama keluar & kunci login dibuka", async () => {
   const LP = await lib("src/lib/lupa-password.ts");
   const EM = await lib("src/lib/email.ts");
   try {
@@ -236,11 +236,11 @@ await cek("lupa password: kode 6 digit lewat SMTP Gmail (App Password), tersimpa
     pakaiSmtp();
     smtp.masuk.length = 0;
 
-    await LP.mintaOtp("tidak-ada@uji.test");
+    assert.equal(await LP.mintaOtp("tidak-ada@uji.test"), "tidak-terdaftar");
     await sql`UPDATE users SET status = 'diblokir' WHERE id = ${budi.id}`;
-    await LP.mintaOtp("budi@uji.test");
+    assert.equal(await LP.mintaOtp("budi@uji.test"), "diblokir");
     await sql`UPDATE users SET status = 'aktif' WHERE id = ${budi.id}`;
-    await LP.mintaOtp(" SARI@uji.test ");
+    assert.equal(await LP.mintaOtp(" SARI@uji.test "), "terkirim");
     await tungguEmail(1);
     await new Promise((r) => setTimeout(r, 100));
     assert.equal(smtp.masuk.length, 1, "hanya akun aktif yang terdaftar yang menerima email");
@@ -255,19 +255,27 @@ await cek("lupa password: kode 6 digit lewat SMTP Gmail (App Password), tersimpa
     assert.ok(!r.kode_hash.includes(kode), "kode asli tidak disimpan");
     assert.equal(r.umur, 600);
 
-    await LP.mintaOtp("sari@uji.test"); // dalam 60 dtk: diabaikan, kode lama tetap berlaku
+    assert.equal(await LP.mintaOtp("sari@uji.test"), "terkirim"); // dalam 60 dtk: tidak dikirim lagi, kode lama tetap berlaku
     await new Promise((r) => setTimeout(r, 100));
     assert.equal(smtp.masuk.length, 1);
 
-    await assert.rejects(LP.pakaiOtp("sari@uji.test", bukanKode(kode), "PasswordBaru-123"), /Sisa 4 kali/);
+    await assert.rejects(LP.verifikasiOtp("sari@uji.test", bukanKode(kode)), /Sisa 4 kali/);
     const [lama] = await sql`SELECT sesi_versi FROM users WHERE id = ${sari.id}`;
     await sql`UPDATE users SET gagal_login = 9, kunci_sampai = ${sekarang() + 900} WHERE id = ${sari.id}`;
-    const u = await LP.pakaiOtp("Sari@uji.test", ` ${kode.slice(0, 3)} ${kode.slice(3)} `, "PasswordBaru-123");
+    const token = await LP.verifikasiOtp("Sari@uji.test", ` ${kode.slice(0, 3)} ${kode.slice(3)} `);
+    assert.match(token, /^[A-Za-z0-9_-]{43}$/);
+    await assert.rejects(LP.verifikasiOtp("sari@uji.test", kode), /kedaluwarsa/, "kode sekali pakai: tidak bisa dipakai lagi setelah benar");
+    const [t] = await sql`SELECT token_hash FROM reset_password WHERE user_id = ${sari.id}`;
+    assert.ok(t.token_hash && !t.token_hash.includes(token), "token asli tidak disimpan");
+    assert.ok(!(await verifyPassword("PasswordBaru-123", (await sql`SELECT password_hash FROM users WHERE id = ${sari.id}`)[0].password_hash)), "kode benar saja belum mengganti password");
+    await assert.rejects(LP.gantiPasswordDenganToken("sari@uji.test", token.slice(0, -1) + (token.at(-1) === "A" ? "B" : "A"), "PasswordBaru-123"), /kedaluwarsa/, "token palsu ditolak");
+    await assert.rejects(LP.gantiPasswordDenganToken("budi@uji.test", token, "PasswordBaru-123"), /kedaluwarsa/, "token milik akun lain ditolak");
+    const u = await LP.gantiPasswordDenganToken("Sari@uji.test", token, "PasswordBaru-123");
     assert.deepEqual([u.id, u.status], [sari.id, "aktif"]);
     const [s] = await sql`SELECT password_hash, sesi_versi, gagal_login, kunci_sampai FROM users WHERE id = ${sari.id}`;
     assert.ok(await verifyPassword("PasswordBaru-123", s.password_hash));
     assert.deepEqual([s.sesi_versi, s.gagal_login, s.kunci_sampai], [lama.sesi_versi + 1, 0, 0]);
-    await assert.rejects(LP.pakaiOtp("sari@uji.test", kode, "PasswordLain-456"), /kedaluwarsa/, "sekali pakai");
+    await assert.rejects(LP.gantiPasswordDenganToken("sari@uji.test", token, "PasswordLain-456"), /kedaluwarsa/, "token sekali pakai");
     await tungguEmail(2);
     assert.match(smtp.masuk[1].judul, /baru saja diganti/);
 
@@ -291,19 +299,26 @@ await cek("lupa password: 5 kode salah = hangus (kode benar pun ditolak), 10 teb
   pakaiSmtp();
   try {
     const k1 = await kodeBaru();
-    for (let sisa = 4; sisa >= 1; sisa--) await assert.rejects(LP.pakaiOtp("sari@uji.test", bukanKode(k1), "PasswordBaru-123"), new RegExp(`Sisa ${sisa} kali`));
-    await assert.rejects(LP.pakaiOtp("sari@uji.test", bukanKode(k1), "PasswordBaru-123"), /terlalu sering/);
-    await assert.rejects(LP.pakaiOtp("sari@uji.test", k1, "PasswordBaru-123"), /kedaluwarsa/);
+    for (let sisa = 4; sisa >= 1; sisa--) await assert.rejects(LP.verifikasiOtp("sari@uji.test", bukanKode(k1)), new RegExp(`Sisa ${sisa} kali`));
+    await assert.rejects(LP.verifikasiOtp("sari@uji.test", bukanKode(k1)), /terlalu sering/);
+    await assert.rejects(LP.verifikasiOtp("sari@uji.test", k1), /kedaluwarsa/);
 
     const k2 = await kodeBaru();
-    const hasil = await Promise.allSettled(Array.from({ length: 10 }, () => LP.pakaiOtp("sari@uji.test", bukanKode(k2), "PasswordBaru-123")));
+    const hasil = await Promise.allSettled(Array.from({ length: 10 }, () => LP.verifikasiOtp("sari@uji.test", bukanKode(k2))));
     assert.equal(hasil.filter((h) => h.status === "rejected" && /Sisa|terlalu sering/.test(h.reason.message)).length, 5, "tepat 5 tebakan yang dinilai");
-    await assert.rejects(LP.pakaiOtp("sari@uji.test", k2, "PasswordBaru-123"), /kedaluwarsa/);
+    await assert.rejects(LP.verifikasiOtp("sari@uji.test", k2), /kedaluwarsa/);
 
     const k3 = await kodeBaru();
     await sql`UPDATE reset_password SET kedaluwarsa = ${sekarang() - 1} WHERE user_id = ${sari.id}`;
-    await assert.rejects(LP.pakaiOtp("sari@uji.test", k3, "PasswordBaru-123"), /kedaluwarsa/);
-    await assert.rejects(LP.pakaiOtp("sari@uji.test", "12345", "PasswordBaru-123"), /6 digit/);
+    await assert.rejects(LP.verifikasiOtp("sari@uji.test", k3), /kedaluwarsa/);
+    await assert.rejects(LP.verifikasiOtp("sari@uji.test", "12345"), /6 digit/);
+    // Token reset ikut kedaluwarsa (OTP.menit) bila halaman password baru dibiarkan terlalu lama.
+    await sql`DELETE FROM reset_password WHERE user_id = ${sari.id}`;
+    smtp.masuk.length = 0;
+    const k4 = await kodeBaru();
+    const tk = await LP.verifikasiOtp("sari@uji.test", k4);
+    await sql`UPDATE reset_password SET token_kedaluwarsa = ${sekarang() - 1} WHERE user_id = ${sari.id}`;
+    await assert.rejects(LP.gantiPasswordDenganToken("sari@uji.test", tk, "PasswordBaru-789"), /kedaluwarsa/);
   } finally {
     lepasSmtp();
     await smtp.berhenti();

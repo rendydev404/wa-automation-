@@ -69,7 +69,7 @@ import { hapusPercakapan, kunciPercakapan, tandaiBukanSpam } from "@/lib/percaka
 import { bangunkanChat } from "@/lib/bridge";
 import { konfigurasi as konfigurasiSinkron, setNomorSinkron, statusSinkron } from "@/lib/sinkron";
 import { mintaSinkronCg, setNomorSinkronCg, statusSinkronCg } from "@/lib/sinkron-cg";
-import { GalatOtp, mintaOtp, pakaiOtp } from "@/lib/lupa-password";
+import { GalatOtp, gantiPasswordDenganToken, mintaOtp, verifikasiOtp } from "@/lib/lupa-password";
 import {
   MAKS_GAGAL_LOGIN,
   akhiriSesi,
@@ -188,36 +188,51 @@ export async function gantiPasswordAction(_lalu: Hasil | null, form: FormData): 
 }
 
 /**
- * Lupa password langkah 1: kirim kode OTP ke email. Jawabannya sama untuk email terdaftar maupun tidak; dibatasi per
- * IP dan per email (mencegah email dibanjiri kode), ditambah jeda 60 detik per akun di lupa-password.ts.
+ * Lupa password tahap 1: kirim kode OTP ke email yang terdaftar. Email yang tidak terdaftar dijawab terus terang
+ * (tidak bisa lanjut). Dibatasi per IP dan per email (menyisir daftar email / membanjiri kotak masuk), ditambah
+ * jeda 60 detik per akun di lupa-password.ts.
  */
 export async function mintaOtpAction(_lalu: Hasil | null, form: FormData): Promise<Hasil & { email?: string }> {
   const email = normalkanEmail(String(form.get("email") ?? ""));
-  if (!email) return { ok: false, pesan: "Email tidak valid." };
+  if (!email) return { ok: false, pesan: "Format email tidak valid." };
   if (terlaluSering(`otp:${await ipKlien()}`, 5, 15 * 60_000) || terlaluSering(`otp-email:${email}`, 3, 15 * 60_000))
     return { ok: false, pesan: "Terlalu banyak permintaan kode. Coba lagi beberapa menit lagi." };
+  let hasil;
   try {
-    await mintaOtp(email);
+    hasil = await mintaOtp(email);
   } catch (e) {
     if (e instanceof GalatOtp) return { ok: false, pesan: e.message };
     throw e;
   }
-  return { ok: true, pesan: `Bila ${email} terdaftar, kode 6 digit sudah dikirim ke sana. Cek juga folder Spam atau Promosi.`, email };
+  if (hasil === "tidak-terdaftar") return { ok: false, pesan: "Email ini belum terdaftar. Periksa lagi ejaannya, atau daftar akun baru." };
+  if (hasil === "diblokir") return { ok: false, pesan: "Akun ini sedang diblokir admin, jadi password tidak bisa diatur ulang. Hubungi admin." };
+  return { ok: true, pesan: `Kode 6 digit sudah dikirim ke ${email}. Cek juga folder Spam atau Promosi.`, email };
 }
 
-/** Lupa password langkah 2: kode OTP + password baru. Berhasil = semua sesi lama keluar, lalu langsung masuk. */
+/** Lupa password tahap 2: periksa kode OTP. Benar = token reset sekali pakai untuk tahap 3. */
+export async function verifikasiOtpAction(_lalu: Hasil | null, form: FormData): Promise<Hasil & { token?: string }> {
+  if (terlaluSering(`otp-pakai:${await ipKlien()}`, 20, 15 * 60_000)) return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." };
+  try {
+    const token = await verifikasiOtp(String(form.get("email") ?? "").slice(0, 254), String(form.get("kode") ?? "").slice(0, 20));
+    return { ok: true, token };
+  } catch (e) {
+    if (e instanceof GalatOtp) return { ok: false, pesan: e.message };
+    throw e;
+  }
+}
+
+/** Lupa password tahap 3: password baru dengan token dari tahap 2. Berhasil = semua sesi lama keluar, lalu langsung masuk. */
 export async function resetPasswordOtpAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   if (!authConfigured()) return { ok: false, pesan: "AUTH_SECRET belum dikonfigurasi di server." };
-  if (terlaluSering(`otp-pakai:${await ipKlien()}`, 20, 15 * 60_000)) return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." };
+  if (terlaluSering(`otp-ganti:${await ipKlien()}`, 20, 15 * 60_000)) return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." };
   const email = String(form.get("email") ?? "").slice(0, 254);
   const baru = String(form.get("baru") ?? "");
-  // Password diperiksa dulu supaya password yang ditolak tidak menghabiskan jatah percobaan kode.
   const lemah = cekPassword(baru, email);
   if (lemah) return { ok: false, pesan: lemah };
   if (baru !== String(form.get("ulang") ?? "")) return { ok: false, pesan: "Ulangi password baru tidak sama." };
   let u;
   try {
-    u = await pakaiOtp(email, String(form.get("kode") ?? ""), baru);
+    u = await gantiPasswordDenganToken(email, String(form.get("token") ?? "").slice(0, 100), baru);
   } catch (e) {
     if (e instanceof GalatOtp) return { ok: false, pesan: e.message };
     throw e;
