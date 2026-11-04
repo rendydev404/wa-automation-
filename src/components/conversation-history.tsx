@@ -21,14 +21,8 @@ import {
 } from "lucide-react";
 import { bangunkanChatAction, bukanSpamAction, hapusPercakapanAction } from "@/app/actions";
 import { angka, formatNomor, jamWib, kunciHariWib, tanggal, UMUR_HISTORI_HARI, waktuSingkatWib } from "@/lib/format";
-import type { FilterPercakapan, ItemPercakapan, ItemPesan, PeranPesan, RingkasanPercakapan } from "@/lib/percakapan";
+import type { ItemPercakapan, ItemPesan, PeranPesan, RingkasanPercakapan } from "@/lib/percakapan";
 import { Pill, TombolKonfirmasi } from "./ui";
-
-const DAFTAR_FILTER: { id: FilterPercakapan; label: string }[] = [
-  { id: "semua", label: "Semua" },
-  { id: "bot", label: "Dibalas AI" },
-  { id: "manusia", label: "Manusia" },
-];
 
 /** Render cetak tebal WhatsApp (*teks*) menjadi elemen <b>. */
 function TeksWa({ teks }: { teks: string }) {
@@ -73,7 +67,6 @@ export function HistoriPercakapan({
   const [ringkasan, setRingkasan] = useState<RingkasanPercakapan>(ringkasanAwal);
   const [daftar, setDaftar] = useState<ItemPercakapan[]>(daftarAwal);
   const [adaLagi, setAdaLagi] = useState<boolean>(adaLagiAwal);
-  const [filter, setFilter] = useState<FilterPercakapan>("semua");
   const [inputCari, setInputCari] = useState("");
   const [cariAktif, setCariAktif] = useState("");
   const [memuatDaftar, setMemuatDaftar] = useState(false);
@@ -146,10 +139,10 @@ export function HistoriPercakapan({
   }, [inputCari]);
 
   const muatUlangDaftar = useCallback(
-    async (f: FilterPercakapan, q: string, pilihPertama = false) => {
+    async (q: string, pilihPertama = false) => {
       setMemuatDaftar(true);
       try {
-        const params = new URLSearchParams({ number_id: String(numberId), filter: f, ringkasan: "1" });
+        const params = new URLSearchParams({ number_id: String(numberId), ringkasan: "1" });
         if (q) params.set("cari", q);
         const res = await fetch(`/api/percakapan?${params.toString()}`, { cache: "no-store" });
         if (!res.ok) return;
@@ -174,15 +167,15 @@ export function HistoriPercakapan({
     [numberId, muatPesan]
   );
 
-  // Jalankan query saat filter atau kata kunci pencarian berubah dari keadaan awal.
+  // Jalankan query saat kata kunci pencarian berubah dari keadaan awal.
   const pertamaRef = useRef(true);
   useEffect(() => {
     if (pertamaRef.current) {
       pertamaRef.current = false;
       return;
     }
-    void muatUlangDaftar(filter, cariAktif, true);
-  }, [filter, cariAktif, muatUlangDaftar]);
+    void muatUlangDaftar(cariAktif, true);
+  }, [cariAktif, muatUlangDaftar]);
 
   async function muatLebihBanyakPercakapan() {
     if (!adaLagi || memuatLagi || daftar.length === 0) return;
@@ -191,7 +184,6 @@ export function HistoriPercakapan({
     try {
       const params = new URLSearchParams({
         number_id: String(numberId),
-        filter,
         sebelum_waktu: String(terakhir.terakhir_pada),
         sebelum_id: String(terakhir.id),
       });
@@ -237,7 +229,7 @@ export function HistoriPercakapan({
     if (menyegarkan) return;
     setMenyegarkan(true);
     try {
-      const params = new URLSearchParams({ number_id: String(numberId), filter, ringkasan: "1" });
+      const params = new URLSearchParams({ number_id: String(numberId), ringkasan: "1" });
       if (cariAktif) params.set("cari", cariAktif);
       const janjiDaftar = fetch(`/api/percakapan?${params.toString()}`, { cache: "no-store" });
       const idTerakhir = pesan.length > 0 ? pesan[pesan.length - 1].id : 0;
@@ -275,7 +267,7 @@ export function HistoriPercakapan({
     } finally {
       setMenyegarkan(false);
     }
-  }, [menyegarkan, numberId, filter, cariAktif, pesan, aktifId, muatPesan]);
+  }, [menyegarkan, numberId, cariAktif, pesan, aktifId, muatPesan]);
 
   // Penyegaran ringan otomatis tiap 15 detik HANYA bila tab browser sedang terbuka/terlihat.
   useEffect(() => {
@@ -302,7 +294,7 @@ export function HistoriPercakapan({
     const h = await hapusPercakapanAction(numberId, aktifId);
     if (h.ok) {
       setDetailMobile(false);
-      await muatUlangDaftar(filter, cariAktif, true); // daftar + ringkasan terbaru, pilih yang teratas
+      await muatUlangDaftar(cariAktif, true); // daftar + ringkasan terbaru, pilih yang teratas
     }
     return h;
   }
@@ -393,9 +385,9 @@ export function HistoriPercakapan({
 
       {/* Panel Utama: Daftar Percakapan (Kiri) + Rincian Gelembung Chat (Kanan) */}
       <div className="grid md:h-[620px] md:grid-cols-[290px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
-        {/* Kolom Kiri: Pencarian, Filter, dan Daftar Percakapan */}
+        {/* Kolom Kiri: Pencarian dan Daftar Percakapan */}
         <div className={`min-h-0 flex-col md:border-r md:border-line ${detailMobile ? "hidden md:flex" : "flex"}`}>
-          <div className="space-y-2.5 border-b border-line p-3.5">
+          <div className="border-b border-line p-3.5">
             {/* Custom Search Bar (tanpa native type="search") */}
             <div role="search" className="relative flex items-center">
               <Search className="pointer-events-none absolute left-3 size-4 text-faint" aria-hidden />
@@ -419,27 +411,6 @@ export function HistoriPercakapan({
                 </button>
               )}
             </div>
-
-            {/* Custom Segmented Filter Tabs */}
-            <div role="tablist" aria-label="Filter percakapan" className="grid grid-cols-3 rounded-xl bg-subtle p-1">
-              {DAFTAR_FILTER.map((t) => {
-                const terpilih = filter === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    role="tab"
-                    type="button"
-                    aria-selected={terpilih}
-                    onClick={() => setFilter(t.id)}
-                    className={`rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors ${
-                      terpilih ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
           {/* Daftar Percakapan */}
@@ -451,11 +422,11 @@ export function HistoriPercakapan({
             ) : daftar.length === 0 ? (
               <div className="px-5 py-14 text-center">
                 <p className="text-[13.5px] font-semibold text-fg">
-                  {cariAktif || filter !== "semua" ? "Tidak ada percakapan yang cocok" : "Belum ada histori percakapan"}
+                  {cariAktif ? "Tidak ada percakapan yang cocok" : "Belum ada histori percakapan"}
                 </p>
                 <p className="hint mt-1">
-                  {cariAktif || filter !== "semua"
-                    ? "Coba ubah kata kunci pencarian atau pilih filter Semua."
+                  {cariAktif
+                    ? "Coba ubah kata kunci pencarian."
                     : "Saat pelanggan mengirim chat ke nomor WhatsApp ini, percakapannya langsung tampil di sini."}
                 </p>
               </div>

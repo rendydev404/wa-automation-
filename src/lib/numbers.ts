@@ -89,8 +89,11 @@ export async function nomorBySesi(sesi: string): Promise<Nomor | undefined> {
   return (await cache()).perSesi.get(sesi);
 }
 
-/** Nomor milik `userId` + ringkasan knowledge, percakapan & statistik hari ini, satu query (tanpa N+1). */
-export async function daftarNomor(userId: number): Promise<NomorRingkas[]> {
+/**
+ * Nomor milik `userId` + ringkasan knowledge, percakapan & statistik hari ini, satu query (tanpa N+1). `otomatis` =
+ * dokumen otomatis (khusus admin, lihat AWALAN_OTOMATIS di knowledge.ts) ikut dihitung.
+ */
+export async function daftarNomor(userId: number, otomatis: boolean): Promise<NomorRingkas[]> {
   const sql = await db();
   const baris = await sql<NomorRingkas[]>`
     SELECT n.id, n.user_id, true AS pemilik_aktif, n.sesi, n.wa_id, n.label, n.nama_wa, n.bot_aktif, n.instruksi, n.tunggu_detik, n.tunggu_baca_detik, n.jeda_detik, n.belajar, n.saring_spam, n.saring_prospek, n.teruskan_ke, n.teruskan_aktif, n.created_at, n.last_connected_at,
@@ -101,7 +104,7 @@ export async function daftarNomor(userId: number): Promise<NomorRingkas[]> {
            COALESCE(p.jumlah, 0)   AS jumlah_percakapan
       FROM numbers n
       LEFT JOIN LATERAL (SELECT COUNT(*) AS jumlah, SUM(jumlah_karakter) AS karakter
-                           FROM documents WHERE number_id = n.id) d ON true
+                           FROM documents WHERE number_id = n.id AND (${otomatis} OR nama_berkas IS NULL OR nama_berkas NOT LIKE 'sinkron:%')) d ON true
       LEFT JOIN stats s ON s.number_id = n.id AND s.tanggal = ${tanggalWib()}
       LEFT JOIN LATERAL (SELECT COUNT(*) AS jumlah FROM percakapan WHERE number_id = n.id) p ON true
      WHERE n.user_id = ${userId}

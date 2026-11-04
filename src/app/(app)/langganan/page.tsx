@@ -4,9 +4,9 @@ import Link from "next/link";
 import { ArrowRight, Check, CreditCard, Sparkles } from "lucide-react";
 import { KartuLangganan } from "@/components/kartu-langganan";
 import { angka, tanggal, UMUR_HISTORI_HARI } from "@/lib/format";
-import { KANAL_BAYAR } from "@/lib/harga";
+import { KANAL_BAYAR, ringkasKanal } from "@/lib/harga";
 import { METODE_MANUAL, daftarPaket, hakAkun, riwayatTransaksi } from "@/lib/langganan";
-import { konfigMidtrans } from "@/lib/midtrans";
+import { kanalAktif, konfigMidtrans } from "@/lib/midtrans";
 import { customTampil, idPaketCustom, paketCustom, tautanCustom } from "@/lib/paket-custom";
 import { KartuCustom, TombolWaCustom } from "@/components/kartu-custom";
 import { requireUser } from "@/lib/session";
@@ -58,7 +58,8 @@ function TombolBayar({ paketId, label, nonaktif }: { paketId: number; label: str
 
 async function Paket() {
   const user = await requireUser();
-  const [paket, k, hak, custom, idCustom] = await Promise.all([daftarPaket(), konfigMidtrans(), hakAkun(user), paketCustom(), idPaketCustom()]);
+  const [paket, k, hak, custom, idCustom, kanal] = await Promise.all([daftarPaket(), konfigMidtrans(), hakAkun(user), paketCustom(), idPaketCustom(), kanalAktif()]);
+  const caraBayar = k ? ringkasKanal(kanal) : "";
   const dijual = paket.filter((p) => p.harga > 0);
   const adaCustom = customTampil(custom) && (custom.aksi === "wa" || idCustom !== null);
   if (!dijual.length && !adaCustom) return null;
@@ -109,7 +110,7 @@ async function Paket() {
         )}
       </div>
       <p className="mt-3 text-[12.5px] text-muted">
-        Bayar lewat QRIS, virtual account (BCA, BNI, BRI, Mandiri, Permata), GoPay, atau ShopeePay. Perpanjang paket yang sama = masa & kuota ditambahkan. Ganti paket = paket baru mulai hari itu.
+        {caraBayar && `Bayar lewat ${caraBayar}. `}Perpanjang paket yang sama = masa & kuota ditambahkan. Ganti paket = paket baru mulai hari itu.
       </p>
     </section>
   );

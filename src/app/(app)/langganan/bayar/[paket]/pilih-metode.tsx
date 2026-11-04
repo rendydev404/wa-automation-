@@ -11,10 +11,14 @@ import { KANAL_BAYAR, type KanalBayar } from "@/lib/harga";
 
 const IKON_GRUP = { QRIS: QrCode, "E-wallet": Wallet, "Virtual account": Building2 } as const;
 
-/** Pilih kanal pembayaran lalu buat tagihannya di server (Core API); browser dibawa ke halaman instruksi bayar. */
-export function PilihMetode({ paketId, harga, kanal }: { paketId: number; harga: number; kanal: KanalBayar[] }) {
+/**
+ * Pilih kanal pembayaran lalu buat tagihannya di server (Core API); browser dibawa ke halaman instruksi bayar. Kanal yang
+ * ternyata belum aktif di Midtrans langsung hilang dari pilihan (server juga menyembunyikannya untuk pembeli lain).
+ */
+export function PilihMetode({ paketId, harga, kanal: awal }: { paketId: number; harga: number; kanal: KanalBayar[] }) {
   const router = useRouter();
-  const [pilih, setPilih] = useState<KanalBayar | null>(kanal[0] ?? null);
+  const [kanal, setKanal] = useState(awal);
+  const [pilih, setPilih] = useState<KanalBayar | null>(awal[0] ?? null);
   const [galat, setGalat] = useState("");
   const [tunggu, mulai] = useTransition();
   const grup = new Map<keyof typeof IKON_GRUP, KanalBayar[]>();
@@ -30,6 +34,11 @@ export function PilihMetode({ paketId, harga, kanal }: { paketId: number; harga:
         router.push(`/langganan/tagihan/${encodeURIComponent(h.orderId)}`);
       } else {
         setGalat(h.pesan ?? "Gagal membuat tagihan.");
+        if (h.kanalMati) {
+          const sisa = kanal.filter((x) => x !== h.kanalMati);
+          setKanal(sisa);
+          setPilih(sisa[0] ?? null);
+        }
       }
     });
 

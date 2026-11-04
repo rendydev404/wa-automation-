@@ -17,13 +17,16 @@ import {
   adminPeranAction,
   adminPutuskanWaAction,
   adminResetPasswordAction,
+  setKanalTampilAction,
 } from "@/app/actions";
+import { LogoKanal } from "@/components/logo-kanal";
 import { KursInfo } from "@/components/kurs-info";
 import { type OpsiModel, PilihModel } from "@/components/pilih-model";
 import { PilihOpsi } from "@/components/pilih-opsi";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "@/components/ui";
 import { type JenisKomisi, hitungKomisiPaket } from "@/lib/afiliasi-def";
 import type { InfoKurs } from "@/lib/kurs-def";
+import { KANAL_BAYAR, type KanalBayar } from "@/lib/harga";
 
 const ULANG_PERCOBAAN = [
   { nilai: "sekali", judul: "Sekali per akun", isi: "Free trial: dihitung sejak akun dibuat. Kuota habis atau masa percobaan lewat = AI berhenti sampai pengguna memilih paket." },
@@ -167,6 +170,35 @@ const PILIHAN_PERAN = [
   { id: "user", label: "Pengguna" },
   { id: "admin", label: "Admin" },
 ] as const;
+
+/** Satu metode pembayaran: tampil/sembunyi di halaman bayar. `keterangan` = alasan tersembunyi (mis. ditolak Midtrans). */
+export function SaklarKanal({ kanal, tampil: awal, keterangan }: { kanal: KanalBayar; tampil: boolean; keterangan: string }) {
+  const [tampil, setTampil] = useState(awal);
+  const [galat, setGalat] = useState("");
+  const [menunggu, mulai] = useTransition();
+  return (
+    <li className="flex items-center gap-3 px-4 py-3">
+      <LogoKanal kanal={kanal} />
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13.5px] font-semibold">{KANAL_BAYAR[kanal].label}</span>
+        <span className={`block text-[12px] ${galat ? "text-danger" : tampil ? "text-muted" : "text-warning"}`}>{galat || (tampil ? "Tampil di halaman bayar" : keterangan)}</span>
+      </span>
+      <Saklar
+        aktif={tampil}
+        disabled={menunggu}
+        label={`Tampilkan ${KANAL_BAYAR[kanal].label}`}
+        onUbah={(v) =>
+          mulai(async () => {
+            setGalat("");
+            const h = await setKanalTampilAction(kanal, v);
+            if (h.ok) setTampil(v);
+            else setGalat(h.pesan ?? "Gagal menyimpan.");
+          })
+        }
+      />
+    </li>
+  );
+}
 
 export function FormBuatAkun() {
   const [hasil, aksi] = useActionState(adminBuatAkunAction, null);

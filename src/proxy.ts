@@ -47,9 +47,9 @@ export async function proxy(request: NextRequest) {
   const sesi = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
   const isApi = pathname.startsWith("/api/");
 
-  // /login & /daftar selalu diteruskan: cookie yang sah tanda tangannya belum tentu masih berlaku di database
+  // /login, /daftar & /lupa-password selalu diteruskan: cookie yang sah tanda tangannya belum tentu masih berlaku di database
   // (mis. password diganti, akun diblokir), dan mengalihkannya dari sini akan memutar tanpa henti.
-  if (pathname === "/login" || pathname === "/daftar") return pasangRef(NextResponse.next());
+  if (pathname === "/login" || pathname === "/daftar" || pathname === "/lupa-password") return pasangRef(NextResponse.next());
   if (!sesi) {
     if (isApi) return NextResponse.json({ error: "Sesi berakhir. Silakan login kembali." }, { status: 401, headers: { "Cache-Control": "no-store" } });
     return pasangRef(NextResponse.redirect(new URL("/login", request.url)));

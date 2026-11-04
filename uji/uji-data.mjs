@@ -246,19 +246,19 @@ await cek("unduh dokumen: teks utuh dari semua potongannya; dokumen nomor lain t
 Baris terakhir: rekening BCA 0954786095.`;
   const d = await K.tambahDokumen({ numberId: N1.id, judul: "Unduh/Uji", sumber: "teks", teks });
   assert.ok(d.potongan > 1, "dokumen uji harus terdiri dari beberapa potongan");
-  const u = await K.teksDokumen(d.id, N1.id);
+  const u = await K.teksDokumen(d.id, N1.id, false);
   assert.equal(u.judul, "Unduh/Uji");
   assert.equal(u.teks.replace(/\s+/g, " "), K.rapikanTeks(teks).replace(/\s+/g, " "));
-  assert.equal(await K.teksDokumen(d.id, N2.id), null);
-  await K.hapusDokumen(d.id, N1.id);
+  assert.equal(await K.teksDokumen(d.id, N2.id, false), null);
+  await K.hapusDokumen(d.id, N1.id, false);
 });
 
 await cek("hapus dokumen / hapus nomor: potongan dan statistiknya ikut terhapus", async () => {
   const d = await K.tambahDokumen({ numberId: N2.id, judul: "Sementara", sumber: "teks", teks: "Dokumen sementara untuk dihapus lagi segera." });
   const c0 = await hitung("chunks");
-  await K.hapusDokumen(d.id, N1.id); // nomor salah: tidak boleh terhapus
+  await K.hapusDokumen(d.id, N1.id, false); // nomor salah: tidak boleh terhapus
   assert.equal(await hitung("chunks"), c0);
-  await K.hapusDokumen(d.id, N2.id);
+  await K.hapusDokumen(d.id, N2.id, false);
   assert.equal(await hitung("chunks"), c0 - 1);
   await hapusNomor(N2.id);
   assert.equal((await sql`SELECT COUNT(*) AS n FROM chunks WHERE number_id = ${N2.id}`)[0].n, 0);
@@ -335,7 +335,7 @@ const uCari = await ukur(300, (i) => K.konteksPengetahuan(nomorBanyak[i % 30].id
 tampil("konteksPengetahuan (2 query: total + cari)", uCari);
 const uSistem = await ukur(200, (i) => K.susunSistem({ id: nomorBanyak[i % 30].id, instruksi: "" }, tanya[i % tanya.length]));
 tampil("susunSistem (seluruh konteks untuk satu balasan AI)", uSistem);
-const uDaftar = await ukur(200, () => daftarNomor(pemilik.id));
+const uDaftar = await ukur(200, () => daftarNomor(pemilik.id, false));
 tampil("daftarNomor (beranda, 30 nomor)", uDaftar);
 const uCache = await ukur(2000, (i) => nomorById(nomorBanyak[i % 30].id));
 tampil("nomorById (dari cache memori, tiap pesan WhatsApp)", uCache);

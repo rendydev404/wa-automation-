@@ -100,7 +100,7 @@ async function Isi({ params }: { params: Promise<{ paket: string }> }) {
             </span>
           </Link>
         )}
-        {k ? <PilihMetode paketId={p.id} harga={p.harga} kanal={kanalAktif()} /> : <p className="text-[13.5px] text-warning">Pembayaran online belum diaktifkan admin.</p>}
+        {k ? <PilihMetode paketId={p.id} harga={p.harga} kanal={await kanalAktif()} /> : <p className="text-[13.5px] text-warning">Pembayaran online belum diaktifkan admin.</p>}
       </section>
     </div>
   );

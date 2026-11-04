@@ -21,7 +21,7 @@ import {
 } from "@/lib/afiliasi";
 import { nomorUntuk } from "@/lib/akses";
 import { kunciAnthropic, kursUsd, perkiraanPerBalasan } from "@/lib/ai";
-import { KANAL_BAYAR, MAKS_HARGA_PAKET, METODE_BAYAR, kanalSah } from "@/lib/harga";
+import { KANAL_BAYAR, type KanalBayar, MAKS_HARGA_PAKET, METODE_BAYAR, kanalSah } from "@/lib/harga";
 import { authConfigured } from "@/lib/auth";
 import { asalAplikasi, ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
 import { sekarang, setSetting } from "@/lib/db";
@@ -36,7 +36,7 @@ import {
 } from "@/lib/meta-pixel";
 import { ATURAN_ANGKA, ATURAN_SAKLAR, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
 import { type IsiKhusus, METODE_MANUAL, type MetodeManual, batalkanBayar, berikanPaketManual, hapusPaket, hentikanLangganan, mulaiBayar, ORDER_SAH, paketById, segarkanKuota, simpanPaket, terapkanSimulasi } from "@/lib/langganan";
-import { MidtransError, kanalAktif, konfigMidtrans } from "@/lib/midtrans";
+import { MidtransError, kanalAktif, kanalBelumAktif, konfigMidtrans, setKanalMati } from "@/lib/midtrans";
 import { tanggal } from "@/lib/format";
 import { GalatCustom, customTampil, periksaCustom, ringkasCustom, simpanPaketCustom } from "@/lib/paket-custom";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
@@ -68,6 +68,8 @@ import {
 import { hapusPercakapan, kunciPercakapan, tandaiBukanSpam } from "@/lib/percakapan";
 import { bangunkanChat } from "@/lib/bridge";
 import { konfigurasi as konfigurasiSinkron, setNomorSinkron, statusSinkron } from "@/lib/sinkron";
+import { mintaSinkronCg, setNomorSinkronCg, statusSinkronCg } from "@/lib/sinkron-cg";
+import { GalatOtp, mintaOtp, pakaiOtp } from "@/lib/lupa-password";
 import {
   MAKS_GAGAL_LOGIN,
   akhiriSesi,
@@ -185,6 +187,46 @@ export async function gantiPasswordAction(_lalu: Hasil | null, form: FormData): 
   return { ok: true, pesan: tersimpan === TANPA_PASSWORD ? "Password terpasang. Sekarang bisa masuk juga dengan email." : "Password diganti. Perangkat lain otomatis keluar." };
 }
 
+/**
+ * Lupa password langkah 1: kirim kode OTP ke email. Jawabannya sama untuk email terdaftar maupun tidak; dibatasi per
+ * IP dan per email (mencegah email dibanjiri kode), ditambah jeda 60 detik per akun di lupa-password.ts.
+ */
+export async function mintaOtpAction(_lalu: Hasil | null, form: FormData): Promise<Hasil & { email?: string }> {
+  const email = normalkanEmail(String(form.get("email") ?? ""));
+  if (!email) return { ok: false, pesan: "Email tidak valid." };
+  if (terlaluSering(`otp:${await ipKlien()}`, 5, 15 * 60_000) || terlaluSering(`otp-email:${email}`, 3, 15 * 60_000))
+    return { ok: false, pesan: "Terlalu banyak permintaan kode. Coba lagi beberapa menit lagi." };
+  try {
+    await mintaOtp(email);
+  } catch (e) {
+    if (e instanceof GalatOtp) return { ok: false, pesan: e.message };
+    throw e;
+  }
+  return { ok: true, pesan: `Bila ${email} terdaftar, kode 6 digit sudah dikirim ke sana. Cek juga folder Spam atau Promosi.`, email };
+}
+
+/** Lupa password langkah 2: kode OTP + password baru. Berhasil = semua sesi lama keluar, lalu langsung masuk. */
+export async function resetPasswordOtpAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  if (!authConfigured()) return { ok: false, pesan: "AUTH_SECRET belum dikonfigurasi di server." };
+  if (terlaluSering(`otp-pakai:${await ipKlien()}`, 20, 15 * 60_000)) return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." };
+  const email = String(form.get("email") ?? "").slice(0, 254);
+  const baru = String(form.get("baru") ?? "");
+  // Password diperiksa dulu supaya password yang ditolak tidak menghabiskan jatah percobaan kode.
+  const lemah = cekPassword(baru, email);
+  if (lemah) return { ok: false, pesan: lemah };
+  if (baru !== String(form.get("ulang") ?? "")) return { ok: false, pesan: "Ulangi password baru tidak sama." };
+  let u;
+  try {
+    u = await pakaiOtp(email, String(form.get("kode") ?? ""), baru);
+  } catch (e) {
+    if (e instanceof GalatOtp) return { ok: false, pesan: e.message };
+    throw e;
+  }
+  if (u.status !== "aktif") return { ok: true, pesan: "Password sudah diganti, tetapi akun Anda sedang diblokir admin." };
+  await mulaiSesi(u, await lewatHttps());
+  redirect(halamanAwal(u.peran));
+}
+
 export async function keluarSemuaAction(): Promise<Hasil> {
   const user = await requireUser();
   await mulaiSesi(await cabutSesi(user.id), await lewatHttps());
@@ -295,6 +337,16 @@ export async function setSinkronAction(id: number, aktif: boolean): Promise<Hasi
   return aktif && s.galat ? { ok: false, pesan: `Gagal mengambil data: ${s.galat}` } : { ok: true };
 }
 
+/** Data sistem ChatGerCep (paket, harga, komisi, metode bayar, fitur) sebagai knowledge otomatis: khusus admin. */
+export async function setSinkronCgAction(id: number, aktif: boolean): Promise<Hasil> {
+  if (!(await nomorUntuk(await requireAdmin(), id))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  await setNomorSinkronCg(id, aktif);
+  const s = await statusSinkronCg();
+  revalidatePath("/dashboard");
+  revalidatePath(`/nomor/${id}`);
+  return aktif && s.galat ? { ok: false, pesan: `Gagal menyusun data: ${s.galat}` } : { ok: true };
+}
+
 export async function hapusNomorAction(id: number): Promise<Hasil> {
   const nomor = await nomorUntuk(await requireUser(), id);
   if (!nomor) return { ok: false, pesan: "Nomor tidak ditemukan." };
@@ -383,14 +435,15 @@ export async function ujiTeruskanAction(id: number): Promise<Hasil> {
 
 export async function tambahTeksAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   const numberId = Number(form.get("number_id"));
-  if (!(await nomorUntuk(await requireUser(), numberId))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  const user = await requireUser();
+  if (!(await nomorUntuk(user, numberId))) return { ok: false, pesan: "Nomor tidak ditemukan." };
   const judul = String(form.get("judul") ?? "").trim();
   if (!judul) return { ok: false, pesan: "Judul wajib diisi." };
   // `ganti_id`: dokumen lama yang disempurnakan; dihapus setelah versi barunya tersimpan (tidak pernah keduanya hilang).
   const gantiId = Number(form.get("ganti_id"));
   try {
     await tambahDokumen({ numberId, judul, sumber: "teks", teks: String(form.get("isi") ?? "") });
-    if (Number.isInteger(gantiId) && gantiId > 0) await hapusDokumen(gantiId, numberId);
+    if (Number.isInteger(gantiId) && gantiId > 0) await hapusDokumen(gantiId, numberId, user.peran === "admin");
   } catch (e) {
     return { ok: false, pesan: pesanGalat(e) };
   }
@@ -400,8 +453,9 @@ export async function tambahTeksAction(_lalu: Hasil | null, form: FormData): Pro
 }
 
 export async function hapusDokumenAction(id: number, numberId: number): Promise<Hasil> {
-  if (!(await nomorUntuk(await requireUser(), numberId))) return { ok: false, pesan: "Nomor tidak ditemukan." };
-  await hapusDokumen(id, numberId);
+  const user = await requireUser();
+  if (!(await nomorUntuk(user, numberId))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  await hapusDokumen(id, numberId, user.peran === "admin");
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${numberId}`);
   return { ok: true };
@@ -476,8 +530,9 @@ export async function hapusPelajaranAction(numberId: number, id?: number): Promi
 }
 
 export async function pratinjauAction(id: number, numberId: number): Promise<string | null> {
-  if (!(await nomorUntuk(await requireUser(), numberId))) return null;
-  return pratinjauDokumen(id, numberId);
+  const user = await requireUser();
+  if (!(await nomorUntuk(user, numberId))) return null;
+  return pratinjauDokumen(id, numberId, user.peran === "admin");
 }
 
 // ---------- Admin ----------
@@ -630,6 +685,7 @@ export async function adminPengaturanAction(_lalu: Hasil | null, form: FormData)
   await setSetting("kuota_percobaan_ulang", ulang);
   await setSetting("kuota_percobaan_hari", String(hari));
   segarkanKuota();
+  mintaSinkronCg();
   await catatLog(
     admin,
     "ubah pengaturan",
@@ -704,12 +760,14 @@ export async function selesaiTurAction(nama: string): Promise<void> {
  * Buat tagihan paket lewat Midtrans Core API dengan kanal pilihan pelanggan; browser lalu dibawa ke halaman instruksi
  * bayar kita sendiri. Klik ganda / tagihan yang sama yang masih berlaku = order_id yang sama (tanpa charge baru).
  */
-export async function bayarPaketAction(paketId: number, kanal: string): Promise<Hasil & { orderId?: string }> {
+/** `kanalMati`: kanal yang baru ketahuan belum aktif; browser menghapusnya dari pilihan. */
+export async function bayarPaketAction(paketId: number, kanal: string): Promise<Hasil & { orderId?: string; kanalMati?: KanalBayar }> {
   const user = await requireUser();
   if (terlaluSering(`bayar:${user.id}`, 10, 10 * 60_000)) return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." };
   const k = await konfigMidtrans();
   if (!k) return { ok: false, pesan: "Pembayaran belum diaktifkan admin." };
-  if (!kanalSah(kanal) || !kanalAktif().includes(kanal)) return { ok: false, pesan: "Metode pembayaran ini sedang tidak tersedia. Pilih metode lain." };
+  if (!kanalSah(kanal)) return { ok: false, pesan: "Metode pembayaran ini sedang tidak tersedia. Pilih metode lain." };
+  if (!(await kanalAktif()).includes(kanal)) return { ok: false, pesan: "Metode pembayaran ini sedang tidak tersedia. Pilih metode lain.", kanalMati: kanal };
   const paket = Number.isInteger(paketId) ? await paketById(paketId) : undefined;
   if (!paket || !paket.aktif || paket.harga < 1) return { ok: false, pesan: "Paket tidak ditemukan." };
   try {
@@ -725,9 +783,25 @@ export async function bayarPaketAction(paketId: number, kanal: string): Promise<
     return { ok: true, orderId: h.orderId };
   } catch (e) {
     console.error(`[bayar] gagal membuat tagihan user=${user.id} kanal=${kanal}: ${e instanceof Error ? e.message : e}`);
-    if (e instanceof MidtransError && e.kode === "402") return { ok: false, pesan: `${KANAL_BAYAR[kanal].label} belum aktif. Pilih metode pembayaran lain.` };
+    if (e instanceof MidtransError && kanalBelumAktif(e.kode)) {
+      revalidatePath("/langganan", "layout");
+      mintaSinkronCg(); // metode bayar yang disebut bot ChatGerCep ikut diperbarui
+      return { ok: false, pesan: `${KANAL_BAYAR[kanal].label} belum tersedia. Pilih metode pembayaran lain.`, kanalMati: kanal };
+    }
     return { ok: false, pesan: e instanceof MidtransError ? "Tagihan sedang tidak bisa dibuat. Coba lagi sebentar lagi atau pilih metode lain." : "Terjadi kesalahan. Coba lagi." };
   }
+}
+
+/** Admin menampilkan/menyembunyikan satu metode pembayaran di halaman bayar (juga kanal yang tersembunyi otomatis). */
+export async function setKanalTampilAction(kanal: string, tampil: boolean): Promise<Hasil> {
+  const admin = await requireAdmin();
+  if (!kanalSah(kanal)) return { ok: false, pesan: "Metode pembayaran tidak dikenal." };
+  await setKanalMati(kanal, tampil ? null : { oleh: "admin", waktu: sekarang() });
+  await catatLog(admin, tampil ? "tampilkan metode bayar" : "sembunyikan metode bayar", null, KANAL_BAYAR[kanal].label);
+  revalidatePath("/admin/transaksi");
+  revalidatePath("/langganan", "layout");
+  mintaSinkronCg();
+  return { ok: true };
 }
 
 /** Pelanggan membatalkan tagihannya yang belum dibayar. */
@@ -778,6 +852,7 @@ export async function adminPaketAction(_lalu: Hasil | null, form: FormData): Pro
   if (komisiJenis === "rupiah" && komisiNilai > MAKS_HARGA_PAKET) return { ok: false, pesan: "Nominal komisi terlalu besar." };
   try {
     await simpanPaket(p);
+    mintaSinkronCg();
   } catch {
     return { ok: false, pesan: "Kode paket sudah dipakai paket lain." };
   }
@@ -794,6 +869,7 @@ export async function adminHapusPaketAction(id: number): Promise<Hasil> {
   const admin = await requireAdmin();
   if (!idSah(id)) return { ok: false, pesan: "Paket tidak valid." };
   const dihapus = await hapusPaket(id);
+  mintaSinkronCg();
   if (!dihapus) return { ok: false, pesan: "Paket tidak ditemukan." };
   await catatLog(admin, "hapus paket", null, `${dihapus.nama} (Rp${dihapus.harga.toLocaleString("id-ID")})`);
   revalidatePath("/admin", "layout");
@@ -825,6 +901,7 @@ export async function adminPaketCustomAction(_lalu: Hasil | null, form: FormData
   let hasil;
   try {
     hasil = await simpanPaketCustom(isian);
+    mintaSinkronCg();
   } catch (e) {
     if (e instanceof GalatCustom) return { ok: false, pesan: e.message };
     throw e;
@@ -984,6 +1061,7 @@ export async function adminHargaAction(_lalu: Hasil | null, form: FormData): Pro
     return { ok: false, pesan: e instanceof Error ? e.message : "Gagal menerapkan simulasi." };
   }
   const { berubah, dilewati } = hasil;
+  mintaSinkronCg();
   await catatLog(
     admin,
     terapkanKomisiSaja ? "terapkan komisi paket" : "terapkan simulasi paket",
@@ -1071,6 +1149,7 @@ export async function adminAturanAfiliasiAction(_lalu: Hasil | null, form: FormD
     return { ok: false, pesan: "Minimal penarikan harus Rp10.000 – Rp100.000.000." };
   }
   await simpanPengaturanAfiliasi({ aktif, persetujuan, siklus, minTarik });
+  mintaSinkronCg();
   await catatLog(
     admin,
     "ubah aturan afiliasi",

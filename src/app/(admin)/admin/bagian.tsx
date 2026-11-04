@@ -1,15 +1,15 @@
 import Link from "next/link";
-import { ArrowDown, Bot, ChevronRight, CreditCard, Package, ShieldCheck, Sparkles, UserPlus } from "lucide-react";
+import { ArrowDown, Bot, ChevronRight, CreditCard, Package, ShieldCheck, Sparkles, UserPlus, Wallet } from "lucide-react";
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna } from "@/lib/pengguna";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
-import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, TombolHapusPengguna } from "./form-admin";
+import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, SaklarKanal, TombolHapusPengguna } from "./form-admin";
 import { customTampil, hargaAngka, paketCustom } from "@/lib/paket-custom";
 import { labelKomisiPaket } from "@/lib/afiliasi-def";
 import { PembangunCustom } from "./paket-custom";
 import { METODE_MANUAL, acuanHarga, aturanPercobaan, daftarPaket, pemakaianNyata, riwayatTransaksi } from "@/lib/langganan";
 import { SimulasiHarga } from "./simulasi-harga";
-import { konfigMidtrans } from "@/lib/midtrans";
+import { kanalMati, kanalTerpasang, konfigMidtrans } from "@/lib/midtrans";
 import { kunciAnthropic, modelAnthropic, pengaturanAi, perkiraanPerBalasan, ringkasPakai } from "@/lib/ai";
 import { infoKurs } from "@/lib/kurs";
 import { sttTerkonfigurasi } from "@/lib/stt";
@@ -280,6 +280,34 @@ const STATUS_TRX: Record<string, string> = {
   dibatalkan: "bg-subtle text-muted",
   dikembalikan: "bg-subtle text-muted",
 };
+
+/** Metode pembayaran di halaman bayar: yang ditolak Midtrans tersembunyi sendiri; admin bisa menampilkan/menyembunyikan. */
+export async function MetodeBayar() {
+  await requireAdmin();
+  const [k, mati] = await Promise.all([konfigMidtrans(), kanalMati()]);
+  const kini = sekarang();
+  return (
+    <section className="card overflow-hidden">
+      <div className="border-b border-line px-5 py-4">
+        <h2 className="flex items-center gap-2 text-[15px] font-bold">
+          <Wallet className="size-4 text-accent" aria-hidden /> Metode pembayaran
+        </h2>
+        <p className={`mt-0.5 text-[13px] ${k ? "text-muted" : "text-warning"}`}>
+          {k
+            ? "Hanya metode yang menyala yang tampil di halaman bayar. Metode yang ditolak Midtrans karena belum aktif di akun Midtrans tersembunyi sendiri; nyalakan lagi setelah diaktifkan di dashboard Midtrans."
+            : "Midtrans belum dipasang di server (developer: MIDTRANS_SERVER_KEY di .env), jadi halaman bayar belum menampilkan metode apa pun."}
+        </p>
+      </div>
+      <ul className="divide-y divide-line">
+        {kanalTerpasang().map((x) => {
+          const m = mati[x];
+          const ket = !m ? "" : m.oleh === "otomatis" ? `Disembunyikan otomatis ${waktuSingkatWib(m.waktu, kini)}: ditolak Midtrans${m.alasan ? ` (${m.alasan})` : ""}` : `Disembunyikan admin ${waktuSingkatWib(m.waktu, kini)}`;
+          return <SaklarKanal key={x} kanal={x} tampil={!m} keterangan={ket} />;
+        })}
+      </ul>
+    </section>
+  );
+}
 
 export async function Transaksi() {
   await requireAdmin();

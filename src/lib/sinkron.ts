@@ -213,38 +213,43 @@ async function tarik(): Promise<void> {
   const teks = rapikanTeks(susunTeks(data));
   const hash = createHash("sha256").update(rapikanTeks(susunTeks({ ...data, dibuat: "1970-01-01T00:00:00Z" }))).digest("hex");
 
-  if (ids.length) {
-    const sql = await db();
-    const lama = await sql<{ number_id: number; hash: string | null }[]>`
-      SELECT d.number_id, s.nilai AS hash
-        FROM documents d LEFT JOIN settings s ON s.kunci = 'sinkron_ss_hash:' || d.number_id
-       WHERE d.nama_berkas = ${PENANDA} AND d.number_id = ANY(${ids})`;
-    const sudah = new Map(lama.map((r) => [r.number_id, r.hash]));
-    const perlu = ids.filter((id) => sudah.get(id) !== hash);
-    if (perlu.length) await tulis(perlu, teks, hash);
-  }
+  await perbaruiDokumenOtomatis({ penanda: PENANDA, judul: JUDUL, kunciHash: "sinkron_ss_hash:", ids, teks, hash });
 
   await setSetting(KUNCI_STATUS, JSON.stringify({ waktu: sekarang(), versi: data.versi, karakter: teks.length, galat: null } satisfies Status));
   jadwalkanBatas(data.berikutnya);
 }
 
-/** Ganti dokumen otomatis di nomor-nomor itu dalam satu transaksi (pembaca tidak pernah melihat keadaan setengah jadi). */
-async function tulis(ids: number[], teks: string, hash: string): Promise<void> {
-  const potongan = potong(teks);
+/**
+ * Tulis dokumen otomatis `penanda` ke nomor-nomor `ids` yang isinya belum sama (hash terakhir di settings
+ * `<kunciHash><id>`). Semua nomor diganti dalam satu transaksi, jadi pembaca tidak pernah melihat keadaan setengah jadi.
+ * Dipakai juga sinkron-cg.ts.
+ */
+export async function perbaruiDokumenOtomatis(o: { penanda: string; judul: string; kunciHash: string; ids: number[]; teks: string; hash: string }): Promise<number> {
+  if (!o.ids.length) return 0;
+  const sql = await db();
+  const lama = await sql<{ number_id: number; hash: string | null }[]>`
+    SELECT d.number_id, s.nilai AS hash
+      FROM documents d LEFT JOIN settings s ON s.kunci = ${o.kunciHash}::text || d.number_id::text
+     WHERE d.nama_berkas = ${o.penanda} AND d.number_id = ANY(${o.ids})`;
+  const sudah = new Map(lama.map((r) => [r.number_id, r.hash]));
+  const ids = o.ids.filter((id) => sudah.get(id) !== o.hash);
+  if (!ids.length) return 0;
+  const potongan = potong(o.teks);
   const kini = sekarang();
   await transaksi(async (tx) => {
-    await tx`DELETE FROM documents WHERE nama_berkas = ${PENANDA} AND number_id = ANY(${ids})`;
+    await tx`DELETE FROM documents WHERE nama_berkas = ${o.penanda} AND number_id = ANY(${ids})`;
     const hidup = await tx<{ id: number }[]>`SELECT id FROM numbers WHERE id = ANY(${ids})`;
     for (const { id } of hidup) {
       const [{ id: docId }] = await tx<{ id: number }[]>`
         INSERT INTO documents(number_id, judul, sumber, nama_berkas, ukuran_byte, jumlah_karakter, created_at)
-        VALUES (${id}, ${JUDUL}, 'teks', ${PENANDA}, ${Buffer.byteLength(teks)}, ${teks.length}, ${kini})
+        VALUES (${id}, ${o.judul}, 'teks', ${o.penanda}, ${Buffer.byteLength(o.teks)}, ${o.teks.length}, ${kini})
         RETURNING id`;
       const baris = potongan.map((isi, urutan) => ({ document_id: docId, number_id: id, urutan, isi }));
       for (let i = 0; i < baris.length; i += 500) await tx`INSERT INTO chunks ${tx(baris.slice(i, i + 500), "document_id", "number_id", "urutan", "isi")}`;
-      await tx`INSERT INTO settings(kunci, nilai) VALUES (${`sinkron_ss_hash:${id}`}, ${hash}) ON CONFLICT (kunci) DO UPDATE SET nilai = EXCLUDED.nilai`;
+      await tx`INSERT INTO settings(kunci, nilai) VALUES (${`${o.kunciHash}${id}`}, ${o.hash}) ON CONFLICT (kunci) DO UPDATE SET nilai = EXCLUDED.nilai`;
     }
   });
+  return ids.length;
 }
 
 /** Tarik ulang tepat saat promo mulai/berakhir atau outlet buka lagi, tanpa perlu ada perubahan di database. */

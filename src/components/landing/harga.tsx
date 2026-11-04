@@ -2,7 +2,9 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Check, Sparkles } from "lucide-react";
 import { angka, UMUR_HISTORI_HARI } from "@/lib/format";
+import { ringkasKanal } from "@/lib/harga";
 import { aturanPercobaan, daftarPaket } from "@/lib/langganan";
+import { kanalAktif, konfigMidtrans } from "@/lib/midtrans";
 import { customTampil, paketCustom, tautanCustom } from "@/lib/paket-custom";
 import { KartuCustom, TombolWaCustom } from "../kartu-custom";
 
@@ -13,9 +15,9 @@ import { KartuCustom, TombolWaCustom } from "../kartu-custom";
  */
 export async function HargaLanding() {
   await connection();
-  let paket, gratis, custom;
+  let paket, gratis, custom, kanal, midtrans;
   try {
-    [paket, gratis, custom] = await Promise.all([daftarPaket(), aturanPercobaan(), paketCustom()]);
+    [paket, gratis, custom, kanal, midtrans] = await Promise.all([daftarPaket(), aturanPercobaan(), paketCustom(), kanalAktif(), konfigMidtrans()]);
   } catch {
     return null;
   }
@@ -67,7 +69,7 @@ export async function HargaLanding() {
       <p className="text-[13px] text-muted md:col-span-2 xl:col-span-3">
         {gratis.balasan > 0 &&
           `Coba gratis dulu: setiap akun baru mendapat ${angka(gratis.balasan)} balasan AI ${gratis.ulang === "bulanan" ? "per bulan" : gratis.hari > 0 ? `percobaan selama ${gratis.hari} hari` : "percobaan"} tanpa kartu kredit. `}
-        Bayar lewat QRIS, transfer bank, e-wallet, atau kartu.
+        {midtrans && kanal.length > 0 && `Bayar lewat ${ringkasKanal(kanal)}.`}
       </p>
     </div>
   );

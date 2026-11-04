@@ -23,7 +23,7 @@ export async function POST(req: Request) {
 
   let teks = typeof b?.teks === "string" ? b.teks : "";
   if (b?.dokumenId) {
-    const d = await teksDokumen(Number(b.dokumenId), nomor.id);
+    const d = await teksDokumen(Number(b.dokumenId), nomor.id, user.peran === "admin");
     if (!d) return galat("Dokumen tidak ditemukan.", 404);
     if (d.teks.length > BATAS_RAPIKAN.maks) return galat(`Dokumen ini terlalu panjang untuk dirapikan AI (maks ${BATAS_RAPIKAN.maks.toLocaleString("id-ID")} karakter).`);
     teks = d.teks;

@@ -221,7 +221,8 @@ globalThis.fetch = async (url, o) => {
   panggilan.push({ url: u, method: o?.method ?? "GET", auth: o?.headers?.Authorization, body });
   if (u === "https://api.midtrans.com/v2/charge") {
     if (tiruan.jeda) await new Promise((r) => setTimeout(r, tiruan.jeda));
-    if (tiruan.tolak) return jawab({ status_code: tiruan.tolak, status_message: "Payment channel is not activated." }); // HTTP 200, galat di badan
+    // HTTP 200, galat di badan. 404 = QRIS yang data merchant-nya belum ada di akun Midtrans.
+    if (tiruan.tolak) return jawab({ status_code: tiruan.tolak, status_message: tiruan.tolak === "404" ? "Merchant pop id is not found" : "Payment channel is not activated." });
     const { order_id, gross_amount } = body.transaction_details;
     if (dunia.has(order_id)) return jawab({ status_code: "406", status_message: "Duplicate order ID." });
     dunia.set(order_id, { status: "pending", gross: null, payment_type: body.payment_type });
@@ -355,25 +356,41 @@ await cek("data instruksi per kanal: BNI/BRI va_numbers, Permata, Mandiri bill k
   await tunggu(async () => (await sql`SELECT COUNT(*)::int AS n FROM transaksi WHERE user_id = ${budi.id} AND status = 'menunggu'`)[0].n === 1);
 });
 
-await cek("charge ditolak (kanal belum aktif = status_code 402 di HTTP 200; order ganda 406): galat jelas, TIDAK ada tagihan yatim, kanal disembunyikan", async () => {
+await cek("charge ditolak (kanal belum aktif = 402, QRIS tanpa merchant = 404, di HTTP 200; order ganda 406): galat jelas, TIDAK ada tagihan yatim, kanal tersembunyi permanen sampai admin menampilkannya", async () => {
   const sebelum = (await sql`SELECT COUNT(*)::int AS n FROM transaksi`)[0].n;
   tiruan.tolak = "402";
   try {
     await assert.rejects(L.mulaiBayar(k, pembeli, starter, "shopeepay", "https://wa.uji"), (e) => e instanceof M.MidtransError && e.kode === "402");
+    tiruan.tolak = "404";
+    await assert.rejects(L.mulaiBayar(k, pembeli, starter, "qris", "https://wa.uji"), (e) => e instanceof M.MidtransError && e.kode === "404");
     tiruan.tolak = "406";
     await assert.rejects(L.mulaiBayar(k, pembeli, starter, "bri", "https://wa.uji"), (e) => e.kode === "406");
   } finally {
     tiruan.tolak = null;
   }
   assert.equal((await sql`SELECT COUNT(*)::int AS n FROM transaksi`)[0].n, sebelum);
-  assert.equal(M.kanalAktif().includes("shopeepay"), false); // pembeli lain tidak ikut gagal
-  assert.equal(M.kanalAktif().includes("bri"), true);
-  globalThis.__waKanalMati.clear();
+  const aktif = await M.kanalAktif();
+  assert.deepEqual([aktif.includes("shopeepay"), aktif.includes("qris")], [false, false]); // pembeli lain tidak ikut gagal
+  assert.equal(aktif.includes("bri"), true, "406 = order ganda, bukan soal kanal");
+  // Tersimpan di database (tahan restart), lengkap dengan alasannya untuk panel admin.
+  const mati = JSON.parse((await sql`SELECT nilai FROM settings WHERE kunci = 'kanal_mati'`)[0].nilai);
+  assert.deepEqual(Object.keys(mati).sort(), ["qris", "shopeepay"]);
+  assert.equal(mati.qris.oleh, "otomatis");
+  assert.match(mati.qris.alasan, /kode 404: Merchant pop id is not found/);
+  // Admin menampilkan lagi, atau menyembunyikan sendiri.
+  await M.setKanalMati("qris", null);
+  await M.setKanalMati("shopeepay", null);
+  await M.setKanalMati("permata", { oleh: "admin", waktu: sekarang() });
+  assert.equal((await M.kanalAktif()).includes("permata"), false);
+  await M.setKanalMati("permata", null);
   process.env.MIDTRANS_KANAL = "qris, bca ,gopay";
-  assert.deepEqual(M.kanalAktif(), ["qris", "gopay", "bca"]); // urut seperti KANAL_BAYAR
+  assert.deepEqual(await M.kanalAktif(), ["qris", "gopay", "bca"]); // urut seperti KANAL_BAYAR
   delete process.env.MIDTRANS_KANAL;
-  assert.equal(M.kanalAktif().length, Object.keys(H0.KANAL_BAYAR).length);
+  assert.equal((await M.kanalAktif()).length, Object.keys(H0.KANAL_BAYAR).length);
   assert.deepEqual([H0.kanalSah("bca"), H0.kanalSah("kartu"), H0.kanalSah("toString")], [true, false, false]);
+  assert.equal(H0.ringkasKanal(["gopay", "bni", "bri", "mandiri", "permata"]), "GoPay atau virtual account (BNI, BRI, Mandiri, Permata)");
+  assert.equal(H0.ringkasKanal(["qris", "gopay", "bca"]), "QRIS, GoPay, atau virtual account (BCA)");
+  assert.equal(H0.ringkasKanal([]), "");
 });
 
 await cek("status dari API Midtrans: pending tetap menunggu; settlement = lunas & paket aktif TEPAT SEKALI walau notifikasi berulang", async () => {
@@ -841,6 +858,56 @@ await cek("tur panduan: tercatat per akun, tidak dobel", async () => {
   await P.tandaiTurSelesai(budi.id, "dashboard");
   await P.tandaiTurSelesai(budi.id, "nomor");
   assert.deepEqual(await P.turSelesai(budi.id), ["dashboard", "nomor"]);
+});
+
+await cek("knowledge otomatis ChatGerCep (khusus admin): paket, harga, komisi, metode bayar aktif dari database; ditulis ulang hanya bila berubah; tak terlihat/terhapus lewat akun pengguna biasa", async () => {
+  const CG = await lib("src/lib/sinkron-cg.ts");
+  const K = await lib("src/lib/knowledge.ts");
+  const kunciLama = process.env.MIDTRANS_SERVER_KEY;
+  process.env.MIDTRANS_SERVER_KEY = SK;
+  const n = await tambahNomor("CS ChatGerCep", budi.id);
+  const st = (await L.daftarPaket()).find((p) => p.kode === "starter");
+  try {
+    await M.setKanalMati("qris", { oleh: "otomatis", waktu: sekarang(), alasan: "kode 404" });
+    await CG.setNomorSinkronCg(n.id, true);
+    const dok = await K.daftarDokumen(n.id, true);
+    assert.deepEqual(dok.map((d) => d.nama_berkas), ["sinkron:chatgercep"]);
+    const teks = (await K.teksDokumen(dok[0].id, n.id, true)).teks;
+    for (const p of (await L.daftarPaket()).filter((p) => p.harga > 0))
+      assert.ok(teks.includes(`*${p.nama}*`) && teks.includes(`Rp${p.harga.toLocaleString("id-ID")} per ${p.durasi_hari} hari`), p.nama);
+    assert.ok(teks.includes(st.komisi_jenis === "persen" ? `komisi ${st.komisi_nilai}% dari harga` : `komisi Rp${st.komisi_nilai.toLocaleString("id-ID")}`));
+    const metode = teks.match(/Metode yang tersedia saat ini: [^\n]*/)[0];
+    assert.ok(!metode.includes("QRIS") && metode.includes("BNI Virtual Account"), "kanal tersembunyi tidak disebut");
+    assert.match(teks, /yang benar adalah data ini/);
+    // Pengguna biasa: tidak tampil, tidak bisa dibaca/diunduh, tidak bisa dihapus. AI tetap memakainya.
+    assert.equal((await K.daftarDokumen(n.id, false)).length, 0);
+    assert.equal(await K.teksDokumen(dok[0].id, n.id, false), null);
+    assert.equal(await K.pratinjauDokumen(dok[0].id, n.id, false), null);
+    await K.hapusDokumen(dok[0].id, n.id, false);
+    assert.equal((await K.daftarDokumen(n.id, true)).length, 1);
+    assert.match((await K.konteksPengetahuan(n.id, "berapa harga paket")).teks, /Daftar paket & harga/);
+    // Tidak ada yang berubah = tidak ditulis ulang; harga berubah = ditulis ulang dengan harga baru.
+    const t0 = performance.now();
+    await CG.jalankanCg();
+    const msSama = performance.now() - t0;
+    assert.equal((await K.daftarDokumen(n.id, true))[0].id, dok[0].id);
+    await L.simpanPaket({ ...st, harga: st.harga + 1000 });
+    const t1 = performance.now();
+    await CG.jalankanCg();
+    console.log(`        (susun tanpa perubahan ${msSama.toFixed(1)} ms; harga berubah + tulis ulang ${(performance.now() - t1).toFixed(1)} ms; ${teks.length.toLocaleString("id-ID")} karakter)`);
+    const baru = (await K.daftarDokumen(n.id, true))[0];
+    assert.notEqual(baru.id, dok[0].id);
+    assert.ok((await K.teksDokumen(baru.id, n.id, true)).teks.includes(`Rp${(st.harga + 1000).toLocaleString("id-ID")}`));
+    assert.equal((await CG.statusSinkronCg()).galat, null);
+    // Dimatikan admin: dokumennya hilang.
+    await CG.setNomorSinkronCg(n.id, false);
+    assert.equal((await K.daftarDokumen(n.id, true)).length, 0);
+  } finally {
+    await L.simpanPaket(st);
+    await M.setKanalMati("qris", null);
+    if (kunciLama === undefined) delete process.env.MIDTRANS_SERVER_KEY;
+    else process.env.MIDTRANS_SERVER_KEY = kunciLama;
+  }
 });
 
 void AI;

@@ -58,7 +58,7 @@ async function TanggalHariIni() {
 async function Ringkasan() {
   const user = await requireUser();
   const hari = hariTerakhir(tanggalWib(), 7);
-  const [nomor, stat, kuota, tur] = await Promise.all([daftarNomor(user.id), statHarian(hari[0], { userId: user.id }), kuotaNomor(user), turSelesai(user.id)]);
+  const [nomor, stat, kuota, tur] = await Promise.all([daftarNomor(user.id, user.peran === "admin"), statHarian(hari[0], { userId: user.id }), kuotaNomor(user), turSelesai(user.id)]);
 
   const tren = deretHarian(hari, stat);
   const urutan = new Map(hari.map((t, i) => [t, i]));

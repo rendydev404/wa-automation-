@@ -81,11 +81,20 @@ export async function totalKarakter(numberId: number): Promise<number> {
   return r.n;
 }
 
-export async function daftarDokumen(numberId: number): Promise<Dokumen[]> {
+/**
+ * Dokumen otomatis (nama_berkas berawalan "sinkron:", lihat sinkron.ts & sinkron-cg.ts) diatur sistem dan admin: tetap
+ * dipakai AI, tapi tidak tampil, tidak bisa diunduh/dirapikan, dan tidak bisa dihapus lewat akun pengguna biasa.
+ * `otomatis` = sertakan dokumen itu (admin).
+ */
+export const AWALAN_OTOMATIS = "sinkron:";
+const bolehDokumen = (sql: Awaited<ReturnType<typeof db>>, otomatis: boolean) =>
+  otomatis ? sql`true` : sql`(d.nama_berkas IS NULL OR d.nama_berkas NOT LIKE ${`${AWALAN_OTOMATIS}%`})`;
+
+export async function daftarDokumen(numberId: number, otomatis: boolean): Promise<Dokumen[]> {
   const sql = await db();
   const baris = await sql<Dokumen[]>`
-    SELECT id, judul, sumber, nama_berkas, ukuran_byte, jumlah_karakter, created_at
-      FROM documents WHERE number_id = ${numberId} ORDER BY created_at DESC, id DESC`;
+    SELECT d.id, d.judul, d.sumber, d.nama_berkas, d.ukuran_byte, d.jumlah_karakter, d.created_at
+      FROM documents d WHERE d.number_id = ${numberId} AND ${bolehDokumen(sql, otomatis)} ORDER BY d.created_at DESC, d.id DESC`;
   return [...baris];
 }
 
@@ -119,16 +128,16 @@ export async function tambahDokumen(d: {
   });
 }
 
-export async function hapusDokumen(id: number, numberId: number): Promise<void> {
+export async function hapusDokumen(id: number, numberId: number, otomatis: boolean): Promise<void> {
   const sql = await db();
-  await sql`DELETE FROM documents WHERE id = ${id} AND number_id = ${numberId}`;
+  await sql`DELETE FROM documents d WHERE d.id = ${id} AND d.number_id = ${numberId} AND ${bolehDokumen(sql, otomatis)}`;
 }
 
-export async function pratinjauDokumen(id: number, numberId: number, maks = 1500): Promise<string | null> {
+export async function pratinjauDokumen(id: number, numberId: number, otomatis: boolean, maks = 1500): Promise<string | null> {
   const sql = await db();
   const baris = await sql<{ isi: string }[]>`
     SELECT c.isi FROM chunks c JOIN documents d ON d.id = c.document_id
-     WHERE c.document_id = ${id} AND d.number_id = ${numberId} ORDER BY c.urutan LIMIT 4`;
+     WHERE c.document_id = ${id} AND d.number_id = ${numberId} AND ${bolehDokumen(sql, otomatis)} ORDER BY c.urutan LIMIT 4`;
   if (!baris.length) return null;
   const teks = baris.map((b) => b.isi).join("\n\n");
   return teks.length > maks ? teks.slice(0, maks).trimEnd() + "…" : teks;
@@ -138,11 +147,11 @@ export async function pratinjauDokumen(id: number, numberId: number, maks = 1500
  * Isi lengkap sebuah dokumen untuk diunduh. Berkas aslinya tidak disimpan (PDF pun hanya teksnya),
  * jadi teks disusun ulang dari potongannya; digabung di database dalam satu query.
  */
-export async function teksDokumen(id: number, numberId: number): Promise<{ judul: string; teks: string } | null> {
+export async function teksDokumen(id: number, numberId: number, otomatis: boolean): Promise<{ judul: string; teks: string } | null> {
   const sql = await db();
   const [r] = await sql<{ judul: string; teks: string | null }[]>`
     SELECT d.judul, (SELECT string_agg(c.isi, E'\n\n' ORDER BY c.urutan) FROM chunks c WHERE c.document_id = d.id) AS teks
-      FROM documents d WHERE d.id = ${id} AND d.number_id = ${numberId}`;
+      FROM documents d WHERE d.id = ${id} AND d.number_id = ${numberId} AND ${bolehDokumen(sql, otomatis)}`;
   return r ? { judul: r.judul, teks: r.teks ?? "" } : null;
 }
 

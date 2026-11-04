@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   if (!Number.isInteger(id) || !nomor) return NextResponse.json({ error: "Dokumen tidak ditemukan." }, { status: 404 });
   const numberId = nomor.id;
 
-  const dok = await teksDokumen(id, numberId);
+  const dok = await teksDokumen(id, numberId, user.peran === "admin");
   if (!dok) return NextResponse.json({ error: "Dokumen tidak ditemukan." }, { status: 404 });
 
   const nama = `${dok.judul.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").trim().slice(0, 100) || "dokumen"}.txt`;

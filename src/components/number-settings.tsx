@@ -2,7 +2,7 @@
 
 import { useActionState, useOptimistic, useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
-import { hapusNomorAction, setBotAktifAction, setSaringProspekAction, setSaringSpamAction, setSinkronAction, ubahNomorAction } from "@/app/actions";
+import { hapusNomorAction, setBotAktifAction, setSaringProspekAction, setSaringSpamAction, setSinkronAction, setSinkronCgAction, ubahNomorAction } from "@/app/actions";
 import type { StatusMl } from "@/lib/prospek";
 import { LencanaSesi } from "./connection-card";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "./ui";
@@ -126,7 +126,24 @@ function SaklarProspek({ id, aktif: awal, ml }: { id: number; aktif: boolean; ml
   );
 }
 
-export function SaklarSinkron({ id, aktif: awal, siap, keterangan }: { id: number; aktif: boolean; siap: boolean; keterangan: string }) {
+const SINKRON = {
+  ss: {
+    judul: "Data Suka Shawarma otomatis",
+    info: "Menu, harga, promo & outlet dari database kasir. Diperbarui sendiri setiap kali ada perubahan.",
+    belumSiap: "Belum dikonfigurasi di server (SINKRON_SS_*).",
+    aksi: setSinkronAction,
+  },
+  cg: {
+    judul: "Data ChatGerCep otomatis",
+    info: "Paket, harga, kuota, free trial, metode bayar yang aktif, komisi afiliasi & fitur dari sistem ini. Diperbarui sendiri setiap kali admin mengubahnya. Khusus admin: pemilik nomor tidak melihat dokumen ini.",
+    belumSiap: "",
+    aksi: setSinkronCgAction,
+  },
+} as const;
+
+/** Knowledge otomatis khusus admin: data kasir Suka Shawarma (`ss`) atau data sistem ChatGerCep sendiri (`cg`). */
+export function SaklarSinkron({ jenis, id, aktif: awal, siap, keterangan }: { jenis: keyof typeof SINKRON; id: number; aktif: boolean; siap: boolean; keterangan: string }) {
+  const j = SINKRON[jenis];
   const [aktif, setAktif] = useOptimistic(awal);
   const [galat, setGalat] = useState<string | null>(null);
   const [menunggu, mulai] = useTransition();
@@ -134,24 +151,24 @@ export function SaklarSinkron({ id, aktif: awal, siap, keterangan }: { id: numbe
     <section className="card px-5 py-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-[15px] font-bold tracking-tight">Data Suka Shawarma otomatis</h2>
-          <p className="hint mt-0.5">Menu, harga, promo &amp; outlet dari database kasir. Diperbarui sendiri setiap kali ada perubahan.</p>
+          <h2 className="text-[15px] font-bold tracking-tight">{j.judul}</h2>
+          <p className="hint mt-0.5">{j.info}</p>
         </div>
         <Saklar
           aktif={aktif}
           disabled={!siap || menunggu}
-          label="Data Suka Shawarma otomatis"
+          label={j.judul}
           onUbah={(v) =>
             mulai(async () => {
               setAktif(v);
               setGalat(null);
-              const h = await setSinkronAction(id, v);
+              const h = await j.aksi(id, v);
               if (!h.ok) setGalat(h.pesan ?? "Gagal.");
             })
           }
         />
       </div>
-      <p className="hint mt-2">{!siap ? "Belum dikonfigurasi di server (SINKRON_SS_*)." : menunggu ? "Mengambil data…" : (galat ?? keterangan)}</p>
+      <p className="hint mt-2">{!siap ? j.belumSiap : menunggu ? "Mengambil data…" : (galat ?? keterangan)}</p>
     </section>
   );
 }

@@ -30,9 +30,10 @@ import { TUR_NOMOR } from "@/components/isi-tur";
 import { TurOtomatis } from "@/components/tur";
 import { turSelesai } from "@/lib/pengguna";
 import { konfigurasi as konfigurasiSinkron, nomorSinkron, statusSinkron, type Status } from "@/lib/sinkron";
+import { nomorSinkronCg, statusSinkronCg, type StatusCg } from "@/lib/sinkron-cg";
 import { deretHarian, hariTerakhir, persen } from "@/lib/tren";
 
-function teksStatusSinkron(s: Status): string {
+function teksStatusSinkron(s: Status | StatusCg): string {
   if (s.galat) return `Tarikan terakhir gagal: ${s.galat}`;
   if (!s.waktu) return "Belum pernah menarik data.";
   return `Terakhir diperbarui ${tanggal(s.waktu)} (${s.karakter.toLocaleString("id-ID")} karakter).`;
@@ -71,10 +72,12 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   const admin = user.peran === "admin";
 
   const hari = hariTerakhir(tanggalWib(), 7);
-  const [dokumen, sinkronIds, statusSs, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran, tur, diteruskan, teruskanDiizinkan, produk, katalogAktif, ml] = await Promise.all([
-    daftarDokumen(id),
+  const [dokumen, sinkronIds, statusSs, sinkronCgIds, statusCg, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran, tur, diteruskan, teruskanDiizinkan, produk, katalogAktif, ml] = await Promise.all([
+    daftarDokumen(id, admin),
     admin ? nomorSinkron() : Promise.resolve([] as number[]),
     admin ? statusSinkron() : Promise.resolve(null),
+    admin ? nomorSinkronCg() : Promise.resolve([] as number[]),
+    admin ? statusSinkronCg() : Promise.resolve(null),
     ringkasanPercakapan(id),
     daftarPercakapan(id),
     statHarian(hari[0], id),
@@ -225,7 +228,8 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               }))}
             />
           </div>
-          {admin && <SaklarSinkron id={nomor.id} aktif={sinkronIds.includes(nomor.id)} siap={!!konfigurasiSinkron()} keterangan={statusSs ? teksStatusSinkron(statusSs) : ""} />}
+          {admin && <SaklarSinkron jenis="cg" id={nomor.id} aktif={sinkronCgIds.includes(nomor.id)} siap keterangan={statusCg ? teksStatusSinkron(statusCg) : ""} />}
+          {admin && <SaklarSinkron jenis="ss" id={nomor.id} aktif={sinkronIds.includes(nomor.id)} siap={!!konfigurasiSinkron()} keterangan={statusSs ? teksStatusSinkron(statusSs) : ""} />}
           <div id="pengaturan" data-tur="pengaturan">
             <NumberSettings
               id={nomor.id}

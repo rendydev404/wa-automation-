@@ -62,7 +62,7 @@ await cek("nomor hanya terlihat & bisa diakses pemiliknya; admin boleh semua", a
   assert.equal(bolehAkses(S, nomorSari), true);
   assert.equal(bolehAkses(A, nomorSari), true);
   assert.equal(bolehAkses(B, undefined), false);
-  assert.deepEqual((await daftarNomor(budi.id)).map((n) => n.id), [nb.id]);
+  assert.deepEqual((await daftarNomor(budi.id, false)).map((n) => n.id), [nb.id]);
 });
 
 await cek("statistik ringkasan hanya menghitung nomor milik pengguna itu", async () => {
@@ -209,6 +209,105 @@ await cek("callback Google: state, nonce, aud, iss, exp, email_verified diperiks
 });
 
 console.log("== daftar pengguna: kebenaran, rencana query, kecepatan ==");
+console.log("== lupa password (OTP email) ==");
+await cek("lupa password: kode 6 digit lewat Resend, tersimpan sebagai HMAC; email tak terdaftar/diblokir tanpa email & tanpa galat; jeda kirim ulang; sekali pakai; sesi lama keluar & kunci login dibuka", async () => {
+  const LP = await lib("src/lib/lupa-password.ts");
+  const terkirim = [];
+  const asli = globalThis.fetch;
+  globalThis.fetch = async (url, o) => {
+    terkirim.push({ url: String(url), auth: o.headers.Authorization, body: JSON.parse(o.body) });
+    return new Response(JSON.stringify({ id: "uji" }), { status: 200 });
+  };
+  // Email dikirim di latar (tidak ditunggu permintaan): tunggu sampai sejumlah n terkirim.
+  const tunggu = async (n) => {
+    for (let i = 0; i < 100 && terkirim.length < n; i++) await new Promise((r) => setTimeout(r, 10));
+  };
+  const kodeDari = (e) => e.body.subject.match(/^(\d{6}) adalah kode/)[1];
+  const bukan = (k) => (k === "000000" ? "111111" : "000000");
+  try {
+    delete process.env.RESEND_API_KEY;
+    await assert.rejects(LP.mintaOtp("sari@uji.test"), LP.GalatOtp, "belum dikonfigurasi = galat jelas");
+    process.env.RESEND_API_KEY = "re_uji";
+    process.env.EMAIL_DARI = "ChatGerCep <no-reply@uji.test>";
+
+    await LP.mintaOtp("tidak-ada@uji.test");
+    await sql`UPDATE users SET status = 'diblokir' WHERE id = ${budi.id}`;
+    await LP.mintaOtp("budi@uji.test");
+    await sql`UPDATE users SET status = 'aktif' WHERE id = ${budi.id}`;
+    await LP.mintaOtp(" SARI@uji.test ");
+    await tunggu(1);
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(terkirim.length, 1, "hanya akun aktif yang terdaftar yang menerima email");
+    const e = terkirim[0];
+    assert.deepEqual([e.url, e.auth, e.body.from, e.body.to], ["https://api.resend.com/emails", "Bearer re_uji", "ChatGerCep <no-reply@uji.test>", ["sari@uji.test"]]);
+    const kode = kodeDari(e);
+    assert.ok(e.body.text.includes(kode) && e.body.html.includes(kode));
+    const [r] = await sql`SELECT kode_hash, kedaluwarsa - dibuat AS umur FROM reset_password WHERE user_id = ${sari.id}`;
+    assert.match(r.kode_hash, /^[0-9a-f]{64}$/);
+    assert.ok(!r.kode_hash.includes(kode), "kode asli tidak disimpan");
+    assert.equal(r.umur, 600);
+
+    await LP.mintaOtp("sari@uji.test"); // dalam 60 dtk: diabaikan, kode lama tetap berlaku
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(terkirim.length, 1);
+
+    await assert.rejects(LP.pakaiOtp("sari@uji.test", bukan(kode), "PasswordBaru-123"), /Sisa 4 kali/);
+    const [lama] = await sql`SELECT sesi_versi FROM users WHERE id = ${sari.id}`;
+    await sql`UPDATE users SET gagal_login = 9, kunci_sampai = ${sekarang() + 900} WHERE id = ${sari.id}`;
+    const u = await LP.pakaiOtp("Sari@uji.test", ` ${kode.slice(0, 3)} ${kode.slice(3)} `, "PasswordBaru-123");
+    assert.deepEqual([u.id, u.status], [sari.id, "aktif"]);
+    const [s] = await sql`SELECT password_hash, sesi_versi, gagal_login, kunci_sampai FROM users WHERE id = ${sari.id}`;
+    assert.ok(await verifyPassword("PasswordBaru-123", s.password_hash));
+    assert.deepEqual([s.sesi_versi, s.gagal_login, s.kunci_sampai], [lama.sesi_versi + 1, 0, 0]);
+    await assert.rejects(LP.pakaiOtp("sari@uji.test", kode, "PasswordLain-456"), /kedaluwarsa/, "sekali pakai");
+    await tunggu(2);
+    assert.match(terkirim[1].body.subject, /baru saja diganti/);
+  } finally {
+    globalThis.fetch = asli;
+    delete process.env.RESEND_API_KEY;
+    delete process.env.EMAIL_DARI;
+  }
+});
+
+await cek("lupa password: 5 kode salah = hangus (kode benar pun ditolak), 10 tebakan serentak tidak melewati batas, kode kedaluwarsa ditolak", async () => {
+  const LP = await lib("src/lib/lupa-password.ts");
+  const terkirim = [];
+  const asli = globalThis.fetch;
+  globalThis.fetch = async (_u, o) => {
+    terkirim.push(JSON.parse(o.body));
+    return new Response("{}", { status: 200 });
+  };
+  const kodeBaru = async () => {
+    const n = terkirim.length;
+    await LP.mintaOtp("sari@uji.test");
+    for (let i = 0; i < 100 && terkirim.length <= n; i++) await new Promise((r) => setTimeout(r, 10));
+    return terkirim.at(-1).subject.slice(0, 6);
+  };
+  const bukan = (k) => (k === "000000" ? "111111" : "000000");
+  process.env.RESEND_API_KEY = "re_uji";
+  process.env.EMAIL_DARI = "ChatGerCep <no-reply@uji.test>";
+  try {
+    const k1 = await kodeBaru();
+    for (let sisa = 4; sisa >= 1; sisa--) await assert.rejects(LP.pakaiOtp("sari@uji.test", bukan(k1), "PasswordBaru-123"), new RegExp(`Sisa ${sisa} kali`));
+    await assert.rejects(LP.pakaiOtp("sari@uji.test", bukan(k1), "PasswordBaru-123"), /terlalu sering/);
+    await assert.rejects(LP.pakaiOtp("sari@uji.test", k1, "PasswordBaru-123"), /kedaluwarsa/);
+
+    const k2 = await kodeBaru();
+    const hasil = await Promise.allSettled(Array.from({ length: 10 }, () => LP.pakaiOtp("sari@uji.test", bukan(k2), "PasswordBaru-123")));
+    assert.equal(hasil.filter((h) => h.status === "rejected" && /Sisa|terlalu sering/.test(h.reason.message)).length, 5, "tepat 5 tebakan yang dinilai");
+    await assert.rejects(LP.pakaiOtp("sari@uji.test", k2, "PasswordBaru-123"), /kedaluwarsa/);
+
+    const k3 = await kodeBaru();
+    await sql`UPDATE reset_password SET kedaluwarsa = ${sekarang() - 1} WHERE user_id = ${sari.id}`;
+    await assert.rejects(LP.pakaiOtp("sari@uji.test", k3, "PasswordBaru-123"), /kedaluwarsa/);
+    await assert.rejects(LP.pakaiOtp("sari@uji.test", "12345", "PasswordBaru-123"), /6 digit/);
+  } finally {
+    globalThis.fetch = asli;
+    delete process.env.RESEND_API_KEY;
+    delete process.env.EMAIL_DARI;
+  }
+});
+
 await cek("cari, saring, dan kursor (tanpa OFFSET) mengembalikan baris yang benar", async () => {
   const semua = await P.daftarPengguna({});
   assert.deepEqual(semua.daftar.map((u) => u.email), ["rina@gmail.test", "sari@uji.test", "budi@uji.test", "admin@uji.test"]);
@@ -258,7 +357,7 @@ await cek("halaman pertama & kursor memakai indeks primary key + numbers_user_id
 await cek("nomor milik satu pengguna & statistiknya lewat indeks user_id", async () => {
   const rencana = (await sql.unsafe(`EXPLAIN SELECT id FROM numbers WHERE user_id = ${budi.id} ORDER BY id`)).map((r) => r["QUERY PLAN"]).join("\n");
   assert.match(rencana, /numbers_user_idx/);
-  await ukur("daftarNomor(user) dengan 6 rb nomor di tabel", () => daftarNomor(budi.id));
+  await ukur("daftarNomor(user) dengan 6 rb nomor di tabel", () => daftarNomor(budi.id, false));
 });
 
 await sql.end({ timeout: 2 });

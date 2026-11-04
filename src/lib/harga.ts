@@ -46,6 +46,14 @@ export const KANAL_BAYAR = {
 export type KanalBayar = keyof typeof KANAL_BAYAR;
 export const kanalSah = (x: unknown): x is KanalBayar => typeof x === "string" && Object.hasOwn(KANAL_BAYAR, x);
 
+/** Kanal aktif dalam satu kalimat, mis. "QRIS, GoPay, atau virtual account (BNI, BRI)"; tanpa kanal = "". */
+export function ringkasKanal(kanal: readonly KanalBayar[]): string {
+  const va = kanal.filter((k) => KANAL_BAYAR[k].metode === "va").map((k) => KANAL_BAYAR[k].label.split(" ")[0]);
+  const bagian = [...kanal.filter((k) => KANAL_BAYAR[k].metode !== "va").map((k) => KANAL_BAYAR[k].label), ...(va.length ? [`virtual account (${va.join(", ")})`] : [])];
+  if (bagian.length <= 2) return bagian.join(" atau ");
+  return `${bagian.slice(0, -1).join(", ")}, atau ${bagian.at(-1)}`;
+}
+
 export interface AcuanHarga {
   /** Biaya dasar satu balasan AI dalam USD (tarif resmi model x profil token nyata). */
   biayaBalasanUsd: number;

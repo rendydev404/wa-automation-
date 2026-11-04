@@ -469,6 +469,17 @@ const MIGRASI: string[] = [
     CHECK (status IN ('menunggu', 'lunas', 'gagal', 'kedaluwarsa', 'dibatalkan', 'dikembalikan'));
   CREATE INDEX transaksi_menunggu_idx ON transaksi (user_id) WHERE status = 'menunggu' AND kanal IS NOT NULL;
   `,
+  // v19: lupa password lewat kode OTP di email (src/lib/lupa-password.ts). Satu kode aktif per akun; yang disimpan
+  //   hanya HMAC-nya, plus batas waktu dan jumlah percobaan. Baris dihapus begitu kode dipakai.
+  `
+  CREATE TABLE reset_password (
+    user_id     integer PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    kode_hash   text NOT NULL,
+    dibuat      bigint NOT NULL,
+    kedaluwarsa bigint NOT NULL,
+    percobaan   integer NOT NULL DEFAULT 0
+  );
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

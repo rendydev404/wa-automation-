@@ -1,12 +1,14 @@
 import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
+import { getSetting, setSetting } from "./db";
 import { KANAL_BAYAR, type KanalBayar } from "./harga";
 
 /**
  * Midtrans Core API (tanpa halaman Snap): tagihan dibuat dari server dan pelanggan membayar di halaman kita sendiri.
  * Kunci dipasang developer di .env server, tidak lewat dashboard: MIDTRANS_SERVER_KEY, MIDTRANS_SIGNATURE_KEY
  * (opsional, kunci tambahan untuk verifikasi notifikasi), MIDTRANS_MODE (bawaan production; "sandbox" hanya untuk
- * mencoba), MIDTRANS_KANAL (opsional: kanal yang aktif di akun Midtrans, dipisah koma; kosong = semua KANAL_BAYAR).
+ * mencoba), MIDTRANS_KANAL (opsional: kanal yang aktif di akun Midtrans, dipisah koma; kosong = semua KANAL_BAYAR;
+ * kanal yang ditolak Midtrans tersembunyi sendiri, lihat kanalMati).
  * Alur:
  *   1. buatCharge(): POST /v2/charge -> nomor VA / isi QRIS / deeplink e-wallet + batas waktu, disimpan di transaksi.
  *   2. Midtrans memanggil webhook /api/midtrans/notifikasi. Tanda tangan diperiksa (SHA-512), lalu status
@@ -44,16 +46,52 @@ export class MidtransError extends Error {
   }
 }
 
-/** Kanal yang ditolak Midtrans karena belum diaktifkan di akun: disembunyikan sejam supaya pembeli lain tidak ikut gagal. */
-const gm = globalThis as unknown as { __waKanalMati?: Map<KanalBayar, number> };
-const kanalMati = (gm.__waKanalMati ??= new Map());
+/**
+ * Kanal yang disembunyikan dari pembeli (settings `kanal_mati`): ditolak Midtrans karena belum aktif di akun (`otomatis`,
+ * lihat kanalBelumAktif), atau disembunyikan admin di /admin/transaksi. Tetap tersembunyi sampai admin menampilkannya
+ * lagi, jadi pembeli lain (juga setelah restart) tidak ikut memilih kanal yang pasti gagal.
+ */
+export interface KanalMati {
+  oleh: "otomatis" | "admin";
+  waktu: number;
+  alasan?: string;
+}
+const KUNCI_KANAL_MATI = "kanal_mati";
+
+export async function kanalMati(): Promise<Partial<Record<KanalBayar, KanalMati>>> {
+  try {
+    const v = JSON.parse((await getSetting(KUNCI_KANAL_MATI)) ?? "{}");
+    return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+/** null = tampilkan lagi. */
+export async function setKanalMati(kanal: KanalBayar, mati: KanalMati | null): Promise<void> {
+  const m = await kanalMati();
+  if (mati) m[kanal] = mati;
+  else delete m[kanal];
+  await setSetting(KUNCI_KANAL_MATI, JSON.stringify(m));
+}
+
+/** Kanal yang dipasang developer (MIDTRANS_KANAL; kosong = semua KANAL_BAYAR), urut seperti KANAL_BAYAR. */
+export function kanalTerpasang(): KanalBayar[] {
+  const env = process.env.MIDTRANS_KANAL?.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+  return (Object.keys(KANAL_BAYAR) as KanalBayar[]).filter((x) => !env?.length || env.includes(x));
+}
 
 /** Kanal yang ditawarkan ke pelanggan, urut seperti KANAL_BAYAR. */
-export function kanalAktif(): KanalBayar[] {
-  const env = process.env.MIDTRANS_KANAL?.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
-  const kini = Date.now();
-  return (Object.keys(KANAL_BAYAR) as KanalBayar[]).filter((x) => (!env?.length || env.includes(x)) && !((kanalMati.get(x) ?? 0) > kini));
+export async function kanalAktif(): Promise<KanalBayar[]> {
+  const mati = await kanalMati();
+  return kanalTerpasang().filter((x) => !mati[x]);
 }
+
+/**
+ * Jawaban charge yang berarti kanal belum aktif di akun Midtrans: 402 "Payment channel is not activated", atau 404
+ * saat MEMBUAT tagihan (mis. QRIS "Merchant pop id is not found": data merchant QRIS belum ada).
+ */
+export const kanalBelumAktif = (kode: string | undefined): boolean => kode === "402" || kode === "404";
 
 /** Data yang ditampilkan di halaman instruksi bayar (disimpan di transaksi.bayar). */
 export interface InstruksiBayar {
@@ -149,8 +187,9 @@ export async function buatCharge(
   const d = (await res.json().catch(() => null)) as JawabCharge | null;
   const kode = d?.status_code ?? String(res.status);
   if (!res.ok || !d || (kode !== "201" && kode !== "200")) {
-    if (kode === "402") kanalMati.set(t.kanal, Date.now() + 3600_000);
     const rinci = [d?.status_message, ...(d?.validation_messages ?? [])].filter(Boolean).join("; ");
+    if (kanalBelumAktif(kode))
+      await setKanalMati(t.kanal, { oleh: "otomatis", waktu: Math.floor(Date.now() / 1000), alasan: `kode ${kode}${rinci ? `: ${rinci}` : ""}`.slice(0, 200) }).catch(() => {});
     throw new MidtransError(`Midtrans menolak tagihan (kode ${kode})${rinci ? `: ${rinci}` : ""}`, kode);
   }
   const bayar = instruksiDari(t.kanal, d);
