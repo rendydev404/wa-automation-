@@ -336,7 +336,7 @@ await cek("QR dipindai: kredensial tersimpan, soket dimulai ulang (515), lalu te
   const n = await tunggu(async () => ((await nomorById(A.id)).wa_id ? nomorById(A.id) : null), 2000, "wa_id tercatat");
   assert.equal(n.wa_id, "6281100000001");
   assert.ok(n.last_connected_at);
-  assert.deepEqual(sA.resync, ["critical_block"]); // nama profil belum ada -> diminta sekali
+  assert.deepEqual(sA.resync, ["critical_block", "critical_unblock_low", "regular_high", "regular_low", "regular"]); // tautan pertama -> semua koleksi diminta, seperti WA Web
 });
 
 await cek("nama profil tiba belakangan: tersimpan ke nomor", async () => {
@@ -1544,7 +1544,7 @@ await cek("proteksi anti-putus: ACK bersih JID diabaikan (tanpa NACK 500), sinkr
   sA.config.auth.creds.routingInfo = Buffer.from([1, 2, 3, 4]);
   sA.pancar("creds.update", { myAppStateKeyId: "KEY-BIZ-1", lastAccountSyncTimestamp: 1777700000 });
   await tidur(50);
-  assert.deepEqual(sA.resync, ["critical_block", "critical_unblock_low"]);
+  assert.deepEqual(sA.resync, ["critical_block", "critical_unblock_low", "regular_high", "regular_low", "regular"]);
   assert.equal(sA.config.auth.creds.accountSyncCounter, 1);
   assert.deepEqual(sA.dirtyCleaned, [{ type: "account_sync", ts: 1777700000 }]);
 
@@ -1652,17 +1652,46 @@ await cek("kompatibilitas iOS (iPhone) & kode tautan nomor telepon (pairing code
   assert.equal(s3.config.auth.creds.me.lid, "777000199:4@lid", "me.lid tetap terjaga agar pesan peer iOS tidak dibuang");
   s3.pancar("connection.update", { connection: "open" });
   await tidur(30);
-  // Saat `open` di iPhone reguler (belum ada `name` dan belum ada `myAppStateKeyId`), `critical_block` diminta
+  // Saat `open` di iPhone reguler (belum ada `name` dan belum ada `myAppStateKeyId`), semua koleksi diminta
   // tetapi `accountSyncCounter` tetap 0 sampai `myAppStateKeyId` benar-benar tiba dari iPhone.
-  assert.deepEqual(s3.resync, ["critical_block"]);
+  assert.deepEqual(s3.resync, ["critical_block", "critical_unblock_low", "regular_high", "regular_low", "regular"]);
   assert.equal(s3.config.auth.creds.accountSyncCounter ?? 0, 0);
 
   // Kunci app-state & dirty bit tiba belakangan dari iPhone -> wajib disinkronkan penuh & dirty bit dibersihkan
   s3.pancar("creds.update", { myAppStateKeyId: "IOS-KEY-1", lastAccountSyncTimestamp: 1777700999 });
   await tidur(50);
-  assert.deepEqual(s3.resync, ["critical_block", "critical_unblock_low"]);
+  assert.deepEqual(s3.resync, ["critical_block", "critical_unblock_low", "regular_high", "regular_low", "regular"]);
   assert.equal(s3.config.auth.creds.accountSyncCounter, 1);
   assert.deepEqual(s3.dirtyCleaned, [{ type: "account_sync", ts: 1777700999 }]);
+
+  await wa.hapusSesi(n.sesi);
+});
+
+await cek("WA Business iPhone: tautan pertama langsung meminta semua koleksi walau nama bisnis sudah terisi", async () => {
+  const n = await nomorCepat("Toko Bisnis iOS");
+  const awal = soket.length;
+  const p = wa.hubungkan(n.sesi);
+  const s1 = await tunggu(() => soket[awal], 2000);
+  s1.pancar("connection.update", { qr: "2@BIZ-QR-1,a,b,c,1" });
+  await p;
+  // pair-success WA Business: nama bisnis ikut terisi dari sertifikat, platform smbi (WA Business iOS)
+  s1.pancar("creds.update", { me: { id: "6281100000098:3@s.whatsapp.net", lid: "777000198:3@lid", name: "Toko Bisnis Resmi" }, platform: "smbi" });
+  s1.pancar("connection.update", { isNewLogin: true, qr: undefined });
+  s1.tutup(515);
+  const s2 = await tunggu(() => soket[awal + 1], 2000);
+  s2.pancar("connection.update", { connection: "open" });
+  await tidur(30);
+  // Dulu Business tidak meminta apa pun di sini dan hanya menunggu kunci dari iPhone -> tautan tidak tuntas.
+  assert.deepEqual(s2.resync, ["critical_block", "critical_unblock_low", "regular_high", "regular_low", "regular"]);
+  assert.equal(s2.config.auth.creds.accountSyncCounter ?? 0, 0, "belum selesai sebelum kunci app-state tiba");
+
+  // Sudah pernah tersinkron & nama ada: tersambung ulang tidak meminta sinkron lagi.
+  s2.pancar("creds.update", { accountSyncCounter: 1 });
+  s2.tutup(428);
+  const s3 = await tunggu(() => soket[awal + 2], 5000, "sambung ulang");
+  s3.pancar("connection.update", { connection: "open" });
+  await tidur(30);
+  assert.equal(s3.resync, undefined);
 
   await wa.hapusSesi(n.sesi);
 });

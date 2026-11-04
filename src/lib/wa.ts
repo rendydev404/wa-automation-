@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import type { ConnectionState, SocketConfig, WAMessage, WASocket, proto } from "baileys";
+import type { ConnectionState, SocketConfig, WAMessage, WAPatchName, WASocket, proto } from "baileys";
 import { type BitQr, kemasQr } from "./qr";
 import { rapikanNomorWa } from "./format";
 import { type Foto, MAKS_FOTO_BYTE, MIME_FOTO, type SesiNomor } from "./types";
@@ -199,6 +199,12 @@ const JEDA_PERINGATAN_MS = 600_000;
 // Di tingkat modul (bukan per soket): soket dibuat ulang tiap sambung ulang, hitungannya harus tetap berlanjut.
 const peringatanTerakhir = new Map<string, number>();
 const ackBerulang = new Map<string, number>();
+/**
+ * Log `info` Baileys yang diloloskan: tahap tautan perangkat & sinkron app-state. Jarang terjadi (sekali per tautan
+ * atau sambung), tetapi satu-satunya petunjuk bila HP menolak/menggagalkan tautan. Sisanya tetap dibuang.
+ */
+const INFO_PENTING =
+  /^(pairing configured successfully|error in pairing|connection errored|opened connection to WA|injecting new app state sync keys|recv app state sync with 0 keys|app state sync key arrived|got history notification)/;
 function pencatat(nama: string): SocketConfig["logger"] {
   const diam = () => {};
   const ringkas = (obj: unknown, msg?: string): string => {
@@ -211,7 +217,12 @@ function pencatat(nama: string): SocketConfig["logger"] {
     child: () => l,
     trace: diam,
     debug: diam,
-    info: diam,
+    info(obj: unknown, msg?: string) {
+      if (!INFO_PENTING.test(msg ?? (typeof obj === "string" ? obj : ""))) return;
+      // `platform` (mis. smbi = WA Business iPhone) hanya ada di log pairing; isi lain (kunci, notifikasi) tidak dicetak.
+      const platform = (obj as { platform?: unknown } | null)?.platform;
+      console.info(`[wa ${nama}] ${ringkas(obj, msg)}${typeof platform === "string" ? ` (platform ${platform})` : ""}`);
+    },
     warn(obj: unknown, msg?: string) {
       const teks = ringkas(obj, msg);
       const kunci = `${nama}:${(msg ?? teks).slice(0, 80)}`;
@@ -683,9 +694,9 @@ async function sambung(s: Sesi): Promise<void> {
       if (s.status === "WORKING" && s.waId) void kabari({ jenis: "terhubung", sesi: s.nama, waId: s.waId, nama });
     }
     // Saat kunci app-state pertama tiba dari HP (baik iPhone/Android biasa maupun WA Business),
-    // wajib jalankan resync awal dan bersihkan dirty bit account_sync agar tautan tidak gagal/dicabut WA.
+    // wajib jalankan resync awal SEMUA koleksi dan bersihkan dirty bit account_sync agar tautan tidak gagal/dicabut WA.
     if (u.myAppStateKeyId && !auth.creds.accountSyncCounter) {
-      sinkronAwal(sock, auth, ["critical_block", "critical_unblock_low"]);
+      sinkronAwal(sock, auth, KOLEKSI_APP_STATE);
     }
     if (u.lastAccountSyncTimestamp && typeof sock.cleanDirtyBits === "function") {
       void sock.cleanDirtyBits("account_sync", u.lastAccountSyncTimestamp).catch(() => {});
@@ -712,7 +723,10 @@ async function sambung(s: Sesi): Promise<void> {
   });
 }
 
-function sinkronAwal(sock: WASocket, auth: AuthSesi, koleksi: readonly ("critical_block" | "critical_unblock_low")[]): void {
+/** Kelima koleksi app-state WhatsApp (sama dengan ALL_WA_PATCH_NAMES Baileys): yang diminta WA Web saat tautan pertama. */
+const KOLEKSI_APP_STATE = ["critical_block", "critical_unblock_low", "regular_high", "regular_low", "regular"] as const satisfies readonly WAPatchName[];
+
+function sinkronAwal(sock: WASocket, auth: AuthSesi, koleksi: readonly WAPatchName[]): void {
   if (typeof sock.resyncAppState !== "function") return;
   void sock
     .resyncAppState(koleksi, false)
@@ -757,13 +771,15 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
     s.waId = digitWa(sock.user?.id) || s.waId;
     const nama = sock.user?.name && sock.user.name !== "~" ? sock.user.name : null;
     s.namaWa = nama ?? s.namaWa;
-    console.info(`[wa ${s.nama}] terhubung`);
+    console.info(`[wa ${s.nama}] terhubung${auth.creds.platform ? ` (platform ${auth.creds.platform})` : ""}`);
     if (s.waId) void kabari({ jenis: "terhubung", sesi: s.nama, waId: s.waId, nama: s.namaWa });
-    // Nama profil sendiri & kelengkapan tautan perangkat datang lewat sinkronisasi pengaturan.
-    // Untuk WA Business, sock.user.name sudah terisi dari sertifikat bisnis saat pairing, sehingga
-    // kita tetap wajib menyinkronkan critical_block bila accountSyncCounter masih 0.
-    if (!nama) sinkronAwal(sock, auth, ["critical_block"]);
-    else if (!auth.creds.accountSyncCounter && auth.creds.myAppStateKeyId) sinkronAwal(sock, auth, ["critical_block", "critical_unblock_low"]);
+    // Tautan pertama (accountSyncCounter 0): minta SEMUA koleksi pengaturan saat itu juga, seperti WhatsApp Web,
+    // termasuk WA Business yang namanya sudah terisi dari sertifikat bisnis saat pairing. Dulu Business hanya
+    // menunggu kunci app-state dikirim HP; iPhone (smbi) mengirimnya terlambat atau tidak sama sekali pada tautan
+    // pertama, sehingga tautan tidak pernah tuntas. Koleksi yang kuncinya belum ada diparkir Baileys dan
+    // disinkronkan ulang otomatis begitu kunci tiba. Tersambung ulang tanpa nama profil: cukup critical_block.
+    if (!auth.creds.accountSyncCounter) sinkronAwal(sock, auth, KOLEKSI_APP_STATE);
+    else if (!nama) sinkronAwal(sock, auth, ["critical_block"]);
     lepasTunggu(s);
     return;
   }
@@ -782,6 +798,7 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
 
   if (kode === KODE.mulaiUlang || (s.baruTertaut && terpasang && kode !== KODE.keluar && kode !== KODE.versiDitolak)) {
     s.baruTertaut = false;
+    console.info(`[wa ${s.nama}] tautan diterima, menyambung ulang (kode ${kode})`);
     void sambung(s); // normal tepat setelah QR dipindai atau kode tautan diterima
     return;
   }
