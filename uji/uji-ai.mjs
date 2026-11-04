@@ -859,6 +859,22 @@ await cek("penyaring prospek: tag penilaian dipisah dari jawaban; penutup, kata 
   assert.deepEqual(P.ambilNilai("<nilai>selesai</nilai>"), { teks: "", nilai: "selesai" });
   assert.deepEqual(P.ambilNilai('Maaf kak\n<nilai label="bukan"/>'), { teks: "Maaf kak", nilai: "bukan" });
   assert.deepEqual(P.ambilNilai("Siap kak\n<nilai>entah</nilai>"), { teks: "Siap kak", nilai: null }, "label tak dikenal diabaikan, tag tetap dibuang");
+  // Pembatas rusak dari model: dibakukan dulu (ai.ts), sisanya ditangkap cadangan baris terakhir.
+  const yangMana = "Harga di outlet bervariasi, Kak. Menu yang Kakak mau yang mana?";
+  for (const t of ["<|nilai>prospek", "<|nilai|>prospek<|/nilai|>", "<nilai|>prospek</nilai|>", "< nilai >prospek</ nilai >", "</|nilai>prospek"])
+    assert.deepEqual(P.ambilNilai(AI.bakukanTag(`${yangMana}\n${t}`)), { teks: yangMana, nilai: "prospek" }, t);
+  for (const t of ["[nilai: prospek]", "nilai=prospek", "|nilai>prospek", "(nilai: prospek)"])
+    assert.deepEqual(P.ambilNilai(`${yangMana}\n${t}`), { teks: yangMana, nilai: "prospek" }, t);
+  assert.deepEqual(P.ambilNilai("Kami bantu menilai prospek usaha Kakak"), { teks: "Kami bantu menilai prospek usaha Kakak", nilai: null }, "kalimat biasa tidak dipotong");
+  assert.equal(AI.bakukanTag('Oke\n<|teruskan jenis="pesanan"|>Nama: Rina<|/teruskan|>'), 'Oke\n<teruskan jenis="pesanan">Nama: Rina</teruskan>');
+  assert.equal(AI.bakukanTag('Maaf kak\n<nilai label="bukan"/>'), 'Maaf kak\n<nilai label="bukan"/>', "tag baku tidak berubah");
+  globalThis.fetch = async () => new Response(JSON.stringify({ content: [{ type: "text", text: `${yangMana}\n<|nilai>prospek` }], usage: {} }));
+  try {
+    const j = await AI.tanyaAiTerjaga({ sessionId: "x", sistem: "S", pesan: "harga menu gimna?" }, `${SUMBER}\n${yangMana}`, { nilai: true });
+    assert.deepEqual([j.teks, j.nilai], [yangMana, "prospek"]);
+  } finally {
+    globalThis.fetch = asli;
+  }
   for (const t of ["ok makasih kak 🙏", "siap kak", "👍", "Terima kasih banyak min", "oke deh"]) assert.equal(P.penutupSaja(t), true, t);
   for (const t of ["baik kak saya pesan 2", "oke, berapa ongkirnya?", "makasih, besok ambil jam 3", "halo kak"]) assert.equal(P.penutupSaja(t), false, t);
   assert.equal(P.adaKataMinat("kak brp hrg nya"), true);

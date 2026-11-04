@@ -19,7 +19,7 @@ export const BATAS_STRIKE = 3;
 export const BISU_BOT_DTK = 6 * 3600;
 
 export const ATURAN_NILAI = `<penilaian_pesan>
-Di BARIS PALING AKHIR setiap jawaban, tambahkan tepat satu tag penilaian untuk pesan terakhir lawan bicara. Tag tidak terlihat olehnya.
+Di BARIS PALING AKHIR setiap jawaban, tambahkan tepat satu tag penilaian untuk pesan terakhir lawan bicara, ditulis persis seperti contoh di bawah (kurung sudut biasa, tanpa tanda |). Tag tidak terlihat olehnya.
 <nilai>prospek</nilai> = ia punya urusan dengan usaha/peran nomor ini: bertanya produk, layanan, harga, jadwal, lokasi, atau cara order; ingin memesan, membeli, booking, membayar; komplain atau minta bantuan soal pesanan/layanan; calon mitra atau pemasok yang serius; pelanggan lama yang melanjutkan urusan.
 <nilai>netral</nilai> = sapaan, perkenalan, atau pesan pendek yang maksudnya belum jelas ("halo", "p", "mau tanya", "permisi").
 <nilai>selesai</nilai> = HANYA ucapan penutup, terima kasih, atau konfirmasi singkat ("ok", "siap kak", "makasih 🙏") saat urusannya sudah tuntas dan kamu tidak sedang menunggu jawabannya. Untuk ini JANGAN menulis jawaban apa pun: balas HANYA dengan tag itu.
@@ -28,11 +28,14 @@ Ragu antara prospek dan yang lain = prospek. Keluhan, pelanggan marah, atau berk
 </penilaian_pesan>`;
 
 const POLA_NILAI = /<nilai(?:\s+[a-z]+\s*=\s*["']?([a-z]+)["']?)?\s*\/?>\s*([a-z]*)\s*(?:<\/nilai>)?/gi;
+/** Cadangan: tag penilaian berpembatas rusak di baris terakhir ("[nilai: prospek]", "nilai=bukan", "|nilai>netral"). */
+const POLA_NILAI_LONGGAR = /(?:^|\n)[^\S\n]*[^\p{L}\p{N}\n]{0,3}nilai[^\p{L}\n]{0,4}(prospek|netral|selesai|bukan)[^\p{L}\n]*(?:nilai[^\p{L}\n]*)?$/iu;
 
 /** Pisahkan tag <nilai> dari jawaban AI: teks bersih + label (tag terakhir yang dikenal; null bila tidak ada). */
 export function ambilNilai(jawaban: string): { teks: string; nilai: Label | null } {
   let nilai: Label | null = null;
-  const teks = jawaban
+  let teks = jawaban
+    .replace(/<\/nilai>(?=\s*(?:prospek|netral|selesai|bukan)\b)/gi, "<nilai>") // tag penutup dipakai sebagai pembuka
     .replace(POLA_NILAI, (_, attr: string | undefined, isi: string) => {
       const l = (isi || attr || "").toLowerCase();
       if ((LABEL as readonly string[]).includes(l)) nilai = l as Label;
@@ -41,6 +44,11 @@ export function ambilNilai(jawaban: string): { teks: string; nilai: Label | null
     .replace(/<\/?nilai[^>]*>/gi, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+  const m = POLA_NILAI_LONGGAR.exec(teks);
+  if (m) {
+    nilai = m[1].toLowerCase() as Label;
+    teks = teks.slice(0, m.index).trim();
+  }
   return { teks, nilai };
 }
 

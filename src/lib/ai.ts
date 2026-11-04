@@ -324,6 +324,15 @@ export interface JawabanTerjaga extends JawabanAi {
   nilai: Label | null;
 }
 
+const POLA_TAG_RUSAK = /<\s*\|?\s*(\/?)\s*\|?\s*(nilai|abaikan|teruskan|kirim_produk)\b([^<>|]*?)\s*\|?\s*>/gi;
+
+/**
+ * Model kadang menulis tag sistem dengan pembatas token khusus (`<|nilai>`, `<nilai|>`, `<|/nilai|>`, `< nilai >`).
+ * Pengurai tag tidak mengenalinya sehingga tag itu terkirim ke pelanggan; bakukan dulu ke bentuk `<nilai>`.
+ */
+export const bakukanTag = (t: string): string =>
+  t.replace(POLA_TAG_RUSAK, (_, tutup: string, nama: string, attr: string) => `<${tutup}${nama.toLowerCase()}${attr}>`);
+
 /**
  * tanyaAi + pemeriksa (src/lib/pemeriksa.ts). `sumber` = semua teks yang boleh jadi sumber fakta (pesan sistem,
  * pesan lawan bicara, riwayat chat lengkap). Draf yang melanggar ditulis ulang sekali dengan umpan balik yang
@@ -336,7 +345,7 @@ export async function tanyaAiTerjaga(
 ): Promise<JawabanTerjaga> {
   const j1 = await tanyaAi(r);
   // Tag penilaian pesan selalu dibuang dari teks pelanggan; labelnya dipakai hanya bila diminta.
-  const n1 = ambilNilai(j1.teks);
+  const n1 = ambilNilai(bakukanTag(j1.teks));
   j1.teks = n1.teks;
   const nilai = opsiJaga.nilai ? n1.nilai : null;
   // Jawaban berupa tag <abaikan> saja: pesan dinilai spam. Tidak diperiksa/ditulis ulang karena tidak ada yang dikirim.
@@ -368,7 +377,7 @@ export async function tanyaAiTerjaga(
     tokenKeluar: tambah(j1.tokenKeluar, j2.tokenKeluar),
     biayaUsd: tambah(j1.biayaUsd, j2.biayaUsd),
   };
-  j2.teks = buangTagAbaikan(ambilNilai(j2.teks).teks);
+  j2.teks = buangTagAbaikan(ambilNilai(bakukanTag(j2.teks)).teks);
   const d2 = pisah(j2.teks);
   // Sisa pelanggaran hanya soal gaya (masih terdengar robot): tulisan ulang tetap lebih baik daripada jawaban aman.
   const p2 = periksaJawaban(j2.teks, sumber, opsi).filter((x) => x.jenis !== "robotik");
