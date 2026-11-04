@@ -346,6 +346,12 @@ await cek("cari, saring, dan kursor (tanpa OFFSET) mengembalikan baris yang bena
   const hal2 = await P.daftarPengguna({ batas: 2, sebelumId: hal1.daftar[1].id });
   assert.deepEqual(hal2.daftar.map((u) => u.email), ["budi@uji.test", "admin@uji.test"]);
   assert.equal(hal2.adaLagi, false);
+  // Total per tab saring = jumlah baris yang benar-benar tampil di tab itu, dan ikut kata kunci pencarian.
+  const total = await P.hitungPengguna();
+  for (const f of ["semua", "aktif", "diblokir", "admin"]) assert.equal(total[f], (await P.daftarPengguna({ filter: f, batas: 100 })).daftar.length, `total tab ${f}`);
+  assert.equal(total.semua, 4);
+  assert.deepEqual(await P.hitungPengguna({ cari: "sar" }), { semua: 1, aktif: 1, diblokir: 0, admin: 0 });
+  assert.equal((await P.hitungPengguna({ cari: "%" })).semua, 0);
 });
 
 // Data berukuran produksi-besar: 20.000 akun, 6.000 nomor.
@@ -377,6 +383,8 @@ await cek("halaman pertama & kursor memakai indeks primary key + numbers_user_id
   assert.ok(ms < 15, `terlalu lambat: ${ms} ms`);
   const msKursor = await ukur("daftarPengguna kursor tengah", () => P.daftarPengguna({ sebelumId: 10000 }));
   assert.ok(msKursor < 15);
+  const msTotal = await ukur("hitungPengguna (total per tab, 20 rb akun)", () => P.hitungPengguna());
+  assert.ok(msTotal < 30, `terlalu lambat: ${msTotal} ms`);
   const msKpi = await ukur("kpiAdmin (dashboard KPI, 20 rb akun)", () => K.kpiAdmin(), 5);
   assert.ok(msKpi < 250, `terlalu lambat: ${msKpi} ms`);
 });

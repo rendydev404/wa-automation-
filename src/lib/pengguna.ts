@@ -90,11 +90,15 @@ export type FilterPengguna = "semua" | "aktif" | "diblokir" | "admin";
  * Satu halaman pengguna, terbaru dulu, dengan kursor id (tanpa OFFSET). Jumlah nomor dihitung per baris
  * lewat indeks numbers_user_idx (LATERAL), bukan GROUP BY seluruh tabel nomor.
  */
+const polaCari = (mentah?: string) => {
+  const cari = mentah?.trim().toLowerCase().slice(0, 100) ?? "";
+  return { cari, pola: `%${cari.replace(/[\\%_]/g, (c) => `\\${c}`)}%` };
+};
+
 export async function daftarPengguna(opsi: { cari?: string; filter?: FilterPengguna; sebelumId?: number; batas?: number }) {
   const sql = await db();
   const batas = Math.min(Math.max(opsi.batas ?? 25, 1), 100);
-  const cari = opsi.cari?.trim().toLowerCase().slice(0, 100) ?? "";
-  const pola = `%${cari.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const { cari, pola } = polaCari(opsi.cari);
   const f = opsi.filter ?? "semua";
   const baris = await sql<BarisPengguna[]>`
     SELECT u.id, u.email, u.nama, u.peran, u.status, u.alasan_blokir, u.kuota_nomor, u.ai_penyedia, u.login_terakhir, u.created_at,
@@ -108,6 +112,20 @@ export async function daftarPengguna(opsi: { cari?: string; filter?: FilterPengg
      ORDER BY u.id DESC
      LIMIT ${batas + 1}`;
   return { daftar: baris.slice(0, batas), adaLagi: baris.length > batas };
+}
+
+/** Jumlah akun per tab saring (mengikuti kata kunci pencarian), dalam satu pemindaian tabel users. */
+export async function hitungPengguna(opsi: { cari?: string } = {}): Promise<Record<FilterPengguna, number>> {
+  const sql = await db();
+  const { cari, pola } = polaCari(opsi.cari);
+  const [r] = await sql<Record<FilterPengguna, number>[]>`
+    SELECT COUNT(*)::int AS semua,
+           COUNT(*) FILTER (WHERE status = 'aktif')::int AS aktif,
+           COUNT(*) FILTER (WHERE status = 'diblokir')::int AS diblokir,
+           COUNT(*) FILTER (WHERE peran = 'admin')::int AS admin
+      FROM users
+     WHERE ${cari} = '' OR email LIKE ${pola} OR lower(nama) LIKE ${pola}`;
+  return r;
 }
 
 export async function penggunaById(id: number): Promise<BarisPengguna | undefined> {

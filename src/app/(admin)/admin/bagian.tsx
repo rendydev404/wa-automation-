@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowDown, Bot, ChevronRight, CreditCard, Package, ShieldCheck, Sparkles, UserPlus, Wallet } from "lucide-react";
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
-import { type FilterPengguna, daftarLog, daftarPengguna } from "@/lib/pengguna";
+import { type FilterPengguna, daftarLog, daftarPengguna, hitungPengguna } from "@/lib/pengguna";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
 import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, SaklarKanal, TombolHapusPengguna } from "./form-admin";
 import { customTampil, hargaAngka, paketCustom } from "@/lib/paket-custom";
@@ -355,7 +355,10 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
   const cari = typeof sp.q === "string" ? sp.q : "";
   const filter = (FILTER.find((f) => f.nilai === sp.f)?.nilai ?? "semua") as FilterPengguna;
   const sebelum = Number(sp.sebelum);
-  const { daftar, adaLagi } = await daftarPengguna({ cari, filter, sebelumId: Number.isInteger(sebelum) && sebelum > 0 ? sebelum : undefined });
+  const [{ daftar, adaLagi }, jumlah] = await Promise.all([
+    daftarPengguna({ cari, filter, sebelumId: Number.isInteger(sebelum) && sebelum > 0 ? sebelum : undefined }),
+    hitungPengguna({ cari }),
+  ]);
   const tautan = (ubah: Record<string, string | undefined>) => {
     const q = new URLSearchParams();
     const semua = { q: cari || undefined, f: filter === "semua" ? undefined : filter, ...ubah };
@@ -377,15 +380,16 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
             Cari
           </button>
         </form>
-        <nav aria-label="Saring pengguna" className="flex gap-1 rounded-xl bg-subtle p-1">
+        <nav aria-label="Saring pengguna" className="flex max-w-full gap-1 overflow-x-auto rounded-xl bg-subtle p-1">
           {FILTER.map((f) => (
             <Link
               key={f.nilai}
               href={tautan({ f: f.nilai === "semua" ? undefined : f.nilai })}
               aria-current={filter === f.nilai ? "page" : undefined}
-              className={`rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${filter === f.nilai ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
+              className={`shrink-0 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${filter === f.nilai ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
             >
               {f.label}
+              <span className={`ml-1.5 tabular-nums ${filter === f.nilai ? "text-accent" : "text-faint"}`}>{jumlah[f.nilai].toLocaleString("id-ID")}</span>
             </Link>
           ))}
         </nav>
@@ -456,18 +460,25 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
           </tbody>
         </table>
       </div>
-      {(adaLagi || sp.sebelum) && (
-        <div className="flex justify-between gap-3 border-t border-line p-4">
-          <Link href={tautan({})} className="btn btn-ghost border border-line">
-            Ke awal
-          </Link>
-          {adaLagi && (
-            <Link href={tautan({ sebelum: String(daftar[daftar.length - 1].id) })} className="btn btn-ghost border border-line">
-              Berikutnya
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line p-4">
+        <p className="text-[12.5px] text-muted">
+          Menampilkan <b className="font-semibold text-fg tabular-nums">{daftar.length.toLocaleString("id-ID")}</b> dari{" "}
+          <b className="font-semibold text-fg tabular-nums">{jumlah[filter].toLocaleString("id-ID")}</b> pengguna
+          {cari ? ` yang cocok dengan "${cari}"` : ""}
+        </p>
+        {(adaLagi || sp.sebelum) && (
+          <div className="flex gap-2">
+            <Link href={tautan({})} className="btn btn-ghost border border-line">
+              Ke awal
             </Link>
-          )}
-        </div>
-      )}
+            {adaLagi && (
+              <Link href={tautan({ sebelum: String(daftar[daftar.length - 1].id) })} className="btn btn-ghost border border-line">
+                Berikutnya
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
