@@ -21,7 +21,7 @@ async function IsiAturan() {
   await requireAdmin();
   const nilai = await semuaAturan();
   return (
-    <section className="card p-6">
+    <section className="card p-4 sm:p-6">
       <h2 className="flex items-center gap-2 text-[15px] font-bold">
         <Settings2 className="size-4 text-accent" aria-hidden /> Aturan mesin AI
       </h2>
@@ -38,7 +38,7 @@ async function KartuRingkasPixel() {
   const px = await pengaturanMetaPixel();
   const aktif = px.aktif && Boolean(px.pixelId);
   return (
-    <section className="card p-6">
+    <section className="card p-4 sm:p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-[15px] font-bold">
@@ -91,7 +91,7 @@ export default function HalamanAturan() {
           <Suspense fallback={<div aria-hidden className="card h-[140px] animate-denyut" />}>
             <KartuRingkasPixel />
           </Suspense>
-          <section className="card p-6">
+          <section className="card p-4 sm:p-6">
             <h2 className="flex items-center gap-2 text-[15px] font-bold">
               <Lock className="size-4 text-accent" aria-hidden /> Selalu aktif
             </h2>

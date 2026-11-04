@@ -1,6 +1,6 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
-import { MEREK } from "./merek";
+import { MEREK, PERUSAHAAN } from "./merek";
 
 /**
  * Kirim email transaksional (kode OTP lupa password, pemberitahuan akun) lewat SMTP Gmail dengan App Password:
@@ -47,7 +47,10 @@ export async function kirimEmail(e: { ke: string; judul: string; teks: string; h
     };
   }
   try {
-    await g.__waSmtp.t.sendMail({ from: { name: k.nama, address: k.user }, to: e.ke, subject: e.judul, text: e.teks, html: e.html });
+    await g.__waSmtp.t.sendMail({ from: { name: k.nama, address: k.user }, to: e.ke, subject: e.judul, text: `${e.teks}
+
+--
+${MEREK} · ${PERUSAHAAN}`, html: e.html });
   } catch (err) {
     const pesan = err instanceof Error ? err.message : String(err);
     throw new EmailError(/535|Invalid login|Username and Password not accepted/i.test(pesan) ? "Gmail menolak login: periksa GMAIL_USER dan App Password." : `Email gagal dikirim: ${pesan}`);
@@ -158,7 +161,7 @@ export function htmlEmail(o: IsiEmail): string {
   const badan = `${o.sapaan ? p(o.sapaan, "font-weight:600") : ""}${o.paragraf.map((t) => p(t)).join("")}${kode}${rincian}${tombol}${peringatan}${o.catatan ? p(o.catatan, `font-size:13px;color:${W.redup};margin:0`) : ""}`;
   const kaki = `<p style="margin:0 0 6px;font-family:${HURUF};font-size:12.5px;font-weight:700;color:${W.teks}">Chat<span style="color:${W.aksen}">GerCep</span> <span style="font-weight:400;color:${W.redup}">· Asisten AI WhatsApp untuk usaha Anda</span></p><p style="margin:0;font-family:${HURUF};font-size:12px;line-height:1.6;color:${W.redup}">Email ini dikirim otomatis, mohon tidak dibalas.${
     asal ? ` <a href="${aman(asal)}" style="color:${W.aksen};text-decoration:none;font-weight:600">${aman(asal.replace(/^https?:\/\//, ""))}</a>` : ""
-  }<br>&copy; ${new Date().getFullYear()} ChatGerCep</p>`;
+  }<br>&copy; ${new Date().getFullYear()} ${aman(PERUSAHAAN)}. ${aman(MEREK)} adalah produk ${aman(PERUSAHAAN)}.</p>`;
 
   return `<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${aman(o.judul)}</title></head>
 <body style="margin:0;padding:0;background:${W.latar}">

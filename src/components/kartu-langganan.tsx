@@ -18,7 +18,7 @@ export async function KartuLangganan({ tautan = false }: { tautan?: boolean }) {
   const habis = berakhir || (hak.balasan !== null && terpakai >= hak.balasan);
   const tipis = !habis && hak.balasan !== null && persenBalasan >= 80;
   return (
-    <section aria-label="Langganan dan kuota" className="card grid gap-6 p-6 md:grid-cols-3">
+    <section aria-label="Langganan dan kuota" className="card grid gap-5 p-5 sm:gap-6 sm:p-6 md:grid-cols-3">
       <div>
         <p className="text-[12.5px] font-semibold text-muted">Paket sekarang</p>
         <p className="mt-1 text-2xl font-bold">{hak.paket}</p>

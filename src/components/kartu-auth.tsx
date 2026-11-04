@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
-import { MEREK } from "@/lib/merek";
+import { MEREK, PERUSAHAAN } from "@/lib/merek";
 
 /** Rangka halaman masuk/daftar: panel merek gelap di kiri (desktop), kartu formulir di kanan. */
 export function KartuAuth({ judul, sub, children, kaki }: { judul: string; sub: string; children: ReactNode; kaki: ReactNode }) {
@@ -34,6 +34,7 @@ export function KartuAuth({ judul, sub, children, kaki }: { judul: string; sub: 
           </div>
           <div className="card p-6">{children}</div>
           <p className="mt-5 text-center text-[13px] text-muted">{kaki}</p>
+          <p className="mt-6 text-center text-[11.5px] text-faint">&copy; {PERUSAHAAN}</p>
         </div>
       </div>
     </main>

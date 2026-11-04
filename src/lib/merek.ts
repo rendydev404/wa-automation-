@@ -5,6 +5,8 @@
 export const MEREK_DEPAN = "Chat";
 export const MEREK_BELAKANG = "GerCep";
 export const MEREK = `${MEREK_DEPAN}${MEREK_BELAKANG}`;
+/** Badan usaha pemilik merek: kaki halaman publik, tagihan, email, dan data SEO. */
+export const PERUSAHAAN = "PT. SUKA PROFIT BERKAH";
 
 export const NOMOR_WA_DEMO = "62895354873838";
 export const NOMOR_WA_TAMPIL = "+62 895-3548-73838";

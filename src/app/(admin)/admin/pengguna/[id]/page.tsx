@@ -135,7 +135,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                         <span className="block truncate text-[13.5px] font-semibold">{n.label}</span>
                         <span className="block text-[12.5px] text-muted tabular-nums">{n.wa_id ? formatNomor(n.wa_id) : "Belum ada nomor tertaut"}</span>
                       </span>
-                      <span className="flex shrink-0 items-center gap-2 text-[12px]">
+                      <span className="flex shrink-0 flex-col items-end gap-1 text-[12px] sm:flex-row sm:items-center sm:gap-2">
                         <span className={`rounded-full px-2.5 py-1 font-semibold ${s.status === "WORKING" ? "bg-success-soft text-success" : "bg-subtle text-muted"}`}>{STATUS[s.status] ?? s.status}</span>
                         <span className={`rounded-full px-2.5 py-1 font-semibold ${n.bot_aktif ? "bg-accent-soft text-accent" : "bg-subtle text-muted"}`}>{n.bot_aktif ? "AI aktif" : "AI mati"}</span>
                       </span>
@@ -146,16 +146,16 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               {nomor.length === 0 && <li className="px-5 py-8 text-center text-[13px] text-muted">Belum menambahkan nomor.</li>}
             </ul>
           </section>
-          <section className="card p-6">
+          <section className="card p-4 sm:p-6">
             <h2 className="text-[15px] font-bold">Tindakan akun</h2>
             <div className="mt-4">
               <AksiAkun id={u.id} nama={u.nama} email={u.email} jumlahNomor={nomor.length} admin={u.peran === "admin"} diriSendiri={diriSendiri} />
             </div>
           </section>
         </div>
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           {u.peran !== "admin" && (
-            <section className="card p-6">
+            <section className="card p-4 sm:p-6">
               <h2 className="text-[15px] font-bold">Langganan</h2>
               <p className="mt-1 text-[13px] text-muted">
                 <span className="font-semibold text-fg">{hak.paket}</span>
@@ -207,7 +207,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               )}
             </section>
           )}
-          <section className="card p-6">
+          <section className="card p-4 sm:p-6">
             <h2 className="text-[15px] font-bold">Mesin AI akun</h2>
             <p className="mt-0.5 text-[13px] text-muted">
               Sekarang dijawab:{" "}
@@ -218,7 +218,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             </div>
           </section>
           {u.peran !== "admin" && (
-            <section className="card p-6">
+            <section className="card p-4 sm:p-6">
               <h2 className="text-[15px] font-bold">Kuota perangkat</h2>
               <div className="mt-4">
                 <FormKuota id={u.id} kuota={u.kuota_nomor} bawaan={bawaan} />
@@ -226,7 +226,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             </section>
           )}
           {!diriSendiri && (
-            <section className="card p-6">
+            <section className="card p-4 sm:p-6">
               <h2 className="text-[15px] font-bold">{u.status === "diblokir" ? "Akun diblokir" : "Blokir akun"}</h2>
               <div className="mt-4">
                 <FormBlokir id={u.id} diblokir={u.status === "diblokir"} alasan={u.alasan_blokir} />

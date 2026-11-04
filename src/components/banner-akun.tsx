@@ -40,8 +40,8 @@ export async function BannerAkun() {
       </div>
       <div className="flex shrink-0 flex-wrap gap-2">
         {kosong.slice(0, 3).map((n) => (
-          <Link key={n.id} href={`/nomor/${n.id}#knowledge`} className="btn btn-primary">
-            Isi {kosong.length > 1 ? n.label : "sekarang"}
+          <Link key={n.id} href={`/nomor/${n.id}#knowledge`} className="btn btn-primary max-w-full min-w-0">
+            <span className="truncate">Isi {kosong.length > 1 ? n.label : "sekarang"}</span>
           </Link>
         ))}
       </div>

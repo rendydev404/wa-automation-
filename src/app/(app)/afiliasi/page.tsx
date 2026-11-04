@@ -210,13 +210,13 @@ async function IsiAfiliasi() {
       />
 
       {/* Metrik Utama */}
-      <section aria-label="Statistik Afiliasi" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="card p-5">
+      <section aria-label="Statistik Afiliasi" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="card min-w-0 p-4 sm:p-5">
           <div className="flex items-center justify-between text-muted">
             <span className="text-[12px] font-semibold">Saldo Bisa Ditarik</span>
             <Wallet className="size-4 text-accent" aria-hidden />
           </div>
-          <p className="mt-2 text-2xl font-extrabold tracking-tight tabular-nums">Rp{angka(profil.saldo)}</p>
+          <p className="mt-2 text-xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-2xl tabular-nums">Rp{angka(profil.saldo)}</p>
           <p className="mt-1 text-[12px] text-muted tabular-nums">
             {data.sedangMenungguCair > 0
               ? `Rp${angka(data.sedangMenungguCair)} sedang diproses cair`
@@ -224,12 +224,12 @@ async function IsiAfiliasi() {
           </p>
         </div>
 
-        <div className="card p-5">
+        <div className="card min-w-0 p-4 sm:p-5">
           <div className="flex items-center justify-between text-muted">
             <span className="text-[12px] font-semibold">Total Komisi Diperoleh</span>
             <Banknote className="size-4 text-success" aria-hidden />
           </div>
-          <p className="mt-2 text-2xl font-extrabold tracking-tight text-success tabular-nums">
+          <p className="mt-2 text-xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-2xl text-success tabular-nums">
             Rp{angka(profil.total_komisi)}
           </p>
           <p className="mt-1 text-[12px] text-muted">
@@ -237,23 +237,23 @@ async function IsiAfiliasi() {
           </p>
         </div>
 
-        <div className="card p-5">
+        <div className="card min-w-0 p-4 sm:p-5">
           <div className="flex items-center justify-between text-muted">
             <span className="text-[12px] font-semibold">Klik Tautan & Pendaftar</span>
             <MousePointerClick className="size-4 text-accent" aria-hidden />
           </div>
-          <p className="mt-2 text-2xl font-extrabold tracking-tight tabular-nums">
+          <p className="mt-2 text-xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-2xl tabular-nums">
             {angka(data.totalPendaftar)} <span className="text-[14px] font-semibold text-muted">akun</span>
           </p>
           <p className="mt-1 text-[12px] text-muted tabular-nums">Dari {angka(profil.klik)} klik tautan unik</p>
         </div>
 
-        <div className="card p-5">
+        <div className="card min-w-0 p-4 sm:p-5">
           <div className="flex items-center justify-between text-muted">
             <span className="text-[12px] font-semibold">Pembeli Paket</span>
             <Users className="size-4 text-accent" aria-hidden />
           </div>
-          <p className="mt-2 text-2xl font-extrabold tracking-tight tabular-nums">
+          <p className="mt-2 text-xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-2xl tabular-nums">
             {angka(data.totalPembeli)} <span className="text-[14px] font-semibold text-muted">pembeli</span>
           </p>
           <p className="mt-1 text-[12px] text-muted tabular-nums">

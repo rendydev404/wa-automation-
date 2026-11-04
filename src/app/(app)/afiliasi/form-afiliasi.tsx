@@ -71,8 +71,8 @@ export function FormGabungAfiliasi() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3 pt-1">
-        <SubmitButton className="btn btn-primary">
-          <Share2 className="size-4" aria-hidden /> Gabung Program Afiliasi Sekarang
+        <SubmitButton className="btn btn-primary h-auto min-h-[2.375rem] w-full py-2 whitespace-normal sm:w-auto">
+          <Share2 className="size-4 shrink-0" aria-hidden /> Gabung Program Afiliasi Sekarang
         </SubmitButton>
         <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
       </div>
@@ -162,13 +162,15 @@ export function KartuTautanReferral({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line px-3.5 py-2.5 text-[12.5px]">
-        <span className="flex items-center gap-2 text-muted">
-          <Landmark className="size-4 text-accent" aria-hidden />
-          Rekening tujuan pencairan:{" "}
-          <strong className="font-semibold text-fg">
-            {namaBankTampil(bankNama)} · {bankNomor}
-          </strong>{" "}
-          a.n. <strong className="font-semibold text-fg">{bankPemilik}</strong>
+        <span className="flex min-w-0 items-start gap-2 text-muted">
+          <Landmark className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
+          <span className="min-w-0 [overflow-wrap:anywhere]">
+            Rekening tujuan pencairan:{" "}
+            <strong className="font-semibold text-fg">
+              {namaBankTampil(bankNama)} · {bankNomor}
+            </strong>{" "}
+            a.n. <strong className="font-semibold text-fg">{bankPemilik}</strong>
+          </span>
         </span>
         <span className="font-mono text-[12px] text-muted">Kode: {kode}</span>
       </div>

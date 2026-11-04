@@ -2,21 +2,14 @@
 
 import { useState } from "react";
 import { ArrowUpRight, CheckCircle2, Send, Sparkles, X } from "lucide-react";
-import { MEREK, NOMOR_WA_DEMO, NOMOR_WA_TAMPIL } from "@/lib/merek";
+import { IkonWhatsApp } from "@/components/ikon-whatsapp";
+import { MEREK, NOMOR_WA_DEMO } from "@/lib/merek";
 
 const CONTOH_PESAN = [
   `Halo ${MEREK}, saya mau coba tes secepat apa AI membalas chat ini.`,
   `Halo, boleh jelaskan fitur dan pilihan paket ${MEREK}?`,
   `Halo, saya ingin konsultasi dan coba demo bot WA dulu sebelum daftar.`,
 ];
-
-function IkonWhatsApp({ className = "size-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
-      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91C21.95 6.45 17.5 2 12.04 2Zm5.82 14.12c-.24.68-1.41 1.3-1.95 1.38-.5.08-1.13.11-1.83-.11-.42-.13-.97-.31-1.66-.61-2.92-1.26-4.83-4.21-4.97-4.4-.15-.2-1.19-1.58-1.19-3.01 0-1.43.75-2.13 1.02-2.42.26-.29.58-.36.77-.36.19 0 .39 0 .56.01.18.01.42-.07.66.5.24.58.82 2.01.89 2.15.07.15.12.32.02.51-.1.2-.15.32-.29.49-.15.17-.31.38-.44.51-.15.15-.3.31-.13.6.17.29.76 1.25 1.63 2.02 1.12.99 2.06 1.3 2.35 1.45.29.15.46.12.63-.07.17-.2.73-.85.92-1.14.2-.29.39-.24.66-.15.27.1 1.7.8 1.99.95.29.15.49.22.56.34.07.12.07.7-.17 1.38Z" />
-    </svg>
-  );
-}
 
 export function WidgetWaLanding() {
   const [terbuka, setTerbuka] = useState(false);
@@ -46,7 +39,9 @@ export function WidgetWaLanding() {
                     Online 24/7
                   </span>
                 </div>
-                <p className="mt-0.5 font-mono text-[12px] text-ink-muted">{NOMOR_WA_TAMPIL}</p>
+                <p className="mt-0.5 flex items-center gap-1 text-[12px] font-semibold text-ink-muted">
+                  <IkonWhatsApp className="size-3.5 text-ink-signal" /> Customer Service
+                </p>
               </div>
             </div>
             <button
@@ -67,7 +62,7 @@ export function WidgetWaLanding() {
                 Uji Coba & Testimoni Langsung
               </p>
               <p className="mt-1 text-muted">
-                Ingin membuktikan secepat apa AI membalas pelanggan atau tanya-tanya dulu? Kirim pesan ke nomor WhatsApp resmi kami di bawah ini.
+                Ingin membuktikan secepat apa AI membalas pelanggan atau tanya-tanya dulu? Kirim pesan ke Customer Service WhatsApp kami.
               </p>
             </div>
 
@@ -136,8 +131,8 @@ export function WidgetWaLanding() {
             onClick={() => setTerbuka(true)}
             className="hidden items-center gap-2 rounded-2xl border border-line bg-surface px-3.5 py-2 text-[12.5px] font-bold text-fg shadow-card transition-transform hover:-translate-y-0.5 sm:inline-flex"
           >
-            <span className="size-2 rounded-full bg-accent" />
-            Coba Tes WA AI · {NOMOR_WA_TAMPIL}
+            <IkonWhatsApp className="size-4 text-accent" />
+            Customer Service
           </button>
         )}
 
@@ -145,7 +140,7 @@ export function WidgetWaLanding() {
           type="button"
           onClick={() => setTerbuka((v) => !v)}
           aria-expanded={terbuka}
-          aria-label={terbuka ? "Tutup widget WhatsApp" : `Coba tes chat WhatsApp ${NOMOR_WA_TAMPIL}`}
+          aria-label={terbuka ? "Tutup widget WhatsApp" : "Chat Customer Service di WhatsApp"}
           className="group inline-flex items-center gap-2.5 rounded-full bg-accent px-4 py-3.5 text-[13.5px] font-bold text-on-accent shadow-pop transition-transform hover:-translate-y-0.5"
         >
           {terbuka ? (

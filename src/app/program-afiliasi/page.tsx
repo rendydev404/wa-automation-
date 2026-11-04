@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { ArrowRight, Banknote, Check, Link2, Percent, ShieldCheck, Share2, Sparkles, TrendingUp, Users, Wallet } from "lucide-react";
+import { KakiPerusahaan } from "@/components/kaki-perusahaan";
 import { Logo } from "@/components/logo";
 import { AlurAfiliasiInteraktif, KalkulatorAfiliasi, type PaketSimulasiAfiliasi } from "@/components/landing/interaktif-afiliasi";
 import { WidgetWaLanding } from "@/components/landing/widget-wa";
@@ -456,6 +457,7 @@ export default function HalamanProgramAfiliasi() {
             </Link>
           </div>
         </div>
+        <KakiPerusahaan className="pb-20 sm:pb-0" />
       </footer>
 
       <WidgetWaLanding />

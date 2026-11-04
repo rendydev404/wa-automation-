@@ -86,9 +86,14 @@ function terlihat(el: Element | null): boolean {
   return r.width > 0 && r.height > 0 && r.right > 0 && r.left < window.innerWidth && getComputedStyle(el).visibility !== "hidden";
 }
 
+/** Sasaran yang sedang tampil: menu yang sama ada di sidebar (desktop) dan bilah bawah (HP), pilih yang terlihat. */
+function sasaranTerlihat(nama: string): HTMLElement | null {
+  return Array.from(document.querySelectorAll<HTMLElement>(`[data-tur="${nama}"]`)).find(terlihat) ?? null;
+}
+
 function Sorot({ langkah: semua, tutup }: { langkah: LangkahTur[]; tutup: () => void }) {
   // Hanya langkah yang elemennya ada di halaman ini.
-  const [langkah] = useState(() => semua.filter((l) => !l.sasaran || terlihat(document.querySelector(`[data-tur="${l.sasaran}"]`))));
+  const [langkah] = useState(() => semua.filter((l) => !l.sasaran || sasaranTerlihat(l.sasaran)));
   const [i, setI] = useState(0);
   // Posisi elemen yang disorot, dicatat bersama nomor langkahnya (langkah tanpa sasaran = tanpa kotak).
   const [ukuran, setUkuran] = useState<{ i: number; r: DOMRect } | null>(null);
@@ -97,7 +102,7 @@ function Sorot({ langkah: semua, tutup }: { langkah: LangkahTur[]; tutup: () => 
 
   useLayoutEffect(() => {
     if (!l) return;
-    const el = l.sasaran ? document.querySelector<HTMLElement>(`[data-tur="${l.sasaran}"]`) : null;
+    const el = l.sasaran ? sasaranTerlihat(l.sasaran) : null;
     if (!el) return;
     el.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
     const ukur = () => setUkuran({ i, r: el.getBoundingClientRect() });
@@ -159,7 +164,7 @@ function Sorot({ langkah: semua, tutup }: { langkah: LangkahTur[]; tutup: () => 
         role="dialog"
         aria-modal="true"
         aria-labelledby="tur-judul"
-        className="fixed w-[min(360px,calc(100vw-32px))] animate-masuk rounded-2xl bg-surface p-5 text-fg shadow-pop outline-none max-sm:!top-auto max-sm:!bottom-4 max-sm:!left-4 max-sm:!transform-none"
+        className="fixed w-[min(360px,calc(100vw-32px))] animate-masuk rounded-2xl bg-surface p-5 text-fg shadow-pop outline-none max-sm:!top-auto max-sm:!bottom-[calc(5rem+env(safe-area-inset-bottom))] max-sm:!left-4 max-sm:!transform-none"
         style={gayaKartu}
       >
         <div className="flex items-start justify-between gap-3">

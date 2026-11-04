@@ -8,7 +8,7 @@ import { angka, jamWib, tanggal } from "@/lib/format";
 import { KANAL_BAYAR } from "@/lib/harga";
 import { ORDER_SAH, type Transaksi, langgananAktif, paketById, statusTagihan, transaksiMilik } from "@/lib/langganan";
 import { type InstruksiBayar as DataMidtrans, konfigMidtrans } from "@/lib/midtrans";
-import { MEREK } from "@/lib/merek";
+import { MEREK, PERUSAHAAN } from "@/lib/merek";
 import { type BitQr, kemasQr } from "@/lib/qr";
 import { requireUser } from "@/lib/session";
 import { type DataBayar, InstruksiBayar, PantauStatus } from "./instruksi";
@@ -40,6 +40,9 @@ export default function HalamanTagihan(props: PageProps<"/langganan/tagihan/[ord
       <Suspense fallback={<div aria-hidden className="card h-[34rem] animate-denyut" />}>
         <Isi params={props.params} />
       </Suspense>
+      <p className="mt-4 text-center text-[12px] leading-relaxed text-faint">
+        Tagihan diterbitkan oleh <span className="font-semibold text-muted">{PERUSAHAAN}</span> untuk layanan {MEREK}.
+      </p>
     </div>
   );
 }
@@ -112,6 +115,10 @@ function Rangkuman({ t, baris = [] }: { t: Transaksi; baris?: [string, string][]
           <dd className="text-right font-semibold tabular-nums">{v}</dd>
         </div>
       ))}
+      <div className="flex items-baseline justify-between gap-4 px-4 py-3">
+        <dt className="text-muted">Penerbit</dt>
+        <dd className="text-right font-semibold">{PERUSAHAAN}</dd>
+      </div>
       <div className="flex items-baseline justify-between gap-4 px-4 py-3">
         <dt className="text-muted">No. pesanan</dt>
         <dd className="min-w-0 break-all text-right font-mono text-[12px] text-muted">{t.order_id}</dd>

@@ -3,9 +3,11 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CircleHelp, CreditCard, LayoutDashboard, Share2, ShieldCheck, UserRound } from "lucide-react";
+import { CircleHelp, CreditCard, LayoutDashboard, LogOut, MessageCircle, Share2, ShieldCheck, UserRound } from "lucide-react";
+import { logoutAction } from "@/app/actions";
 import { formatNomor } from "@/lib/format";
 import type { StatusSesiWa } from "@/lib/types";
+import { BilahBawah, TabBawah, TabLembar } from "./bilah-bawah";
 import { TUR_DASHBOARD, TUR_NOMOR } from "./isi-tur";
 import { TombolTambahNomor } from "./tambah-nomor";
 import { TombolTur } from "./tur";
@@ -135,6 +137,109 @@ export function NavUtama({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
       </div>
     </>
   );
+}
+
+/** Tur halaman yang sedang dibuka (halaman nomor punya tur sendiri). */
+function turHalaman(jalur: string) {
+  return jalur.startsWith("/nomor/") ? { nama: "nomor", langkah: TUR_NOMOR } : { nama: "dashboard", langkah: TUR_DASHBOARD };
+}
+
+/** Tombol Panduan di bilah atas HP: selalu terlihat tanpa membuka menu. */
+export function TombolPanduanAtas() {
+  const tur = turHalaman(usePathname());
+  return (
+    <span data-tur="nav-panduan" className="block">
+      <TombolTur
+        nama={tur.nama}
+        langkah={tur.langkah}
+        className="flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-[13px] font-semibold text-ink-muted transition-colors hover:bg-ink-raised hover:text-ink-fg"
+      >
+        <CircleHelp className="size-[18px]" aria-hidden />
+        Panduan
+      </TombolTur>
+    </span>
+  );
+}
+
+const KELAS_KELUAR =
+  "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-semibold text-ink-muted transition-colors hover:bg-ink-raised hover:text-ink-fg";
+
+/** Menu bawah HP untuk workspace pengguna: Ringkasan, Nomor (lembar), Langganan, Afiliasi, Akun (lembar). */
+export function NavBawah({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; admin: boolean; pengguna: { nama: string; email: string } }) {
+  const jalur = usePathname();
+  const tur = turHalaman(jalur);
+  return (
+    <BilahBawah label="Menu utama">
+      <TabBawah href="/dashboard" label="Ringkasan" aktif={jalur === "/dashboard"} ikon={<LayoutDashboard className="size-5" aria-hidden />} />
+      <TabLembar
+        label="Nomor"
+        judul="Nomor WhatsApp"
+        tur="nav-nomor"
+        aktif={jalur.startsWith("/nomor/")}
+        ikon={<MessageCircle className="size-5" aria-hidden />}
+        lencana={
+          nomor.length > 0 && (
+            <span className="absolute -top-1 right-1 min-w-4 rounded-full bg-ink-raised px-1 text-center text-[10px] leading-4 font-bold text-ink-fg tabular-nums ring-2 ring-ink">
+              {nomor.length}
+            </span>
+          )
+        }
+      >
+        <ul className="space-y-0.5">
+          {nomor.map((n) => (
+            <ItemNomor key={n.id} n={n} aktif={jalur === `/nomor/${n.id}`} />
+          ))}
+          {nomor.length === 0 && <li className="px-3 py-2 text-[13px] text-ink-muted">Belum ada nomor. Tambahkan nomor WhatsApp pertama Anda.</li>}
+        </ul>
+        <div className="pt-3">
+          <TombolTambahNomor varian="nav" />
+        </div>
+      </TabLembar>
+      <TabBawah href="/langganan" label="Langganan" tur="nav-langganan" aktif={jalur === "/langganan" || jalur.startsWith("/langganan/")} ikon={<CreditCard className="size-5" aria-hidden />} />
+      <TabBawah href="/afiliasi" label="Afiliasi" aktif={jalur === "/afiliasi"} ikon={<Share2 className="size-5" aria-hidden />} />
+      <TabLembar label="Akun" judul="Akun" aktif={jalur === "/akun"} ikon={<UserRound className="size-5" aria-hidden />}>
+        <div className="mb-2 flex items-center gap-3 rounded-2xl bg-white/[0.04] px-3 py-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-ink-signal/15 text-[15px] font-bold text-ink-signal uppercase">{pengguna.nama.trim().charAt(0) || "#"}</span>
+          <span className="min-w-0">
+            <span className="block truncate text-[14px] font-semibold text-white">{pengguna.nama}</span>
+            <span className="block truncate text-[12px] text-ink-muted">{pengguna.email}</span>
+          </span>
+        </div>
+        <div className="space-y-0.5">
+          <TautanNav href="/akun" aktif={jalur === "/akun"} ikon={<UserRound className="size-4" aria-hidden />}>
+            Akun saya
+          </TautanNav>
+          {admin && (
+            <TautanNav href="/admin" aktif={false} ikon={<ShieldCheck className="size-4" aria-hidden />}>
+              Panel admin
+            </TautanNav>
+          )}
+          <span data-tutup-laci className="block">
+            <TombolTur nama={tur.nama} langkah={tur.langkah} className={`${kelasTautan(false)} w-full text-left`}>
+              <span className="grid size-8 place-items-center rounded-lg bg-white/[0.05] text-ink-muted group-hover:text-ink-fg">
+                <CircleHelp className="size-4" aria-hidden />
+              </span>
+              <span className="text-[13.5px] font-semibold">Panduan</span>
+            </TombolTur>
+          </span>
+        </div>
+        <div className="mt-3 space-y-2 border-t border-ink-line pt-3">
+          <StatusLayanan />
+          <form action={logoutAction}>
+            <button type="submit" className={KELAS_KELUAR}>
+              <LogOut className="size-4" aria-hidden />
+              Keluar
+            </button>
+          </form>
+        </div>
+      </TabLembar>
+    </BilahBawah>
+  );
+}
+
+/** Kerangka bilah bawah selagi data menu dimuat (tinggi sama, tanpa lompatan tata letak). */
+export function NavBawahKerangka() {
+  return <div aria-hidden className="fixed inset-x-0 bottom-0 z-40 h-[calc(4rem+env(safe-area-inset-bottom))] border-t border-ink-line bg-ink lg:hidden" />;
 }
 
 /** Kerangka daftar selagi data sidebar dimuat. */

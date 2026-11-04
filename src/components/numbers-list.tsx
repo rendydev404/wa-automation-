@@ -60,8 +60,8 @@ export function NumbersList({ nomor }: { nomor: KartuNomor[] }) {
 
 function Angka({ label, nilai }: { label: string; nilai: number }) {
   return (
-    <div className="min-w-0 px-3 py-2.5">
-      <dt className="truncate text-[11px] font-medium text-muted">{label}</dt>
+    <div className="min-w-0 px-2 py-2.5 sm:px-3">
+      <dt className="text-[11px] leading-tight font-medium text-muted">{label}</dt>
       <dd className="mt-0.5 text-lg leading-tight font-bold tabular-nums">{angka(nilai)}</dd>
     </div>
   );

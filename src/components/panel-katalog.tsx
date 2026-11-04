@@ -158,18 +158,18 @@ function BarisProduk({ numberId, p, pertama, terakhir, bisaGeser, ubah }: { numb
           <Saklar aktif={p.tersedia} onUbah={(v) => jalankan(() => tersediaProdukAction(numberId, p.id, v))} label={`${p.nama} tersedia`} disabled={sedang} />
           {bisaGeser && (
             <span className="ml-1 flex flex-col">
-              <button type="button" aria-label={`Naikkan ${p.nama}`} disabled={pertama || sedang} onClick={() => jalankan(() => geserProdukAction(numberId, p.id, -1))} className="grid size-5 place-items-center rounded text-faint hover:bg-subtle hover:text-fg disabled:opacity-30">
+              <button type="button" aria-label={`Naikkan ${p.nama}`} disabled={pertama || sedang} onClick={() => jalankan(() => geserProdukAction(numberId, p.id, -1))} className="grid size-7 place-items-center rounded text-faint hover:bg-subtle hover:text-fg disabled:opacity-30 sm:size-5">
                 <ArrowUp className="size-3.5" aria-hidden />
               </button>
-              <button type="button" aria-label={`Turunkan ${p.nama}`} disabled={terakhir || sedang} onClick={() => jalankan(() => geserProdukAction(numberId, p.id, 1))} className="grid size-5 place-items-center rounded text-faint hover:bg-subtle hover:text-fg disabled:opacity-30">
+              <button type="button" aria-label={`Turunkan ${p.nama}`} disabled={terakhir || sedang} onClick={() => jalankan(() => geserProdukAction(numberId, p.id, 1))} className="grid size-7 place-items-center rounded text-faint hover:bg-subtle hover:text-fg disabled:opacity-30 sm:size-5">
                 <ArrowDown className="size-3.5" aria-hidden />
               </button>
             </span>
           )}
-          <button type="button" aria-label={`Ubah ${p.nama}`} onClick={ubah} className="grid size-8 place-items-center rounded-lg text-muted hover:bg-subtle hover:text-fg">
+          <button type="button" aria-label={`Ubah ${p.nama}`} onClick={ubah} className="grid size-9 place-items-center rounded-lg text-muted hover:bg-subtle hover:text-fg sm:size-8">
             <Pencil className="size-4" aria-hidden />
           </button>
-          <button type="button" aria-label={`Hapus ${p.nama}`} onClick={() => setTanyaHapus(true)} className="grid size-8 place-items-center rounded-lg text-muted hover:bg-danger-soft hover:text-danger">
+          <button type="button" aria-label={`Hapus ${p.nama}`} onClick={() => setTanyaHapus(true)} className="grid size-9 place-items-center rounded-lg text-muted hover:bg-danger-soft hover:text-danger sm:size-8">
             <Trash2 className="size-4" aria-hidden />
           </button>
         </span>

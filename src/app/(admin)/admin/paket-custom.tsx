@@ -629,7 +629,7 @@ export function PembangunCustom({
         </div>
       </aside>
 
-      <div className="sticky bottom-3 z-20 rounded-2xl border border-line bg-surface/95 p-3 shadow-pop backdrop-blur lg:hidden">
+      <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-20 rounded-2xl border border-line bg-surface/95 p-3 shadow-pop backdrop-blur lg:hidden">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-[16px] font-extrabold tabular-nums">
@@ -808,7 +808,7 @@ function Panel({ no, judul, ket, kanan, lipat, children }: { no: number; judul: 
 
 function Segmen<T extends string>({ label, nilai, pilihan, onUbah }: { label: string; nilai: T; pilihan: { id: T; label: string }[]; onUbah: (v: T) => void }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-xl border border-line bg-subtle/60 p-1 text-[12.5px] font-semibold">
+    <div role="radiogroup" aria-label={label} className="flex w-full rounded-xl border border-line bg-subtle/60 p-1 text-[12.5px] font-semibold sm:inline-flex sm:w-auto">
       {pilihan.map((p) => (
         <button
           key={p.id}
@@ -816,7 +816,7 @@ function Segmen<T extends string>({ label, nilai, pilihan, onUbah }: { label: st
           role="radio"
           aria-checked={nilai === p.id}
           onClick={() => onUbah(p.id)}
-          className={`rounded-lg px-3 py-1.5 transition-colors ${nilai === p.id ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
+          className={`min-h-9 flex-1 rounded-lg px-3 py-1.5 transition-colors sm:flex-none ${nilai === p.id ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
         >
           {p.label}
         </button>
@@ -831,7 +831,7 @@ export function Chip({ aktif, onClick, children }: { aktif: boolean; onClick: ()
       type="button"
       aria-pressed={aktif}
       onClick={onClick}
-      className={`rounded-full border px-3 py-1 text-[12.5px] font-semibold tabular-nums transition-colors ${aktif ? "border-accent bg-accent-soft text-accent" : "border-line text-muted hover:border-line-strong hover:text-fg"}`}
+      className={`min-h-9 rounded-full border px-3 py-1 text-[12.5px] font-semibold tabular-nums transition-colors sm:min-h-0 ${aktif ? "border-accent bg-accent-soft text-accent" : "border-line text-muted hover:border-line-strong hover:text-fg"}`}
     >
       {children}
     </button>

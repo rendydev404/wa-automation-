@@ -29,7 +29,7 @@ const FILTER: { nilai: FilterPengguna; label: string }[] = [
 
 export function BuatAkun() {
   return (
-    <section className="card p-6">
+    <section className="card p-4 sm:p-6">
       <h2 className="flex items-center gap-2 text-[15px] font-bold">
         <UserPlus className="size-4 text-accent" aria-hidden /> Buat akun
       </h2>
@@ -52,7 +52,7 @@ export async function MesinAi() {
   const opsi = [...dasar, ...[atur.model, atur.cadangan].filter((id) => id && !dasar.some((m) => m.id === id)).map((id) => ({ id, nama: id }))].map((m) => opsiModel(m, KURS));
   const total = pakai.reduce((a, p) => ({ n: a.n + p.balasan, usd: a.usd + p.biaya_usd }), { n: 0, usd: 0 });
   return (
-    <section className="card p-6">
+    <section className="card p-4 sm:p-6">
       <h2 className="flex items-center gap-2 text-[15px] font-bold">
         <Bot className="size-4 text-accent" aria-hidden /> Mesin AI
       </h2>
@@ -113,7 +113,7 @@ export async function Pengaturan() {
   await requireAdmin();
   const [buka, kuota, percobaan, kurs] = await Promise.all([pendaftaranDibuka(), kuotaBawaan(), aturanPercobaan(), infoKurs()]);
   return (
-    <section className="card p-6">
+    <section className="card p-4 sm:p-6">
       <h2 className="flex items-center gap-2 text-[15px] font-bold">
         <ShieldCheck className="size-4 text-accent" aria-hidden /> Aturan pendaftaran
       </h2>
@@ -163,14 +163,14 @@ export async function KelolaPaket() {
   await requireAdmin();
   const [paket, acuan, nyata, kursI, custom, daftarAcuan, tarifI] = await Promise.all([daftarPaket({ semua: true }), acuanHarga(), pemakaianNyata(), infoKurs(), paketCustom(), modelAcuan(), infoTarif()]);
   return (
-    <section className="card p-6">
+    <section className="card p-4 sm:p-6">
       <h2 className="flex items-center gap-2 text-[15px] font-bold">
         <Package className="size-4 text-accent" aria-hidden /> Paket langganan
       </h2>
       <p className="mt-0.5 text-[13px] text-muted">Perubahan berlaku untuk pembelian berikutnya; pelanggan yang sedang aktif tetap memakai kuota saat ia membeli.</p>
       <details className="mt-4 rounded-xl border border-accent/30 bg-accent-soft/30" open>
         <summary className="cursor-pointer px-4 py-3 text-[13.5px] font-semibold text-accent">Margin keuntungan & simulasi paket (pratinjau langsung)</summary>
-        <div className="border-t border-accent/20 bg-surface p-4">
+        <div className="border-t border-accent/20 bg-surface p-3 sm:p-4">
           <SimulasiHarga
             paket={paket.map((p) => ({
               id: p.id,
@@ -386,7 +386,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
               key={f.nilai}
               href={tautan({ f: f.nilai === "semua" ? undefined : f.nilai })}
               aria-current={filter === f.nilai ? "page" : undefined}
-              className={`shrink-0 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${filter === f.nilai ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
+              className={`inline-flex min-h-9 shrink-0 items-center rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${filter === f.nilai ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
             >
               {f.label}
               <span className={`ml-1.5 tabular-nums ${filter === f.nilai ? "text-accent" : "text-faint"}`}>{jumlah[f.nilai].toLocaleString("id-ID")}</span>
@@ -394,7 +394,36 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
           ))}
         </nav>
       </div>
-      <div className="overflow-x-auto">
+      {/* HP: daftar kartu (tabel lebar memaksa geser ke samping & tombol aksi tersembunyi di kanan). */}
+      <ul className="divide-y divide-line sm:hidden">
+        {daftar.map((u) => (
+          <li key={u.id} className="flex items-center gap-2 px-4 py-3">
+            <Link href={`/admin/pengguna/${u.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-ink text-[13px] font-bold text-ink-signal uppercase">{(u.nama || u.email).charAt(0)}</span>
+              <span className="min-w-0 flex-1">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-[14px] font-semibold">{u.nama || "(tanpa nama)"}</span>
+                  {u.peran === "admin" && <span className="shrink-0 rounded-md bg-accent-soft px-1.5 py-0.5 text-[10.5px] font-bold text-accent uppercase">Admin</span>}
+                </span>
+                <span className="block truncate text-[12.5px] text-muted">{u.email}</span>
+                <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-muted">
+                  <span className={`rounded-full px-2 py-0.5 font-semibold ${u.status === "aktif" ? "bg-success-soft text-success" : "bg-danger-soft text-danger"}`}>
+                    {u.status === "aktif" ? "Aktif" : "Diblokir"}
+                  </span>
+                  <span className="tabular-nums">
+                    {u.jumlah_nomor} / {u.peran === "admin" ? "∞" : (u.kuota_nomor ?? "bawaan")} nomor
+                  </span>
+                  <span>{u.login_terakhir ? waktuSingkatWib(u.login_terakhir) : `Daftar ${tanggal(u.created_at)}`}</span>
+                </span>
+              </span>
+              <ChevronRight className="size-4 shrink-0 text-faint" aria-hidden />
+            </Link>
+            {u.id !== admin.id && <TombolHapusPengguna id={u.id} nama={u.nama} email={u.email} jumlahNomor={u.jumlah_nomor} mode="baris" />}
+          </li>
+        ))}
+        {daftar.length === 0 && <li className="px-4 py-10 text-center text-muted">Tidak ada pengguna yang cocok.</li>}
+      </ul>
+      <div className="hidden overflow-x-auto sm:block">
         <table className="w-full min-w-[640px] text-left text-[13px]">
           <thead className="bg-subtle/60 text-[11.5px] font-semibold tracking-wide text-muted uppercase">
             <tr>
@@ -441,7 +470,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
                     <Link
                       href={`/admin/pengguna/${u.id}`}
                       aria-label={`Kelola ${u.email}`}
-                      className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-2.5 text-[12px] font-semibold text-muted transition-colors hover:border-line-strong hover:bg-surface hover:text-fg"
+                      className="inline-flex h-9 items-center gap-1 rounded-lg border border-line px-2.5 text-[12px] font-semibold text-muted transition-colors hover:border-line-strong hover:bg-surface hover:text-fg"
                     >
                       <span>Kelola</span>
                       <ChevronRight className="size-3.5" aria-hidden />
@@ -487,7 +516,7 @@ export async function Log({ batas = 25 }: { batas?: number } = {}) {
   await requireAdmin();
   const log = await daftarLog(batas);
   return (
-    <section className="card p-6">
+    <section className="card p-4 sm:p-6">
       <h2 className="text-[15px] font-bold">Jejak tindakan admin</h2>
       <ol className="mt-4 space-y-3">
         {log.map((l) => (

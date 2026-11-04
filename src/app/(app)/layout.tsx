@@ -3,7 +3,7 @@ import type { Viewport } from "next";
 import { LogOut } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { BannerAkun } from "@/components/banner-akun";
-import { NavKerangka, NavUtama, StatusLayanan } from "@/components/navigasi";
+import { NavBawah, NavBawahKerangka, NavKerangka, NavUtama, StatusLayanan, TombolPanduanAtas } from "@/components/navigasi";
 import { Rangka } from "@/components/rangka";
 import { PenyediaTur } from "@/components/tur";
 import { WaStatusProvider } from "@/components/wa-status";
@@ -12,11 +12,15 @@ import { requireUser } from "@/lib/session";
 
 export const viewport: Viewport = { themeColor: "#0b1813" };
 
-/** Daftar nomor milik pengguna di sidebar: dari cache memori (tanpa query); pemeriksaan sesi dibagi dengan halaman. */
-async function NavData() {
+/**
+ * Daftar nomor milik pengguna untuk sidebar (desktop) atau bilah bawah (HP): dari cache memori (tanpa query);
+ * pemeriksaan sesi dibagi dengan halaman, jadi dipanggil dua kali pun tidak menambah query.
+ */
+async function NavData({ bawah = false }: { bawah?: boolean }) {
   const user = await requireUser();
   const nomor = (await nomorMilik(user.id)).map((n) => ({ id: n.id, label: n.label, wa_id: n.wa_id }));
-  return <NavUtama nomor={nomor} admin={user.peran === "admin"} pengguna={{ nama: user.nama || user.email.split("@")[0], email: user.email }} />;
+  const props = { nomor, admin: user.peran === "admin", pengguna: { nama: user.nama || user.email.split("@")[0], email: user.email } };
+  return bawah ? <NavBawah {...props} /> : <NavUtama {...props} />;
 }
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
@@ -24,6 +28,16 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
     <WaStatusProvider>
       <PenyediaTur>
       <Rangka
+        aksiAtas={
+          <Suspense fallback={<span aria-hidden className="block h-10 w-24" />}>
+            <TombolPanduanAtas />
+          </Suspense>
+        }
+        bawah={
+          <Suspense fallback={<NavBawahKerangka />}>
+            <NavData bawah />
+          </Suspense>
+        }
         sidebar={
           <>
             {/* Tanpa min-h-0: nav tidak boleh menyusut di bawah isinya; bila layar terlalu pendek, sidebar yang digulir. */}
@@ -47,7 +61,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
           </>
         }
       >
-        <main className="mx-auto w-full max-w-[1320px] px-4 pt-6 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-10 lg:pt-10">
+        <main className="mx-auto w-full max-w-[1320px] px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 lg:px-10 lg:pt-10 lg:pb-16">
           <Suspense fallback={null}>
             <BannerAkun />
           </Suspense>

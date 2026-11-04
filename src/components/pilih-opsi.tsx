@@ -137,7 +137,7 @@ export function PilihOpsi({
       </button>
 
       {buka && (
-        <div className="absolute inset-x-0 top-[calc(100%+6px)] z-30 animate-masuk overflow-hidden rounded-xl border border-line bg-surface shadow-pop">
+        <div className="absolute inset-x-0 top-[calc(100%+6px)] z-50 animate-masuk overflow-hidden rounded-xl border border-line bg-surface shadow-pop">
           {pakaiCari && (
             <div className="relative border-b border-line p-2">
               <Search className="pointer-events-none absolute top-1/2 left-4.5 size-4 -translate-y-1/2 text-faint" aria-hidden />
@@ -165,7 +165,7 @@ export function PilihOpsi({
             aria-label={label}
             tabIndex={-1}
             onKeyDown={tombolDaftar}
-            className="max-h-72 overflow-y-auto p-1 outline-none"
+            className="max-h-[min(18rem,50svh)] overflow-y-auto p-1 outline-none"
           >
             {tampil.map((o, i) => {
               const dipilih = o.id === aktif;

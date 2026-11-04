@@ -89,12 +89,19 @@
   --animate-denyut: denyut 1.6s ease-in-out infinite;
   --animate-sapu: sapu 2.2s ease-in-out infinite;
   --animate-tulis: tulis 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-naik: naik 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes masuk {
   from {
     opacity: 0;
     transform: translateY(6px) scale(0.985);
+  }
+}
+/* Lembar menu bawah (HP) muncul dari bawah layar. */
+@keyframes naik {
+  from {
+    transform: translateY(100%);
   }
 }
 @keyframes denyut {
@@ -127,11 +134,23 @@ html {
   color-scheme: light;
   /* Lompatan ke #bagian tidak tertutup bilah atas & navigasi bagian yang lengket. */
   scroll-padding-top: 7.5rem;
+  /* HP: gulir otomatis (fokus kolom, tur, scrollIntoView) tidak berhenti di balik bilah menu bawah. */
+  scroll-padding-bottom: calc(5rem + env(safe-area-inset-bottom));
   -webkit-tap-highlight-color: transparent;
 }
 @media (min-width: 1024px) {
   html {
     scroll-padding-top: 5rem;
+    scroll-padding-bottom: 0;
+  }
+}
+/*
+ * Di HP semua kolom isian minimal 16px walau diberi kelas teks lebih kecil (text-[13px] dsb.): di bawah itu Safari
+ * iOS memperbesar halaman saat kolom disentuh. Sengaja di luar @layer supaya mengalahkan utilitas Tailwind.
+ */
+@media (max-width: 639.98px) {
+  .field {
+    font-size: 1rem;
   }
 }
 @media (prefers-reduced-motion: no-preference) {

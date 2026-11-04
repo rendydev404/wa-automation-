@@ -99,7 +99,7 @@ export function Saklar({ aktif, onUbah, label, disabled }: { aktif: boolean; onU
       aria-label={label}
       disabled={disabled}
       onClick={() => onUbah(!aktif)}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-60 ${aktif ? "bg-accent" : "bg-line-strong"}`}
+      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors before:absolute before:-inset-2 before:content-[''] disabled:opacity-60 ${aktif ? "bg-accent" : "bg-line-strong"}`}
     >
       <span className={`absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow transition-transform ${aktif ? "translate-x-5" : ""}`} />
     </button>

@@ -366,7 +366,7 @@ export function HistoriPercakapan({
               tanya={`Hapus ${angka(ringkasan.total_percakapan)} percakapan beserta isinya? Tidak bisa dikembalikan.`}
               ya="Ya, hapus semua"
               aksi={hapusSemua}
-              className="btn btn-danger h-8 px-3 text-xs"
+              className="btn btn-danger h-9 sm:h-8 px-3 text-xs"
               ikon={<Trash2 className="size-3.5" aria-hidden />}
             />
           )}
@@ -374,7 +374,7 @@ export function HistoriPercakapan({
             type="button"
             onClick={() => void segarkan()}
             disabled={menyegarkan}
-            className="btn btn-ghost h-8 px-3 text-xs"
+            className="btn btn-ghost h-9 sm:h-8 px-3 text-xs"
             aria-label="Segarkan histori percakapan"
           >
             <RefreshCw className={`size-3.5 ${menyegarkan ? "animate-spin" : ""}`} aria-hidden />
@@ -506,7 +506,7 @@ export function HistoriPercakapan({
                   type="button"
                   onClick={() => void muatLebihBanyakPercakapan()}
                   disabled={memuatLagi}
-                  className="btn btn-ghost h-8 w-full text-xs"
+                  className="btn btn-ghost h-9 sm:h-8 w-full text-xs"
                 >
                   {memuatLagi ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <ChevronDown className="size-3.5" aria-hidden />}
                   Muat percakapan lainnya
@@ -571,7 +571,7 @@ export function HistoriPercakapan({
                   tanya="Hapus percakapan ini beserta isinya?"
                   ya="Ya, hapus"
                   aksi={hapusSatu}
-                  className="btn btn-danger h-8 px-2.5 text-xs"
+                  className="btn btn-danger h-9 sm:h-8 px-2.5 text-xs"
                   ikon={<Trash2 className="size-3.5" aria-hidden />}
                 />
               </div>
@@ -582,7 +582,7 @@ export function HistoriPercakapan({
                     <span className="font-semibold text-danger">AI tidak membalas pesan spam di chat ini.</span>{" "}
                     {percakapanAktif.spam_alasan && <span className="text-muted">{percakapanAktif.spam_alasan}.</span>}
                   </p>
-                  <button type="button" onClick={() => void bukanSpam(percakapanAktif.id)} disabled={menandai} className="btn btn-ghost h-8 border border-line bg-surface px-3 text-xs">
+                  <button type="button" onClick={() => void bukanSpam(percakapanAktif.id)} disabled={menandai} className="btn btn-ghost h-9 sm:h-8 border border-line bg-surface px-3 text-xs">
                     {menandai && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
                     Bukan spam, balas seperti biasa
                   </button>
@@ -598,7 +598,7 @@ export function HistoriPercakapan({
                       {percakapanAktif.prospek === 3 ? "Dicoba lagi otomatis setelah 6 jam." : "Otomatis dilayani lagi bila kontak ini menanyakan hal seputar usaha Anda."}
                     </span>
                   </p>
-                  <button type="button" onClick={() => void bangunkan(percakapanAktif.id)} disabled={menandai} className="btn btn-ghost h-8 border border-line bg-surface px-3 text-xs">
+                  <button type="button" onClick={() => void bangunkan(percakapanAktif.id)} disabled={menandai} className="btn btn-ghost h-9 sm:h-8 border border-line bg-surface px-3 text-xs">
                     {menandai && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
                     Layani lagi
                   </button>

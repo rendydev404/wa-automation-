@@ -204,7 +204,7 @@ function Baris({ d, numberId, sempurnakan, sedangDiedit }: { d: ItemDokumen; num
   return (
     <li>
       <div className="flex items-center gap-2 px-3 py-3 sm:gap-3 sm:px-3.5">
-        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-subtle text-muted">
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-subtle text-muted max-sm:hidden">
           <Ikon className="size-4" aria-hidden />
         </span>
         <button type="button" onClick={togglePratinjau} className="min-w-0 flex-1 text-left" aria-expanded={buka}>
@@ -246,7 +246,7 @@ function Baris({ d, numberId, sempurnakan, sedangDiedit }: { d: ItemDokumen; num
               download
               aria-label={`Unduh ${d.judul}`}
               title="Unduh sebagai .txt"
-              className="grid size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-subtle hover:text-fg"
+              className="hidden size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-subtle hover:text-fg sm:grid"
             >
               <Download className="size-4" aria-hidden />
             </a>

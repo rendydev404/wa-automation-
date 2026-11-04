@@ -214,7 +214,7 @@ export function ConnectionCard({ id }: { id: number }) {
         ) : tampilPanelTaut ? (
           <div className="space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
-              <div role="tablist" aria-label="Metode penautan WhatsApp" className="inline-flex rounded-xl border border-line bg-subtle p-1">
+              <div role="tablist" aria-label="Metode penautan WhatsApp" className="grid w-full grid-cols-2 rounded-xl border border-line bg-subtle p-1 sm:inline-flex sm:w-auto">
                 <button
                   type="button"
                   role="tab"
@@ -225,12 +225,13 @@ export function ConnectionCard({ id }: { id: number }) {
                     setMetode("qr");
                     if (sesi.status !== "SCAN_QR_CODE" && sesi.status !== "STARTING") hubungkan("qr");
                   }}
-                  className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+                  className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-[13px] font-semibold whitespace-nowrap transition-colors sm:px-3.5 ${
                     metode === "qr" ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"
                   }`}
                 >
-                  <QrCode className="size-4" aria-hidden />
-                  Pindai Kode QR
+                  <QrCode className="size-4 shrink-0" aria-hidden />
+                  <span className="sm:hidden">Kode QR</span>
+                  <span className="max-sm:hidden">Pindai Kode QR</span>
                 </button>
                 <button
                   type="button"
@@ -240,12 +241,13 @@ export function ConnectionCard({ id }: { id: number }) {
                     setGalat("");
                     setMetode("kode");
                   }}
-                  className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+                  className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-[13px] font-semibold whitespace-nowrap transition-colors sm:px-3.5 ${
                     metode === "kode" ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"
                   }`}
                 >
-                  <KeyRound className="size-4" aria-hidden />
-                  Pakai Nomor Telepon
+                  <KeyRound className="size-4 shrink-0" aria-hidden />
+                  <span className="sm:hidden">Nomor HP</span>
+                  <span className="max-sm:hidden">Pakai Nomor Telepon</span>
                 </button>
               </div>
 
@@ -253,7 +255,7 @@ export function ConnectionCard({ id }: { id: number }) {
                 <button
                   type="button"
                   onClick={() => setMetode("kode")}
-                  className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline"
+                  className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline max-sm:hidden"
                 >
                   <KeyRound className="size-3.5" aria-hidden />
                   Tautkan dengan nomor telepon saja
@@ -340,14 +342,14 @@ export function ConnectionCard({ id }: { id: number }) {
                         </button>
                       </div>
 
-                      <div className="flex items-center justify-center gap-1.5 sm:gap-2" aria-label={`Kode tautan ${kodeAktif.slice(0, 4)} ${kodeAktif.slice(4, 8)}`}>
+                      <div className="flex items-center justify-center gap-1 sm:gap-2" aria-label={`Kode tautan ${kodeAktif.slice(0, 4)} ${kodeAktif.slice(4, 8)}`}>
                         {kodeAktif
                           .slice(0, 4)
                           .split("")
                           .map((kar, i) => (
                             <span
                               key={`a-${i}`}
-                              className="grid h-11 w-9 place-items-center rounded-xl border border-line-strong bg-surface font-mono text-lg font-bold tracking-wider text-fg shadow-card sm:h-12 sm:w-10 sm:text-xl"
+                              className="grid h-11 max-w-10 min-w-0 flex-1 place-items-center rounded-xl border border-line-strong bg-surface font-mono text-lg font-bold text-fg shadow-card sm:h-12 sm:w-10 sm:flex-none sm:text-xl sm:tracking-wider"
                             >
                               {kar}
                             </span>
@@ -361,7 +363,7 @@ export function ConnectionCard({ id }: { id: number }) {
                           .map((kar, i) => (
                             <span
                               key={`b-${i}`}
-                              className="grid h-11 w-9 place-items-center rounded-xl border border-line-strong bg-surface font-mono text-lg font-bold tracking-wider text-fg shadow-card sm:h-12 sm:w-10 sm:text-xl"
+                              className="grid h-11 max-w-10 min-w-0 flex-1 place-items-center rounded-xl border border-line-strong bg-surface font-mono text-lg font-bold text-fg shadow-card sm:h-12 sm:w-10 sm:flex-none sm:text-xl sm:tracking-wider"
                             >
                               {kar}
                             </span>

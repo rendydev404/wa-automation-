@@ -272,7 +272,7 @@ export function SimulasiHarga({
         <p className="mt-1">Jumlah nomor di setiap paket = kuota balasan ÷ pemakaian rata-rata satu nomor, jadi nomor tambahan tidak membuat paket rugi.</p>
       </div>
 
-      <div className="inline-flex rounded-xl border border-line p-1 text-[12.5px] font-semibold" role="radiogroup" aria-label="Mode simulasi">
+      <div className="grid w-full grid-cols-2 rounded-xl border border-line p-1 text-[12.5px] font-semibold sm:inline-flex sm:w-auto" role="radiogroup" aria-label="Mode simulasi">
         {(
           [
             ["kunci-kuota", "Kuota tetap → hitung harga"],
@@ -285,9 +285,9 @@ export function SimulasiHarga({
             role="radio"
             aria-checked={mode === kMode}
             onClick={() => setMode(kMode)}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-colors ${mode === kMode ? "bg-accent text-white" : "text-muted hover:text-fg"}`}
+            className={`flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left leading-tight transition-colors sm:px-3 ${mode === kMode ? "bg-accent text-white" : "text-muted hover:text-fg"}`}
           >
-            <Lock className="size-3.5" aria-hidden /> {label}
+            <Lock className="size-3.5 shrink-0" aria-hidden /> {label}
           </button>
         ))}
       </div>
@@ -340,7 +340,7 @@ export function SimulasiHarga({
       </div>
 
       {/* ---------- Panel Perhitungan & Pengaturan Komisi Afiliasi ---------- */}
-      <div className="rounded-2xl border border-line bg-subtle/30 p-4 sm:p-5">
+      <div className="rounded-2xl border border-line bg-subtle/30 p-3 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="flex items-center gap-1.5 text-[13.5px] font-bold text-fg">
@@ -662,9 +662,9 @@ export function SimulasiHarga({
           type="submit"
           name="terapkan_komisi"
           value="1"
-          className="btn btn-ghost border border-accent/40 bg-accent-soft/30 text-accent hover:bg-accent-soft/60"
+          className="btn btn-ghost h-auto min-h-[2.375rem] max-w-full border border-accent/40 bg-accent-soft/30 py-2 text-left whitespace-normal text-accent hover:bg-accent-soft/60"
         >
-          <Check className="size-4" aria-hidden /> Terapkan komisi saja ke paket dicentang
+          <Check className="size-4 shrink-0" aria-hidden /> Terapkan komisi saja ke paket dicentang
         </button>
         <button
           type="submit"

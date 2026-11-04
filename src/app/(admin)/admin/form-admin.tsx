@@ -253,7 +253,7 @@ export function FormAiAkun({ id, penyedia, umum, adaKunci }: { id: number; penye
   return (
     <form action={aksi} className="space-y-3">
       <input type="hidden" name="id" value={id} />
-      <fieldset className="grid grid-cols-3 gap-2">
+      <fieldset className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-3">
         <legend className="label">Penyedia AI untuk semua nomor akun ini</legend>
         {PILIHAN_AI_AKUN.map((p) => {
           const mati = p.id === "anthropic" && !adaKunci && penyedia !== "anthropic";
@@ -436,7 +436,7 @@ export function TombolHapusPengguna({
           }}
           aria-label={`Hapus pengguna ${email}`}
           title={`Hapus ${email}`}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-2.5 text-[12px] font-semibold text-muted transition-colors hover:border-danger/40 hover:bg-danger-soft hover:text-danger"
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-2.5 text-[12px] font-semibold text-muted transition-colors hover:border-danger/40 hover:bg-danger-soft hover:text-danger"
         >
           <Trash2 className="size-3.5" aria-hidden />
           <span className="hidden sm:inline">Hapus</span>
@@ -465,7 +465,7 @@ export function TombolHapusPengguna({
             if (e.target === e.currentTarget && !tunggu) setBuka(false);
           }}
         >
-          <div className="card w-full max-w-md animate-masuk overflow-hidden border border-line bg-surface p-6 shadow-pop">
+          <div className="card max-h-[calc(100svh-2rem)] w-full max-w-md animate-masuk overflow-y-auto border border-line bg-surface p-5 shadow-pop sm:p-6">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-danger-soft text-danger">
@@ -507,7 +507,7 @@ export function TombolHapusPengguna({
               </div>
             )}
 
-            <div className="mt-5 flex items-center justify-end gap-2.5">
+            <div className="mt-5 flex flex-col-reverse gap-2.5 sm:flex-row sm:items-center sm:justify-end">
               <button type="button" disabled={tunggu} onClick={() => setBuka(false)} className="btn btn-ghost border border-line">
                 Batal
               </button>
@@ -547,7 +547,7 @@ export function HapusAkun({ id, nama = "", email, jumlahNomor = 0 }: { id: numbe
         <TombolHapusPengguna id={id} nama={nama} email={email} jumlahNomor={jumlahNomor} alihkan mode="tombol" />
       </div>
       <div className="border-t border-line pt-3">
-        <label htmlFor="konfirmasi-hapus" className="label">
+        <label htmlFor="konfirmasi-hapus" className="label [overflow-wrap:anywhere]">
           Atau ketik <span className="font-mono">{email}</span> untuk menghapus langsung
         </label>
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -678,13 +678,31 @@ export function FormPaket({ paket }: { paket?: PaketForm }) {
   return (
     <form action={aksi} className="space-y-3">
       {p && <input type="hidden" name="id" value={p.id} />}
-      <div className="grid grid-cols-2 gap-2">
-        <input name="nama" aria-label="Nama paket" placeholder="Nama paket" defaultValue={p?.nama} required maxLength={40} className={kolom} />
-        <input name="harga" aria-label="Harga (Rp)" placeholder="Harga (Rp)" inputMode="numeric" value={hargaTeks} onChange={(e) => setHargaTeks(e.target.value)} required className={kolom} />
-        <input name="durasi_hari" aria-label="Durasi (hari)" placeholder="Durasi (hari)" inputMode="numeric" defaultValue={p?.durasi_hari ?? 30} required className={kolom} />
-        <input name="kuota_nomor" aria-label="Kuota nomor" placeholder="Kuota nomor" inputMode="numeric" defaultValue={p?.kuota_nomor} required className={kolom} />
-        <input name="kuota_balasan" aria-label="Kuota balasan AI" placeholder="Kuota balasan AI" inputMode="numeric" defaultValue={p?.kuota_balasan} required className={kolom} />
-        <input name="urutan" aria-label="Urutan tampil" placeholder="Urutan" inputMode="numeric" defaultValue={p?.urutan ?? 0} className={kolom} />
+      <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
+        <label className="block min-w-0">
+          <span className="mb-1 block text-[11.5px] font-semibold text-muted">Nama paket</span>
+          <input name="nama" aria-label="Nama paket" placeholder="Nama paket" defaultValue={p?.nama} required maxLength={40} className={kolom} />
+        </label>
+        <label className="block min-w-0">
+          <span className="mb-1 block text-[11.5px] font-semibold text-muted">Harga (Rp)</span>
+          <input name="harga" aria-label="Harga (Rp)" placeholder="Harga (Rp)" inputMode="numeric" value={hargaTeks} onChange={(e) => setHargaTeks(e.target.value)} required className={kolom} />
+        </label>
+        <label className="block min-w-0">
+          <span className="mb-1 block text-[11.5px] font-semibold text-muted">Durasi (hari)</span>
+          <input name="durasi_hari" aria-label="Durasi (hari)" placeholder="Durasi (hari)" inputMode="numeric" defaultValue={p?.durasi_hari ?? 30} required className={kolom} />
+        </label>
+        <label className="block min-w-0">
+          <span className="mb-1 block text-[11.5px] font-semibold text-muted">Kuota nomor</span>
+          <input name="kuota_nomor" aria-label="Kuota nomor" placeholder="Kuota nomor" inputMode="numeric" defaultValue={p?.kuota_nomor} required className={kolom} />
+        </label>
+        <label className="block min-w-0">
+          <span className="mb-1 block text-[11.5px] font-semibold text-muted">Kuota balasan AI</span>
+          <input name="kuota_balasan" aria-label="Kuota balasan AI" placeholder="Kuota balasan AI" inputMode="numeric" defaultValue={p?.kuota_balasan} required className={kolom} />
+        </label>
+        <label className="block min-w-0">
+          <span className="mb-1 block text-[11.5px] font-semibold text-muted">Urutan tampil</span>
+          <input name="urutan" aria-label="Urutan tampil" placeholder="Urutan" inputMode="numeric" defaultValue={p?.urutan ?? 0} className={kolom} />
+        </label>
       </div>
       <div className="rounded-xl border border-line bg-surface p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -695,7 +713,7 @@ export function FormPaket({ paket }: { paket?: PaketForm }) {
               role="radio"
               aria-checked={jenisKomisi === "persen"}
               onClick={() => setJenisKomisi("persen")}
-              className={`rounded-md px-2.5 py-1 transition-colors ${jenisKomisi === "persen" ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
+              className={`rounded-md px-2.5 py-1.5 transition-colors ${jenisKomisi === "persen" ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
             >
               Persentase (%)
             </button>
@@ -704,7 +722,7 @@ export function FormPaket({ paket }: { paket?: PaketForm }) {
               role="radio"
               aria-checked={jenisKomisi === "rupiah"}
               onClick={() => setJenisKomisi("rupiah")}
-              className={`rounded-md px-2.5 py-1 transition-colors ${jenisKomisi === "rupiah" ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
+              className={`rounded-md px-2.5 py-1.5 transition-colors ${jenisKomisi === "rupiah" ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
             >
               Nominal (Rp)
             </button>

@@ -2,9 +2,10 @@ import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { LogOut } from "lucide-react";
 import { logoutAction } from "@/app/actions";
+import { NavBawahKerangka } from "@/components/navigasi";
 import { Rangka } from "@/components/rangka";
 import { requireAdmin } from "@/lib/session";
-import { NavAdmin } from "./nav-admin";
+import { NavAdmin, NavAdminBawah } from "./nav-admin";
 import { MEREK } from "@/lib/merek";
 
 export const metadata: Metadata = { title: `Panel admin · ${MEREK}` };
@@ -22,6 +23,11 @@ export default function LayoutAdmin({ children }: LayoutProps<"/admin">) {
     <Rangka
       beranda="/admin"
       lencana="Admin"
+      bawah={
+        <Suspense fallback={<NavBawahKerangka />}>
+          <NavAdminBawah />
+        </Suspense>
+      }
       sidebar={
         <>
           <Suspense fallback={<div className="flex-1" />}>
@@ -41,7 +47,7 @@ export default function LayoutAdmin({ children }: LayoutProps<"/admin">) {
         </>
       }
     >
-      <main className="mx-auto w-full max-w-[1320px] px-4 pt-6 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-10 lg:pt-10">
+      <main className="mx-auto w-full max-w-[1320px] px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 lg:px-10 lg:pt-10 lg:pb-16">
         <Suspense fallback={null}>
           <Penjaga />
         </Suspense>

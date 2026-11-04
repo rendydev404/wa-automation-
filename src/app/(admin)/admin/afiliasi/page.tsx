@@ -111,7 +111,7 @@ async function IsiAdminAfiliasi() {
             {antreanMenunggu.map((p) => (
               <li key={p.id} className="px-5 py-4 text-[13px]">
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
+                  <div className="min-w-0 [overflow-wrap:anywhere]">
                     <p className="text-[15px] font-extrabold tabular-nums">
                       Rp{angka(p.nominal)}{" "}
                       <span className="text-[13px] font-semibold text-accent">
@@ -145,7 +145,7 @@ async function IsiAdminAfiliasi() {
       </section>
 
       {/* Pengaturan Program Afiliasi */}
-      <section className="card p-6">
+      <section className="card p-4 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="flex items-center gap-2 text-[15px] font-bold">
@@ -179,7 +179,45 @@ async function IsiAdminAfiliasi() {
         {afiliator.length === 0 ? (
           <p className="px-5 py-8 text-center text-[13px] text-muted">Belum ada pengguna yang mendaftar program afiliasi.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* HP: kartu per mitra, tombol tindakan langsung terlihat tanpa geser tabel. */}
+          <ul className="divide-y divide-line sm:hidden">
+            {afiliator.map((a) => {
+              const badge = BADGE_STATUS_AF[a.status] ?? BADGE_STATUS_AF.aktif;
+              return (
+                <li key={a.user_id} className="space-y-2 px-4 py-3.5 text-[13px]">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <Link href={`/admin/pengguna/${a.user_id}`} className="block truncate font-semibold hover:underline">
+                        {a.nama || a.email}
+                      </Link>
+                      <span className="block text-[12px] text-muted [overflow-wrap:anywhere]">
+                        {a.email} · kode <code className="font-mono font-semibold text-fg">{a.kode}</code>
+                      </span>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${badge.kelas}`}>{badge.label}</span>
+                  </div>
+                  <p className="text-[12px] text-muted [overflow-wrap:anywhere]">
+                    {namaBankTampil(a.bank_nama)} · <span className="font-mono tabular-nums">{a.bank_nomor}</span> a.n. {a.bank_pemilik}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 rounded-xl bg-subtle/60 p-2.5 text-[12px] tabular-nums">
+                    <span>
+                      <span className="font-semibold">{angka(a.klik)}</span> klik · <span className="font-semibold">{angka(a.pendaftar)}</span> daftar ·{" "}
+                      <span className="font-bold text-success">{angka(a.pembeli)}</span> beli
+                    </span>
+                    <span className="text-right">
+                      <span className="font-bold">Rp{angka(a.saldo)}</span>
+                      <span className="block text-muted">Total Rp{angka(a.total_komisi)}</span>
+                    </span>
+                  </div>
+                  <div className="flex justify-end">
+                    <AksiStatusAfiliator userId={a.user_id} status={a.status} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[760px] text-left text-[13px]">
               <thead className="bg-subtle/60 text-[11.5px] font-semibold tracking-wide text-muted uppercase">
                 <tr>
@@ -232,6 +270,7 @@ async function IsiAdminAfiliasi() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
@@ -280,7 +319,7 @@ async function IsiAdminAfiliasi() {
                 const badge = BADGE_PENARIKAN[p.status] ?? BADGE_PENARIKAN.selesai;
                 return (
                   <li key={p.id} className="flex items-center justify-between gap-3 px-5 py-3 text-[13px]">
-                    <div className="min-w-0">
+                    <div className="min-w-0 [overflow-wrap:anywhere]">
                       <p className="font-bold tabular-nums">
                         Rp{angka(p.nominal)} ·{" "}
                         <Link href={`/admin/pengguna/${p.afiliator_id}`} className="font-semibold hover:underline">

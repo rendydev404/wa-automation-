@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, BookOpenText, Camera, Check, GraduationCap, Hand, History, Lock, Share2, ShieldCheck, Smartphone, TriangleAlert, Zap } from "lucide-react";
+import { ArrowRight, BookOpenText, Camera, Check, GraduationCap, Hand, History, Lock, ShieldCheck, Smartphone, TriangleAlert, Zap } from "lucide-react";
 import { DemoAlur, DemoChat } from "@/components/landing/demo";
 import { HargaLanding } from "@/components/landing/harga";
 import { Logo } from "@/components/logo";
@@ -9,7 +9,9 @@ import { ALASAN_SYARAT, JUDUL_SYARAT, SYARAT_NOMOR } from "@/components/syarat-n
 import { Kalkulator } from "@/components/landing/kalkulator";
 import { WidgetWaLanding } from "@/components/landing/widget-wa";
 import { UMUR_HISTORI_HARI } from "@/lib/format";
-import { MEREK, NOMOR_WA_TAMPIL, URL_WA_DEMO } from "@/lib/merek";
+import { IkonWhatsApp } from "@/components/ikon-whatsapp";
+import { DataOrganisasi, KakiPerusahaan } from "@/components/kaki-perusahaan";
+import { MEREK, URL_WA_DEMO } from "@/lib/merek";
 
 /** Landing page publik: seluruhnya statis (prerender), animasi Remotion dimuat terpisah di sisi klien. */
 
@@ -71,9 +73,6 @@ export default function Landing() {
             <a href="#faq" className="transition-colors hover:text-ink-fg">
               FAQ
             </a>
-            <Link href="/program-afiliasi" className="inline-flex items-center gap-1.5 text-ink-signal transition-colors hover:text-white">
-              <Share2 className="size-3.5" aria-hidden /> Afiliasi
-            </Link>
           </nav>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <Link href="/login" className="rounded-xl px-2.5 py-2 text-[13.5px] font-semibold whitespace-nowrap text-ink-fg transition-colors hover:bg-white/[0.06] sm:px-3.5">
@@ -113,7 +112,7 @@ export default function Landing() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-2xl border border-ink-signal/40 bg-ink-signal/10 px-5 py-3.5 text-[15px] font-bold text-ink-signal transition-colors hover:bg-ink-signal/20"
               >
-                <Smartphone className="size-4" aria-hidden /> Coba Tes WA ({NOMOR_WA_TAMPIL})
+                <IkonWhatsApp className="size-4" /> Coba Tes Bot WA
               </a>
               <a href="#cara-kerja" className="inline-flex items-center gap-2 rounded-2xl border border-ink-line px-5 py-3.5 text-[15px] font-semibold text-ink-fg transition-colors hover:bg-white/[0.05]">
                 Lihat cara kerja
@@ -256,44 +255,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ---------- Info Program Afiliasi ---------- */}
-      <section aria-label="Program Afiliasi" className="mx-auto max-w-[1200px] px-4 pt-16 sm:px-6 lg:pt-20">
-        <div className="grid items-center gap-8 rounded-3xl border border-line bg-surface p-6 shadow-card sm:p-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-          <div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-accent-soft px-3 py-1 text-[12px] font-bold text-accent">
-              <Share2 className="size-3.5" aria-hidden /> Program Mitra & Afiliasi
-            </span>
-            <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-fg sm:text-3xl">
-              Rekomendasikan {MEREK}, Dapatkan Komisi dari Setiap Paket.
-            </h2>
-            <p className="mt-2.5 max-w-xl text-[15px] leading-relaxed text-muted">
-              Bagikan link afiliasi unik Anda ke pemilik usaha. Setiap kali ada yang mendaftar dan membeli paket langganan, komisi otomatis masuk ke saldo Anda dan siap dicairkan ke Bank atau E-Wallet.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link href="/program-afiliasi" className="btn btn-primary">
-                Lihat Info & Kalkulator Afiliasi <ArrowRight className="size-4" aria-hidden />
-              </Link>
-              <Link href="/daftar" className="btn btn-ghost border border-line">
-                Daftar Jadi Afiliator
-              </Link>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              ["Per Paket", "Tarif komisi transparan sesuai paket yang dibeli"],
-              ["30 Hari", "Masa aktif cookie pelacakan link referral"],
-              ["Otomatis", "Saldo komisi langsung masuk saat transaksi lunas"],
-              ["Fleksibel", "Tarik komisi ke Bank nasional & E-Wallet"],
-            ].map(([angkaJudul, ket]) => (
-              <div key={angkaJudul} className="rounded-2xl border border-line bg-canvas p-4">
-                <p className="text-xl font-extrabold text-accent">{angkaJudul}</p>
-                <p className="mt-1 text-[12.5px] leading-snug text-muted">{ket}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ---------- FAQ ---------- */}
       <section id="faq" className="mx-auto max-w-3xl scroll-mt-8 px-4 py-20 sm:px-6 lg:py-28">
         <h2 className="text-center text-3xl font-extrabold tracking-tight sm:text-[40px]">Pertanyaan yang sering diajukan</h2>
@@ -333,13 +294,10 @@ export default function Landing() {
               href={URL_WA_DEMO}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-semibold text-fg hover:text-accent"
+              className="inline-flex items-center gap-1.5 font-semibold text-fg hover:text-accent"
             >
-              Tes WA: {NOMOR_WA_TAMPIL}
+              <IkonWhatsApp className="size-4 text-accent" /> Customer Service
             </a>
-            <Link href="/program-afiliasi" className="font-semibold text-accent hover:text-fg">
-              Program Afiliasi
-            </Link>
             <Link href="/login" className="hover:text-fg">
               Masuk
             </Link>
@@ -348,9 +306,12 @@ export default function Landing() {
             </Link>
           </div>
         </div>
+        {/* pb besar di HP: tombol widget WhatsApp mengambang di pojok kanan bawah. */}
+        <KakiPerusahaan className="pb-20 sm:pb-0" />
       </footer>
 
       <WidgetWaLanding />
+      <DataOrganisasi />
     </div>
   );
 }
