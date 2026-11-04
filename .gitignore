@@ -44,3 +44,4 @@ next-env.d.ts
 
 /.deploy-tmp
 !.env.example
+paket/

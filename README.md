@@ -62,7 +62,7 @@ app ini**: tidak ada container WhatsApp terpisah, tidak ada webhook, tidak ada p
 | `src/instrumentation.ts` | Menyalakan gerbang WhatsApp saat server mulai |
 | `src/app/(app)` | Halaman dashboard |
 | `hermes/SOUL-cs.md` | Aturan umum bot, tanpa identitas (dipasang ke profil Hermes `cs`) |
-| `deploy/` | Dockerfile runtime, compose app, skrip deploy; `deploy/postgres/` untuk databasenya |
+| `deploy/` | compose app (tanpa docker build), penyusun paket, penerima deploy berlapis; `deploy/postgres/` untuk databasenya |
 | `uji/` | Skrip uji (lihat "Uji") |
 
 ## Dev lokal
@@ -107,9 +107,15 @@ ikut pindah; app & Hermes di server lama dihentikan dan tidak menyala lagi saat 
 
 ### Deploy otomatis (CI/CD)
 
-Setiap push ke `main` menjalankan `.github/workflows/deploy.yml` di GitHub Actions: lint → build →
-seluruh uji (`npm run uji` + uji server hasil build) → deploy ke VPS. Deploy **hanya** terjadi bila
-semuanya lolos. Perubahan yang hanya menyentuh `*.md`, `knowledge-cs/`, atau `hermes/` tidak
+Setiap push ke `main` menjalankan `.github/workflows/deploy.yml` di GitHub Actions: job `bangun`
+(build + uji server hasil build + susun paket) dan job `uji` (lint + `npm run uji`) berjalan bersamaan,
+lalu deploy ke VPS. Deploy **hanya** terjadi bila keduanya lolos.
+
+Paket dibagi dua (`deploy/susun-paket.sh`): bagian app yang berubah tiap versi (±3 MB setelah zstd) dan
+lapisan besar yang jarang berubah (`node_modules`, `ml`). Server menyimpan lapisan per hash isinya, jadi
+lapisan hanya dikirim bila isinya berubah. Tidak ada docker build di VPS: tiap versi dirakit di
+`rilis/<versi>/` (lapisan di-hardlink), symlink `aktif` dipindah, dan container (image Node yang dikunci
+per digest) dibuat ulang lewat jalur mati rapi yang sama. Perubahan yang hanya menyentuh `*.md`, `knowledge-cs/`, atau `hermes/` tidak
 memicu deploy. Bisa juga dijalankan manual dari tab Actions ("Run workflow").
 
 - Di VPS paketnya diterima `/opt/wa-automation/bin/terima-deploy.sh` (sumber: `deploy/terima-deploy.sh`):

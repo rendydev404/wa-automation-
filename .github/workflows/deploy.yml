@@ -1,6 +1,6 @@
-# Push ke main -> lint, build, seluruh uji -> deploy ke VPS.
-# Deploy hanya terjadi bila semua langkah sebelumnya lolos. Di VPS, paketnya diterima oleh
-# deploy/terima-deploy.sh, yang mengembalikan versi sebelumnya bila versi baru tidak sehat.
+# Push ke main -> (build + uji server hasil build) dan (lint + seluruh uji) bersamaan -> deploy ke VPS.
+# Deploy hanya terjadi bila kedua job lolos. Di VPS, paketnya diterima oleh deploy/terima-deploy.sh, yang
+# mengembalikan versi sebelumnya bila versi baru tidak sehat.
 #
 # Secrets repo yang dipakai: VPS_HOST, VPS_SSH_KEY (kunci khusus deploy), VPS_KNOWN_HOSTS.
 name: Uji & deploy
@@ -19,18 +19,19 @@ on:
 permissions:
   contents: read
 
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  # onnxruntime-node (ML penyaring prospek): jangan unduh biner CUDA (ratusan MB) saat npm ci; cukup CPU.
+  ONNXRUNTIME_NODE_INSTALL: skip
+
 jobs:
-  uji-dan-bangun:
+  bangun:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    # Push baru saat masih tahap uji/build langsung membatalkan proses uji commit lama yang usang.
+    timeout-minutes: 10
+    # Push baru saat masih tahap ini langsung membatalkan proses commit lama yang usang (job deploy tidak).
     concurrency:
-      group: ci-${{ github.ref }}
+      group: ci-bangun-${{ github.ref }}
       cancel-in-progress: true
-    env:
-      NEXT_TELEMETRY_DISABLED: "1"
-      # onnxruntime-node (ML penyaring prospek): jangan unduh biner CUDA (ratusan MB) saat npm ci; cukup CPU.
-      ONNXRUNTIME_NODE_INSTALL: skip
     steps:
       - uses: actions/checkout@v4
 
@@ -58,13 +59,8 @@ jobs:
             next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
             next-${{ runner.os }}-
 
-      - name: Lint & Build
-        run: |
-          npx eslint
-          npm run build
-
-      - name: Uji (2 jalur tanpa perebutan CPU untuk tolok ukur DB)
-        run: npm run uji
+      - name: Build
+        run: npm run build
 
       - name: Uji server hasil build
         run: node --no-warnings --import ./uji/loader.mjs uji/uji-next.mjs
@@ -72,30 +68,50 @@ jobs:
           TANPA_WHATSAPP: "1" # runner tidak perlu membuka koneksi ke WhatsApp
 
       - name: Susun paket
-        run: |
-          mkdir -p paket/standalone/.next
-          cp -r .next/standalone/. paket/standalone/
-          cp -r .next/static paket/standalone/.next/static
-          if [ -d public ]; then cp -r public paket/standalone/public; fi
-          rm -rf paket/standalone/data paket/standalone/.env* paket/standalone/node_modules/@img
-          # onnxruntime-node membawa biner semua platform (±290 MB); server hanya butuh Linux.
-          for d in paket/standalone/node_modules/onnxruntime-node/bin/napi-v*; do [ -d "$d" ] && find "$d" -mindepth 1 -maxdepth 1 ! -name linux -exec rm -rf {} +; done
-          echo "$GITHUB_SHA" > paket/standalone/VERSI
-          cp deploy/Dockerfile deploy/docker-compose.yml paket/
-          GZIP=-1 tar czf paket.tgz -C paket .
-          ls -lh paket.tgz
+        run: bash deploy/susun-paket.sh "$GITHUB_SHA"
 
       - name: Simpan paket deploy
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: paket-deploy
-          path: paket.tgz
+          path: paket/
           compression-level: 0
           retention-days: 1
 
+  uji:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Push baru saat masih tahap ini langsung membatalkan proses commit lama yang usang (job deploy tidak).
+    concurrency:
+      group: ci-uji-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Cache node_modules
+        id: cache-nm
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-node24-${{ hashFiles('package-lock.json') }}
+
+      - name: Pasang dependensi (hanya bila package-lock berubah)
+        if: steps.cache-nm.outputs.cache-hit != 'true'
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Lint
+        run: npx eslint
+
+      - name: Uji (2 jalur tanpa perebutan CPU untuk tolok ukur DB)
+        run: npm run uji
+
   deploy:
-    needs: uji-dan-bangun
+    needs: [bangun, uji]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -108,6 +124,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: paket-deploy
+          path: paket
 
       - name: Deploy ke VPS
         env:
@@ -119,7 +136,17 @@ jobs:
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy
           chmod 600 ~/.ssh/deploy
           printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          # Kunci ini hanya bisa menjalankan penerima deploy di server; paket dikirim lewat stdin.
-          ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes \
-            -o ConnectTimeout=20 "root@$VPS_HOST" < paket.tgz
+          # Kunci ini hanya bisa menjalankan penerima deploy di server (perintahnya diperiksa di sana).
+          # Satu koneksi dipakai bersama oleh semua perintah (ControlMaster): jabat tangan SSH cukup sekali.
+          SSH=(ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes
+               -o ConnectTimeout=20 -o ControlMaster=auto -o ControlPath=~/.ssh/cm-%C -o ControlPersist=120 "root@$VPS_HOST")
+          SPEK=$(tr '\n' ' ' < paket/spek)
+          # Lapisan besar (node_modules, ml) hanya dikirim bila server belum punya isi yang sama.
+          for nama in $("${SSH[@]}" "lapisan $SPEK" | sed -n 's/^perlu //p'); do
+            echo "Mengirim lapisan $nama ($(du -h "paket/$nama.tar.zst" | cut -f1))"
+            "${SSH[@]}" "kirim-lapisan $(grep "^$nama:" paket/spek)" < "paket/$nama.tar.zst"
+          done
+          echo "Mengirim app ($(du -h paket/app.tar.zst | cut -f1))"
+          "${SSH[@]}" "pasang $(cat paket/versi) $SPEK" < paket/app.tar.zst
+          "${SSH[@]}" -O exit 2>/dev/null || true
           rm -f ~/.ssh/deploy

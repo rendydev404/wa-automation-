@@ -4,7 +4,7 @@ import { matikanGerbang } from "./wa";
 
 /**
  * Mati dengan rapi saat SIGTERM (Docker, tiap deploy) / SIGINT. Next.js sendiri langsung
- * process.exit() kecuali NEXT_MANUAL_SIG_HANDLE diset (deploy/Dockerfile); tanpa ini kunci WhatsApp
+ * process.exit() kecuali NEXT_MANUAL_SIG_HANDLE diset (deploy/docker-compose.yml); tanpa ini kunci WhatsApp
  * yang masih antre hilang dan WhatsApp mencabut perangkat setelah tersambung lagi.
  */
 export function pasangPenanganMati(): void {
