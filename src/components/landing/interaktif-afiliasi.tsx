@@ -44,7 +44,7 @@ export function KalkulatorAfiliasi({
   const totalKomisi = komisiPerPembeli * jumlahPembeli;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
       {/* Panel Kontrol Kiri */}
       <div className="flex flex-col justify-between rounded-3xl border border-line bg-surface p-5 shadow-card sm:p-8">
         <div>
@@ -408,7 +408,9 @@ export function AlurAfiliasiInteraktif({ domainContoh }: { domainContoh: string 
   );
 
   return (
-    <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+    // grid-cols-1 (= minmax(0,1fr)) di mobile: tanpa itu kolom ikut lebar alami isinya (link contoh satu baris) dan
+    // halaman bisa digeser ke samping.
+    <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
       {/* Daftar Langkah */}
       <div className="space-y-3">
         {LANGKAH_INTERAKTIF.map((l, idx) => {

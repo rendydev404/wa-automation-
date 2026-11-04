@@ -11,7 +11,7 @@ import { pengaturanAfiliasi } from "@/lib/afiliasi";
 import { angka } from "@/lib/format";
 import { daftarPaket } from "@/lib/langganan";
 import { MEREK } from "@/lib/merek";
-import { customTampil, paketCustom } from "@/lib/paket-custom";
+import { customTampil, hargaAngka, paketCustom } from "@/lib/paket-custom";
 
 export const metadata: Metadata = {
   title: `Program Afiliasi · ${MEREK}`,
@@ -92,7 +92,8 @@ async function SeksiKalkulatorDanTabelDinamis() {
         unggulan: p.unggulan,
       }));
 
-    if (customTampil(custom) && custom.harga > 0) {
+    // Hanya bila kartu Custom menampilkan harga berupa angka; harga "Hubungi kami" adalah hitungan internal.
+    if (customTampil(custom) && hargaAngka(custom)) {
       paketSimulasi.push({
         id: "custom",
         nama: custom.nama,
