@@ -26,17 +26,18 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
       <Rangka
         sidebar={
           <>
-            <nav aria-label="Navigasi utama" className="flex min-h-0 flex-1 flex-col">
+            {/* Tanpa min-h-0: nav tidak boleh menyusut di bawah isinya; bila layar terlalu pendek, sidebar yang digulir. */}
+            <nav aria-label="Navigasi utama" className="flex flex-1 flex-col">
               <Suspense fallback={<NavKerangka />}>
                 <NavData />
               </Suspense>
             </nav>
-            <div className="space-y-2 border-t border-ink-line p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+            <div className="space-y-2 border-t border-ink-line p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pendek:space-y-1 pendek:py-2">
               <StatusLayanan />
               <form action={logoutAction}>
                 <button
                   type="submit"
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-ink-muted transition-colors hover:bg-ink-raised hover:text-ink-fg"
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-ink-muted transition-colors hover:bg-ink-raised hover:text-ink-fg pendek:py-2"
                 >
                   <LogOut className="size-4" aria-hidden />
                   Keluar

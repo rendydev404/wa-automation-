@@ -36,7 +36,7 @@ function warnaStatus(s: StatusSesiWa | undefined): string {
 }
 
 function kelasTautan(aktif: boolean): string {
-  return `group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${
+  return `group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors pendek:py-1.5 ${
     aktif ? "bg-ink-raised text-white" : "text-ink-fg/80 hover:bg-ink-raised/60 hover:text-white"
   }`;
 }
@@ -82,8 +82,8 @@ export function NavUtama({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
   const jalur = usePathname();
   return (
     <>
-      <div className="space-y-0.5 px-3 pt-3">
-        <p className={`${JUDUL_KECIL} pb-2`}>Menu</p>
+      <div className="space-y-0.5 px-3 pt-3 pendek:pt-2">
+        <p className={`${JUDUL_KECIL} pb-2 pendek:pb-1`}>Menu</p>
         <TautanNav href="/dashboard" aktif={jalur === "/dashboard"} ikon={<LayoutDashboard className="size-4" aria-hidden />}>
           Ringkasan
         </TautanNav>
@@ -116,11 +116,15 @@ export function NavUtama({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
           </TombolTur>
         </span>
       </div>
-      <div data-tur="nav-nomor" className="mt-6 flex items-center justify-between pr-6 pb-2 pl-3">
+      <div data-tur="nav-nomor" className="mt-6 flex items-center justify-between pr-6 pb-2 pl-3 pendek:mt-3 pendek:pb-1">
         <p className={JUDUL_KECIL}>Nomor WhatsApp</p>
         <span className="rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted tabular-nums">{nomor.length}</span>
       </div>
-      <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 pb-3 [scrollbar-color:var(--c-ink-raised)_transparent]">
+      {/* Daftar tidak pernah dijepit di bawah tinggi 3 nomor (atau sebanyak nomor yang ada); selebihnya digulir di dalam daftar. */}
+      <ul
+        style={{ minHeight: `calc(${Math.min(Math.max(nomor.length, 1), 3)} * 3.375rem + 0.75rem)` }}
+        className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-3 [scrollbar-color:var(--c-ink-raised)_transparent]"
+      >
         {nomor.map((n) => (
           <ItemNomor key={n.id} n={n} aktif={jalur === `/nomor/${n.id}`} />
         ))}
@@ -152,7 +156,7 @@ export function StatusLayanan() {
   const terhubung = semua.filter((s) => s.status === "WORKING").length;
   const ok = !!data?.ai;
   return (
-    <div className="rounded-xl border border-ink-line bg-white/[0.03] p-3">
+    <div className="rounded-xl border border-ink-line bg-white/[0.03] p-3 pendek:px-3 pendek:py-2">
       <div className="flex items-center gap-2.5">
         <span className="relative flex size-2.5 shrink-0">
           {ok && <span className="absolute inset-0 animate-ping rounded-full bg-ink-signal opacity-60" />}

@@ -20,7 +20,7 @@ const MENU = [
 export function NavAdmin() {
   const jalur = usePathname();
   return (
-    <nav aria-label="Menu admin" className="flex min-h-0 flex-1 flex-col px-3 pt-3">
+    <nav aria-label="Menu admin" className="flex flex-1 flex-col px-3 pt-3">
       <p className="px-3 pb-2 text-[11px] font-semibold tracking-[0.08em] text-ink-muted/80 uppercase">Panel admin</p>
       <ul className="space-y-0.5">
         {MENU.map((m) => {

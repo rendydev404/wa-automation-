@@ -25,7 +25,7 @@ export function TombolTambahNomor({ varian = "utama" }: { varian?: "utama" | "na
           type="button"
           data-tutup-laci
           onClick={() => setBukaDi(jalur)}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-ink-line px-3 py-2.5 text-[13px] font-semibold text-ink-muted transition-colors hover:border-ink-signal/60 hover:bg-ink-raised/60 hover:text-ink-fg"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-ink-line px-3 py-2.5 pendek:py-2 text-[13px] font-semibold text-ink-muted transition-colors hover:border-ink-signal/60 hover:bg-ink-raised/60 hover:text-ink-fg"
         >
           <Plus className="size-4" aria-hidden /> Tambah nomor
         </button>

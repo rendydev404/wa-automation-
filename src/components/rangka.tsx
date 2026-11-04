@@ -103,7 +103,8 @@ export function Rangka({
             <X className="size-5" aria-hidden />
           </button>
         </div>
-        {sidebar}
+        {/* Satu area gulir untuk seluruh isi sidebar: di layar pendek tidak ada bagian yang terjepit atau terpotong. */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain [scrollbar-color:var(--c-ink-raised)_transparent]">{sidebar}</div>
       </aside>
 
       <div className="min-w-0">{children}</div>

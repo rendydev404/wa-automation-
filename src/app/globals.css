@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Layar pendek (laptop 768 px, jendela setengah layar, HP landscape): sidebar dirapatkan agar daftar nomor tetap lega. */
+@custom-variant pendek (@media (max-height: 820px));
+
 /*
  * Design tokens — satu sumber kebenaran untuk warna.
  * Komponen cukup memakai `bg-surface`, `text-fg`, `border-line`, dst.
