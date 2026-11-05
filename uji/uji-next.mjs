@@ -172,6 +172,12 @@ try {
   assert.doesNotMatch(trxKosong.teks, /Rincian pembelian/);
   assert.match(trxKosong.teks, /NEXT_HTTP_ERROR_FALLBACK;404|noindex/);
   assert.equal((await minta("GET", "/langganan", { headers: { "accept-encoding": "identity" } })).status, 200);
+  const halNotif = await minta("GET", "/notifikasi", { headers: { "accept-encoding": "identity" } });
+  assert.equal(halNotif.status, 200);
+  assert.match(halNotif.teks, /Notifikasi/);
+  const apiNotif = JSON.parse((await minta("GET", "/api/notifikasi")).teks);
+  assert.ok(Array.isArray(apiNotif.daftar) && typeof apiNotif.belum === "number");
+  assert.equal(typeof JSON.parse((await minta("GET", "/api/wa/status")).teks).notif, "number", "jumlah notifikasi ikut di polling status");
   console.log("  /admin/transaksi (cari + ringkasan), ekspor CSV, detail 404, /langganan lolos");
 
   console.log("\n== versi Inggris di /eng ==");

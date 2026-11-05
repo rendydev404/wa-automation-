@@ -36,6 +36,7 @@ import {
   simpanPengaturanMetaPixel,
   ujiCapiMetaPixel,
 } from "@/lib/meta-pixel";
+import { notifPendaftarBaru } from "@/lib/notifikasi";
 import { ATURAN_ANGKA, ATURAN_SAKLAR, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
 import { type IsiKhusus, METODE_MANUAL, type MetodeManual, batalkanBayar, berikanPaketManual, hapusPaket, hentikanLangganan, mulaiBayar, ORDER_SAH, paketById, segarkanKuota, simpanPaket, terapkanSimulasi } from "@/lib/langganan";
 import { MidtransError, kanalAktif, kanalBelumAktif, konfigMidtrans, setKanalMati } from "@/lib/midtrans";
@@ -51,6 +52,7 @@ import {
   buatAkun,
   cabutSesi,
   catatLog,
+  beriBonusKuota,
   gantiPassword,
   hapusPengguna,
   normalkanEmail,
@@ -168,6 +170,7 @@ export async function daftarAction(_lalu: Hasil | null, form: FormData): Promise
   }
   toples.set(COOKIE_PIXEL_REG, "1", { maxAge: 120, path: "/", httpOnly: false, sameSite: "lax" });
   void kirimCapiEvent({ kunci: "complete_registration", email });
+  notifPendaftarBaru(akun.id, email, "email");
   await catatLoginBerhasil(akun.id);
   await mulaiSesi(akun, await lewatHttps());
   redirect(href(halamanAwal(akun.peran)));
@@ -638,6 +641,21 @@ export async function adminKuotaAction(_lalu: Hasil | null, form: FormData): Pro
   if (!id) return { ok: false, pesan: "Pengguna tidak valid." };
   if (kuota !== null && !(Number.isInteger(kuota) && kuota >= 0 && kuota <= 100)) return { ok: false, pesan: "Kuota harus 0–100 nomor (kosongkan = kuota bawaan)." };
   return jalankanAdmin(() => setKuota(admin, id, kuota), `/admin/pengguna/${id}`, "/admin");
+}
+
+export async function adminBonusKuotaAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const id = idSah(form.get("id"));
+  const jumlah = Number(String(form.get("jumlah") ?? "").replace(/[.,\s]/g, ""));
+  if (!id) return { ok: false, pesan: "Pengguna tidak valid." };
+  return jalankanAdmin(
+    async () => {
+      await beriBonusKuota(admin, id, jumlah, String(form.get("catatan") ?? ""));
+      return `Bonus ${jumlah.toLocaleString("id-ID")} balasan AI diberikan. Pengguna mendapat notifikasi.`;
+    },
+    `/admin/pengguna/${id}`,
+    "/admin",
+  );
 }
 
 export async function adminAiAkunAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {

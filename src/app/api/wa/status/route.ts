@@ -6,6 +6,7 @@ import { getUser } from "@/lib/session";
 import type { StatusWa } from "@/lib/types";
 import { infoSesi } from "@/lib/wa";
 import { teksPermintaan } from "@/lib/bahasa-server";
+import { jumlahBelum } from "@/lib/notifikasi";
 
 const g = globalThis as unknown as { __waAiStatus?: { at: number; ok: boolean; janji: Promise<boolean> | null } };
 
@@ -34,11 +35,12 @@ export async function GET() {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: (await teksPermintaan()).t("Sesi berakhir.", "Your session has ended.") }, { status: 401 });
 
-  const ai = await aiCache();
+  // Jumlah notifikasi belum dibaca ikut di polling ini (dari memori): lonceng tidak butuh permintaan sendiri.
+  const [ai, notif] = await Promise.all([aiCache(), jumlahBelum(user.id).catch(() => 0)]);
   // Galat AI berisi detail teknis server (termasuk nama mesin/model): hanya untuk admin.
   const galatMentah = user.peran === "admin" ? await getSetting("galat_terakhir") : null;
   const galatAi = galatMentah ? (JSON.parse(galatMentah) as { at: number; pesan: string }) : null;
-  const hasil: StatusWa = { ai, galatAi: galatAi && sekarang() - galatAi.at < 86400 ? galatAi : null, nomor: {} };
+  const hasil: StatusWa = { ai, galatAi: galatAi && sekarang() - galatAi.at < 86400 ? galatAi : null, nomor: {}, notif };
 
   // Admin memantau semua nomor (juga saat membuka nomor milik pengguna lain); pengguna biasa hanya miliknya.
   for (const n of user.peran === "admin" ? await semuaNomor() : await nomorMilik(user.id)) {

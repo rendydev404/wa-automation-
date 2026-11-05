@@ -27,6 +27,7 @@ export async function Rangka({
   children,
   beranda = "/dashboard",
   lencana,
+  aksiSidebar,
 }: {
   sidebar: ReactNode;
   /** Bilah menu bawah untuk layar di bawah lg. */
@@ -37,6 +38,8 @@ export async function Rangka({
   beranda?: string;
   /** Penanda kecil di samping logo, mis. "Admin" di panel admin. */
   lencana?: string;
+  /** Aksi kecil di kanan logo pada sidebar desktop, mis. lonceng notifikasi. */
+  aksiSidebar?: ReactNode;
 }) {
   const { t } = await teksHalaman();
   return (
@@ -49,9 +52,10 @@ export async function Rangka({
       <aside aria-label={t("Navigasi", "Navigation")} className="hidden bg-ink text-ink-fg lg:sticky lg:top-0 lg:flex lg:h-svh lg:flex-col">
         <div className="relative flex h-16 shrink-0 items-center gap-2 px-5">
           <div aria-hidden className="kisi-tinta pointer-events-none absolute inset-0 opacity-60" />
-          <div className="relative min-w-0">
+          <div className="relative min-w-0 flex-1">
             <Merek beranda={beranda} lencana={lencana} />
           </div>
+          {aksiSidebar && <div className="relative -mr-2 shrink-0">{aksiSidebar}</div>}
         </div>
         {/* Satu area gulir untuk seluruh isi sidebar: di layar pendek tidak ada bagian yang terjepit atau terpotong. */}
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain [scrollbar-color:var(--c-ink-raised)_transparent]">{sidebar}</div>

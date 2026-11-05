@@ -6,6 +6,7 @@ import { akunGoogle } from "@/lib/pengguna";
 import { catatLoginBerhasil, halamanAwal, mulaiSesi, pastikanAdminAwal, pendaftaranDibuka } from "@/lib/session";
 import { COOKIE_REF, terapkanReferral } from "@/lib/afiliasi";
 import { COOKIE_PIXEL_REG, kirimCapiEvent } from "@/lib/meta-pixel";
+import { notifPendaftarBaru } from "@/lib/notifikasi";
 
 /** Kembali dari Google: verifikasi, cari/tautkan/buat akun, lalu mulai sesi login biasa. */
 export async function GET(req: Request) {
@@ -38,6 +39,7 @@ export async function GET(req: Request) {
     const refKode = toples.get(COOKIE_REF)?.value;
     if (refKode) await terapkanReferral(akun.id, refKode).catch(() => {});
     void kirimCapiEvent({ kunci: "complete_registration", email: identitas.email });
+    notifPendaftarBaru(akun.id, identitas.email, "google");
   }
 
   await catatLoginBerhasil(akun.id);

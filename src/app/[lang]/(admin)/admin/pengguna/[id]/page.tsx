@@ -10,14 +10,14 @@ import { nomorMilik } from "@/lib/numbers";
 import { penggunaById } from "@/lib/pengguna";
 import { kuotaBawaan, requireAdmin } from "@/lib/session";
 import { infoSesi } from "@/lib/wa";
-import { AksiAkun, FormAiAkun, FormBlokir, FormKuota, HapusAkun, HentikanLangganan, PutuskanWa } from "../../form-admin";
+import { AksiAkun, FormAiAkun, FormBonusKuota, FormBlokir, FormKuota, HapusAkun, HentikanLangganan, PutuskanWa } from "../../form-admin";
 import { BerikanPaket } from "../../berikan-paket";
 import { sekarang } from "@/lib/db";
 import { kursUsd } from "@/lib/kurs";
 import { paketCustom } from "@/lib/paket-custom";
 import { angka } from "@/lib/format";
 import { kunciAnthropic, pengaturanAi, perkiraanPerBalasan } from "@/lib/ai";
-import { aiUntukAkun, balasanTerpakai, daftarPaket, hakAkun, langgananAktif, pemakaianNyata, riwayatLangganan } from "@/lib/langganan";
+import { aiUntukAkun, balasanTerpakai, daftarPaket, hakAkun, langgananAktif, pemakaianNyata, riwayatBonus, riwayatLangganan } from "@/lib/langganan";
 import { MEREK } from "@/lib/merek";
 
 export const metadata: Metadata = { title: `Kelola pengguna · ${MEREK}` };
@@ -61,7 +61,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   const id = Number((await params).id);
   const u = Number.isInteger(id) && id > 0 ? await penggunaById(id) : undefined;
   if (!u) notFound();
-  const [nomor, bawaan, hak, aktif, paket, atur, ai, riwayat, custom, kurs, nyata] = await Promise.all([
+  const [nomor, bawaan, hak, aktif, paket, atur, ai, riwayat, custom, kurs, nyata, bonus] = await Promise.all([
     nomorMilik(id),
     kuotaBawaan(),
     hakAkun(u),
@@ -73,6 +73,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
     paketCustom(),
     kursUsd(),
     pemakaianNyata(),
+    riwayatBonus(id),
   ]);
   const usdCustom = perkiraanPerBalasan(custom.model);
   const kini = sekarang();
@@ -208,6 +209,40 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                         <span className="flex shrink-0 flex-col items-end gap-0.5">
                           <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold ${l.sampai > kini ? "bg-success-soft text-success" : "bg-subtle text-muted"}`}>{l.sampai > kini ? "Aktif" : "Berakhir"}</span>
                           <span className="text-[11px] text-faint">{l.sumber === "midtrans" ? "Midtrans" : "Admin"}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+          )}
+          {u.peran !== "admin" && (
+            <section className="card p-4 sm:p-6">
+              <h2 className="text-[15px] font-bold">Bonus kuota balasan AI</h2>
+              <p className="mt-0.5 text-[13px] text-muted">
+                Gratis, tanpa tercatat di Transaksi. Berlaku di periode kuota saat ini ({hak.sampai ? `paket sampai ${tanggal(hak.sampai)}` : hak.percobaan ? "masa free trial" : "bulan ini"}) dan langsung dipakai AI.
+              </p>
+              <p className="mt-3 text-[13px] tabular-nums">
+                Kuota periode ini: <span className="font-semibold">{hak.balasan === null ? "∞" : angka(hak.balasan)}</span>
+                {hak.bonus > 0 && <span className="text-muted"> (termasuk bonus +{angka(hak.bonus)})</span>} · terpakai {angka(terpakai)}
+              </p>
+              <div className="mt-4">
+                <FormBonusKuota id={u.id} />
+              </div>
+              {bonus.length > 0 && (
+                <div className="mt-4 border-t border-line pt-3">
+                  <p className="text-[11.5px] font-semibold tracking-[0.08em] text-muted uppercase">Riwayat bonus</p>
+                  <ul className="mt-2 space-y-2">
+                    {bonus.map((x) => (
+                      <li key={x.id} className="flex items-start justify-between gap-3 text-[12.5px]">
+                        <span className="min-w-0">
+                          <span className="block font-semibold tabular-nums">+{angka(x.jumlah)} balasan</span>
+                          {x.catatan && <span className="block truncate text-muted">{x.catatan}</span>}
+                        </span>
+                        <span className="shrink-0 text-right text-[11.5px] text-faint">
+                          {tanggal(x.dibuat)}
+                          {x.oleh_email && <span className="block truncate">{x.oleh_email}</span>}
                         </span>
                       </li>
                     ))}

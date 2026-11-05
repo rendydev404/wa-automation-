@@ -3,6 +3,7 @@ import type { Viewport } from "next";
 import { LogOut } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { BannerAkun } from "@/components/banner-akun";
+import { LoncengNotifikasi } from "@/components/notifikasi";
 import { GantiBahasa } from "@/components/ganti-bahasa";
 import { NavBawah, NavBawahKerangka, NavKerangka, NavUtama, StatusLayanan, TombolPanduanAtas } from "@/components/navigasi";
 import { Rangka } from "@/components/rangka";
@@ -31,10 +32,14 @@ export default async function AppLayout({ children }: LayoutProps<"/[lang]">) {
     <WaStatusProvider>
       <PenyediaTur>
       <Rangka
+        aksiSidebar={<LoncengNotifikasi gelap />}
         aksiAtas={
-          <Suspense fallback={<span aria-hidden className="block h-10 w-24" />}>
-            <TombolPanduanAtas />
-          </Suspense>
+          <>
+            <LoncengNotifikasi gelap />
+            <Suspense fallback={<span aria-hidden className="block h-10 w-24" />}>
+              <TombolPanduanAtas />
+            </Suspense>
+          </>
         }
         bawah={
           <Suspense fallback={<NavBawahKerangka />}>

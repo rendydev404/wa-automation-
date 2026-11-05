@@ -15,6 +15,7 @@ import {
 } from "./afiliasi-def";
 import { MidtransError, kirimPayoutIris, konfigIris } from "./midtrans";
 import { catatLog } from "./pengguna";
+import { kirimNotif, kirimNotifAdmin } from "./notifikasi";
 import type { User } from "./session";
 
 export * from "./afiliasi-def";
@@ -144,6 +145,21 @@ export async function daftarAfiliator(
         INSERT INTO afiliator(user_id, kode, status, bank_nama, bank_nomor, bank_pemilik, created_at)
         VALUES (${userId}, ${kodePakai}, ${statusAwal}, ${bankNama}, ${bankNomor}, ${bankPemilik}, ${sekarang()})
         RETURNING ${sql.unsafe(KOLOM_AFILIATOR)}`;
+      if (baru.status === "menunggu") {
+        void kirimNotifAdmin({
+          jenis: "admin_afiliasi",
+          judul: { id: "Pendaftaran afiliator baru menunggu persetujuan", en: "New affiliate sign-up awaiting approval" },
+          isi: { id: `Kode ${baru.kode}. Tinjau di halaman Afiliasi.`, en: `Code ${baru.kode}. Review it on the Affiliate page.` },
+          tautan: "/admin/afiliasi",
+        });
+      } else {
+        void kirimNotif(userId, {
+          jenis: "afiliasi",
+          judul: { id: "Selamat, Anda resmi menjadi afiliator", en: "You're now an official affiliate" },
+          isi: { id: `Bagikan tautan dengan kode ${baru.kode} dan dapatkan komisi dari setiap pembelian paket.`, en: `Share your link with code ${baru.kode} and earn a commission on every plan purchase.` },
+          tautan: "/afiliasi",
+        });
+      }
       return baru;
     } catch {
       if (kodeManual) {
@@ -341,7 +357,7 @@ export async function ajukanPenarikan(userId: number, nominalMentah: number): Pr
     throw new AfiliasiError(`Minimal penarikan komisi adalah Rp${atur.minTarik.toLocaleString("id-ID")}.`, "The minimum commission payout is {rp}.", atur.minTarik);
   }
 
-  return transaksiDb(async (tx) => {
+  const hasil = await transaksiDb(async (tx) => {
     const [af] = await tx<BarisAfiliator[]>`
       SELECT ${tx.unsafe(KOLOM_AFILIATOR)} FROM afiliator WHERE user_id = ${userId} FOR UPDATE`;
     if (!af) throw new AfiliasiError("Anda belum terdaftar sebagai afiliator.", "You are not registered as an affiliate yet.");
@@ -365,6 +381,13 @@ export async function ajukanPenarikan(userId: number, nominalMentah: number): Pr
       RETURNING id, afiliator_id, nominal, bank_nama, bank_nomor, bank_pemilik, status, metode, referensi, catatan, dibuat, diproses`;
     return p;
   });
+  void kirimNotifAdmin({
+    jenis: "admin_afiliasi",
+    judul: { id: `Pengajuan penarikan komisi Rp${hasil.nominal.toLocaleString("id-ID")}`, en: `Commission payout request: Rp${hasil.nominal.toLocaleString("id-ID")}` },
+    isi: { id: `Ke ${hasil.bank_nama.toUpperCase()} ${hasil.bank_nomor} a.n. ${hasil.bank_pemilik}.`, en: `To ${hasil.bank_nama.toUpperCase()} ${hasil.bank_nomor} (${hasil.bank_pemilik}).` },
+    tautan: "/admin/afiliasi",
+  });
+  return hasil;
 }
 
 // ---------- Ringkasan & Riwayat untuk Dashboard Pengguna ----------
@@ -554,6 +577,20 @@ export async function setStatusAfiliatorAdmin(admin: User, userId: number, statu
      RETURNING a.kode, u.email`;
   if (!af) throw new AfiliasiError("Afiliator tidak ditemukan.");
   await catatLog(admin, "ubah status afiliator", af.email, `kode ${af.kode} -> ${status}`);
+  if (status === "aktif" || status === "nonaktif") {
+    await kirimNotif(userId, {
+      jenis: "afiliasi",
+      judul:
+        status === "aktif"
+          ? { id: "Pendaftaran afiliasi Anda disetujui", en: "Your affiliate application was approved" }
+          : { id: "Akun afiliasi Anda dinonaktifkan admin", en: "Your affiliate account was deactivated by the admin" },
+      isi:
+        status === "aktif"
+          ? { id: "Tautan referral Anda sudah aktif mencatat komisi.", en: "Your referral link is now earning commissions." }
+          : { id: "Hubungi admin untuk informasi lebih lanjut.", en: "Contact the admin for more information." },
+      tautan: "/afiliasi",
+    });
+  }
 }
 
 /**
@@ -570,7 +607,8 @@ export async function prosesPenarikanAdmin(
   const catatan = opsi.catatan?.trim().slice(0, 200) || null;
   const refInput = opsi.referensi?.trim().slice(0, 100) || null;
 
-  return transaksiDb(async (tx) => {
+  let diberitahu: { userId: number; nominal: number; ditolak: boolean } | null = null;
+  const pesan = await transaksiDb(async (tx) => {
     const [p] = await tx<(BarisPenarikan & { email: string; kode: string })[]>`
       SELECT p.id, p.afiliator_id, p.nominal, p.bank_nama, p.bank_nomor, p.bank_pemilik, p.status,
              u.email, a.kode
@@ -597,6 +635,7 @@ export async function prosesPenarikanAdmin(
         p.email,
         `Rp${p.nominal.toLocaleString("id-ID")} dikembalikan ke saldo${catatan ? ` · ${catatan}` : ""}`
       );
+      diberitahu = { userId: p.afiliator_id, nominal: p.nominal, ditolak: true };
       return `Penarikan Rp${p.nominal.toLocaleString("id-ID")} ditolak dan saldo telah dikembalikan ke ${p.email}.`;
     }
 
@@ -639,6 +678,20 @@ export async function prosesPenarikanAdmin(
       `Rp${p.nominal.toLocaleString("id-ID")} via ${metodeAkhir === "iris" ? "Midtrans Iris" : "transfer manual"} (${p.bank_nama.toUpperCase()} ${p.bank_nomor})${referensiAkhir ? ` · ref ${referensiAkhir}` : ""}`
     );
 
+    diberitahu = { userId: p.afiliator_id, nominal: p.nominal, ditolak: false };
     return `Pencairan Rp${p.nominal.toLocaleString("id-ID")} untuk ${p.email} berhasil dicatat (${metodeAkhir === "iris" ? `Midtrans Iris #${referensiAkhir}` : "Transfer Manual"}).`;
   });
+  const d = diberitahu as { userId: number; nominal: number; ditolak: boolean } | null;
+  if (d) {
+    const rp = `Rp${d.nominal.toLocaleString("id-ID")}`;
+    await kirimNotif(d.userId, {
+      jenis: "afiliasi",
+      judul: d.ditolak ? { id: `Penarikan komisi ${rp} ditolak`, en: `Commission payout of ${rp} was rejected` } : { id: `Komisi ${rp} sudah dicairkan`, en: `Commission of ${rp} has been paid out` },
+      isi: d.ditolak
+        ? { id: "Saldo sudah dikembalikan. Lihat catatan admin di halaman Afiliasi.", en: "The balance has been returned. See the admin's note on the Affiliate page." }
+        : { id: "Dana sudah ditransfer ke rekening Anda.", en: "The money has been transferred to your bank account." },
+      tautan: "/afiliasi",
+    });
+  }
+  return pesan;
 }

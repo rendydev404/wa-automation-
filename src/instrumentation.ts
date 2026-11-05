@@ -28,6 +28,9 @@ export async function register() {
     // Histori percakapan yang lebih lama dari 30 hari dihapus berkala.
     const { mulaiPembersihanHistori } = await import("@/lib/percakapan");
     mulaiPembersihanHistori();
+    // Notifikasi in-app: pengingat paket akan/sudah berakhir & pembersihan notifikasi lama, tiap jam.
+    const { mulaiPengingat } = await import("@/lib/notifikasi");
+    mulaiPengingat();
   } catch (e) {
     console.error("[wa] gagal memulai gerbang WhatsApp:", e);
   }

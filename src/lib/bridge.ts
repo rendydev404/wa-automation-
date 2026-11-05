@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { db, sekarang, setSetting } from "./db";
 import { catatPakai, tanpaIngatan, tanyaAiTerjaga } from "./ai";
-import { aiUntukAkun, catatBalasanLokal, klaimPemberitahuanKuota, sisaKuotaAi } from "./langganan";
+import { aiUntukAkun, catatBalasanLokal, catatKuotaHabis, sisaKuotaAi } from "./langganan";
 import { MEREK } from "./merek";
 import { susunSistem } from "./knowledge";
 import { type KirimProduk, bahanKirim, captionProduk, daftarProduk, katalogBoleh, perluDaftar, teksKatalog } from "./katalog";
@@ -326,6 +326,18 @@ export function teksKuotaHabis(): string {
   ].join("\n");
 }
 
+/**
+ * Selama kuota habis, tiap pesan masuk melewati jalur ini: catatKuotaHabis (notifikasi + klaim pemberitahuan chat) cukup
+ * dijalankan sekali per 10 menit per akun. Keduanya anti-dobel di database, jadi pengulangan sesudahnya aman.
+ */
+const habisDicek = new Map<number, number>();
+function habisBaruDicek(userId: number): boolean {
+  const t = habisDicek.get(userId) ?? 0;
+  if (Date.now() - t < 600_000) return false;
+  habisDicek.set(userId, Date.now());
+  return true;
+}
+
 async function beritahuKuotaHabis(a: Antrean, kunci: string): Promise<void> {
   const teks = teksKuotaHabis();
   try {
@@ -367,7 +379,7 @@ async function proses(kunci: string): Promise<void> {
     // sedang chat dengannya, karena pesan tanpa diminta seperti itu memicu blokir WhatsApp.
     const habis = !!nomor && nomor.bot_aktif && nomor.pemilik_aktif && (await kuotaHabis(nomor.user_id));
     // Akun trial/gratis: kuota habis diberitahukan SEKALI di chat yang sedang masuk (lalu diam seperti biasa).
-    if (habis && nomor && nomor.user_id !== null && a.teks.length && (await klaimPemberitahuanKuota(nomor.user_id).catch(() => false))) {
+    if (habis && nomor && nomor.user_id !== null && a.teks.length && habisBaruDicek(nomor.user_id) && (await catatKuotaHabis(nomor.user_id).catch(() => false))) {
       await beritahuKuotaHabis(a, kunci);
     }
     if (!nomor || !nomor.bot_aktif || !nomor.pemilik_aktif || habis) {

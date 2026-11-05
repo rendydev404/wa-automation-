@@ -2,7 +2,8 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import type { Penyedia } from "./ai";
 import { db, sekarang } from "./db";
-import { segarkanAiAkun } from "./langganan";
+import { segarkanAiAkun, segarkanKuota } from "./langganan";
+import { kirimNotif } from "./notifikasi";
 import { segarkanNomor } from "./numbers";
 import { hashPassword } from "./password";
 import type { Peran, User } from "./session";
@@ -184,6 +185,32 @@ async function wajib(id: number): Promise<BarisPengguna> {
   const u = await penggunaById(id);
   if (!u) throw new PenggunaError("Pengguna tidak ditemukan.");
   return u;
+}
+
+/** Batas atas satu kali pemberian bonus (sama dengan batas kuota percobaan di Aturan). */
+export const MAKS_BONUS_KUOTA = 1_000_000;
+
+/**
+ * Admin memberi bonus balasan AI tanpa biaya (tidak tercatat di Transaksi). Berlaku di periode kuota akun saat ini
+ * (paket aktif, masa free trial, atau bulan berjalan) dan langsung terbaca di pesan WhatsApp berikutnya.
+ */
+export async function beriBonusKuota(admin: User, id: number, jumlah: number, catatan: string): Promise<void> {
+  if (!Number.isInteger(jumlah) || jumlah < 1 || jumlah > MAKS_BONUS_KUOTA) throw new PenggunaError(`Jumlah bonus harus 1–${MAKS_BONUS_KUOTA.toLocaleString("id-ID")} balasan.`);
+  const u = await wajib(id);
+  if (u.peran === "admin") throw new PenggunaError("Admin tidak memakai kuota balasan AI.");
+  const sql = await db();
+  const isiCatatan = catatan.trim().slice(0, 200) || null;
+  await sql`INSERT INTO kuota_bonus(user_id, jumlah, catatan, oleh, dibuat) VALUES (${id}, ${jumlah}, ${isiCatatan}, ${admin.id}, ${sekarang()})`;
+  segarkanKuota(id);
+  await catatLog(admin, "beri bonus kuota", u.email, `${jumlah.toLocaleString("id-ID")} balasan AI${isiCatatan ? ` · ${isiCatatan}` : ""}`);
+  await kirimNotif(id, {
+    jenis: "bonus",
+    judul: { id: `Bonus ${jumlah.toLocaleString("id-ID")} balasan AI dari admin`, en: `${jumlah.toLocaleString("en-US")} bonus AI replies from the admin` },
+    isi: isiCatatan
+      ? { id: `Catatan: ${isiCatatan}. Sudah bisa langsung dipakai.`, en: `Note: ${isiCatatan}. You can use them right away.` }
+      : { id: "Gratis, sudah bisa langsung dipakai di periode kuota ini.", en: "Free of charge and ready to use this quota period." },
+    tautan: "/langganan",
+  });
 }
 
 export async function setKuota(admin: User, id: number, kuota: number | null): Promise<void> {

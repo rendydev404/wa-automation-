@@ -159,6 +159,8 @@ export interface HakAkun {
   paket: string;
   /** Kode paket langganan aktif (lencana); null = gratis/admin atau paket hasil kesepakatan admin. */
   kodePaket: string | null;
+  /** Bonus balasan AI dari admin di periode ini (sudah termasuk dalam `balasan`). */
+  bonus: number;
   /** Kuota gratis sekali pakai (free trial): dihitung sejak akun dibuat, habis = harus berlangganan. */
   percobaan: boolean;
   /** Akhir masa free trial (detik epoch); null = bukan free trial atau tanpa batas waktu. */
@@ -170,13 +172,16 @@ export interface HakAkun {
 const BUKAN_PERCOBAAN = { percobaan: false, percobaanSampai: null, percobaanBerakhir: false } as const;
 
 export async function hakAkun(user: { id: number; peran: string }): Promise<HakAkun> {
-  if (user.peran === "admin") return { nomor: null, balasan: null, periodeMulai: awalBulanWib(), sampai: null, paket: "Admin", kodePaket: null, ...BUKAN_PERCOBAAN };
+  if (user.peran === "admin") return { nomor: null, balasan: null, periodeMulai: awalBulanWib(), sampai: null, paket: "Admin", kodePaket: null, bonus: 0, ...BUKAN_PERCOBAAN };
   const sql = await db();
   const [[u], l] = await Promise.all([
     sql<{ kuota_nomor: number | null; created_at: number }[]>`SELECT kuota_nomor, created_at FROM users WHERE id = ${user.id}`,
     langgananAktif(user.id),
   ]);
-  if (l) return { nomor: u?.kuota_nomor ?? l.kuota_nomor, balasan: l.kuota_balasan, periodeMulai: l.mulai, sampai: l.sampai, paket: l.nama_paket, kodePaket: l.kode_paket, ...BUKAN_PERCOBAAN };
+  if (l) {
+    const bonus = await bonusKuota(user.id, l.mulai);
+    return { nomor: u?.kuota_nomor ?? l.kuota_nomor, balasan: l.kuota_balasan + bonus, periodeMulai: l.mulai, sampai: l.sampai, paket: l.nama_paket, kodePaket: l.kode_paket, bonus, ...BUKAN_PERCOBAAN };
+  }
   const [nomorGratis, p] = await Promise.all([kuotaNomorGratis(), aturanPercobaan()]);
   // Free trial: semua balasan AI sejak akun dibuat ikut dihitung, jadi akun yang langganannya berakhir tidak
   // mendapat percobaan baru.
@@ -184,19 +189,52 @@ export async function hakAkun(user: { id: number; peran: string }): Promise<HakA
   const sekali = p.ulang === "sekali";
   const dibuat = u?.created_at ?? 0;
   const percobaanSampai = sekali && p.hari > 0 ? dibuat + p.hari * 86400 : null;
+  const periodeMulai = sekali ? dibuat : awalBulanWib();
+  const bonus = await bonusKuota(user.id, periodeMulai);
   return {
     nomor: u?.kuota_nomor ?? nomorGratis,
-    balasan: p.balasan,
-    periodeMulai: sekali ? dibuat : awalBulanWib(),
+    balasan: p.balasan + bonus,
+    periodeMulai,
     sampai: null,
     paket: "Gratis",
     kodePaket: null,
+    bonus,
     percobaan: sekali,
     percobaanSampai,
-    percobaanBerakhir: percobaanSampai !== null && sekarang() >= percobaanSampai,
+    // Bonus dari admin tetap bisa dipakai walau masa free trial sudah lewat.
+    percobaanBerakhir: percobaanSampai !== null && sekarang() >= percobaanSampai && bonus === 0,
   };
 }
 
+
+/**
+ * Bonus balasan AI dari admin (kuota_bonus) yang berlaku di periode kuota yang dimulai `sejak`: bonus berlaku di periode
+ * saat diberikan (paket aktif, masa free trial, atau bulan berjalan untuk kuota gratis bulanan). Lewat kuota_bonus_user_idx.
+ */
+export async function bonusKuota(userId: number, sejak: number): Promise<number> {
+  const sql = await db();
+  const [r] = await sql<{ n: number }[]>`SELECT COALESCE(SUM(jumlah), 0)::int AS n FROM kuota_bonus WHERE user_id = ${userId} AND dibuat >= ${sejak}`;
+  return r.n;
+}
+
+export interface BonusKuota {
+  id: number;
+  jumlah: number;
+  catatan: string | null;
+  oleh_email: string | null;
+  dibuat: number;
+}
+
+/** Riwayat bonus satu akun (halaman kelola pengguna admin), terbaru dulu. */
+export async function riwayatBonus(userId: number, batas = 10): Promise<BonusKuota[]> {
+  const sql = await db();
+  return [
+    ...(await sql<BonusKuota[]>`
+      SELECT b.id, b.jumlah, b.catatan, a.email AS oleh_email, b.dibuat
+        FROM kuota_bonus b LEFT JOIN users a ON a.id = b.oleh
+       WHERE b.user_id = ${userId} ORDER BY b.dibuat DESC, b.id DESC LIMIT ${batas}`),
+  ];
+}
 
 /**
  * Balasan AI yang sudah dipakai semua nomor milik `userId` sejak `sejak`. Lewat numbers_user_idx lalu
@@ -221,6 +259,8 @@ interface CacheKuota {
   at: number;
   batas: number | null;
   terpakai: number;
+  /** Awal periode kuota (kunci anti-dobel notifikasi ambang kuota). */
+  periode: number;
 }
 const gk = globalThis as unknown as { __waKuota?: Map<number, CacheKuota>; __waKuotaGen?: { n: number } };
 const cacheKuota = (gk.__waKuota ??= new Map());
@@ -238,7 +278,12 @@ export async function sisaKuotaAi(userId: number): Promise<number | null> {
     const [u] = await sql<{ peran: string }[]>`SELECT peran FROM users WHERE id = ${userId}`;
     const hak = await hakAkun({ id: userId, peran: u?.peran ?? "user" });
     // Masa free trial lewat = kuota dianggap habis (paling lambat 60 dtk setelah lewat, sesuai umur cache).
-    c = { at: Date.now(), batas: hak.percobaanBerakhir ? 0 : hak.balasan, terpakai: hak.balasan === null || hak.percobaanBerakhir ? 0 : await balasanTerpakai(userId, hak.periodeMulai) };
+    c = {
+      at: Date.now(),
+      batas: hak.percobaanBerakhir ? 0 : hak.balasan,
+      terpakai: hak.balasan === null || hak.percobaanBerakhir ? 0 : await balasanTerpakai(userId, hak.periodeMulai),
+      periode: hak.periodeMulai,
+    };
     if (gen === genKuota.n) cacheKuota.set(userId, c);
   }
   return c.batas === null ? null : Math.max(0, c.batas - c.terpakai);
@@ -265,7 +310,46 @@ export async function klaimPemberitahuanKuota(userId: number): Promise<boolean> 
 
 export function catatBalasanLokal(userId: number): void {
   const c = cacheKuota.get(userId);
-  if (c) c.terpakai += 1;
+  if (!c) return;
+  c.terpakai += 1;
+  // Baru saja melewati 80%: notifikasi sekali per periode (kunci anti-dobel), tanpa query di balasan lainnya.
+  if (c.batas && c.batas > 0 && c.terpakai >= Math.ceil(c.batas * 0.8) && c.terpakai - 1 < Math.ceil(c.batas * 0.8)) {
+    const sisa = Math.max(0, c.batas - c.terpakai);
+    void import("./notifikasi").then((m) =>
+      m.kirimNotif(userId, {
+        jenis: "kuota",
+        judul: { id: "Kuota balasan AI tinggal 20%", en: "Only 20% of your AI replies left" },
+        isi: { id: `Sisa ${sisa.toLocaleString("id-ID")} balasan di periode ini. Tambah kuota supaya AI tidak berhenti membalas.`, en: `${sisa.toLocaleString("en-US")} replies left this period. Top up so the AI doesn't stop replying.` },
+        tautan: "/langganan",
+        kunci: `kuota80:${c.periode}:${c.batas}`,
+      }),
+    );
+  }
+}
+
+/**
+ * Kuota balasan AI habis (dipanggil jembatan WhatsApp sekali per jendela, bukan tiap pesan): notifikasi in-app sekali
+ * per periode, dan untuk akun trial/gratis klaim pemberitahuan lewat chat. true = kirim pemberitahuan di chat.
+ */
+export async function catatKuotaHabis(userId: number): Promise<boolean> {
+  const sql = await db();
+  const [u] = await sql<{ peran: string }[]>`SELECT peran FROM users WHERE id = ${userId}`;
+  if (!u || u.peran === "admin") return false;
+  const hak = await hakAkun({ id: userId, peran: u.peran });
+  const gratis = hak.sampai === null;
+  const { kirimNotif } = await import("./notifikasi");
+  await kirimNotif(userId, {
+    jenis: "kuota",
+    judul: gratis
+      ? { id: "Kuota balasan AI gratis sudah habis", en: "Your free AI replies are used up" }
+      : { id: `Kuota balasan AI paket ${hak.paket} sudah habis`, en: `Your ${hak.paket} plan's AI replies are used up` },
+    isi: gratis
+      ? { id: "AI berhenti membalas pelanggan. Pilih paket berlangganan untuk mengaktifkannya lagi.", en: "The AI has stopped replying to customers. Choose a plan to turn it back on." }
+      : { id: "AI berhenti membalas sampai paket diperpanjang atau dinaikkan.", en: "The AI has stopped replying until you renew or upgrade your plan." },
+    tautan: "/langganan",
+    kunci: `kuota100:${hak.periodeMulai}:${hak.balasan ?? 0}`,
+  });
+  return gratis && (await klaimPemberitahuanKuota(userId));
 }
 
 /** Setelah pembayaran / perubahan langganan: hitung ulang di pesan berikutnya. */
@@ -526,6 +610,7 @@ export async function terapkanStatus(k: KonfigMidtrans, orderId: string): Promis
     infoCapi = { jumlah: t.jumlah, namaPaket: t.nama_paket };
     return { status, baruAktif: true };
   });
+  if (hasil?.baruAktif) void notifPaketAktif(orderId, "midtrans");
   if (hasil?.baruAktif && infoCapi) {
     const c = infoCapi as { jumlah: number; namaPaket: string };
     void kirimCapiEvent({
@@ -631,7 +716,56 @@ export async function berikanPaketManual(
     return { langgananId: l.id, orderId, nama: l.nama, mulai: l.mulai, sampai: l.sampai, kuota_nomor: l.kuota_nomor, kuota_balasan: l.kuota_balasan, diperpanjang: l.diperpanjang, jumlah };
   });
   segarkanKuota(userId);
+  void notifPaketAktif(hasil.orderId, "admin");
   return hasil;
+}
+
+/**
+ * Notifikasi setelah paket aktif (sesudah transaksi database tuntas): pembeli, admin (hanya pembayaran Midtrans), dan
+ * afiliator bila ada komisi dari transaksi ini. Satu query lewat order_id UNIQUE + komisi lewat transaksi_id UNIQUE.
+ */
+async function notifPaketAktif(orderId: string, sumber: "midtrans" | "admin"): Promise<void> {
+  try {
+    const { kirimNotif, kirimNotifAdmin } = await import("./notifikasi");
+    const sql = await db();
+    const [t] = await sql<{ user_id: number; email: string; nama_paket: string; jumlah: number; sampai: number | null; k_afiliator: number | null; k_nominal: number | null }[]>`
+      SELECT t.user_id, u.email, t.nama_paket, t.jumlah, l.sampai, k.afiliator_id AS k_afiliator, k.nominal AS k_nominal
+        FROM transaksi t JOIN users u ON u.id = t.user_id
+        LEFT JOIN langganan l ON l.id = t.langganan_id
+        LEFT JOIN komisi_afiliasi k ON k.transaksi_id = t.id
+       WHERE t.order_id = ${orderId}`;
+    if (!t) return;
+    const rp = (n: number) => `Rp${n.toLocaleString("id-ID")}`;
+    const sampai = t.sampai ? new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "long", year: "numeric" }).format(new Date(t.sampai * 1000)) : "";
+    const sampaiEn = t.sampai ? new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Jakarta", day: "numeric", month: "long", year: "numeric" }).format(new Date(t.sampai * 1000)) : "";
+    await kirimNotif(t.user_id, {
+      jenis: sumber === "midtrans" ? "pembayaran" : "paket",
+      judul:
+        sumber === "midtrans"
+          ? { id: `Pembayaran diterima · Paket ${t.nama_paket} aktif`, en: `Payment received · ${t.nama_paket} plan active` }
+          : { id: `Paket ${t.nama_paket} diaktifkan admin`, en: `The admin activated your ${t.nama_paket} plan` },
+      isi: { id: `${sampai ? `Aktif sampai ${sampai}. ` : ""}ID pembelian ${orderId}.`, en: `${sampaiEn ? `Active until ${sampaiEn}. ` : ""}Purchase ID ${orderId}.` },
+      tautan: "/langganan",
+    });
+    if (sumber === "midtrans") {
+      await kirimNotifAdmin({
+        jenis: "admin_bayar",
+        judul: { id: `Pembayaran lunas ${rp(t.jumlah)} · ${t.nama_paket}`, en: `Payment received ${rp(t.jumlah)} · ${t.nama_paket}` },
+        isi: { id: `${t.email} · ${orderId}`, en: `${t.email} · ${orderId}` },
+        tautan: `/admin/transaksi/${encodeURIComponent(orderId)}`,
+      });
+    }
+    if (t.k_afiliator && t.k_nominal) {
+      await kirimNotif(t.k_afiliator, {
+        jenis: "afiliasi",
+        judul: { id: `Komisi baru ${rp(t.k_nominal)} masuk ke saldo`, en: `New commission of ${rp(t.k_nominal)} added to your balance` },
+        isi: { id: `Dari pembelian paket ${t.nama_paket} lewat tautan referral Anda.`, en: `From a ${t.nama_paket} plan purchase through your referral link.` },
+        tautan: "/afiliasi",
+      });
+    }
+  } catch (e) {
+    console.warn("[notifikasi] paket aktif:", e instanceof Error ? e.message : e);
+  }
 }
 
 /** Riwayat langganan satu akun, terbaru dulu (untuk halaman kelola pengguna). */

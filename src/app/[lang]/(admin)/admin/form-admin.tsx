@@ -12,6 +12,7 @@ import {
   adminAiAkunAction,
   adminHentikanLanggananAction,
   adminPaketAction,
+  adminBonusKuotaAction,
   adminKuotaAction,
   adminPengaturanAction,
   adminPeranAction,
@@ -237,6 +238,62 @@ export function FormKuota({ id, kuota, bawaan }: { id: number; kuota: number | n
       </div>
       <p className="text-[12px] text-muted">Kosongkan = ikut kuota bawaan. 0 = tidak boleh menambah nomor.</p>
       <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
+    </form>
+  );
+}
+
+/** Bonus balasan AI tanpa biaya: pilihan cepat + isian bebas. */
+export function FormBonusKuota({ id }: { id: number }) {
+  const [jumlah, setJumlah] = useState("");
+  // Berhasil = isian dikosongkan (catatan ikut direset React setelah aksi form selesai).
+  const [hasil, aksi] = useActionState(async (lalu: Awaited<ReturnType<typeof adminBonusKuotaAction>> | null, data: FormData) => {
+    const h = await adminBonusKuotaAction(lalu, data);
+    if (h.ok) setJumlah("");
+    return h;
+  }, null);
+  return (
+    <form action={aksi} className="space-y-3">
+      <input type="hidden" name="id" value={id} />
+      <div>
+        <label htmlFor="bonus-jumlah" className="label">
+          Jumlah balasan AI
+        </label>
+        <div className="flex flex-wrap gap-1.5 pb-2">
+          {[100, 500, 1000, 5000].map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setJumlah(String(n))}
+              className={`rounded-lg border px-2.5 py-1 text-[12px] font-semibold tabular-nums transition-colors ${jumlah === String(n) ? "border-accent bg-accent-soft text-accent" : "border-line text-muted hover:bg-subtle hover:text-fg"}`}
+            >
+              +{n.toLocaleString("id-ID")}
+            </button>
+          ))}
+        </div>
+        <input
+          id="bonus-jumlah"
+          name="jumlah"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={1_000_000}
+          required
+          value={jumlah}
+          onChange={(e) => setJumlah(e.target.value)}
+          placeholder="mis. 500"
+          className="field"
+        />
+      </div>
+      <div>
+        <label htmlFor="bonus-catatan" className="label">
+          Catatan <span className="font-normal text-muted">(opsional, ikut terlihat pengguna)</span>
+        </label>
+        <input id="bonus-catatan" name="catatan" maxLength={200} placeholder="mis. kompensasi gangguan 4 Nov" className="field" />
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <SubmitButton>Beri bonus</SubmitButton>
+        <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
+      </div>
     </form>
   );
 }

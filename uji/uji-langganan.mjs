@@ -16,6 +16,7 @@ const pg = await mulaiPg({ dir: path.join(tmp, "pg"), sementara: true });
 process.env.DATABASE_URL = pg.url;
 process.env.DATA_DIR = path.join(tmp, "kosong");
 process.env.AUTH_SECRET = "q".repeat(48);
+const tidur = (ms) => new Promise((r) => setTimeout(r, ms));
 const lib = (f) => import(pathToFileURL(path.join(akar, f)).href);
 
 const { db, setSetting, sekarang } = await lib("src/lib/db.ts");
@@ -53,7 +54,7 @@ await cek("migrasi membuat 3 paket awal (Starter, Bisnis unggulan, Pro) urut har
 });
 
 await cek("hak akun: admin tanpa batas; tanpa paket = free trial 5 balasan sekali pakai (jumlah & 'tiap bulan' bisa diatur admin); kuota nomor per akun mengalahkan paket", async () => {
-  assert.deepEqual(await L.hakAkun({ id: admin.id, peran: "admin" }), { nomor: null, balasan: null, periodeMulai: L.awalBulanWib(), sampai: null, paket: "Admin", kodePaket: null, percobaan: false, percobaanSampai: null, percobaanBerakhir: false });
+  assert.deepEqual(await L.hakAkun({ id: admin.id, peran: "admin" }), { nomor: null, balasan: null, periodeMulai: L.awalBulanWib(), sampai: null, paket: "Admin", kodePaket: null, bonus: 0, percobaan: false, percobaanSampai: null, percobaanBerakhir: false });
   let h = await L.hakAkun(B);
   const [{ created_at: dibuat }] = await sql`SELECT created_at FROM users WHERE id = ${budi.id}`;
   assert.deepEqual([h.nomor, h.balasan, h.paket, h.sampai, h.percobaan, h.periodeMulai], [1, 5, "Gratis", null, true, dibuat]);
@@ -990,6 +991,81 @@ await cek("pemberitahuan kuota habis: akun gratis sekali per periode kuota; berb
   await L.berikanPaketManual(bayar.id, { paketId: starter.id, metode: "manual_transfer", jumlah: starter.harga, catatan: "" });
   assert.equal(await L.klaimPemberitahuanKuota(bayar.id), false, "akun berbayar tidak diberi pemberitahuan berlangganan");
   assert.equal(await L.klaimPemberitahuanKuota(admin.id), false, "admin tidak pernah");
+});
+
+await cek("bonus kuota dari admin: menambah batas periode ini (juga setelah trial lewat), tercatat di log & notifikasi pengguna", async () => {
+  const N = await lib("src/lib/notifikasi.ts");
+  const u = await P.buatAkun({ email: "bonus@uji.test", nama: "Bonus", password: "rahasia-bonus-01" });
+  const A = { id: admin.id, email: "admin@uji.test", nama: "Admin", peran: "admin" };
+  const h0 = await L.hakAkun({ id: u.id, peran: "user" });
+  await P.beriBonusKuota(A, u.id, 250, "kompensasi uji");
+  const h1 = await L.hakAkun({ id: u.id, peran: "user" });
+  assert.equal(h1.bonus, 250);
+  assert.equal(h1.balasan, h0.balasan + 250);
+  assert.equal(await L.sisaKuotaAi(u.id), h1.balasan, "cache kuota disegarkan: bonus langsung terbaca jembatan WhatsApp");
+  assert.deepEqual((await L.riwayatBonus(u.id)).map((b) => [b.jumlah, b.catatan, b.oleh_email]), [[250, "kompensasi uji", "admin@uji.test"]]);
+  const { daftar } = await N.daftarNotif(u.id);
+  assert.equal(daftar[0].jenis, "bonus");
+  assert.match(daftar[0].judul, /Bonus 250 balasan AI dari admin/);
+  assert.match(daftar[0].judul_en, /250 bonus AI replies/);
+  assert.equal((await sql`SELECT COUNT(*)::int AS n FROM admin_log WHERE aksi = 'beri bonus kuota'`)[0].n, 1);
+  await assert.rejects(P.beriBonusKuota(A, u.id, 0, ""), /Jumlah bonus harus/);
+  await assert.rejects(P.beriBonusKuota(A, admin.id, 10, ""), /Admin tidak memakai/);
+  // Free trial yang masa berlakunya lewat: bonus tetap bisa dipakai.
+  await sql`UPDATE users SET created_at = ${sekarang() - 400 * 86400} WHERE id = ${u.id}`;
+  await sql`UPDATE kuota_bonus SET dibuat = ${sekarang() - 400 * 86400 + 10} WHERE user_id = ${u.id}`;
+  const h2 = await L.hakAkun({ id: u.id, peran: "user" });
+  if (h2.percobaan && h2.percobaanSampai !== null) assert.equal(h2.percobaanBerakhir, false, "bonus membuat AI tetap aktif walau trial lewat");
+});
+
+await cek("notifikasi in-app: anti-dobel lewat kunci, hitungan belum dibaca dari memori, tandai dibaca, paginasi keyset", async () => {
+  const N = await lib("src/lib/notifikasi.ts");
+  const u = await P.buatAkun({ email: "notif@uji.test", nama: "Notif", password: "rahasia-notif-01" });
+  assert.equal(await N.jumlahBelum(u.id), 0);
+  for (let i = 0; i < 25; i++) await N.kirimNotif(u.id, { jenis: "kuota", judul: { id: `Notif ${i}`, en: `Notif ${i}` } });
+  await N.kirimNotif(u.id, { jenis: "kuota", judul: { id: "dobel", en: "dup" }, kunci: "uji:1" });
+  await N.kirimNotif(u.id, { jenis: "kuota", judul: { id: "dobel", en: "dup" }, kunci: "uji:1" });
+  assert.equal(await N.jumlahBelum(u.id), 26, "kunci yang sama hanya tersimpan sekali; hitungan memori ikut");
+  const [r] = await sql`SELECT COUNT(*)::int AS n FROM notifikasi WHERE user_id = ${u.id} AND dibaca IS NULL`;
+  assert.equal(r.n, 26, "hitungan memori sama dengan database");
+  const h1 = await N.daftarNotif(u.id, { batas: 20 });
+  assert.equal(h1.daftar.length, 20);
+  assert.ok(h1.adaLagi);
+  const h2 = await N.daftarNotif(u.id, { batas: 20, sebelum: h1.daftar.at(-1).id });
+  assert.equal(h2.daftar.length, 6);
+  assert.ok(h2.daftar.every((n) => !h1.daftar.some((x) => x.id === n.id)));
+  assert.equal(await N.tandaiNotifDibaca(u.id, h1.daftar[0].id), 25);
+  assert.equal(await N.tandaiNotifDibaca(u.id, h1.daftar[0].id), 25, "dibaca dua kali tidak mengurangi lagi");
+  assert.equal(await N.tandaiNotifDibaca(u.id), 0);
+  await N.kirimNotif([u.id, admin.id], { jenis: "admin_daftar", judul: { id: "x", en: "x" } });
+  assert.equal(await N.jumlahBelum(u.id), 1);
+  // Notifikasi pengguna lain tidak bisa ditandai.
+  const lain = await N.daftarNotif(admin.id, { batas: 1 });
+  await N.tandaiNotifDibaca(u.id, lain.daftar[0].id);
+  assert.equal((await sql`SELECT dibaca FROM notifikasi WHERE id = ${lain.daftar[0].id}`)[0].dibaca, null);
+  const rencana = (await sql.unsafe(`EXPLAIN SELECT id FROM notifikasi WHERE user_id = ${u.id} ORDER BY id DESC LIMIT 21`)).map((x) => x["QUERY PLAN"]).join("\n");
+  assert.match(rencana, /notifikasi_user_idx|Index/, rencana);
+});
+
+await cek("notifikasi otomatis: paket dari admin, paket akan berakhir (H-3, sekali), kuota habis (sekali per batas)", async () => {
+  const N = await lib("src/lib/notifikasi.ts");
+  const u = await P.buatAkun({ email: "pengingat@uji.test", nama: "Pengingat", password: "rahasia-ingat-01" });
+  await L.berikanPaketManual(u.id, { paketId: starter.id, hari: 2, metode: "manual_transfer", jumlah: 1000, catatan: "" });
+  await tidur(100);
+  let { daftar } = await N.daftarNotif(u.id);
+  assert.ok(daftar.some((n) => n.jenis === "paket" && /diaktifkan admin/.test(n.judul) && /ID pembelian ADM-/.test(n.isi)), JSON.stringify(daftar.map((n) => n.judul)));
+  await N.jalankanPengingat();
+  await N.jalankanPengingat();
+  ({ daftar } = await N.daftarNotif(u.id));
+  assert.equal(daftar.filter((n) => n.jenis === "paket_berakhir").length, 1, "pengingat H-3 hanya sekali walau putaran berulang");
+  assert.match(daftar.find((n) => n.jenis === "paket_berakhir").judul, /berakhir 2 hari lagi/);
+  // Kuota habis: notifikasi sekali untuk batas yang sama.
+  const g = await P.buatAkun({ email: "habis@uji.test", nama: "Habis", password: "rahasia-habis-01" });
+  await L.catatKuotaHabis(g.id);
+  await L.catatKuotaHabis(g.id);
+  ({ daftar } = await N.daftarNotif(g.id));
+  assert.equal(daftar.filter((n) => n.jenis === "kuota").length, 1);
+  assert.match(daftar[0].judul, /gratis sudah habis/);
 });
 
 void AI;

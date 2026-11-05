@@ -27,6 +27,8 @@ export interface StatusWa {
   galatAi: { at: number; pesan: string } | null;
   /** Status per nomor, kunci = id nomor. */
   nomor: Record<number, SesiNomor>;
+  /** Jumlah notifikasi in-app yang belum dibaca (lonceng). */
+  notif: number;
 }
 
 export interface QrWa {

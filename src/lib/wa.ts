@@ -826,6 +826,7 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
     s.lidTersimpan = null;
     void hapusAuth(s.nama).catch((e) => console.error(`[wa ${s.nama}] gagal membuang kredensial:`, e));
     s.status = terpasang ? "STOPPED" : "FAILED";
+    if (terpasang) void import("./notifikasi").then((m) => m.notifNomorTerputus(s.nama));
     s.alasan = terpasang
       ? "Perangkat ini dikeluarkan dari WhatsApp di HP. Pindai QR lagi untuk menautkan."
       : kode === KODE.waktuHabis

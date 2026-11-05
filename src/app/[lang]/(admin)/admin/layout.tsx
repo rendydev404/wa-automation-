@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { LogOut } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { NavBawahKerangka } from "@/components/navigasi";
+import { LoncengNotifikasi } from "@/components/notifikasi";
 import { Rangka } from "@/components/rangka";
 import { requireAdmin } from "@/lib/session";
 import { NavAdmin, NavAdminBawah } from "./nav-admin";
@@ -23,6 +24,8 @@ export default function LayoutAdmin({ children }: LayoutProps<"/[lang]/admin">) 
     <Rangka
       beranda="/admin"
       lencana="Admin"
+      aksiSidebar={<LoncengNotifikasi gelap />}
+      aksiAtas={<LoncengNotifikasi gelap />}
       bawah={
         <Suspense fallback={<NavBawahKerangka />}>
           <NavAdminBawah />
