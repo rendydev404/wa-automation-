@@ -158,6 +158,22 @@ try {
   assert.match(halAdminPx.teks, /Meta Ads Pixel/);
   console.log("  /program-afiliasi (+ cookie wa_ref), /afiliasi, /admin/afiliasi, dan /admin/pixel lolos 200 OK");
 
+  console.log("\n== transaksi admin, lencana paket, ID pembelian ==");
+  const halTrx = await minta("GET", "/admin/transaksi?q=WA-1", { headers: { "accept-encoding": "identity" } });
+  assert.equal(halTrx.status, 200);
+  assert.match(halTrx.teks, /Riwayat transaksi/);
+  assert.match(halTrx.teks, /Total pendapatan/);
+  const csv = await minta("GET", "/api/admin/transaksi?s=lunas", { headers: { "accept-encoding": "identity" } });
+  assert.equal(csv.status, 200);
+  assert.match(csv.teks, /^﻿id_pembelian,status,jumlah_rp,paket/);
+  assert.equal((await minta("GET", "/api/admin/transaksi", { headers: { cookie: "" } })).status, 401, "ekspor CSV butuh sesi");
+  // notFound() di dalam Suspense (kerangka halaman sudah terkirim): status tetap 200, isinya halaman "tidak ditemukan".
+  const trxKosong = await minta("GET", "/admin/transaksi/WA-0-0-tidakada", { headers: { "accept-encoding": "identity" } });
+  assert.doesNotMatch(trxKosong.teks, /Rincian pembelian/);
+  assert.match(trxKosong.teks, /NEXT_HTTP_ERROR_FALLBACK;404|noindex/);
+  assert.equal((await minta("GET", "/langganan", { headers: { "accept-encoding": "identity" } })).status, 200);
+  console.log("  /admin/transaksi (cari + ringkasan), ekspor CSV, detail 404, /langganan lolos");
+
   console.log("\n== versi Inggris di /eng ==");
   const identitas = { "accept-encoding": "identity" };
   const enLanding = await minta("GET", "/eng", { headers: { cookie: "", ...identitas } });

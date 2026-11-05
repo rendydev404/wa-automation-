@@ -98,12 +98,14 @@ export interface Langganan {
   sumber: "midtrans" | "admin";
 }
 
-export async function langgananAktif(userId: number): Promise<Langganan | undefined> {
+/** Langganan aktif + kode paketnya (lencana paket, tingkat-paket.ts); paket lewat PK, jadi tetap satu query. */
+export async function langgananAktif(userId: number): Promise<(Langganan & { kode_paket: string | null }) | undefined> {
   const sql = await db();
-  const [l] = await sql<Langganan[]>`
-    SELECT id, user_id, paket_id, nama_paket, mulai, sampai, kuota_nomor, kuota_balasan, sumber
-      FROM langganan WHERE user_id = ${userId} AND sampai > ${sekarang()}
-     ORDER BY sampai DESC, id DESC LIMIT 1`;
+  const [l] = await sql<(Langganan & { kode_paket: string | null })[]>`
+    SELECT l.id, l.user_id, l.paket_id, l.nama_paket, l.mulai, l.sampai, l.kuota_nomor, l.kuota_balasan, l.sumber, p.kode AS kode_paket
+      FROM langganan l LEFT JOIN paket p ON p.id = l.paket_id
+     WHERE l.user_id = ${userId} AND l.sampai > ${sekarang()}
+     ORDER BY l.sampai DESC, l.id DESC LIMIT 1`;
   return l;
 }
 
@@ -155,6 +157,8 @@ export interface HakAkun {
   /** Akhir masa langganan; null = kuota gratis. */
   sampai: number | null;
   paket: string;
+  /** Kode paket langganan aktif (lencana); null = gratis/admin atau paket hasil kesepakatan admin. */
+  kodePaket: string | null;
   /** Kuota gratis sekali pakai (free trial): dihitung sejak akun dibuat, habis = harus berlangganan. */
   percobaan: boolean;
   /** Akhir masa free trial (detik epoch); null = bukan free trial atau tanpa batas waktu. */
@@ -166,13 +170,13 @@ export interface HakAkun {
 const BUKAN_PERCOBAAN = { percobaan: false, percobaanSampai: null, percobaanBerakhir: false } as const;
 
 export async function hakAkun(user: { id: number; peran: string }): Promise<HakAkun> {
-  if (user.peran === "admin") return { nomor: null, balasan: null, periodeMulai: awalBulanWib(), sampai: null, paket: "Admin", ...BUKAN_PERCOBAAN };
+  if (user.peran === "admin") return { nomor: null, balasan: null, periodeMulai: awalBulanWib(), sampai: null, paket: "Admin", kodePaket: null, ...BUKAN_PERCOBAAN };
   const sql = await db();
   const [[u], l] = await Promise.all([
     sql<{ kuota_nomor: number | null; created_at: number }[]>`SELECT kuota_nomor, created_at FROM users WHERE id = ${user.id}`,
     langgananAktif(user.id),
   ]);
-  if (l) return { nomor: u?.kuota_nomor ?? l.kuota_nomor, balasan: l.kuota_balasan, periodeMulai: l.mulai, sampai: l.sampai, paket: l.nama_paket, ...BUKAN_PERCOBAAN };
+  if (l) return { nomor: u?.kuota_nomor ?? l.kuota_nomor, balasan: l.kuota_balasan, periodeMulai: l.mulai, sampai: l.sampai, paket: l.nama_paket, kodePaket: l.kode_paket, ...BUKAN_PERCOBAAN };
   const [nomorGratis, p] = await Promise.all([kuotaNomorGratis(), aturanPercobaan()]);
   // Free trial: semua balasan AI sejak akun dibuat ikut dihitung, jadi akun yang langganannya berakhir tidak
   // mendapat percobaan baru.
@@ -186,6 +190,7 @@ export async function hakAkun(user: { id: number; peran: string }): Promise<HakA
     periodeMulai: sekali ? dibuat : awalBulanWib(),
     sampai: null,
     paket: "Gratis",
+    kodePaket: null,
     percobaan: sekali,
     percobaanSampai,
     percobaanBerakhir: percobaanSampai !== null && sekarang() >= percobaanSampai,
@@ -327,15 +332,20 @@ export interface Transaksi {
 
 /** Bentuk order_id tagihan Midtrans aplikasi ini (lihat mulaiBayar). */
 export const ORDER_SAH = /^WA-\d+-\d+-[0-9a-f]+$/;
+/** ID pembelian yang boleh dibuka pemiliknya di halaman tagihan: tagihan Midtrans (WA-) + pembayaran dicatat admin (ADM-). */
+export const ORDER_TAMPIL = /^(WA|ADM)-\d+-\d+-[0-9a-f]+$/;
 
 const KOLOM_TRX = "id, order_id, user_id, paket_id, nama_paket, jumlah, status, metode, kanal, redirect_url, dibuat, dibayar, kedaluwarsa, catatan";
 
-export async function riwayatTransaksi(opsi: { userId?: number; batas?: number }): Promise<(Transaksi & { email?: string })[]> {
+export async function riwayatTransaksi(opsi: { userId?: number; batas?: number }): Promise<(Transaksi & { email?: string; kode_paket?: string | null })[]> {
   const sql = await db();
   const batas = Math.min(opsi.batas ?? 20, 100);
   return [
     ...(opsi.userId !== undefined
-      ? await sql<Transaksi[]>`SELECT ${sql.unsafe(KOLOM_TRX)} FROM transaksi WHERE user_id = ${opsi.userId} ORDER BY dibuat DESC, id DESC LIMIT ${batas}`
+      ? await sql<(Transaksi & { kode_paket: string | null })[]>`
+          SELECT ${sql.unsafe(KOLOM_TRX.split(", ").map((k) => `t.${k}`).join(", "))}, p.kode AS kode_paket
+            FROM transaksi t LEFT JOIN paket p ON p.id = t.paket_id
+           WHERE t.user_id = ${opsi.userId} ORDER BY t.dibuat DESC, t.id DESC LIMIT ${batas}`
       : await sql<(Transaksi & { email: string })[]>`
           SELECT ${sql.unsafe(KOLOM_TRX.split(", ").map((k) => `t.${k}`).join(", "))}, u.email
             FROM transaksi t JOIN users u ON u.id = t.user_id ORDER BY t.dibuat DESC, t.id DESC LIMIT ${batas}`),

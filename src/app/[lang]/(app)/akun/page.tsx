@@ -9,6 +9,8 @@ import { tanggal } from "@/lib/format";
 import { nomorMilik } from "@/lib/numbers";
 import { penggunaById } from "@/lib/pengguna";
 import { kuotaNomor, requireUser } from "@/lib/session";
+import { LencanaPaket } from "@/components/lencana-paket";
+import { tingkatPaket } from "@/lib/tingkat-paket";
 import { FormKeluarSemua, FormPassword, FormProfil } from "./form-akun";
 import { MEREK } from "@/lib/merek";
 
@@ -43,10 +45,27 @@ async function Isi() {
   const user = await requireUser();
   const { b, t } = await teksHalaman();
   const [data, kuota, nomor] = await Promise.all([penggunaById(user.id), kuotaNomor(user), nomorMilik(user.id)]);
+  const tingkat = data?.paket_nama ? tingkatPaket(data.paket_kode, data.paket_nama) : null;
   return (
     <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="space-y-6">
         <section className="card p-6">
+          {/* Kartu identitas: avatar, nama, dan lencana paket aktif (sama dengan yang dilihat admin). */}
+          <div className="mb-5 flex flex-wrap items-center gap-4 border-b border-line pb-5">
+            <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-ink text-xl font-bold text-ink-signal uppercase">{(user.nama || user.email).charAt(0)}</span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-lg font-bold">{user.nama || user.email.split("@")[0]}</p>
+              <p className="truncate text-[13px] text-muted">{user.email}</p>
+            </div>
+            {data?.paket_nama ? (
+              <div className="text-right">
+                <LencanaPaket tingkat={tingkat} nama={data.paket_nama} ukuran="lg" />
+                {data.paket_sampai && <p className="mt-1.5 text-[12px] text-muted">{t(`Aktif sampai ${tanggal(data.paket_sampai)}`, `Active until ${tanggal(data.paket_sampai, b)}`)}</p>}
+              </div>
+            ) : (
+              user.peran !== "admin" && <LencanaPaket tingkat={null} nama={t("Gratis", "Free")} ukuran="lg" />
+            )}
+          </div>
           <h2 className="text-[15px] font-bold">{t("Profil", "Profile")}</h2>
           <p className="mt-0.5 text-[13px] text-muted">{t("Email dipakai untuk masuk dan tidak bisa diubah sendiri.", "Your email is used to sign in and can't be changed by you.")}</p>
           <div className="mt-5">

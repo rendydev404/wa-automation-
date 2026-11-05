@@ -25,7 +25,23 @@ export interface BarisPengguna {
   punya_password: boolean; // false = akun dibuat lewat Google dan belum pernah memasang password
   google: boolean; // tertaut ke akun Google
   ai_penyedia: Penyedia | null; // dipaksa admin untuk akun ini; null = ikut pengaturan Mesin AI
+  /** Langganan yang sedang aktif (untuk lencana paket); null = gratis / berakhir. */
+  paket_nama: string | null;
+  paket_kode: string | null;
+  paket_sampai: number | null;
 }
+
+/**
+ * Langganan aktif satu akun + kode paketnya (lencana). Satu baris lewat langganan_user_sampai_idx, paket lewat PK.
+ * Dipakai sebagai LATERAL di daftar pengguna, jadi tetap satu query untuk satu halaman (tanpa N+1).
+ */
+const PAKET_AKTIF = (sql: Awaited<ReturnType<typeof db>>, kini: number) => sql`
+  LEFT JOIN LATERAL (
+    SELECT l.nama_paket AS paket_nama, p.kode AS paket_kode, l.sampai AS paket_sampai
+      FROM langganan l LEFT JOIN paket p ON p.id = l.paket_id
+     WHERE l.user_id = u.id AND l.sampai > ${kini}
+     ORDER BY l.sampai DESC, l.id DESC LIMIT 1
+  ) pk ON true`;
 
 /** Penanda password_hash akun tanpa password (dibuat lewat Google): bukan format scrypt, jadi tidak pernah cocok. */
 export const TANPA_PASSWORD = "!google";
@@ -103,9 +119,10 @@ export async function daftarPengguna(opsi: { cari?: string; filter?: FilterPengg
   const baris = await sql<BarisPengguna[]>`
     SELECT u.id, u.email, u.nama, u.peran, u.status, u.alasan_blokir, u.kuota_nomor, u.ai_penyedia, u.login_terakhir, u.created_at,
            u.password_hash NOT LIKE '!%' AS punya_password, u.google_sub IS NOT NULL AS google,
-           COALESCE(n.jumlah, 0) AS jumlah_nomor
+           COALESCE(n.jumlah, 0) AS jumlah_nomor, pk.paket_nama, pk.paket_kode, pk.paket_sampai
       FROM users u
       LEFT JOIN LATERAL (SELECT COUNT(*) AS jumlah FROM numbers WHERE user_id = u.id) n ON true
+      ${PAKET_AKTIF(sql, sekarang())}
      WHERE (${opsi.sebelumId ?? null}::integer IS NULL OR u.id < ${opsi.sebelumId ?? null}::integer)
        AND (${cari} = '' OR u.email LIKE ${pola} OR lower(u.nama) LIKE ${pola})
        AND (${f} = 'semua' OR (${f} = 'admin' AND u.peran = 'admin') OR u.status = ${f})
@@ -133,8 +150,8 @@ export async function penggunaById(id: number): Promise<BarisPengguna | undefine
   const [u] = await sql<BarisPengguna[]>`
     SELECT u.id, u.email, u.nama, u.peran, u.status, u.alasan_blokir, u.kuota_nomor, u.ai_penyedia, u.login_terakhir, u.created_at,
            u.password_hash NOT LIKE '!%' AS punya_password, u.google_sub IS NOT NULL AS google,
-           (SELECT COUNT(*) FROM numbers WHERE user_id = u.id) AS jumlah_nomor
-      FROM users u WHERE u.id = ${id}`;
+           (SELECT COUNT(*) FROM numbers WHERE user_id = u.id) AS jumlah_nomor, pk.paket_nama, pk.paket_kode, pk.paket_sampai
+      FROM users u ${PAKET_AKTIF(sql, sekarang())} WHERE u.id = ${id}`;
   return u;
 }
 

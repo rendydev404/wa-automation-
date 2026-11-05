@@ -485,6 +485,11 @@ const MIGRASI: string[] = [
   `
   ALTER TABLE reset_password ADD COLUMN token_hash text, ADD COLUMN token_kedaluwarsa bigint;
   `,
+  // v21: halaman Transaksi admin mencari ID pembelian dari awalannya ("WA-6-1793", "ADM-12"): indeks unik order_id
+  //   (collation bawaan) tidak bisa dipakai LIKE 'awalan%', text_pattern_ops bisa.
+  `
+  CREATE INDEX transaksi_order_pola_idx ON transaksi (order_id text_pattern_ops);
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

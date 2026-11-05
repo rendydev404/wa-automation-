@@ -4,6 +4,8 @@ import { angka, tanggal } from "@/lib/format";
 import { balasanTerpakai, hakAkun } from "@/lib/langganan";
 import { nomorMilik } from "@/lib/numbers";
 import { requireUser } from "@/lib/session";
+import { tingkatPaket } from "@/lib/tingkat-paket";
+import { LencanaPaket } from "./lencana-paket";
 import { Meter } from "./stat";
 
 /**
@@ -22,7 +24,13 @@ export async function KartuLangganan({ tautan = false }: { tautan?: boolean }) {
     <section aria-label={t("Langganan dan kuota", "Subscription and quota")} className="card grid gap-5 p-5 sm:gap-6 sm:p-6 md:grid-cols-3">
       <div>
         <p className="text-[12.5px] font-semibold text-muted">{t("Paket sekarang", "Current plan")}</p>
-        <p className="mt-1 text-2xl font-bold">{hak.paket === "Gratis" ? t("Gratis", "Free") : hak.paket}</p>
+        {hak.sampai ? (
+          <p className="mt-2">
+            <LencanaPaket tingkat={tingkatPaket(hak.kodePaket, hak.paket)} nama={hak.paket} ukuran="lg" />
+          </p>
+        ) : (
+          <p className="mt-1 text-2xl font-bold">{hak.paket === "Gratis" ? t("Gratis", "Free") : hak.paket}</p>
+        )}
         <p className="mt-1 text-[13px] text-muted">
           {hak.sampai ? t(`Aktif sampai ${tanggal(hak.sampai)}`, `Active until ${tanggal(hak.sampai, b)}`) : hak.paket === "Admin" ? t("Tanpa batas", "Unlimited") : hak.percobaan
               ? hak.percobaanSampai === null

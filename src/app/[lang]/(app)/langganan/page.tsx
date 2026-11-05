@@ -8,7 +8,10 @@ import { labelKanal, ringkasKanal } from "@/lib/harga";
 import type { T } from "@/lib/bahasa";
 import { teksHalaman } from "@/lib/bahasa-halaman";
 import { kursUsd } from "@/lib/kurs";
-import { METODE_MANUAL, daftarPaket, hakAkun, riwayatTransaksi } from "@/lib/langganan";
+import { METODE_MANUAL, ORDER_TAMPIL, daftarPaket, hakAkun, riwayatTransaksi } from "@/lib/langganan";
+import { tingkatPaket } from "@/lib/tingkat-paket";
+import { LencanaPaket } from "@/components/lencana-paket";
+import { TombolSalin } from "@/components/tombol-salin";
 import { kanalAktif, konfigMidtrans } from "@/lib/midtrans";
 import { customTampil, idPaketCustom, paketCustom, tautanCustom } from "@/lib/paket-custom";
 import { KartuCustom, TombolWaCustom } from "@/components/kartu-custom";
@@ -157,35 +160,77 @@ async function Riwayat() {
   const [daftar, kurs] = await Promise.all([riwayatTransaksi({ userId: user.id, batas: 20 }), b === "en" ? kursUsd() : Promise.resolve(undefined)]);
   if (!daftar.length) return null;
   const status = STATUS(t);
+  const metode = (x: (typeof daftar)[number]) =>
+    x.kanal
+      ? labelKanal(x.kanal, b)
+      : x.metode
+        ? x.metode in METODE_MANUAL
+          ? (b === "en" ? METODE_MANUAL_EN : METODE_MANUAL)[x.metode as keyof typeof METODE_MANUAL]
+          : x.metode.replace(/_/g, " ")
+        : "—";
   return (
     <section className="card overflow-hidden">
-      <h2 className="flex items-center gap-2 border-b border-line px-5 py-4 text-[15px] font-bold">
-        <CreditCard className="size-4 text-accent" aria-hidden /> {t("Riwayat pembayaran", "Payment history")}
-      </h2>
+      <div className="border-b border-line px-5 py-4">
+        <h2 className="flex items-center gap-2 text-[15px] font-bold">
+          <CreditCard className="size-4 text-accent" aria-hidden /> {t("Riwayat pembayaran", "Payment history")}
+        </h2>
+        <p className="mt-0.5 text-[12.5px] text-muted">
+          {t(
+            "Sebutkan ID pembelian saat menghubungi admin soal pembayaran, supaya transaksinya langsung ketemu.",
+            "Mention the purchase ID when you contact the admin about a payment, so it can be found right away.",
+          )}
+        </p>
+      </div>
       <ul className="divide-y divide-line">
-        {daftar.map((x) => (
-          <li key={x.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-[13px]">
-            <span>
-              <span className="font-semibold">{t(`Paket ${x.nama_paket}`, `${x.nama_paket} plan`)}</span> · {uang(x.jumlah, b, kurs)}
-              <span className="block text-[12px] text-faint">
-                {tanggal(x.dibuat, b)} · {x.order_id}
-                {x.kanal
-                  ? ` · ${labelKanal(x.kanal, b)}`
-                  : x.metode
-                    ? ` · ${x.metode in METODE_MANUAL ? (b === "en" ? METODE_MANUAL_EN : METODE_MANUAL)[x.metode as keyof typeof METODE_MANUAL] : x.metode.replace(/_/g, " ")}`
-                    : ""}
-              </span>
-            </span>
-            <span className="flex items-center gap-2">
-              <span className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${status[x.status]?.kelas ?? ""}`}>{status[x.status]?.label ?? x.status}</span>
-              {x.status === "menunggu" && (x.kanal || x.redirect_url) && (
-                <Link href={`/langganan/tagihan/${encodeURIComponent(x.order_id)}`} className="btn btn-ghost">
-                  {t("Lanjutkan bayar", "Continue payment")}
-                </Link>
+        {daftar.map((x) => {
+          const st = status[x.status];
+          const bisaDibuka = ORDER_TAMPIL.test(x.order_id);
+          return (
+            <li key={x.id} className="px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="flex flex-wrap items-center gap-2">
+                  <LencanaPaket tingkat={tingkatPaket(x.kode_paket, x.nama_paket)} nama={x.nama_paket} ukuran="sm" />
+                  <b className="text-[14px] font-bold tabular-nums">{uang(x.jumlah, b, kurs)}</b>
+                </span>
+                <span className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${st?.kelas ?? ""}`}>{st?.label ?? x.status}</span>
+              </div>
+              <dl className="mt-3 grid gap-x-6 gap-y-2 text-[12.5px] sm:grid-cols-2 lg:grid-cols-4">
+                <div className="min-w-0 sm:col-span-2 lg:col-span-1">
+                  <dt className="text-muted">{t("ID pembelian", "Purchase ID")}</dt>
+                  <dd className="flex items-center gap-0.5">
+                    <span className="truncate font-mono font-semibold text-fg">{x.order_id}</span>
+                    <TombolSalin teks={x.order_id} label={t(`Salin ID pembelian ${x.order_id}`, `Copy purchase ID ${x.order_id}`)} />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted">{t("Metode", "Method")}</dt>
+                  <dd className="font-medium">{metode(x)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted">{t("Dibuat", "Created")}</dt>
+                  <dd className="font-medium">{tanggal(x.dibuat, b)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted">{t("Dibayar", "Paid")}</dt>
+                  <dd className="font-medium">{x.dibayar ? tanggal(x.dibayar, b) : "—"}</dd>
+                </div>
+              </dl>
+              {bisaDibuka && (
+                <div className="mt-3">
+                  {x.status === "menunggu" && (x.kanal || x.redirect_url) ? (
+                    <Link href={`/langganan/tagihan/${encodeURIComponent(x.order_id)}`} className="btn btn-primary">
+                      {t("Lanjutkan bayar", "Continue payment")}
+                    </Link>
+                  ) : (
+                    <Link href={`/langganan/tagihan/${encodeURIComponent(x.order_id)}`} className="text-[12.5px] font-semibold text-accent hover:underline">
+                      {t("Lihat detail pembayaran", "View payment details")} →
+                    </Link>
+                  )}
+                </div>
               )}
-            </span>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

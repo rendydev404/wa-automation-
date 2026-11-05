@@ -9,7 +9,8 @@ import { sekarang } from "@/lib/db";
 import { angka, jamWib, tanggal, uang } from "@/lib/format";
 import { labelKanal } from "@/lib/harga";
 import { kursUsd } from "@/lib/kurs";
-import { ORDER_SAH, type Transaksi, langgananAktif, paketById, statusTagihan, transaksiMilik } from "@/lib/langganan";
+import { TombolSalin } from "@/components/tombol-salin";
+import { ORDER_TAMPIL, type Transaksi, langgananAktif, paketById, statusTagihan, transaksiMilik } from "@/lib/langganan";
 import { type InstruksiBayar as DataMidtrans, konfigMidtrans } from "@/lib/midtrans";
 import { MEREK, PERUSAHAAN } from "@/lib/merek";
 import { type BitQr, kemasQr } from "@/lib/qr";
@@ -73,7 +74,7 @@ export default async function HalamanTagihan(props: PageProps<"/[lang]/langganan
 async function Isi({ params }: { params: Promise<{ order: string }> }) {
   const [user, { b, t: tr }] = await Promise.all([requireUser(), teksHalaman()]);
   const { order } = await params;
-  const [awal, kurs] = await Promise.all([ORDER_SAH.test(order) ? transaksiMilik(user.id, order) : undefined, b === "en" ? kursUsd() : Promise.resolve(undefined)]);
+  const [awal, kurs] = await Promise.all([ORDER_TAMPIL.test(order) ? transaksiMilik(user.id, order) : undefined, b === "en" ? kursUsd() : Promise.resolve(undefined)]);
   let t: T | undefined = awal;
   const l: L = { b, t: tr, kurs };
   if (!t) return <TidakAda l={l} />;
@@ -120,8 +121,9 @@ async function Tagihan({ t, l }: { t: T; l: L }) {
         gantiHref={ganti}
         langkah={<LangkahBayar kanal={kanal} kode={t.bayar?.biller} b={l.b} />}
       />
-      <p className="text-center text-[12px] text-faint">
-        {l.t("No. pesanan", "Order no.")} <span className="font-mono">{t.order_id}</span>
+      <p className="flex items-center justify-center gap-1 text-[12px] text-faint">
+        {l.t("ID pembelian", "Purchase ID")} <span className="font-mono font-semibold text-muted">{t.order_id}</span>
+        <TombolSalin teks={t.order_id} label={l.t(`Salin ID pembelian ${t.order_id}`, `Copy purchase ID ${t.order_id}`)} />
       </p>
     </div>
   );
@@ -151,8 +153,11 @@ function Rangkuman({ t, l, baris = [] }: { t: Transaksi; l: L; baris?: [string, 
         <dd className="text-right font-semibold">{PERUSAHAAN}</dd>
       </div>
       <div className="flex items-baseline justify-between gap-4 px-4 py-3">
-        <dt className="text-muted">{tr("No. pesanan", "Order no.")}</dt>
-        <dd className="min-w-0 break-all text-right font-mono text-[12px] text-muted">{t.order_id}</dd>
+        <dt className="text-muted">{tr("ID pembelian", "Purchase ID")}</dt>
+        <dd className="flex min-w-0 items-center justify-end gap-0.5 text-right">
+          <span className="break-all font-mono text-[12px] font-semibold text-fg">{t.order_id}</span>
+          <TombolSalin teks={t.order_id} label={tr(`Salin ID pembelian ${t.order_id}`, `Copy purchase ID ${t.order_id}`)} />
+        </dd>
       </div>
     </dl>
   );

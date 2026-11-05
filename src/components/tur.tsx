@@ -96,9 +96,13 @@ function terlihat(el: Element | null): boolean {
   return r.width > 0 && r.height > 0 && r.right > 0 && r.left < window.innerWidth && getComputedStyle(el).visibility !== "hidden";
 }
 
-/** Sasaran yang sedang tampil: menu yang sama ada di sidebar (desktop) dan bilah bawah (HP), pilih yang terlihat. */
+/**
+ * Sasaran yang sedang tampil: menu yang sama ada di sidebar (desktop) dan bilah bawah (HP), pilih yang terlihat.
+ * Bagian yang ada di tab tersembunyi (halaman nomor, tab-nomor.tsx): tombol tab-nya (data-tur-tab) yang disorot.
+ */
 function sasaranTerlihat(nama: string): HTMLElement | null {
-  return Array.from(document.querySelectorAll<HTMLElement>(`[data-tur="${nama}"]`)).find(terlihat) ?? null;
+  const semua = Array.from(document.querySelectorAll<HTMLElement>(`[data-tur="${nama}"]`));
+  return semua.find(terlihat) ?? Array.from(document.querySelectorAll<HTMLElement>(`[data-tur-tab~="${nama}"]`)).find(terlihat) ?? null;
 }
 
 function Sorot({ langkah: semua, tutup }: { langkah: LangkahTur[]; tutup: () => void }) {
@@ -113,6 +117,8 @@ function Sorot({ langkah: semua, tutup }: { langkah: LangkahTur[]; tutup: () => 
 
   useLayoutEffect(() => {
     if (!l) return;
+    // Halaman bertab: buka tab yang memuat sasaran langkah ini (tab-nomor.tsx mendengarkan).
+    if (l.sasaran) window.dispatchEvent(new CustomEvent("tur:sasaran", { detail: l.sasaran }));
     const el = l.sasaran ? sasaranTerlihat(l.sasaran) : null;
     if (!el) return;
     el.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });

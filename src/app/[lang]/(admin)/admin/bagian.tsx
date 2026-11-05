@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDown, Bot, ChevronRight, CreditCard, Package, ShieldCheck, Sparkles, UserPlus, Wallet } from "lucide-react";
+import { ArrowDown, Bot, ChevronRight, Package, ShieldCheck, Sparkles, UserPlus, Wallet } from "lucide-react";
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna, hitungPengguna } from "@/lib/pengguna";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
@@ -7,7 +7,7 @@ import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, SaklarKanal, TombolHap
 import { customTampil, hargaAngka, paketCustom } from "@/lib/paket-custom";
 import { labelKomisiPaket } from "@/lib/afiliasi-def";
 import { PembangunCustom } from "./paket-custom";
-import { METODE_MANUAL, acuanHarga, aturanPercobaan, daftarPaket, pemakaianNyata, riwayatTransaksi } from "@/lib/langganan";
+import { acuanHarga, aturanPercobaan, daftarPaket, pemakaianNyata } from "@/lib/langganan";
 import { SimulasiHarga } from "./simulasi-harga";
 import { kanalMati, kanalTerpasang, konfigMidtrans } from "@/lib/midtrans";
 import { kunciAnthropic, modelAnthropic, pengaturanAi, perkiraanPerBalasan, ringkasPakai } from "@/lib/ai";
@@ -17,6 +17,8 @@ import { infoTarif, siapkanTarif, tarifModel } from "@/lib/tarif";
 import type { OpsiModel } from "@/components/pilih-model";
 import { TarifInfo } from "@/components/tarif-info";
 import { sekarang } from "@/lib/db";
+import { LencanaPaket } from "@/components/lencana-paket";
+import { tingkatPaket } from "@/lib/tingkat-paket";
 
 /** Bagian-bagian panel admin; tiap halaman di /admin/* menyusunnya. */
 
@@ -272,14 +274,6 @@ export async function KelolaPaketCustom() {
   );
 }
 
-const STATUS_TRX: Record<string, string> = {
-  menunggu: "bg-warning-soft text-warning",
-  lunas: "bg-success-soft text-success",
-  gagal: "bg-danger-soft text-danger",
-  kedaluwarsa: "bg-subtle text-muted",
-  dibatalkan: "bg-subtle text-muted",
-  dikembalikan: "bg-subtle text-muted",
-};
 
 /** Metode pembayaran di halaman bayar: yang ditolak Midtrans tersembunyi sendiri; admin bisa menampilkan/menyembunyikan. */
 export async function MetodeBayar() {
@@ -305,46 +299,6 @@ export async function MetodeBayar() {
           return <SaklarKanal key={x} kanal={x} tampil={!m} keterangan={ket} />;
         })}
       </ul>
-    </section>
-  );
-}
-
-export async function Transaksi() {
-  await requireAdmin();
-  const daftar = await riwayatTransaksi({ batas: 25 });
-  const lunas = daftar.filter((t) => t.status === "lunas");
-  return (
-    <section className="card overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-4">
-        <h2 className="flex items-center gap-2 text-[15px] font-bold">
-          <CreditCard className="size-4 text-accent" aria-hidden /> Transaksi terbaru
-        </h2>
-        <span className="text-[12.5px] text-muted">
-          {lunas.length} lunas · Rp{angka(lunas.reduce((a, t) => a + t.jumlah, 0))}
-        </span>
-      </div>
-      {daftar.length === 0 ? (
-        <p className="px-5 py-8 text-center text-[13px] text-muted">Belum ada transaksi.</p>
-      ) : (
-        <ul className="divide-y divide-line">
-          {daftar.map((t) => (
-            <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-[13px]">
-              <span className="min-w-0">
-                <Link href={`/admin/pengguna/${t.user_id}`} className="font-semibold hover:underline">
-                  {t.email}
-                </Link>{" "}
-                · {t.nama_paket} · Rp{angka(t.jumlah)}
-                <span className="block text-[12px] text-faint">
-                  {waktuSingkatWib(t.dibuat)} · {t.order_id}
-                  {t.metode ? ` · ${t.metode in METODE_MANUAL ? `${METODE_MANUAL[t.metode as keyof typeof METODE_MANUAL]} (dicatat admin)` : t.metode.replace(/_/g, " ")}` : ""}
-                  {t.catatan ? ` · ${t.catatan}` : ""}
-                </span>
-              </span>
-              <span className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${STATUS_TRX[t.status] ?? ""}`}>{t.status}</span>
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   );
 }
@@ -410,6 +364,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
                   <span className={`rounded-full px-2 py-0.5 font-semibold ${u.status === "aktif" ? "bg-success-soft text-success" : "bg-danger-soft text-danger"}`}>
                     {u.status === "aktif" ? "Aktif" : "Diblokir"}
                   </span>
+                  {u.paket_nama && <LencanaPaket tingkat={tingkatPaket(u.paket_kode, u.paket_nama)} nama={u.paket_nama} ukuran="sm" />}
                   <span className="tabular-nums">
                     {u.jumlah_nomor} / {u.peran === "admin" ? "∞" : (u.kuota_nomor ?? "bawaan")} nomor
                   </span>
@@ -424,11 +379,12 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
         {daftar.length === 0 && <li className="px-4 py-10 text-center text-muted">Tidak ada pengguna yang cocok.</li>}
       </ul>
       <div className="hidden overflow-x-auto sm:block">
-        <table className="w-full min-w-[640px] text-left text-[13px]">
+        <table className="w-full min-w-[760px] text-left text-[13px]">
           <thead className="bg-subtle/60 text-[11.5px] font-semibold tracking-wide text-muted uppercase">
             <tr>
               <th className="px-5 py-3">Pengguna</th>
               <th className="px-3 py-3">Status</th>
+              <th className="px-3 py-3">Paket</th>
               <th className="px-3 py-3 text-right">Nomor</th>
               <th className="px-3 py-3">Login terakhir</th>
               <th className="px-5 py-3 text-right">Aksi</th>
@@ -459,6 +415,16 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
                     <span className="rounded-full bg-danger-soft px-2.5 py-1 text-[11.5px] font-semibold text-danger">Diblokir</span>
                   )}
                 </td>
+                <td className="px-3 py-3">
+                  {u.paket_nama ? (
+                    <span className="flex flex-col items-start gap-1">
+                      <LencanaPaket tingkat={tingkatPaket(u.paket_kode, u.paket_nama)} nama={u.paket_nama} ukuran="sm" />
+                      {u.paket_sampai && <span className="text-[11.5px] text-faint">s.d. {tanggal(u.paket_sampai)}</span>}
+                    </span>
+                  ) : (
+                    <span className="text-[12px] text-faint">{u.peran === "admin" ? "—" : "Gratis"}</span>
+                  )}
+                </td>
                 <td className="px-3 py-3 text-right tabular-nums">
                   {u.jumlah_nomor}
                   <span className="text-muted"> / {u.peran === "admin" ? "∞" : (u.kuota_nomor ?? "bawaan")}</span>
@@ -481,7 +447,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
             ))}
             {daftar.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-5 py-10 text-center text-muted">
+                <td colSpan={6} className="px-5 py-10 text-center text-muted">
                   Tidak ada pengguna yang cocok.
                 </td>
               </tr>

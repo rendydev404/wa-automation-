@@ -53,7 +53,7 @@ await cek("migrasi membuat 3 paket awal (Starter, Bisnis unggulan, Pro) urut har
 });
 
 await cek("hak akun: admin tanpa batas; tanpa paket = free trial 5 balasan sekali pakai (jumlah & 'tiap bulan' bisa diatur admin); kuota nomor per akun mengalahkan paket", async () => {
-  assert.deepEqual(await L.hakAkun({ id: admin.id, peran: "admin" }), { nomor: null, balasan: null, periodeMulai: L.awalBulanWib(), sampai: null, paket: "Admin", percobaan: false, percobaanSampai: null, percobaanBerakhir: false });
+  assert.deepEqual(await L.hakAkun({ id: admin.id, peran: "admin" }), { nomor: null, balasan: null, periodeMulai: L.awalBulanWib(), sampai: null, paket: "Admin", kodePaket: null, percobaan: false, percobaanSampai: null, percobaanBerakhir: false });
   let h = await L.hakAkun(B);
   const [{ created_at: dibuat }] = await sql`SELECT created_at FROM users WHERE id = ${budi.id}`;
   assert.deepEqual([h.nomor, h.balasan, h.paket, h.sampai, h.percobaan, h.periodeMulai], [1, 5, "Gratis", null, true, dibuat]);
@@ -910,6 +910,75 @@ await cek("knowledge otomatis ChatGerCep (khusus admin): paket, harga, komisi, m
     if (kunciLama === undefined) delete process.env.MIDTRANS_SERVER_KEY;
     else process.env.MIDTRANS_SERVER_KEY = kunciLama;
   }
+});
+
+await cek("lencana paket & transaksi admin: tingkat dari kode paket, cari ID pembelian lewat indeks awalan, ringkasan & detail", async () => {
+  const TP = await lib("src/lib/tingkat-paket.ts");
+  const TA = await lib("src/lib/transaksi-admin.ts");
+  assert.equal(TP.tingkatPaket("starter", "Starter"), "starter");
+  assert.equal(TP.tingkatPaket("bisnis", "Bisnis"), "bisnis");
+  assert.equal(TP.tingkatPaket("pro", "Pro"), "pro");
+  assert.equal(TP.tingkatPaket("_custom", "Custom"), "custom");
+  assert.equal(TP.tingkatPaket(null, "Custom PT Maju"), "custom", "isi khusus admin tanpa paket terdaftar = Custom");
+  assert.equal(TP.tingkatPaket("paket-lain", "Hemat"), null);
+
+  const akun = await P.buatAkun({ email: "lencana@uji.test", nama: "Lencana Uji", password: "rahasia-lencana-01" });
+  const h = await L.berikanPaketManual(akun.id, { paketId: bisnis.id, metode: "manual_transfer", jumlah: 249000, catatan: "uji lencana" });
+  // Daftar & detail pengguna membawa paket aktif (satu query, LATERAL) -> lencana emas.
+  const { daftar } = await P.daftarPengguna({ cari: "lencana@uji.test" });
+  assert.equal(daftar[0].paket_kode, "bisnis");
+  assert.equal(daftar[0].paket_nama, "Bisnis");
+  assert.ok(daftar[0].paket_sampai > sekarang());
+  assert.equal((await P.penggunaById(akun.id)).paket_kode, "bisnis");
+  assert.equal((await L.hakAkun({ id: akun.id, peran: "user" })).kodePaket, "bisnis");
+
+  // Cari ID pembelian: penuh, awalan, huruf kecil; email; ID pengguna.
+  for (const q of [h.orderId, h.orderId.slice(0, 12), h.orderId.toLowerCase()]) {
+    const r = await TA.cariTransaksi({ q });
+    assert.ok(r.daftar.some((t) => t.order_id === h.orderId), q);
+    assert.ok(r.daftar.every((t) => t.order_id.toUpperCase().startsWith(q.slice(0, 12).toUpperCase())), q);
+  }
+  assert.equal((await TA.cariTransaksi({ q: "lencana@uji" })).daftar[0].order_id, h.orderId);
+  assert.ok((await TA.cariTransaksi({ q: String(akun.id) })).daftar.every((t) => t.user_id === akun.id || t.id === akun.id));
+  assert.equal((await TA.cariTransaksi({ q: h.orderId, status: "menunggu" })).daftar.length, 0);
+  const baris = (await TA.cariTransaksi({ q: h.orderId })).daftar[0];
+  assert.equal(baris.kode_paket, "bisnis");
+  assert.ok(baris.langganan_mulai && baris.langganan_sampai > baris.langganan_mulai);
+  assert.match(TA.labelMetode(baris), /dicatat admin/);
+  const n = await TA.hitungTransaksi({ q: h.orderId });
+  assert.equal(n.semua, 1);
+  assert.equal(n.lunas, 1);
+  assert.equal(n.nominal, 249000);
+  // Rencana query: awalan ID memakai indeks pola (bukan pemindaian seluruh transaksi).
+  await sql`SET enable_seqscan = off`;
+  const rencana = (await sql.unsafe(`EXPLAIN SELECT id FROM transaksi t WHERE t.order_id LIKE 'ADM-${akun.id}-%'`)).map((r) => r["QUERY PLAN"]).join("\n");
+  await sql`SET enable_seqscan = on`;
+  assert.match(rencana, /transaksi_order_pola_idx/, rencana);
+  // Paginasi keyset: halaman kedua tidak mengulang baris halaman pertama.
+  const h1 = await TA.cariTransaksi({ batas: 2 });
+  if (h1.adaLagi) {
+    const akhir = h1.daftar[h1.daftar.length - 1];
+    const h2 = await TA.cariTransaksi({ batas: 2, sebelum: { dibuat: akhir.dibuat, id: akhir.id } });
+    assert.ok(h2.daftar.every((t) => !h1.daftar.some((x) => x.id === t.id)));
+  }
+  const r = await TA.ringkasanTransaksi();
+  assert.ok(r.pendapatan >= 249000 && r.lunas >= 1 && r.pembeli >= 1);
+  assert.ok(r.perPaket.some((p) => p.nama_paket === "Bisnis" && p.kode === "bisnis"));
+  const d = await TA.detailTransaksi(h.orderId);
+  assert.equal(d.email, "lencana@uji.test");
+  assert.equal(d.catatan, "uji lencana");
+  assert.equal(d.kuota_nomor, h.kuota_nomor);
+  assert.equal(d.kuota_balasan, h.kuota_balasan);
+  assert.equal(await TA.detailTransaksi("WA-0-0-tidakada"), undefined);
+  // Opsi dari URL: tanggal WIB -> rentang [awal hari, awal hari berikutnya).
+  const o = TA.opsiDariParam({ q: " x ", s: "gagal", paket: "2", dari: "2026-11-05", sampai: "2026-11-05" });
+  assert.equal(o.status, "gagal");
+  assert.equal(o.paketId, 2);
+  assert.equal(o.sampai - o.dari, 86400);
+  assert.equal(new Date((o.dari + 7 * 3600) * 1000).toISOString(), "2026-11-05T00:00:00.000Z");
+  const t0 = performance.now();
+  await Promise.all([TA.cariTransaksi({}), TA.hitungTransaksi({}), TA.ringkasanTransaksi()]);
+  console.log(`        (halaman transaksi admin: daftar + hitung + ringkasan paralel ${(performance.now() - t0).toFixed(1)} ms)`);
 });
 
 void AI;

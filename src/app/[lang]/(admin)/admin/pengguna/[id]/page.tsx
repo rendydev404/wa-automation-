@@ -1,4 +1,6 @@
 import { Suspense } from "react";
+import { LencanaPaket } from "@/components/lencana-paket";
+import { tingkatPaket } from "@/lib/tingkat-paket";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -95,6 +97,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-2xl font-bold tracking-tight">{u.nama || "(tanpa nama)"}</h1>
               {u.peran === "admin" && <span className="rounded-md bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent uppercase">Admin</span>}
+              {u.paket_nama && <LencanaPaket tingkat={tingkatPaket(u.paket_kode, u.paket_nama)} nama={u.paket_nama} />}
               {u.google && <span className="rounded-md bg-subtle px-2 py-0.5 text-[11px] font-bold text-muted uppercase">Google</span>}
               {u.status === "diblokir" ? (
                 <span className="rounded-full bg-danger-soft px-2.5 py-1 text-[11.5px] font-semibold text-danger">Diblokir</span>
@@ -110,6 +113,12 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
           <dd className="font-semibold">{tanggal(u.created_at)}</dd>
           <dt className="text-muted">Login terakhir</dt>
           <dd className="font-semibold">{u.login_terakhir ? waktuSingkatWib(u.login_terakhir) : "Belum pernah"}</dd>
+          <dt className="text-muted">Pembayaran</dt>
+          <dd>
+            <Link href={`/admin/transaksi?q=${u.id}`} className="font-semibold text-accent hover:underline">
+              Lihat transaksi
+            </Link>
+          </dd>
         </dl>
       </header>
 
