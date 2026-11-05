@@ -2,8 +2,8 @@
 
 import { useActionState, useState } from "react";
 import { adminAturanAction } from "@/app/actions";
-import { Pesan, Saklar, SubmitButton } from "@/components/ui";
-import { ATURAN_ANGKA, ATURAN_SAKLAR, type AturanSistem, type KunciAngka, type KunciSaklar, MAKS_ATURAN_GLOBAL } from "@/lib/aturan-def";
+import { Pesan, SubmitButton } from "@/components/ui";
+import { ATURAN_ANGKA, type AturanSistem, type KunciAngka, MAKS_ATURAN_GLOBAL } from "@/lib/aturan-def";
 
 const CONTOH_GLOBAL = [
   "Jangan pernah menjanjikan diskon atau gratis ongkir kecuali tertulis di base knowledge.",
@@ -13,17 +13,13 @@ const CONTOH_GLOBAL = [
 ];
 
 /** Kelompok tampilan; urutan sama dengan formulir. */
-const KELOMPOK: { judul: string; ket: string; angka: KunciAngka[]; saklar: KunciSaklar[] }[] = [
-  { judul: "Biaya & panjang balasan", ket: "Pagar biaya per balasan di Claude API.", angka: ["maks_token_balasan"], saklar: [] },
-  { judul: "Peringatan di workspace pengguna", ket: "Peringatan base knowledge selalu tampil selama ada nomor yang belum diisi; ambang peringatan kuota tetap bisa diatur.", angka: ["peringatan_kuota_persen"], saklar: [] },
+const KELOMPOK: { judul: string; ket: string; angka: KunciAngka[] }[] = [
+  { judul: "Biaya & panjang balasan", ket: "Pagar biaya per balasan di Claude API.", angka: ["maks_token_balasan"] },
+  { judul: "Peringatan di workspace pengguna", ket: "Peringatan base knowledge selalu tampil selama ada nomor yang belum diisi; ambang peringatan kuota tetap bisa diatur.", angka: ["peringatan_kuota_persen"] },
 ];
-
-/** Angka yang hanya berlaku bila saklarnya aktif: diredupkan (tetap terkirim) saat saklar mati. */
-const IKUT_SAKLAR: Partial<Record<KunciAngka, KunciSaklar>> = {};
 
 export function FormAturan({ nilai }: { nilai: AturanSistem }) {
   const [hasil, aksi] = useActionState(adminAturanAction, null);
-  const [sak, setSak] = useState(() => Object.fromEntries((Object.keys(ATURAN_SAKLAR) as KunciSaklar[]).map((k) => [k, nilai[k]])) as Record<KunciSaklar, boolean>);
   const [global, setGlobal] = useState(nilai.aturan_global);
 
   return (
@@ -33,26 +29,14 @@ export function FormAturan({ nilai }: { nilai: AturanSistem }) {
           <legend className="px-1.5 text-[13.5px] font-bold">{k.judul}</legend>
           <p className="text-[12.5px] text-muted">{k.ket}</p>
           <div className="mt-3 space-y-3">
-            {k.saklar.map((s) => (
-              <div key={s} className="flex items-start justify-between gap-4 rounded-lg bg-subtle/50 p-3">
-                <div>
-                  <p className="text-[13px] font-semibold">{ATURAN_SAKLAR[s].label}</p>
-                  <p className="text-[12px] text-muted">{ATURAN_SAKLAR[s].bantu}</p>
-                </div>
-                <Saklar aktif={sak[s]} onUbah={(v) => setSak((x) => ({ ...x, [s]: v }))} label={ATURAN_SAKLAR[s].label} />
-                {sak[s] && <input type="hidden" name={s} value="on" />}
-              </div>
-            ))}
             <div className="grid gap-3 sm:grid-cols-2">
               {k.angka.map((a) => {
                 const d = ATURAN_ANGKA[a];
-                const ikut = IKUT_SAKLAR[a];
-                const mati = ikut !== undefined && !sak[ikut];
                 return (
-                  <label key={a} className={`block transition-opacity ${mati ? "opacity-50" : ""}`}>
+                  <label key={a} className="block">
                     <span className="label">{d.label}</span>
                     <span className="flex items-center gap-2">
-                      <input name={a} type="number" min={d.min} max={d.max} defaultValue={nilai[a]} required readOnly={mati} className="field" />
+                      <input name={a} type="number" min={d.min} max={d.max} defaultValue={nilai[a]} required className="field" />
                       <span className="shrink-0 text-[12px] text-muted">{d.satuan}</span>
                     </span>
                     <span className="mt-1 block text-[11.5px] text-faint">

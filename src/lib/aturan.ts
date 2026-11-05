@@ -1,4 +1,4 @@
-import { ATURAN_ANGKA, ATURAN_SAKLAR, type AturanSistem, type KunciAngka, type KunciSaklar } from "./aturan-def";
+import { ATURAN_ANGKA, type AturanSistem, type KunciAngka } from "./aturan-def";
 import { getSetting } from "./db";
 
 export * from "./aturan-def";
@@ -20,22 +20,15 @@ export async function aturan<K extends KunciAngka>(k: K): Promise<number> {
   return angkaSah(k, await getSetting(k));
 }
 
-export async function saklar(k: KunciSaklar): Promise<boolean> {
-  const v = await getSetting(k);
-  return v === null ? ATURAN_SAKLAR[k].bawaan : v === "1";
-}
-
 export async function aturanGlobal(): Promise<string> {
   return ((await getSetting("aturan_global")) ?? "").trim();
 }
 
 export async function semuaAturan(): Promise<AturanSistem> {
   const angka = Object.keys(ATURAN_ANGKA) as KunciAngka[];
-  const sak = Object.keys(ATURAN_SAKLAR) as KunciSaklar[];
-  const [a, s, g] = await Promise.all([Promise.all(angka.map(aturan)), Promise.all(sak.map(saklar)), aturanGlobal()]);
+  const [a, g] = await Promise.all([Promise.all(angka.map(aturan)), aturanGlobal()]);
   return {
     ...(Object.fromEntries(angka.map((k, i) => [k, a[i]])) as Record<KunciAngka, number>),
-    ...(Object.fromEntries(sak.map((k, i) => [k, s[i]])) as Record<KunciSaklar, boolean>),
     aturan_global: g,
   };
 }

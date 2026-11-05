@@ -22,10 +22,7 @@ export const ATURAN_ANGKA = {
   },
 } as const satisfies Record<string, { label: string; satuan: string; bawaan: number; min: number; max: number; bantu: string }>;
 
-export const ATURAN_SAKLAR = {} as const satisfies Record<string, { label: string; bawaan: boolean; bantu: string }>;
-
 export const MAKS_ATURAN_GLOBAL = 4000;
 
 export type KunciAngka = keyof typeof ATURAN_ANGKA;
-export type KunciSaklar = keyof typeof ATURAN_SAKLAR;
-export type AturanSistem = Record<KunciAngka, number> & Record<KunciSaklar, boolean> & { aturan_global: string };
+export type AturanSistem = Record<KunciAngka, number> & { aturan_global: string };

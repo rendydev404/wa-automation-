@@ -37,7 +37,7 @@ import {
   ujiCapiMetaPixel,
 } from "@/lib/meta-pixel";
 import { notifPendaftarBaru } from "@/lib/notifikasi";
-import { ATURAN_ANGKA, ATURAN_SAKLAR, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
+import { ATURAN_ANGKA, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
 import { type IsiKhusus, METODE_MANUAL, type MetodeManual, batalkanBayar, berikanPaketManual, hapusPaket, hentikanLangganan, mulaiBayar, ORDER_SAH, paketById, segarkanKuota, simpanPaket, terapkanSimulasi } from "@/lib/langganan";
 import { MidtransError, kanalAktif, kanalBelumAktif, konfigMidtrans, setKanalMati } from "@/lib/midtrans";
 import { tanggal, uang } from "@/lib/format";
@@ -805,7 +805,6 @@ export async function adminAturanAction(_lalu: Hasil | null, form: FormData): Pr
     if (!(Number.isInteger(v) && v >= a.min && v <= a.max)) return { ok: false, pesan: `${a.label}: harus ${a.min}–${a.max} ${a.satuan}.` };
     nilai.push([k, String(v)]);
   }
-  for (const k of Object.keys(ATURAN_SAKLAR)) nilai.push([k, form.get(k) === "on" ? "1" : "0"]);
   const global = String(form.get("aturan_global") ?? "").replace(/\r\n/g, "\n").trim();
   if (global.length > MAKS_ATURAN_GLOBAL) return { ok: false, pesan: `Aturan untuk semua bot maksimal ${MAKS_ATURAN_GLOBAL.toLocaleString("id-ID")} karakter.` };
   nilai.push(["aturan_global", global]);
