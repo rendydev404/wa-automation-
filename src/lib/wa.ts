@@ -109,6 +109,22 @@ interface Sesi {
   online: boolean;
   timerOffline: ReturnType<typeof setTimeout> | null;
   presensi: Promise<void>;
+  /** Diagnostik sementara: stanza yang tiba vs yang sampai ke `messages.upsert` (lihat catatDiag). */
+  diag: Diag | null;
+}
+
+interface Diag {
+  mulai: number;
+  stanza: number;
+  pribadi: number;
+  status: number;
+  offline: number;
+  upsert: number;
+  tertunda: Map<string, { pada: number; jenis: string; offline: boolean }>;
+  /** Detik sejak tersambung sampai WhatsApp menandai pesan tertunda habis; null = belum. */
+  offlineSelesai: number | null;
+  tanda: string;
+  logPada: number;
 }
 
 interface Keadaan {
@@ -120,6 +136,7 @@ interface Keadaan {
   penangan: ((ev: EventWa) => void | Promise<void>) | null;
   dimulai: boolean;
   timerJaga?: ReturnType<typeof setInterval> | null;
+  timerDiag?: ReturnType<typeof setInterval> | null;
   /** Khusus pengujian: ubah jeda mulai bergiliran & coba-ulang DB setelah diuji. */
   jedaMulaiMs?: number;
   jedaDbMs?: number;
@@ -292,10 +309,41 @@ function sesiAtauBaru(nama: string): Sesi {
       online: false,
       timerOffline: null,
       presensi: Promise.resolve(),
+      diag: null,
     };
     st.sesi.set(nama, s);
   }
   return s;
+}
+
+const DIAG_TERTUNDA_MAKS = 2_000;
+const DIAG_JEDA_MS = 60_000;
+const DIAG_DIAM_MS = 300_000;
+
+/** Tanpa isi pesan dan tanpa nomor lawan bicara. Baris sama hanya diulang tiap DIAG_DIAM_MS. */
+function catatDiag(): void {
+  const kini = Date.now();
+  for (const s of st.sesi.values()) {
+    const d = s.diag;
+    if (!d || s.status !== "WORKING") continue;
+    const tanda = `${d.stanza}/${d.upsert}/${d.tertunda.size}/${d.offlineSelesai}`;
+    if (tanda === d.tanda && kini - d.logPada < DIAG_DIAM_MS) continue;
+    d.tanda = tanda;
+    d.logPada = kini;
+    const tertua = d.tertunda.values().next().value;
+    console.info(
+      `[diag ${s.nama}] umur=${Math.round((kini - d.mulai) / 1000)}dtk stanza=${d.stanza} pribadi=${d.pribadi} status=${d.status} offline=${d.offline} upsert=${d.upsert} tertunda=${d.tertunda.size}` +
+        `${tertua ? ` tertua=${Math.round((kini - tertua.pada) / 1000)}dtk(${tertua.jenis}${tertua.offline ? ",offline" : ""})` : ""} offlineSelesai=${d.offlineSelesai ?? "belum"}`
+    );
+  }
+}
+
+function diagBaru(): Diag {
+  if (!st.timerDiag) {
+    st.timerDiag = setInterval(catatDiag, DIAG_JEDA_MS);
+    st.timerDiag.unref?.();
+  }
+  return { mulai: Date.now(), stanza: 0, pribadi: 0, status: 0, offline: 0, upsert: 0, tertunda: new Map(), offlineSelesai: null, tanda: "", logPada: 0 };
 }
 
 function lepasTunggu(s: Sesi): void {
@@ -560,6 +608,8 @@ async function sambung(s: Sesi): Promise<void> {
       delete auth.creds.me;
     }
     const log = pencatat(s.nama);
+    const diag = diagBaru();
+    s.diag = diag;
     // Grup, saluran, dan daftar siaran tidak pernah dilayani. Status (story) kontak SENGAJA tidak diabaikan di
     // tingkat soket: WhatsApp menuntut tanda terima resminya. Bila ditolak (NACK 500 bawaan) perangkat dicabut;
     // bila hanya di-ack polos, server mengirim ulang status yang sama dan memutus stream tiap ±50 menit
@@ -616,6 +666,15 @@ async function sambung(s: Sesi): Promise<void> {
             return true;
           }
           const a = node?.attrs ?? {};
+          diag.stanza += 1;
+          const jenisDiag = dari && B.isJidStatusBroadcast(dari) ? "status" : chatPribadi(B, dari) ? "pribadi" : "lain";
+          if (jenisDiag === "status") diag.status += 1;
+          else if (jenisDiag === "pribadi") diag.pribadi += 1;
+          if (a.offline) diag.offline += 1;
+          if (a.id) {
+            if (diag.tertunda.size >= DIAG_TERTUNDA_MAKS) diag.tertunda.clear();
+            diag.tertunda.set(a.id, { pada: Date.now(), jenis: jenisDiag, offline: !!a.offline });
+          }
           // Alamat alternatif PENGIRIM saja. `peer_recipient_*` milik PENERIMA (pesan yang diketik di HP pemilik),
           // jadi tidak pernah dipasangkan dengan `from`.
           const pnAlt = a.sender_pn || a.participant_pn;
@@ -650,6 +709,8 @@ async function sambung(s: Sesi): Promise<void> {
               simpanPemetaanDiri(B, sock, auth.creds);
             }
           }
+        } else if (ev === "CB:ib,,offline") {
+          diag.offlineSelesai = Math.round((Date.now() - diag.mulai) / 1000);
         }
         return emitAsli(ev, ...args);
       };
@@ -718,6 +779,10 @@ async function sambung(s: Sesi): Promise<void> {
 
   sock.ev.on("messages.upsert", ({ messages }) => {
     if (s.gen !== gen) return;
+    if (s.diag) {
+      s.diag.upsert += messages.length;
+      for (const m of messages) if (m.key.id) s.diag.tertunda.delete(m.key.id);
+    }
     for (const m of messages) antre(s, () => pesanTiba(B, s, sock, m));
   });
 
