@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { type Tx, db, getSetting, sekarang, transaksi as transaksiDb } from "./db";
 import { MODEL_BAWAAN, type Penyedia, kunciAnthropic, kursUsd, pengaturanAi, perkiraanPerBalasan } from "./ai";
-import { type KanalBayar, METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hitungHarga, kuotaDariHarga, nomorDariKuota } from "./harga";
+import { type KanalBayar, METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hargaMinimal, hitungHarga, kuotaDariHarga, nomorDariKuota, sisaBersih } from "./harga";
 import { hermesTerkonfigurasi } from "./hermes";
 import { type InstruksiBayar, type KonfigMidtrans, MidtransError, type StatusBayar, batalkanCharge, buatCharge, petaStatus, statusMidtrans } from "./midtrans";
 import { KODE_CUSTOM } from "./paket-custom-def";
@@ -809,7 +809,7 @@ export async function acuanHarga(): Promise<AcuanTersimpan> {
   return {
     margin: Math.min(90, angkaSetting(m, 60)),
     pemakaian: Math.min(100, Math.max(10, angkaSetting(p, 100))),
-    metode: mt && mt in METODE_BAYAR ? (mt as MetodeBayar) : "kartu",
+    metode: mt && mt in METODE_BAYAR ? (mt as MetodeBayar) : "otomatis",
     biayaServerNomor: angkaSetting(bs, 0),
     kurs,
     model: md && perkiraanPerBalasan(md) !== null ? md : perkiraanPerBalasan(atur.model) !== null ? atur.model : MODEL_BAWAAN,
@@ -868,7 +868,6 @@ export async function terapkanSimulasi(
   const usd = perkiraanPerBalasan(a.model);
   if (usd === null) throw new Error("Tarif model acuan belum diketahui.");
   const acuan = { biayaBalasanUsd: usd, kurs: a.kurs, margin: a.margin / 100, pemakaian: a.pemakaian / 100, metode: a.metode, biayaServerNomor: a.biayaServerNomor };
-  const mBayar = METODE_BAYAR[a.metode] ?? METODE_BAYAR.kartu;
   const { balasanPerNomorBulan: r } = await pemakaianNyata();
   const adaOpsiKomisi = !!opsiKomisi?.komisiMap;
   const ringkas = (p: Pick<Paket, "harga" | "kuota_balasan" | "kuota_nomor" | "komisi_jenis" | "komisi_nilai">) => {
@@ -899,7 +898,7 @@ export async function terapkanSimulasi(
           kuotaBalasan = k.kuotaBalasan;
           kuotaNomor = k.kuotaNomor;
         } else {
-          const bersih = p.harga * (1 - acuan.margin - mBayar.persen - kPersen) - mBayar.tetap - kTetap;
+          const bersih = sisaBersih(p.harga, acuan.margin + kPersen, acuan.metode) - kTetap;
           const perBalasan =
             acuan.biayaBalasanUsd * acuan.kurs * (1 + TAMBAHAN_BIAYA_BALASAN) * acuan.pemakaian +
             (r > 0 ? acuan.biayaServerNomor / r : 0);
@@ -918,8 +917,7 @@ export async function terapkanSimulasi(
           hargaSaran = hitungHarga({ ...p, kuota_nomor: kuotaNomor }, acuan).hargaSaran;
         } else {
           const dasar = hitungHarga({ ...p, kuota_nomor: kuotaNomor }, acuan);
-          const penyebut = 1 - acuan.margin - mBayar.persen - kPersen;
-          const hargaPas = penyebut > 0 ? (dasar.modal + mBayar.tetap + kTetap) / penyebut : null;
+          const hargaPas = hargaMinimal(dasar.modal + kTetap, acuan.margin + kPersen, acuan.metode);
           hargaSaran = hargaPas === null ? null : Math.max(1_000, Math.ceil(hargaPas / 1_000) * 1_000);
         }
         if (hargaSaran === null) {

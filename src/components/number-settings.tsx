@@ -7,6 +7,7 @@ import { angka } from "@/lib/format";
 import type { StatusMl } from "@/lib/prospek";
 import { useBahasa } from "./bahasa";
 import { LencanaSesi } from "./connection-card";
+import { bukaTabNomor } from "./tab-nomor";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "./ui";
 import { useSesiNomor } from "./wa-status";
 
@@ -14,27 +15,49 @@ export function LencanaTerhubung({ id }: { id: number }) {
   return <LencanaSesi status={useSesiNomor(id)?.status} />;
 }
 
-export function SaklarBot({ id, aktif: awal, label }: { id: number; aktif: boolean; label: string }) {
+/**
+ * Saklar utama AI nomor ini. Aturan pakai: tanpa product knowledge saklar terkunci (server juga menolak menyalakannya,
+ * dan jembatan WhatsApp tidak membalas), dengan tautan langsung ke tab Knowledge.
+ */
+export function SaklarBot({ id, aktif: awal, label, adaKnowledge = true }: { id: number; aktif: boolean; label: string; adaKnowledge?: boolean }) {
   const [aktif, setAktif] = useOptimistic(awal);
+  const [galat, setGalat] = useState<string | null>(null);
   const [, mulai] = useTransition();
   const { t } = useBahasa();
   return (
-    <label className="flex w-full items-center justify-between gap-4">
-      <span className="text-[13px] leading-tight">
-        <span className="block font-semibold text-fg">{t("Balasan otomatis", "Auto-reply")}</span>
-        <span className="block text-xs text-muted">{aktif ? t("AI membalas chat masuk", "AI replies to incoming chats") : t("AI tidak membalas", "AI doesn't reply")}</span>
-      </span>
-      <Saklar
-        aktif={aktif}
-        label={t(`Balasan otomatis ${label}`, `Auto-reply for ${label}`)}
-        onUbah={(v) =>
-          mulai(async () => {
-            setAktif(v);
-            await setBotAktifAction(id, v);
-          })
-        }
-      />
-    </label>
+    <div className="w-full">
+      <label className="flex w-full items-center justify-between gap-4">
+        <span className="text-[13px] leading-tight">
+          <span className="block font-semibold text-fg">{t("Balasan otomatis", "Auto-reply")}</span>
+          <span className={`block text-xs ${adaKnowledge ? "text-muted" : "text-warning"}`}>
+            {!adaKnowledge
+              ? t("Belum bisa aktif: product knowledge kosong", "Can't turn on yet: no product knowledge")
+              : aktif
+                ? t("AI membalas chat masuk", "AI replies to incoming chats")
+                : t("AI tidak membalas", "AI doesn't reply")}
+          </span>
+        </span>
+        <Saklar
+          aktif={aktif && adaKnowledge}
+          disabled={!adaKnowledge}
+          label={t(`Balasan otomatis ${label}`, `Auto-reply for ${label}`)}
+          onUbah={(v) =>
+            mulai(async () => {
+              setGalat(null);
+              setAktif(v);
+              const h = await setBotAktifAction(id, v);
+              if (!h.ok) setGalat(h.pesan ?? null);
+            })
+          }
+        />
+      </label>
+      {!adaKnowledge && (
+        <button type="button" onClick={() => bukaTabNomor("knowledge")} className="mt-1.5 text-[12px] font-semibold text-accent hover:underline">
+          {t("Isi product knowledge →", "Add product knowledge →")}
+        </button>
+      )}
+      {galat && <p className="mt-1.5 text-[12px] font-semibold text-danger">{galat}</p>}
+    </div>
   );
 }
 

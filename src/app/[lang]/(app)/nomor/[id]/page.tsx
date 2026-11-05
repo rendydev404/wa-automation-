@@ -134,7 +134,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
           </div>
         </div>
         <div className="rounded-xl border border-line bg-subtle/50 px-4 py-3 sm:min-w-64" data-tur="saklar-bot">
-          <SaklarBot id={nomor.id} aktif={!!nomor.bot_aktif} label={nomor.label} />
+          <SaklarBot id={nomor.id} aktif={!!nomor.bot_aktif} label={nomor.label} adaKnowledge={total > 0} />
         </div>
       </header>
 
@@ -191,7 +191,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                 <div className="min-w-0" data-tur="koneksi">
                   <ConnectionCard id={nomor.id} />
                 </div>
-                <LangkahMulai id={nomor.id} adaKnowledge={total > 0} botAktif={!!nomor.bot_aktif} />
+                <LangkahMulai id={nomor.id} adaKnowledge={total > 0} botAktif={!!nomor.bot_aktif && total > 0} />
               </div>
             ),
           },

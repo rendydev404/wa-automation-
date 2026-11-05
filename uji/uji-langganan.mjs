@@ -493,19 +493,40 @@ console.log("== Harga & margin ==");
 const H = await lib("src/lib/harga.ts");
 const AI2 = await lib("src/lib/ai.ts");
 
-await cek("rumus harga: modal dari tarif resmi x kuota (+5% foto/tulis-ulang), biaya bayar, untung, margin, harga saran dibulatkan ke atas", async () => {
+await cek("rumus harga: modal dari tarif resmi x kuota (+5% foto/tulis-ulang), biaya bayar + PPN 11%, untung, margin, harga saran dibulatkan ke atas", async () => {
   const usd = AI2.perkiraanPerBalasan("claude-haiku-5-5"); // 0,000846 USD
   const a = { biayaBalasanUsd: usd, kurs: 16500, margin: 0.6, pemakaian: 1, metode: "kartu", biayaServerNomor: 0 };
   const s = H.hitungHarga({ harga: 99000, durasi_hari: 30, kuota_nomor: 1, kuota_balasan: 1000 }, a);
   assert.ok(Math.abs(s.biayaPerBalasan - 14.65695) < 1e-6);
   assert.ok(Math.abs(s.modal - 14656.95) < 1e-3);
-  assert.equal(s.biayaBayar, 99000 * 0.029 + 2000);
-  assert.ok(Math.abs(s.untung - (99000 - 4871 - 14656.95)) < 1e-3);
-  assert.ok(Math.abs(s.margin - 0.80275) < 1e-4);
-  assert.equal(s.hargaSaran, 45000); // (14.656,95 + 2.000) / (1 - 0,6 - 0,029) = 44.897 -> 45.000
+  assert.ok(Math.abs(s.biayaBayar - (99000 * 0.029 + 2000) * 1.11) < 1e-6, "biaya Midtrans + PPN 11% atas biaya itu");
+  assert.ok(Math.abs(s.untung - (99000 - 5406.81 - 14656.95)) < 1e-3);
+  assert.ok(Math.abs(s.margin - 0.797336) < 1e-4);
+  assert.equal(s.hargaSaran, 46000); // (14.656,95 + 2.220) / (1 - 0,6 - 0,03219) = 45.885 -> 46.000
   // Biaya server per nomor ikut masuk modal, sebanding durasi
   const t = H.hitungHarga({ harga: 249000, durasi_hari: 60, kuota_nomor: 3, kuota_balasan: 3500 }, { ...a, biayaServerNomor: 5000 });
   assert.ok(Math.abs(t.modalServer - 3 * 5000 * 2) < 1e-9);
+  // Acuan "otomatis": di setiap harga dipakai kanal termahal yang bisa dipilih pembeli (VA Rp4.000 tetap vs e-wallet 2%).
+  assert.ok(Math.abs(H.biayaBayar(49000, "otomatis") - 4440) < 1e-9, "Rp49.000: VA termahal (Rp4.000 + PPN)");
+  assert.ok(Math.abs(H.biayaBayar(246000, "otomatis") - 246000 * 0.02 * 1.11) < 1e-6, "Rp246.000: e-wallet termahal (2% + PPN)");
+  assert.equal(H.biayaBayar(0, "otomatis"), 0);
+  // Harga minimal: margin target tercapai PERSIS untuk kanal termahal, dan setidaknya tercapai untuk kanal lain.
+  for (const modal of [16069, 64277, 160693]) {
+    const hp = H.hargaMinimal(modal, 0.7, "otomatis");
+    assert.ok(Math.abs(H.sisaBersih(hp, 0.7, "otomatis") - modal) < 1e-6);
+    for (const m of ["qris", "ewallet", "va"]) assert.ok(H.sisaBersih(hp, 0.7, m) >= modal - 1e-6, `${m} @ ${modal}`);
+  }
+  const o = { ...a, metode: "otomatis", margin: 0.7 };
+  for (const [kuota, nomor] of [[1000, 1], [3500, 4], [10000, 11]]) {
+    const saran = H.hitungHarga({ harga: 0, durasi_hari: 30, kuota_nomor: nomor, kuota_balasan: kuota }, o).hargaSaran;
+    const di = H.hitungHarga({ harga: saran, durasi_hari: 30, kuota_nomor: nomor, kuota_balasan: kuota }, o);
+    for (const m of ["qris", "ewallet", "va"]) {
+      const per = H.hitungHarga({ harga: saran, durasi_hari: 30, kuota_nomor: nomor, kuota_balasan: kuota }, { ...o, metode: m });
+      assert.ok(per.margin >= 0.7, `harga saran ${saran}: margin >= 70% walau pembeli bayar lewat ${m} (${per.margin})`);
+    }
+    assert.ok(di.margin >= 0.7);
+  }
+  assert.equal(H.teksTarif("otomatis"), "QRIS 0,7% / e-wallet 2% / VA Rp4.000 + PPN 11%");
   // Margin + biaya bayar >= 100%: tidak ada harga yang masuk akal
   assert.equal(H.hitungHarga({ harga: 1000, durasi_hari: 30, kuota_nomor: 1, kuota_balasan: 1 }, { ...a, margin: 0.98 }).hargaSaran, null);
 });
@@ -521,7 +542,7 @@ await cek("pemakaian nyata dari stats 30 hari (rata-rata per nomor per hari akti
 await cek("kebalikan rumus: harga dikunci -> kuota balasan (kelipatan 50, margin tetap tercapai) & nomor dari pemakaian nyata", async () => {
   const usd = AI2.perkiraanPerBalasan("claude-haiku-5-5");
   const a = { biayaBalasanUsd: usd, kurs: 16500, margin: 0.6, pemakaian: 1, metode: "kartu", biayaServerNomor: 0 };
-  assert.deepEqual(H.kuotaDariHarga(45000, 30, a, 900), { kuotaBalasan: 1000, kuotaNomor: 1 });
+  assert.deepEqual(H.kuotaDariHarga(46000, 30, a, 900), { kuotaBalasan: 1000, kuotaNomor: 1 });
   const k = H.kuotaDariHarga(144000, 30, { ...a, margin: 0.5 }, 900);
   assert.equal(k.kuotaBalasan % 50, 0);
   assert.ok(H.hitungHarga({ harga: 144000, durasi_hari: 30, kuota_nomor: k.kuotaNomor, kuota_balasan: k.kuotaBalasan }, { ...a, margin: 0.5 }).margin >= 0.5);
@@ -531,17 +552,17 @@ await cek("kebalikan rumus: harga dikunci -> kuota balasan (kelipatan 50, margin
   assert.equal(H.nomorDariKuota(100, 30, 900), 1); // minimal 1
 });
 
-await cek("acuan harga tersimpan (bawaan: margin 60%, pakai 100%, kartu, Haiku 5.5) & terapkan simulasi ke semua paket berbayar", async () => {
+await cek("acuan harga tersimpan (bawaan: margin 60%, pakai 100%, otomatis = kanal termahal + PPN, Haiku 5.5) & terapkan simulasi ke semua paket berbayar", async () => {
   const a = await L.acuanHarga();
-  assert.deepEqual({ ...a, kurs: undefined }, { margin: 60, pemakaian: 100, metode: "kartu", biayaServerNomor: 0, kurs: undefined, model: "claude-haiku-5-5" });
+  assert.deepEqual({ ...a, kurs: undefined }, { margin: 60, pemakaian: 100, metode: "otomatis", biayaServerNomor: 0, kurs: undefined, model: "claude-haiku-5-5" });
   const acuan = { ...a, kurs: 16500 };
   const { berubah } = await L.terapkanSimulasi(acuan, "kunci-kuota");
   assert.deepEqual(
     berubah.map((b) => [b.nama, b.sesudah]),
     [
-      ["Starter", "Rp45.000 · 1.000 balasan · 1 nomor"],
-      ["Bisnis", "Rp144.000 · 3.500 balasan · 4 nomor"],
-      ["Pro", "Rp401.000 · 10.000 balasan · 11 nomor"],
+      ["Starter", "Rp48.000 · 1.000 balasan · 1 nomor"],
+      ["Bisnis", "Rp140.000 · 3.500 balasan · 4 nomor"],
+      ["Pro", "Rp388.000 · 10.000 balasan · 11 nomor"],
     ]
   );
   assert.equal(berubah[0].sebelum, "Rp99.000 · 1.000 balasan · 1 nomor");
@@ -551,7 +572,7 @@ await cek("acuan harga tersimpan (bawaan: margin 60%, pakai 100%, kartu, Haiku 5
   const { berubah: naik } = await L.terapkanSimulasi({ ...acuan, margin: 50 }, "kunci-harga");
   assert.equal(naik.length, 3);
   const starterBaru = (await L.daftarPaket({ semua: true })).find((p) => p.kode === "starter");
-  assert.equal(starterBaru.harga, 45000);
+  assert.equal(starterBaru.harga, 48000);
   assert.ok(starterBaru.kuota_balasan > 1000);
   // Simulasi hanya saran: paket yang tidak mungkin mencapai margin dilewati (tidak diubah, tidak menggagalkan paket lain).
   const sebelum = await L.daftarPaket({ semua: true });
@@ -578,14 +599,14 @@ const spekC = { ...C.BAWAAN_CUSTOM, kuota_balasan: 10000, nomor_otomatis: false,
 await cek("paket Custom: kuota -> harga otomatis dari modal + margin (rumus sama dengan paket biasa); pembulatan & harga cantik tidak pernah di bawah harga pas", async () => {
   const h = C.hitungCustom(spekC, KT);
   assert.ok(Math.abs(h.rincian.modal - 146569.5) < 1e-6);
-  assert.equal(h.hargaOtomatis, 401000); // (146.569,5 + 2.000) / (1 - 0,6 - 0,029) = 400.457,9 -> 401.000 (= simulasi paket Pro)
-  assert.deepEqual([h.harga, h.status], [401000, "sehat"]);
+  assert.equal(h.hargaOtomatis, 405000); // (146.569,5 + 2.220) / (1 - 0,6 - 0,03219) = 404.537 -> 405.000 (biaya kartu + PPN 11%)
+  assert.deepEqual([h.harga, h.status], [405000, "sehat"]);
   assert.ok(h.rincian.margin >= 0.6);
   assert.equal(C.hitungCustom({ ...spekC, pembulatan: 10000, cantik: true }, KT).hargaOtomatis, 409000);
   assert.equal(C.hitungCustom({ ...spekC, pembulatan: 50000 }, KT).hargaOtomatis, 450000);
   // Kuota 2x -> modal AI 2x -> harga ikut naik; margin turun -> harga turun
   assert.ok(C.hitungCustom({ ...spekC, kuota_balasan: 20000 }, KT).hargaOtomatis > 790000);
-  assert.ok(C.hitungCustom({ ...spekC, margin: 40 }, KT).hargaOtomatis < 401000);
+  assert.ok(C.hitungCustom({ ...spekC, margin: 40 }, KT).hargaOtomatis < 405000);
   // Durasi 90 hari: biaya server sebanding durasi, harga setara 30 hari ikut dihitung
   const tiga = C.hitungCustom({ ...spekC, durasi_hari: 90, biaya_server: 5000 }, KT);
   assert.ok(Math.abs(tiga.rincian.modalServer - 10 * 5000 * 3) < 1e-9);
@@ -605,13 +626,13 @@ await cek("paket Custom: kuota -> harga otomatis dari modal + margin (rumus sama
 
 await cek("paket Custom: harga sendiri menimpa harga otomatis; untung, margin, rugi & di bawah target terdeteksi; anggaran pelanggan -> kuota", async () => {
   const t = C.hitungCustom({ ...spekC, harga_manual: true, harga: 300000 }, KT);
-  assert.deepEqual([t.harga, t.hargaOtomatis, t.status], [300000, 401000, "tipis"]);
-  assert.ok(Math.abs(t.rincian.untung - (300000 - (300000 * 0.029 + 2000) - 146569.5)) < 1e-6);
+  assert.deepEqual([t.harga, t.hargaOtomatis, t.status], [300000, 405000, "tipis"]);
+  assert.ok(Math.abs(t.rincian.untung - (300000 - (300000 * 0.029 + 2000) * 1.11 - 146569.5)) < 1e-6);
   assert.equal(C.hitungCustom({ ...spekC, harga_manual: true, harga: 150000 }, KT).status, "rugi");
   const mahal = C.hitungCustom({ ...spekC, harga_manual: true, harga: 500000 }, KT);
   assert.deepEqual([mahal.status, mahal.perBalasan], ["sehat", 50]);
   // Kebalikan: anggaran = harga otomatis -> kuota kembali 10.000 (kelipatan 50, margin tetap tercapai)
-  assert.equal(C.kuotaDariAnggaran(401000, spekC, KT), 10000);
+  assert.equal(C.kuotaDariAnggaran(405000, spekC, KT), 10000);
   assert.equal(C.kuotaDariAnggaran(5000, spekC, KT), 0);
   const oto = { ...spekC, nomor_otomatis: true, biaya_server: 3000 };
   const q = C.kuotaDariAnggaran(1_000_000, oto, KT);
@@ -648,12 +669,12 @@ await cek("paket Custom versi lama (harga berupa teks) tetap tampil seperti dulu
 await cek("paket Custom disimpan: dihitung ulang di server (angka dari browser diabaikan), dicerminkan ke tabel paket, tidak ikut paket biasa & simulasinya", async () => {
   const isian = C.periksaCustom({ ...spekC, nama: "Enterprise", aktif: true, aksi: "bayar", tombol: "Pilih paket", harga: 1 });
   const { p, h } = await C.simpanPaketCustom(isian);
-  assert.deepEqual([p.harga, p.kuota_nomor, p.kurs, h.status], [401000, 10, 16500, "sehat"]);
+  assert.deepEqual([p.harga, p.kuota_nomor, p.kurs, h.status], [405000, 10, 16500, "sehat"]);
   assert.ok(p.dihitung > 0);
   assert.deepEqual(await C.paketCustom(), p);
   const id = await C.idPaketCustom();
   const baris = await L.paketById(id);
-  assert.deepEqual([baris.kode, baris.nama, baris.harga, baris.kuota_balasan, baris.kuota_nomor, baris.durasi_hari, baris.aktif], ["_custom", "Enterprise", 401000, 10000, 10, 30, true]);
+  assert.deepEqual([baris.kode, baris.nama, baris.harga, baris.kuota_balasan, baris.kuota_nomor, baris.durasi_hari, baris.aktif], ["_custom", "Enterprise", 405000, 10000, 10, 30, true]);
   assert.ok(!(await L.daftarPaket()).some((x) => x.kode === "_custom"), "tidak ikut daftar paket biasa");
   assert.ok(!(await L.daftarPaket({ semua: true })).some((x) => x.kode === "_custom"));
   assert.ok((await L.daftarPaket({ semua: true, custom: true })).some((x) => x.id === id), "ikut daftar 'Berikan paket'");
@@ -662,7 +683,7 @@ await cek("paket Custom disimpan: dihitung ulang di server (angka dari browser d
   const sebelum = await L.daftarPaket({ semua: true });
   await L.terapkanSimulasi({ ...(await L.acuanHarga()), kurs: 16500, margin: 10 }, "kunci-kuota");
   for (const x of sebelum) await L.simpanPaket(x);
-  assert.equal((await L.paketById(id)).harga, 401000);
+  assert.equal((await L.paketById(id)).harga, 405000);
   // Tombol chat WhatsApp: baris nonaktif (tidak bisa dibeli lewat Midtrans), tetap satu baris yang sama
   await C.simpanPaketCustom(C.periksaCustom({ ...isian, aksi: "wa", wa: "6281234567890" }));
   assert.equal((await L.paketById(id)).aktif, false);
@@ -691,7 +712,7 @@ await cek("paket Custom dibayar/diberikan seperti paket biasa: kuota dari isi pa
   } finally {
     globalThis.fetch = fetchAsli;
   }
-  assert.equal(charge.transaction_details.gross_amount, 401000);
+  assert.equal(charge.transaction_details.gross_amount, 405000);
   await L.hentikanLangganan(lain.id);
 });
 
@@ -700,11 +721,11 @@ await cek("paket Custom mengikuti kurs: bergeser >=1% -> harga otomatis dihitung
   const tetap = process.env.KURS_USD_TETAP;
   try {
     process.env.KURS_USD_TETAP = "16600"; // 0,6%
-    assert.equal((await C.paketCustom()).harga, 401000);
-    process.env.KURS_USD_TETAP = "17000"; // 3%: modal AI 10.000 x 0,000846 x 17.000 x 1,05 -> harga 413.000
+    assert.equal((await C.paketCustom()).harga, 405000);
+    process.env.KURS_USD_TETAP = "17000"; // 3%: modal AI 10.000 x 0,000846 x 17.000 x 1,05 -> harga 417.000 (kartu + PPN)
     const [a, b] = await Promise.all([C.paketCustom(), C.paketCustom()]);
-    assert.deepEqual([a.harga, a.kurs, a.kuota_nomor, b.harga], [413000, 17000, 10, 413000]);
-    assert.equal((await L.paketById(id)).harga, 413000);
+    assert.deepEqual([a.harga, a.kurs, a.kuota_nomor, b.harga], [417000, 17000, 10, 417000]);
+    assert.equal((await L.paketById(id)).harga, 417000);
     process.env.KURS_USD_TETAP = "16500";
     await C.simpanPaketCustom(C.periksaCustom({ ...spekC, nama: "Enterprise", aktif: true, aksi: "bayar", harga_manual: true, harga: 777000 }));
     process.env.KURS_USD_TETAP = "18000";
@@ -712,7 +733,7 @@ await cek("paket Custom mengikuti kurs: bergeser >=1% -> harga otomatis dihitung
     process.env.KURS_USD_TETAP = "16500";
     await C.simpanPaketCustom(C.periksaCustom({ ...spekC, nama: "Enterprise", ikut_kurs: false }));
     process.env.KURS_USD_TETAP = "18000";
-    assert.equal((await C.paketCustom()).harga, 401000, "saklar 'mengikuti kurs' mati");
+    assert.equal((await C.paketCustom()).harga, 405000, "saklar 'mengikuti kurs' mati");
   } finally {
     process.env.KURS_USD_TETAP = tetap;
   }

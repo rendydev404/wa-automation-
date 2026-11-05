@@ -1,6 +1,6 @@
 import { angka } from "./format";
 import { MEREK } from "./merek";
-import { type AcuanHarga, type HasilHarga, MAKS_HARGA_PAKET, METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hitungHarga, kuotaDariHarga, nomorDariKuota } from "./harga";
+import { type AcuanHarga, type HasilHarga, MAKS_HARGA_PAKET, METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hitungHarga, kuotaDariHarga, nomorDariKuota, sisaBersih } from "./harga";
 import type { JenisKomisi } from "./afiliasi-def";
 
 /**
@@ -107,7 +107,7 @@ export const BAWAAN_CUSTOM: PaketCustom = {
   ikut_kurs: true,
   model: "claude-haiku-5-5", // sama dengan MODEL_BAWAAN (ai.ts)
   pemakaian: 100,
-  metode: "kartu",
+  metode: "otomatis",
   biaya_server: 0,
   kurs: 0,
   dihitung: 0,
@@ -266,8 +266,7 @@ export function hitungCustom(c: SpekCustom, k: KonteksHarga): HasilCustom {
 export function kuotaDariAnggaran(anggaran: number, c: SpekCustom, k: KonteksHarga): number {
   const a = acuanCustom(c, k);
   if (c.nomor_otomatis) return kuotaDariHarga(anggaran, c.durasi_hari, a, k.balasanPerNomorBulan).kuotaBalasan;
-  const m = METODE_BAYAR[a.metode] ?? METODE_BAYAR.kartu;
-  const bersih = anggaran * (1 - a.margin - m.persen) - m.tetap - c.kuota_nomor * a.biayaServerNomor * (c.durasi_hari / 30);
+  const bersih = sisaBersih(anggaran, a.margin, a.metode) - c.kuota_nomor * a.biayaServerNomor * (c.durasi_hari / 30);
   const perBalasan = a.biayaBalasanUsd * a.kurs * (1 + TAMBAHAN_BIAYA_BALASAN) * a.pemakaian;
   return bersih > 0 && perBalasan > 0 ? Math.floor(bersih / perBalasan / 50) * 50 : 0;
 }

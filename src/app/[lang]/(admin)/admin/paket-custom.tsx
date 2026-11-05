@@ -11,7 +11,7 @@ import { useKursLangsung } from "@/components/kurs-langsung";
 import { Pesan, Saklar } from "@/components/ui";
 import { rapikanNomorWa } from "@/lib/format";
 import { hitungKomisiPaket } from "@/lib/afiliasi-def";
-import { METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN } from "@/lib/harga";
+import { METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, teksTarif } from "@/lib/harga";
 import type { InfoKurs } from "@/lib/kurs-def";
 import {
   BATAS_CUSTOM,
@@ -54,10 +54,7 @@ const rp = (n: number) => `Rp${Math.round(n).toLocaleString("id-ID")}`;
 const rpHalus = (n: number) => `Rp${n.toLocaleString("id-ID", { maximumFractionDigits: n < 100 ? 2 : 0 })}`;
 const angka = (n: number) => Math.round(n).toLocaleString("id-ID");
 const persen = (n: number | null) => (n === null ? "–" : `${(n * 100).toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`);
-const tarifBayar = (m: MetodeBayar) => {
-  const t = METODE_BAYAR[m];
-  return [t.persen ? `${(t.persen * 100).toLocaleString("id-ID")}%` : "", t.tetap ? rp(t.tetap) : ""].filter(Boolean).join(" + ");
-};
+const tarifBayar = (m: MetodeBayar) => teksTarif(m);
 
 // Penggeser kuota memakai skala logaritmik 1.000–250.000 supaya kuota kecil maupun besar sama mudah diatur.
 const GESER_MIN = 1_000;

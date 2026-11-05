@@ -42,7 +42,7 @@ import { type IsiKhusus, METODE_MANUAL, type MetodeManual, batalkanBayar, berika
 import { MidtransError, kanalAktif, kanalBelumAktif, konfigMidtrans, setKanalMati } from "@/lib/midtrans";
 import { tanggal, uang } from "@/lib/format";
 import { GalatCustom, customTampil, periksaCustom, ringkasCustom, simpanPaketCustom } from "@/lib/paket-custom";
-import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
+import { KnowledgeError, adaKnowledge, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
 import { geserProduk, hapusProduk, katalogBoleh, setTersedia } from "@/lib/katalog";
 import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringProspek, setSaringSpam, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { cekPassword, verifyPassword } from "@/lib/password";
@@ -421,7 +421,12 @@ export async function ubahNomorAction(_lalu: Hasil | null, form: FormData): Prom
 
 export async function setBotAktifAction(id: number, aktif: boolean): Promise<Hasil> {
   const nomor = await nomorUntuk(await requireUser(), id);
-  if (!nomor) return nomorTidakAda((await teksPermintaan()).t);
+  const { t } = await teksPermintaan();
+  if (!nomor) return nomorTidakAda(t);
+  // Aturan pakai: balasan otomatis hanya bisa dinyalakan setelah product knowledge diisi.
+  if (aktif && !(await adaKnowledge(id))) {
+    return { ok: false, pesan: t("Isi product knowledge dulu supaya AI tahu apa yang harus dijawab.", "Add your product knowledge first so the AI knows what to answer.") };
+  }
   await setBotAktif(id, aktif);
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${id}`);

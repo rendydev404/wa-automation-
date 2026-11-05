@@ -75,6 +75,17 @@ export function potong(teks: string): string[] {
   return potongan;
 }
 
+/**
+ * Aturan pakai: AI hanya bekerja untuk nomor yang sudah punya product knowledge (minimal satu dokumen berisi, termasuk
+ * data otomatis). Satu query EXISTS lewat indeks number_id; dipakai sebelum AI dipanggil (WhatsApp & Uji bot) dan saat
+ * saklar Balasan otomatis dinyalakan.
+ */
+export async function adaKnowledge(numberId: number): Promise<boolean> {
+  const sql = await db();
+  const [r] = await sql<{ ada: boolean }[]>`SELECT EXISTS (SELECT 1 FROM documents WHERE number_id = ${numberId} AND jumlah_karakter > 0) AS ada`;
+  return r.ada;
+}
+
 export async function totalKarakter(numberId: number): Promise<number> {
   const sql = await db();
   const [r] = await sql<{ n: number }[]>`SELECT COALESCE(SUM(jumlah_karakter), 0) AS n FROM documents WHERE number_id = ${numberId}`;

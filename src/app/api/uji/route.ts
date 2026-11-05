@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { formatWa } from "@/lib/bridge";
 import { tanpaIngatan, tanyaAiTerjaga } from "@/lib/ai";
 import { aiUntukAkun } from "@/lib/langganan";
-import { susunSistem } from "@/lib/knowledge";
+import { adaKnowledge, susunSistem } from "@/lib/knowledge";
 import { TOLAK_KODE, adaKode } from "@/lib/penjaga";
 import { type Foto, MAKS_FOTO_BYTE } from "@/lib/types";
 import { sesiDanNomor } from "@/lib/akses";
@@ -38,6 +38,13 @@ export async function POST(req: Request) {
   const teksPesan = b?.pesan?.trim() ?? "";
   const sesi = b?.sesi ?? "";
   if (!nomor) return NextResponse.json({ error: t("Nomor tidak ditemukan.", "Number not found.") }, { status: 404 });
+  // Aturan pakai: AI hanya bisa dipakai setelah product knowledge nomor ini diisi.
+  if (!(await adaKnowledge(nomor.id))) {
+    return NextResponse.json(
+      { error: t("Isi product knowledge dulu di tab Knowledge, lalu coba lagi di sini.", "Add your product knowledge in the Knowledge tab first, then try again here.") },
+      { status: 409 },
+    );
+  }
   // Foto uji (opsional): data URL gambar yang sudah diperkecil di browser, diperlakukan sama dengan foto dari WhatsApp.
   let gambar: Foto[] = [];
   if (b?.foto) {

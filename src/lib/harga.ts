@@ -6,9 +6,14 @@ import type { Bahasa } from "./bahasa";
  *
  *   modal AI     = kuota balasan x pemakaian x biaya per balasan (tarif resmi Anthropic x kurs x (1 + tambahan))
  *   modal server = kuota nomor x biaya server per nomor per bulan x (durasi / 30)
- *   biaya bayar  = persen x harga + tetap            (tarif payment gateway, tergantung metode)
+ *   biaya bayar  = (persen x harga + tetap) x (1 + PPN)   (tarif payment gateway + PPN atas biaya itu)
  *   untung       = harga - biaya bayar - modal;      margin = untung / harga
- *   harga saran  = (modal + tetap) / (1 - margin target - persen), dibulatkan ke atas ke Rp1.000
+ *   harga saran  = (modal + tetap') / (1 - margin target - persen'), dibulatkan ke atas ke Rp1.000
+ *                  (tetap' & persen' sudah termasuk PPN)
+ *
+ * Biaya payment gateway ditanggung penjual (dimasukkan ke harga paket), BUKAN ditambahkan ke tagihan pembeli:
+ * PBI No. 23/6/PBI/2021 Pasal 52 melarang surcharge ke pembeli. Mode acuan "otomatis" menghitung, di setiap harga,
+ * kanal termahal yang bisa dipilih pembeli, jadi margin target tercapai apa pun kanal yang dipakai.
  */
 
 /**
@@ -21,14 +26,68 @@ export const TAMBAHAN_BIAYA_BALASAN = 0.05;
 /** Batas atas harga paket: batas kolom integer di database. Selain itu harga bebas diatur admin (0 = tidak dijual). */
 export const MAKS_HARGA_PAKET = 2_000_000_000;
 
-/** Tarif umum Midtrans per transaksi (sesuaikan bila kontrak merchant berbeda). */
+/**
+ * Tarif umum Midtrans per transaksi, belum termasuk PPN (sesuaikan bila kontrak merchant berbeda).
+ * `otomatis` bukan kanal: acuan harga = kanal termahal di antara GOLONGAN_PEMBELI pada harga itu.
+ */
 export const METODE_BAYAR = {
+  otomatis: { label: "Otomatis (termahal)", label_en: "Auto (most expensive)", persen: 0, tetap: 0 },
   qris: { label: "QRIS", label_en: "QRIS", persen: 0.007, tetap: 0 },
   va: { label: "Transfer bank (VA)", label_en: "Bank transfer (VA)", persen: 0, tetap: 4_000 },
   ewallet: { label: "GoPay / ShopeePay", label_en: "GoPay / ShopeePay", persen: 0.02, tetap: 0 },
   kartu: { label: "Kartu kredit", label_en: "Credit card", persen: 0.029, tetap: 2_000 },
 } as const;
 export type MetodeBayar = keyof typeof METODE_BAYAR;
+
+/** PPN atas biaya layanan payment gateway (tarif efektif 11%: 12% x DPP 11/12). */
+export const PPN_BIAYA_BAYAR = 0.11;
+
+/** Golongan tarif yang bisa dipilih pembeli di halaman bayar (kartu kredit hanya dicatat manual oleh admin). */
+export const GOLONGAN_PEMBELI = ["qris", "ewallet", "va"] as const satisfies readonly MetodeBayar[];
+
+export interface ProfilBiaya {
+  persen: number;
+  tetap: number;
+}
+
+/** Profil biaya metode acuan, sudah termasuk PPN. "otomatis" = semua golongan yang bisa dipilih pembeli. */
+export function profilBiaya(metode: MetodeBayar): ProfilBiaya[] {
+  const daftar: readonly MetodeBayar[] = metode === "otomatis" ? GOLONGAN_PEMBELI : [metode in METODE_BAYAR ? metode : "kartu"];
+  return daftar.map((m) => ({ persen: METODE_BAYAR[m].persen * (1 + PPN_BIAYA_BAYAR), tetap: METODE_BAYAR[m].tetap * (1 + PPN_BIAYA_BAYAR) }));
+}
+
+/** Biaya bayar (termasuk PPN) pada `harga`: kanal termahal di profil. 0 bila harga 0. */
+export function biayaBayar(harga: number, metode: MetodeBayar): number {
+  if (harga <= 0) return 0;
+  return Math.max(...profilBiaya(metode).map((b) => harga * b.persen + b.tetap));
+}
+
+/**
+ * Harga terkecil H yang memenuhi H x (1 - potongPersen) - biayaBayar(H) >= dasar untuk SETIAP kanal di profil:
+ * max per kanal dari (dasar + tetap) / (1 - potongPersen - persen). null bila mustahil (penyebut <= 0).
+ */
+export function hargaMinimal(dasar: number, potongPersen: number, metode: MetodeBayar): number | null {
+  let h = 0;
+  for (const b of profilBiaya(metode)) {
+    const penyebut = 1 - potongPersen - b.persen;
+    if (penyebut <= 0) return null;
+    h = Math.max(h, (dasar + b.tetap) / penyebut);
+  }
+  return h;
+}
+
+/** Sisa dari `harga` setelah potongan persen & biaya bayar kanal termahal: harga x (1 - potongPersen) - biayaBayar. */
+export const sisaBersih = (harga: number, potongPersen: number, metode: MetodeBayar): number => harga * (1 - potongPersen) - biayaBayar(harga, metode);
+
+/** Teks tarif untuk admin, mis. "2% + Rp2.000 + PPN 11%" atau rincian kanal untuk mode otomatis. */
+export function teksTarif(metode: MetodeBayar): string {
+  const rp = (n: number) => `Rp${n.toLocaleString("id-ID")}`;
+  const satu = (m: MetodeBayar) => [METODE_BAYAR[m].persen ? `${(METODE_BAYAR[m].persen * 100).toLocaleString("id-ID")}%` : "", METODE_BAYAR[m].tetap ? rp(METODE_BAYAR[m].tetap) : ""].filter(Boolean).join(" + ");
+  const ppn = ` + PPN ${(PPN_BIAYA_BAYAR * 100).toLocaleString("id-ID")}%`;
+  const singkat: Record<string, string> = { qris: "QRIS", ewallet: "e-wallet", va: "VA" };
+  if (metode === "otomatis") return `${GOLONGAN_PEMBELI.map((m) => `${singkat[m]} ${satu(m)}`).join(" / ")}${ppn}`;
+  return `${satu(metode)}${ppn}`;
+}
 
 /**
  * Kanal Midtrans Core API yang bisa dipilih pelanggan di halaman bayar kita sendiri. `metode` = golongan tarifnya di
@@ -114,21 +173,19 @@ export interface HasilHarga {
 }
 
 export function hitungHarga(p: PaketHarga, a: AcuanHarga): HasilHarga {
-  const m = METODE_BAYAR[a.metode] ?? METODE_BAYAR.kartu;
   const biayaPerBalasan = a.biayaBalasanUsd * a.kurs * (1 + TAMBAHAN_BIAYA_BALASAN);
   const modalAi = p.kuota_balasan * a.pemakaian * biayaPerBalasan;
   const modalServer = p.kuota_nomor * a.biayaServerNomor * (p.durasi_hari / 30);
   const modal = modalAi + modalServer;
-  const biayaBayar = p.harga > 0 ? p.harga * m.persen + m.tetap : 0;
-  const untung = p.harga - biayaBayar - modal;
-  const penyebut = 1 - a.margin - m.persen;
-  const hargaPas = penyebut > 0 ? (modal + m.tetap) / penyebut : null;
+  const bayar = biayaBayar(p.harga, a.metode);
+  const untung = p.harga - bayar - modal;
+  const hargaPas = hargaMinimal(modal, a.margin, a.metode);
   return {
     biayaPerBalasan,
     modalAi,
     modalServer,
     modal,
-    biayaBayar,
+    biayaBayar: bayar,
     untung,
     margin: p.harga > 0 ? untung / p.harga : null,
     hargaPas,
@@ -148,8 +205,7 @@ export function nomorDariKuota(kuotaBalasan: number, durasiHari: number, balasan
  * ke bawah ke kelipatan 50 supaya margin tidak pernah di bawah target.
  */
 export function kuotaDariHarga(harga: number, durasiHari: number, a: AcuanHarga, balasanPerNomorBulan: number): { kuotaBalasan: number; kuotaNomor: number } {
-  const m = METODE_BAYAR[a.metode] ?? METODE_BAYAR.kartu;
-  const bersih = harga * (1 - a.margin - m.persen) - m.tetap;
+  const bersih = sisaBersih(harga, a.margin, a.metode);
   const perBalasan = a.biayaBalasanUsd * a.kurs * (1 + TAMBAHAN_BIAYA_BALASAN) * a.pemakaian + (balasanPerNomorBulan > 0 ? a.biayaServerNomor / balasanPerNomorBulan : 0);
   const kuotaBalasan = bersih > 0 && perBalasan > 0 ? Math.floor(bersih / perBalasan / 50) * 50 : 0;
   return { kuotaBalasan, kuotaNomor: nomorDariKuota(kuotaBalasan, durasiHari, balasanPerNomorBulan) };

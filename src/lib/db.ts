@@ -526,6 +526,13 @@ const MIGRASI: string[] = [
   CREATE UNIQUE INDEX notifikasi_kunci_idx ON notifikasi (user_id, kunci) WHERE kunci IS NOT NULL;
   CREATE INDEX notifikasi_dibuat_idx ON notifikasi (dibuat);
   `,
+  // v24: acuan biaya Midtrans untuk harga paket = "otomatis" (kanal termahal yang bisa dipilih pembeli, + PPN; lihat
+  //   harga.ts). Acuan lama "kartu" tidak pernah benar: kartu kredit tidak bisa dipilih pembeli di halaman bayar.
+  `
+  UPDATE settings SET nilai = 'otomatis' WHERE kunci = 'metode_acuan' AND nilai = 'kartu';
+  UPDATE settings SET nilai = jsonb_set(nilai::jsonb, '{metode}', '"otomatis"')::text
+   WHERE kunci = 'paket_custom' AND nilai::jsonb ->> 'metode' = 'kartu';
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

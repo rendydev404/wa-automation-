@@ -125,7 +125,11 @@ function Kartu({ n }: { n: KartuNomor }) {
       </div>
 
       <div className="mt-auto flex items-center justify-between gap-3 border-t border-line bg-subtle/40 px-5 py-3">
-        {perluScan ? (
+        {n.jumlah_karakter === 0 ? (
+          <Link href={`/nomor/${n.id}#knowledge`} className="flex items-center gap-1.5 text-[13px] font-semibold text-warning hover:underline">
+            {t("Isi product knowledge dulu", "Add product knowledge first")}
+          </Link>
+        ) : perluScan ? (
           <Link href={`/nomor/${n.id}`} className="flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline">
             <QrCode className="size-4" aria-hidden /> {t("Scan QR untuk menautkan", "Scan QR to link")}
           </Link>
@@ -133,7 +137,8 @@ function Kartu({ n }: { n: KartuNomor }) {
           <span className="text-[13px] font-medium">{aktif ? t("Balasan otomatis aktif", "Auto-reply on") : t("Balasan otomatis mati", "Auto-reply off")}</span>
         )}
         <Saklar
-          aktif={aktif}
+          aktif={aktif && n.jumlah_karakter > 0}
+          disabled={n.jumlah_karakter === 0}
           label={t(`Balasan otomatis ${n.label}`, `Auto-reply for ${n.label}`)}
           onUbah={(v) =>
             mulai(async () => {

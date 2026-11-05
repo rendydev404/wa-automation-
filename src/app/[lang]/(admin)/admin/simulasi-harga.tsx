@@ -10,7 +10,7 @@ import { PilihOpsi } from "@/components/pilih-opsi";
 import { Pesan, Saklar, SubmitButton } from "@/components/ui";
 import { hitungKomisiPaket, type JenisKomisi, labelKomisiPaket } from "@/lib/afiliasi-def";
 import type { InfoKurs } from "@/lib/kurs-def";
-import { type AcuanHarga, METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hitungHarga, kuotaDariHarga, nomorDariKuota } from "@/lib/harga";
+import { type AcuanHarga, METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hargaMinimal, hitungHarga, kuotaDariHarga, nomorDariKuota, sisaBersih, teksTarif } from "@/lib/harga";
 
 /**
  * Simulasi paket: admin menggeser margin, asumsi biaya, dan komisi afiliasi (bisa Semua Paket sekaligus atau Per Paket).
@@ -49,19 +49,7 @@ const rp = (n: number) => `Rp${Math.round(n).toLocaleString("id-ID")}`;
 const angka = (n: number) => Math.round(n).toLocaleString("id-ID");
 const persen = (n: number | null) => (n === null ? "–" : `${(n * 100).toFixed(0)}%`);
 
-const OPSI_METODE = (Object.keys(METODE_BAYAR) as MetodeBayar[]).map((k) => {
-  const m = METODE_BAYAR[k];
-  const rincian = [
-    m.persen ? `${(m.persen * 100).toLocaleString("id-ID")}%` : "",
-    m.tetap ? rp(m.tetap) : "",
-  ]
-    .filter(Boolean)
-    .join(" + ");
-  return {
-    id: k,
-    label: `${m.label} · ${rincian}`,
-  };
-});
+const OPSI_METODE = (Object.keys(METODE_BAYAR) as MetodeBayar[]).map((k) => ({ id: k, label: `${METODE_BAYAR[k].label} · ${teksTarif(k)}` }));
 
 const CHIP_KOMISI_PERSEN = [0, 10, 15, 20, 25, 30];
 
@@ -78,7 +66,6 @@ function simulasikan(
   komisi: SetelanKomisiPaket,
   masukkanKomisiKeTarget: boolean
 ) {
-  const m = METODE_BAYAR[a.metode] ?? METODE_BAYAR.kartu;
   const kPersen = masukkanKomisiKeTarget && komisi.jenis === "persen" ? komisi.nilai / 100 : 0;
   const kTetap = masukkanKomisiKeTarget && komisi.jenis === "rupiah" ? komisi.nilai : 0;
 
@@ -90,7 +77,7 @@ function simulasikan(
       const k = kuotaDariHarga(p.harga, p.durasi_hari, a, r);
       baru = { ...p, kuota_balasan: k.kuotaBalasan, kuota_nomor: k.kuotaNomor };
     } else {
-      const bersih = p.harga * (1 - a.margin - m.persen - kPersen) - m.tetap - kTetap;
+      const bersih = sisaBersih(p.harga, a.margin + kPersen, a.metode) - kTetap;
       const perBalasan =
         a.biayaBalasanUsd * a.kurs * (1 + TAMBAHAN_BIAYA_BALASAN) * a.pemakaian +
         (r > 0 ? a.biayaServerNomor / r : 0);
@@ -106,8 +93,7 @@ function simulasikan(
       baru = { ...p, harga: dasar.hargaSaran ?? p.harga, kuota_nomor: kuotaNomor };
       mustahil = dasar.hargaSaran === null;
     } else {
-      const penyebut = 1 - a.margin - m.persen - kPersen;
-      const hargaPas = penyebut > 0 ? (dasar.modal + m.tetap + kTetap) / penyebut : null;
+      const hargaPas = hargaMinimal(dasar.modal + kTetap, a.margin + kPersen, a.metode);
       const hargaSaran = hargaPas === null ? null : Math.max(1_000, Math.ceil(hargaPas / 1_000) * 1_000);
       baru = { ...p, harga: hargaSaran ?? p.harga, kuota_nomor: kuotaNomor };
       mustahil = hargaSaran === null;

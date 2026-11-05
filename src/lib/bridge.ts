@@ -4,7 +4,7 @@ import { db, sekarang, setSetting } from "./db";
 import { catatPakai, tanpaIngatan, tanyaAiTerjaga } from "./ai";
 import { aiUntukAkun, catatBalasanLokal, catatKuotaHabis, sisaKuotaAi } from "./langganan";
 import { MEREK } from "./merek";
-import { susunSistem } from "./knowledge";
+import { adaKnowledge, susunSistem } from "./knowledge";
 import { type KirimProduk, bahanKirim, captionProduk, daftarProduk, katalogBoleh, perluDaftar, teksKatalog } from "./katalog";
 import { type Nomor, catatStat, catatTerhubung, nomorBySesi } from "./numbers";
 import { catatPesan, chatDipercaya, riwayatUntukAi, tandaiProspek, tandaiSpam } from "./percakapan";
@@ -331,6 +331,7 @@ export function teksKuotaHabis(): string {
  * dijalankan sekali per 10 menit per akun. Keduanya anti-dobel di database, jadi pengulangan sesudahnya aman.
  */
 const habisDicek = new Map<number, number>();
+const tanpaKnowledgeDicatat = new Map<number, number>();
 function habisBaruDicek(userId: number): boolean {
   const t = habisDicek.get(userId) ?? 0;
   if (Date.now() - t < 600_000) return false;
@@ -382,7 +383,13 @@ async function proses(kunci: string): Promise<void> {
     if (habis && nomor && nomor.user_id !== null && a.teks.length && habisBaruDicek(nomor.user_id) && (await catatKuotaHabis(nomor.user_id).catch(() => false))) {
       await beritahuKuotaHabis(a, kunci);
     }
-    if (!nomor || !nomor.bot_aktif || !nomor.pemilik_aktif || habis) {
+    // Aturan pakai: tanpa product knowledge, AI tidak menjawab (pesan tetap tercatat; pemilik membalas sendiri).
+    const tanpaKnowledge = !!nomor && nomor.bot_aktif && nomor.pemilik_aktif && !habis && !(await adaKnowledge(nomor.id).catch(() => true));
+    if (tanpaKnowledge && nomor && Date.now() - (tanpaKnowledgeDicatat.get(nomor.id) ?? 0) > 3600_000) {
+      tanpaKnowledgeDicatat.set(nomor.id, Date.now());
+      console.warn(`[bridge] nomor ${nomor.id} belum punya product knowledge: AI tidak membalas`);
+    }
+    if (!nomor || !nomor.bot_aktif || !nomor.pemilik_aktif || habis || tanpaKnowledge) {
       a.teks.length = 0;
       a.foto.length = 0;
       a.siap = null;
