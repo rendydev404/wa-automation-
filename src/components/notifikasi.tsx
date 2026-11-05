@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Bell, CalendarClock, CheckCheck, CreditCard, Gauge, Gift, HandCoins, Loader2, Package, Share2, Unplug, UserPlus, Wallet } from "lucide-react";
 import Link from "@/components/link";
 import { waktuSingkatWib } from "@/lib/format";
@@ -90,6 +91,7 @@ export function LoncengNotifikasi({ gelap = false, awal = 0 }: { gelap?: boolean
   const [memuat, setMemuat] = useState(false);
   const [kini, setKini] = useState(0);
   const wadah = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const belum = lokal && lokal.dasar === data ? lokal.nilai : (data?.notif ?? lokal?.nilai ?? awal);
   const setBelumSendiri = useCallback((nilai: number) => setLokal({ nilai, dasar: data }), [data]);
 
@@ -136,7 +138,8 @@ export function LoncengNotifikasi({ gelap = false, awal = 0 }: { gelap?: boolean
   useEffect(() => {
     if (!buka) return;
     const luar = (e: PointerEvent) => {
-      if (wadah.current && !wadah.current.contains(e.target as Node)) setBuka(false);
+      const t = e.target as Node;
+      if (!wadah.current?.contains(t) && !panel.current?.contains(t)) setBuka(false);
     };
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setBuka(false);
     document.addEventListener("pointerdown", luar);
@@ -174,56 +177,61 @@ export function LoncengNotifikasi({ gelap = false, awal = 0 }: { gelap?: boolean
           </span>
         )}
       </button>
-      {buka && (
-        <div
-          role="dialog"
-          aria-label={t("Notifikasi", "Notifications")}
-          className="fixed inset-x-3 top-14 z-50 flex max-h-[min(70svh,560px)] flex-col overflow-hidden rounded-2xl border border-line bg-surface text-fg shadow-pop lg:inset-x-auto lg:top-4 lg:left-[276px] lg:w-[380px]"
-        >
-          <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-            <p className="text-[14px] font-bold">{t("Notifikasi", "Notifications")}</p>
-            {belum > 0 && (
-              <button type="button" onClick={semuaDibaca} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[12px] font-semibold text-accent hover:bg-accent-soft">
-                <CheckCheck className="size-3.5" aria-hidden /> {t("Tandai semua dibaca", "Mark all as read")}
-              </button>
-            )}
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            {daftar === null ? (
-              <p className="flex items-center justify-center gap-2 py-10 text-[13px] text-muted">
-                <Loader2 className="size-4 animate-spin" aria-hidden /> {t("Memuat…", "Loading…")}
-              </p>
-            ) : daftar.length === 0 ? (
-              <div className="px-6 py-10 text-center">
-                <Bell className="mx-auto size-6 text-faint" aria-hidden />
-                <p className="mt-2 text-[13px] font-semibold">{t("Belum ada notifikasi", "No notifications yet")}</p>
-                <p className="mt-1 text-[12.5px] text-muted">{t("Pembayaran, kuota AI, paket, dan aktivitas penting lain akan muncul di sini.", "Payments, AI quota, plans, and other important activity will show up here.")}</p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-line">
-                {daftar.map((n) => (
-                  <li key={n.id}>
-                    <ItemNotif
-                      n={n}
-                      kini={kini}
-                      onBuka={(x) => {
-                        setDaftar((d) => d?.map((y) => (y.id === x.id ? { ...y, dibaca: y.dibaca ?? 1 } : y)) ?? d);
-                        if (!x.dibaca) setBelumSendiri(Math.max(0, belum - 1));
-                        if (x.tautan) setBuka(false);
-                        bukaNotif(x);
-                      }}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
-            {memuat && daftar !== null && <p className="sr-only">{t("Memuat…", "Loading…")}</p>}
-          </div>
-          <Link href="/notifikasi" onClick={() => setBuka(false)} className="block border-t border-line px-4 py-3 text-center text-[12.5px] font-semibold text-accent hover:bg-subtle/60">
-            {t("Lihat semua notifikasi", "View all notifications")}
-          </Link>
-        </div>
-      )}
+      {/* Lewat portal ke <body>: sidebar & bilah atas yang sticky membuat lapisan tumpukan sendiri, jadi panel yang
+          dirender di dalamnya bisa tertutup kartu di area utama. */}
+      {buka &&
+        createPortal(
+          <div
+            ref={panel}
+            role="dialog"
+            aria-label={t("Notifikasi", "Notifications")}
+            className="fixed inset-x-3 top-14 z-50 flex max-h-[min(70svh,560px)] flex-col overflow-hidden rounded-2xl border border-line bg-surface text-fg shadow-pop lg:inset-x-auto lg:top-4 lg:left-[276px] lg:w-[380px]"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+              <p className="text-[14px] font-bold">{t("Notifikasi", "Notifications")}</p>
+              {belum > 0 && (
+                <button type="button" onClick={semuaDibaca} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[12px] font-semibold text-accent hover:bg-accent-soft">
+                  <CheckCheck className="size-3.5" aria-hidden /> {t("Tandai semua dibaca", "Mark all as read")}
+                </button>
+              )}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              {daftar === null ? (
+                <p className="flex items-center justify-center gap-2 py-10 text-[13px] text-muted">
+                  <Loader2 className="size-4 animate-spin" aria-hidden /> {t("Memuat…", "Loading…")}
+                </p>
+              ) : daftar.length === 0 ? (
+                <div className="px-6 py-10 text-center">
+                  <Bell className="mx-auto size-6 text-faint" aria-hidden />
+                  <p className="mt-2 text-[13px] font-semibold">{t("Belum ada notifikasi", "No notifications yet")}</p>
+                  <p className="mt-1 text-[12.5px] text-muted">{t("Pembayaran, kuota AI, paket, dan aktivitas penting lain akan muncul di sini.", "Payments, AI quota, plans, and other important activity will show up here.")}</p>
+                </div>
+              ) : (
+                <ul className="divide-y divide-line">
+                  {daftar.map((n) => (
+                    <li key={n.id}>
+                      <ItemNotif
+                        n={n}
+                        kini={kini}
+                        onBuka={(x) => {
+                          setDaftar((d) => d?.map((y) => (y.id === x.id ? { ...y, dibaca: y.dibaca ?? 1 } : y)) ?? d);
+                          if (!x.dibaca) setBelumSendiri(Math.max(0, belum - 1));
+                          if (x.tautan) setBuka(false);
+                          bukaNotif(x);
+                        }}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {memuat && daftar !== null && <p className="sr-only">{t("Memuat…", "Loading…")}</p>}
+            </div>
+            <Link href="/notifikasi" onClick={() => setBuka(false)} className="block border-t border-line px-4 py-3 text-center text-[12.5px] font-semibold text-accent hover:bg-subtle/60">
+              {t("Lihat semua notifikasi", "View all notifications")}
+            </Link>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

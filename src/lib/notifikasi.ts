@@ -10,8 +10,9 @@ import { db, sekarang } from "./db";
  *   gagal hanya karena notifikasi tidak tersimpan.
  * - `kunci` = anti-dobel (unik per pengguna): peristiwa yang bisa terpicu berulang (kuota 80%, paket akan berakhir)
  *   hanya tersimpan sekali.
- * - Jumlah "belum dibaca" dipegang di memori per pengguna setelah dihitung sekali (lewat indeks parsial), lalu
- *   diperbarui saat notifikasi dibuat/dibaca: polling status di browser tidak menambah query.
+ * - Jumlah "belum dibaca" dipegang di memori per pengguna (dihitung lewat indeks parsial), diperbarui saat notifikasi
+ *   dibuat/dibaca, dan dihitung ulang paling lama tiap UMUR_HITUNGAN_MS supaya notifikasi yang masuk di luar proses ini
+ *   (mis. langsung lewat database) tetap muncul: polling status di browser hampir tidak menambah query.
  */
 
 export type JenisNotif =
@@ -47,8 +48,13 @@ export interface Notif {
   dibuat: number;
 }
 
-const g = globalThis as unknown as { __waNotifBelum?: Map<number, number> };
+const g = globalThis as unknown as { __waNotifBelum?: Map<number, { n: number; at: number }> };
 const belum = (g.__waNotifBelum ??= new Map());
+const UMUR_HITUNGAN_MS = 30_000;
+const ubahBelum = (userId: number, fn: (n: number) => number) => {
+  const c = belum.get(userId);
+  if (c) c.n = Math.max(0, fn(c.n));
+};
 
 /** UMUR maksimal notifikasi; yang lebih tua dibersihkan berkala (mulaiPengingat). */
 const UMUR_DTK = 90 * 86400;
@@ -74,7 +80,7 @@ export async function kirimNotif(userIds: number | number[], n: IsiNotif): Promi
       INSERT INTO notifikasi ${sql(baris)}
       ON CONFLICT (user_id, kunci) WHERE kunci IS NOT NULL DO NOTHING
       RETURNING user_id`;
-    for (const r of masuk) if (belum.has(r.user_id)) belum.set(r.user_id, belum.get(r.user_id)! + 1);
+    for (const r of masuk) ubahBelum(r.user_id, (n) => n + 1);
   } catch (e) {
     console.warn("[notifikasi] gagal disimpan:", e instanceof Error ? e.message : e);
   }
@@ -91,13 +97,13 @@ export async function kirimNotifAdmin(n: IsiNotif): Promise<void> {
   }
 }
 
-/** Jumlah belum dibaca: dari memori; pertama kali per pengguna dihitung lewat notifikasi_belum_idx. */
+/** Jumlah belum dibaca: dari memori; dihitung (ulang) lewat notifikasi_belum_idx paling sering tiap 30 dtk per pengguna. */
 export async function jumlahBelum(userId: number): Promise<number> {
   const c = belum.get(userId);
-  if (c !== undefined) return c;
+  if (c && Date.now() - c.at < UMUR_HITUNGAN_MS) return c.n;
   const sql = await db();
   const [r] = await sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM notifikasi WHERE user_id = ${userId} AND dibaca IS NULL`;
-  belum.set(userId, r.n);
+  belum.set(userId, { n: r.n, at: Date.now() });
   return r.n;
 }
 
@@ -120,12 +126,11 @@ export async function tandaiNotifDibaca(userId: number, id?: number): Promise<nu
   const kini = sekarang();
   if (id === undefined) {
     await sql`UPDATE notifikasi SET dibaca = ${kini} WHERE user_id = ${userId} AND dibaca IS NULL`;
-    belum.set(userId, 0);
+    belum.set(userId, { n: 0, at: Date.now() });
     return 0;
   }
   const r = await sql`UPDATE notifikasi SET dibaca = ${kini} WHERE id = ${id} AND user_id = ${userId} AND dibaca IS NULL`;
-  const c = belum.get(userId);
-  if (c !== undefined && r.count > 0) belum.set(userId, Math.max(0, c - r.count));
+  if (r.count > 0) ubahBelum(userId, (n) => n - r.count);
   return jumlahBelum(userId);
 }
 
