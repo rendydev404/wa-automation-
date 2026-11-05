@@ -32,7 +32,7 @@ export function PilihMetode({ paketId, harga, kanal: awal, kurs }: { paketId: nu
       setGalat("");
       const h = await bayarPaketAction(paketId, pilih);
       if (h.ok && h.orderId) {
-        lacakMetaEvent("initiate_checkout", { num_items: 1, currency: "IDR", value: harga });
+        lacakMetaEvent("initiate_checkout", { num_items: 1, currency: "IDR", value: harga }, `ic_${h.orderId}`);
         router.push(`/langganan/tagihan/${encodeURIComponent(h.orderId)}`);
       } else {
         setGalat(h.pesan ?? t("Gagal membuat tagihan.", "Could not create the invoice."));

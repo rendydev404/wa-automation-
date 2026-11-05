@@ -36,6 +36,7 @@ import {
   simpanPengaturanMetaPixel,
   ujiCapiMetaPixel,
 } from "@/lib/meta-pixel";
+import { konteksMetaPermintaan } from "@/lib/meta-pixel-konteks";
 import { notifPendaftarBaru } from "@/lib/notifikasi";
 import { ATURAN_ANGKA, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
 import { type IsiKhusus, METODE_MANUAL, type MetodeManual, batalkanBayar, berikanPaketManual, hapusPaket, hentikanLangganan, mulaiBayar, ORDER_SAH, paketById, segarkanKuota, simpanPaket, terapkanSimulasi } from "@/lib/langganan";
@@ -168,8 +169,8 @@ export async function daftarAction(_lalu: Hasil | null, form: FormData): Promise
     await terapkanReferral(akun.id, refKode).catch(() => {});
     toples.delete(COOKIE_REF);
   }
-  toples.set(COOKIE_PIXEL_REG, "1", { maxAge: 120, path: "/", httpOnly: false, sameSite: "lax" });
-  void kirimCapiEvent({ kunci: "complete_registration", email });
+  toples.set(COOKIE_PIXEL_REG, String(akun.id), { maxAge: 120, path: "/", httpOnly: false, sameSite: "lax" });
+  void kirimCapiEvent({ ...(await konteksMetaPermintaan()), kunci: "complete_registration", eventId: `reg_${akun.id}`, email, externalId: akun.id });
   notifPendaftarBaru(akun.id, email, "email");
   await catatLoginBerhasil(akun.id);
   await mulaiSesi(akun, await lewatHttps());
@@ -872,11 +873,15 @@ export async function bayarPaketAction(paketId: number, kanal: string): Promise<
   const paket = Number.isInteger(paketId) ? await paketById(paketId) : undefined;
   if (!paket || !paket.aktif || paket.harga < 1) return { ok: false, pesan: t("Paket tidak ditemukan.", "Plan not found.") };
   try {
-    const h = await mulaiBayar(k, user, paket, kanal, await asalAplikasi());
+    const konteks = await konteksMetaPermintaan();
+    const h = await mulaiBayar(k, user, paket, kanal, await asalAplikasi(), konteks);
     if (h.baru) {
       void kirimCapiEvent({
+        ...konteks,
         kunci: "initiate_checkout",
+        eventId: `ic_${h.orderId}`,
         email: user.email,
+        externalId: user.id,
         customData: { value: paket.harga, currency: "IDR", content_name: paket.nama, num_items: 1 },
       });
       revalidatePath("/langganan");

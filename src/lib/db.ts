@@ -533,6 +533,11 @@ const MIGRASI: string[] = [
   UPDATE settings SET nilai = jsonb_set(nilai::jsonb, '{metode}', '"otomatis"')::text
    WHERE kunci = 'paket_custom' AND nilai::jsonb ->> 'metode' = 'kartu';
   `,
+  // v25: konteks browser pembeli saat checkout (fbp, fbc, IP, user agent) untuk event Purchase Meta yang baru terkirim
+  //   saat webhook Midtrans tiba; webhook tidak membawa data browser. Dikosongkan begitu pembayaran lunas.
+  `
+  ALTER TABLE transaksi ADD COLUMN meta_konteks jsonb;
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

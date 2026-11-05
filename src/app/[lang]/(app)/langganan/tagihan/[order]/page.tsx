@@ -193,7 +193,8 @@ async function Sukses({ t, userId, l }: { t: Transaksi; userId: number; l: L }) 
       judul={tr("Pembayaran berhasil", "Payment successful")}
       isi={tr(`Terima kasih! Paket ${t.nama_paket} sudah aktif dan bisa langsung dipakai.`, `Thank you! Your ${t.nama_paket} plan is active and ready to use.`)}
     >
-      <LacakPurchaseMeta orderId={t.order_id} jumlah={t.jumlah} namaPaket={t.nama_paket} />
+      {/* Meta hanya menyatukan event browser & server dalam 48 jam: tagihan lama yang dibuka lagi tidak dikirim ulang. */}
+      {t.dibayar !== null && sekarang() - t.dibayar < 86400 && <LacakPurchaseMeta orderId={t.order_id} jumlah={t.jumlah} namaPaket={t.nama_paket} />}
       <Rangkuman t={t} l={l} baris={baris} />
       <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
         <Link href="/dashboard" className="btn btn-primary">

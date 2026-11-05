@@ -7,7 +7,7 @@ import { hermesTerkonfigurasi } from "./hermes";
 import { type InstruksiBayar, type KonfigMidtrans, MidtransError, type StatusBayar, batalkanCharge, buatCharge, petaStatus, statusMidtrans } from "./midtrans";
 import { KODE_CUSTOM } from "./paket-custom-def";
 import { type JenisKomisi, prosesKomisiTransaksi } from "./afiliasi";
-import { kirimCapiEvent } from "./meta-pixel";
+import { type KonteksMeta, kirimCapiEvent } from "./meta-pixel";
 
 /**
  * Paket langganan, masa aktif, transaksi Midtrans, dan kuota.
@@ -508,7 +508,8 @@ export async function mulaiBayar(
   user: { id: number; email: string; nama: string },
   paket: Paket,
   kanal: KanalBayar,
-  asalApp: string
+  asalApp: string,
+  konteksMeta?: KonteksMeta
 ): Promise<{ orderId: string; baru: boolean }> {
   if (!paket.aktif || paket.harga < 1) throw new MidtransError("Paket ini tidak bisa dibeli."); // harga 0 = hanya diberikan admin
   let lama: string[] = [];
@@ -533,8 +534,8 @@ export async function mulaiBayar(
     // Baris ditulis setelah charge berhasil: charge yang ditolak tidak meninggalkan tagihan yatim. Notifikasi "pending"
     // yang tiba sebelum commit diabaikan webhook (order belum ada), dan memang tidak mengubah apa pun.
     await tx`
-      INSERT INTO transaksi(order_id, user_id, paket_id, nama_paket, jumlah, status, kanal, bayar, kedaluwarsa, dibuat)
-      VALUES (${orderId}, ${user.id}, ${paket.id}, ${paket.nama}, ${paket.harga}, 'menunggu', ${kanal}, ${tx.json(c.bayar as Record<string, string | undefined>)}, ${c.kedaluwarsa}, ${kini})`;
+      INSERT INTO transaksi(order_id, user_id, paket_id, nama_paket, jumlah, status, kanal, bayar, kedaluwarsa, dibuat, meta_konteks)
+      VALUES (${orderId}, ${user.id}, ${paket.id}, ${paket.nama}, ${paket.harga}, 'menunggu', ${kanal}, ${tx.json(c.bayar as Record<string, string | undefined>)}, ${c.kedaluwarsa}, ${kini}, ${konteksMeta ? tx.json(konteksMeta as Record<string, string | undefined>) : null})`;
     return { orderId, baru: true };
   });
   if (hasil.baru) {
@@ -589,10 +590,10 @@ export async function statusTagihan(k: KonfigMidtrans | null, userId: number, or
 export async function terapkanStatus(k: KonfigMidtrans, orderId: string): Promise<{ status: StatusBayar; baruAktif: boolean } | null> {
   const s = await statusMidtrans(k, orderId);
   const status = petaStatus(s);
-  let infoCapi: { jumlah: number; namaPaket: string } | null = null;
+  let infoCapi: InfoCapiBeli | null = null;
   const hasil = await transaksiDb(async (tx) => {
-    const [t] = await tx<(Transaksi & { aktif_id: number | null })[]>`
-      SELECT ${tx.unsafe(KOLOM_TRX)}, langganan_id AS aktif_id FROM transaksi WHERE order_id = ${orderId} FOR UPDATE`;
+    const [t] = await tx<(Transaksi & { aktif_id: number | null; meta_konteks: KonteksMeta | null })[]>`
+      SELECT ${tx.unsafe(KOLOM_TRX)}, langganan_id AS aktif_id, meta_konteks FROM transaksi WHERE order_id = ${orderId} FOR UPDATE`;
     if (!t) return null;
     if (Math.round(Number(s.gross_amount)) !== t.jumlah) {
       console.error(`[bayar] nominal tidak cocok order=${orderId}: midtrans ${s.gross_amount}, tagihan ${t.jumlah}`);
@@ -604,22 +605,34 @@ export async function terapkanStatus(k: KonfigMidtrans, orderId: string): Promis
        WHERE id = ${t.id}`;
     if (status !== "lunas" || t.aktif_id) return { status, baruAktif: false };
     const { id } = await aktifkan(tx, { userId: t.user_id, paketId: t.paket_id, sumber: "midtrans" });
-    await tx`UPDATE transaksi SET langganan_id = ${id} WHERE id = ${t.id}`;
+    await tx`UPDATE transaksi SET langganan_id = ${id}, meta_konteks = NULL WHERE id = ${t.id}`;
     await prosesKomisiTransaksi(tx, { transaksiId: t.id, userId: t.user_id, paketId: t.paket_id, namaPaket: t.nama_paket, jumlahBayar: t.jumlah });
     segarkanKuota(t.user_id);
-    infoCapi = { jumlah: t.jumlah, namaPaket: t.nama_paket };
+    const [u] = await tx<{ email: string }[]>`SELECT email FROM users WHERE id = ${t.user_id}`;
+    infoCapi = { jumlah: t.jumlah, namaPaket: t.nama_paket, userId: t.user_id, email: u?.email, konteks: t.meta_konteks };
     return { status, baruAktif: true };
   });
   if (hasil?.baruAktif) void notifPaketAktif(orderId, "midtrans");
   if (hasil?.baruAktif && infoCapi) {
-    const c = infoCapi as { jumlah: number; namaPaket: string };
+    const c = infoCapi as InfoCapiBeli;
     void kirimCapiEvent({
+      ...c.konteks,
       kunci: "purchase",
-      eventId: orderId,
+      eventId: orderId, // sama dengan eventID Pixel di halaman tagihan, supaya Meta menghitungnya sekali
+      email: c.email,
+      externalId: c.userId,
       customData: { value: c.jumlah, currency: "IDR", content_name: c.namaPaket, content_type: "product" },
     });
   }
   return hasil;
+}
+
+interface InfoCapiBeli {
+  jumlah: number;
+  namaPaket: string;
+  userId: number;
+  email?: string;
+  konteks: KonteksMeta | null;
 }
 
 /** Isi paket yang disepakati khusus untuk satu akun (tidak mengubah paket mana pun). */

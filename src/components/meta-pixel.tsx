@@ -20,6 +20,7 @@ declare global {
     };
     _fbq?: unknown;
     __waMetaPixelCfg?: KonfigMetaPixelPublik;
+    __waMetaPixelAntre?: (() => void)[];
   }
 }
 
@@ -54,6 +55,7 @@ function siapkanFbq(pixelId: string) {
 
 /**
  * Pancarkan event Meta Pixel dari browser bila Pixel aktif dan jenis event tersebut diizinkan admin.
+ * Komponen halaman bisa terhidrasi lebih dulu daripada MetaPixelClient di layout: event-nya diantrekan sampai konfigurasi siap.
  */
 export function lacakMetaEvent(
   kunci: KunciEventMeta,
@@ -62,7 +64,11 @@ export function lacakMetaEvent(
 ): boolean {
   if (typeof window === "undefined") return false;
   const cfg = window.__waMetaPixelCfg;
-  if (!cfg || !cfg.aktif || !cfg.pixelId || !cfg.event[kunci]) return false;
+  if (!cfg) {
+    (window.__waMetaPixelAntre ??= []).push(() => lacakMetaEvent(kunci, parameter, eventId));
+    return true;
+  }
+  if (!cfg.aktif || !cfg.pixelId || !cfg.event[kunci]) return false;
 
   siapkanFbq(cfg.pixelId);
   const namaEvent = EVENT_META_PIXEL[kunci].kode;
@@ -87,15 +93,21 @@ export function lacakUjiBrowserPixel(pixelId: string): boolean {
   return true;
 }
 
-function bacaDanHapusCookieReg(): boolean {
-  if (typeof document === "undefined") return false;
-  const ada = document.cookie
-    .split(";")
-    .some((c) => c.trim().startsWith(`${COOKIE_PIXEL_REG}=1`));
-  if (ada) {
+/** Id akun yang baru mendaftar (dari cookie sekali pakai) untuk event_id CompleteRegistration; null bila tidak ada. */
+function bacaDanHapusCookieReg(): string | null {
+  if (typeof document === "undefined") return null;
+  const id = document.cookie.match(new RegExp(`(?:^|; )${COOKIE_PIXEL_REG}=(\\d+)`))?.[1] ?? null;
+  if (id) {
     document.cookie = `${COOKIE_PIXEL_REG}=; Max-Age=0; path=/; SameSite=Lax`;
   }
-  return ada;
+  return id;
+}
+
+/** Datang dari iklan (`fbclid` di URL) tetapi cookie `_fbc` belum ada: bentuk sendiri, supaya event server tetap terhubung ke kliknya. */
+function pastikanCookieFbc() {
+  const fbclid = new URLSearchParams(window.location.search).get("fbclid");
+  if (!fbclid || !/^[\w-]+$/.test(fbclid) || /(?:^|; )_fbc=/.test(document.cookie)) return;
+  document.cookie = `_fbc=fb.1.${Date.now()}.${fbclid}; Max-Age=7776000; path=/; SameSite=Lax`;
 }
 
 export function MetaPixelClient({ konfig }: { konfig: KonfigMetaPixelPublik }) {
@@ -105,8 +117,11 @@ export function MetaPixelClient({ konfig }: { konfig: KonfigMetaPixelPublik }) {
 
   useEffect(() => {
     window.__waMetaPixelCfg = konfig;
+    const antre = window.__waMetaPixelAntre ?? [];
+    window.__waMetaPixelAntre = [];
     if (!konfig.aktif || !konfig.pixelId) return;
 
+    pastikanCookieFbc();
     siapkanFbq(konfig.pixelId);
     if (inisialisasiId.current !== konfig.pixelId) {
       window.fbq?.("init", konfig.pixelId);
@@ -118,9 +133,12 @@ export function MetaPixelClient({ konfig }: { konfig: KonfigMetaPixelPublik }) {
       window.fbq?.("track", "PageView");
     }
 
-    if (bacaDanHapusCookieReg() && konfig.event.complete_registration) {
-      lacakMetaEvent("complete_registration", { status: true });
+    const idDaftar = bacaDanHapusCookieReg();
+    if (idDaftar && konfig.event.complete_registration) {
+      lacakMetaEvent("complete_registration", { status: true }, `reg_${idDaftar}`);
     }
+
+    for (const kirim of antre) kirim();
   }, [konfig, jalur]);
 
   // Delegasi klik otomatis untuk semua tautan WhatsApp (wa.me / api.whatsapp.com) -> event Lead

@@ -53,6 +53,15 @@ export interface KonfigMetaPixelPublik {
   event: Record<KunciEventMeta, boolean>;
 }
 
+/** Data browser pengunjung yang dipakai Meta untuk mencocokkan event server dengan orang yang melihat iklan. */
+export interface KonteksMeta {
+  fbp?: string;
+  fbc?: string;
+  ip?: string;
+  userAgent?: string;
+  urlSumber?: string;
+}
+
 /**
  * Ekstrak ID Meta Pixel (8–25 digit angka) baik dari input angka langsung
  * maupun dari tempelan kode HTML/script lengkap Meta Events Manager.

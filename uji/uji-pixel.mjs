@@ -165,10 +165,17 @@ await cek("kirimCapiEvent mengirim payload standar Graph API v21.0 dengan email 
     assert.deepEqual(evReg.user_data.em, [hashHarapan]);
     assert.equal(evReg.user_data.client_ip_address, "203.0.113.10");
 
-    // 3. Event Purchase dengan event_id (orderId) dan custom_data IDR
+    // 3. Event Purchase dari webhook: event_id (orderId), custom_data IDR, dan data pencocokan lengkap
     const okPur = await kirimCapiEvent({
       kunci: "purchase",
       eventId: "WA-7-1700000000-abc123",
+      email: "budi@uji.test",
+      externalId: 7,
+      fbp: "fb.1.1700000000000.123",
+      fbc: "fb.1.1700000000000.klikiklan",
+      ip: "203.0.113.10",
+      userAgent: "Mozilla/5.0 Uji",
+      urlSumber: "https://uji.test/langganan/bayar/1",
       customData: { value: 249000, currency: "IDR", content_name: "Bisnis", content_type: "product" },
     });
     assert.equal(okPur, true);
@@ -178,6 +185,37 @@ await cek("kirimCapiEvent mengirim payload standar Graph API v21.0 dengan email 
     assert.equal(evPur.event_id, "WA-7-1700000000-abc123");
     assert.equal(evPur.custom_data.value, 249000);
     assert.equal(evPur.custom_data.currency, "IDR");
+    assert.equal(evPur.event_source_url, "https://uji.test/langganan/bayar/1");
+    assert.deepEqual(evPur.user_data, {
+      em: [hashHarapan],
+      external_id: [createHash("sha256").update("7").digest("hex")],
+      fbp: "fb.1.1700000000000.123",
+      fbc: "fb.1.1700000000000.klikiklan",
+      client_ip_address: "203.0.113.10",
+      client_user_agent: "Mozilla/5.0 Uji",
+    });
+
+    // 3b. Tanpa data pelanggan sama sekali: tidak dikirim (Meta pasti menolak, subcode 2804050)
+    const okKosong = await kirimCapiEvent({ kunci: "purchase", eventId: "WA-kosong" });
+    assert.equal(okKosong, false);
+    assert.equal(panggilan.length, 2);
+
+    // 3c. Penolakan Meta dilaporkan false dan tercatat di log, bukan hilang diam-diam
+    const log = [];
+    const warnAsli = console.warn;
+    console.warn = (...a) => log.push(a.join(" "));
+    const fetchTerima = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ error: { error_subcode: 2804050, error_user_title: "Data pelanggan kurang" } }), { status: 400 });
+    try {
+      const okTolak = await kirimCapiEvent({ kunci: "purchase", eventId: "WA-tolak", email: "budi@uji.test" });
+      assert.equal(okTolak, false);
+      assert.match(log.join("\n"), /Meta menolak Purchase id=WA-tolak: HTTP 400 subcode=2804050 Data pelanggan kurang/);
+      assert.doesNotMatch(log.join("\n"), /EAABtestTokenRahasia123/);
+    } finally {
+      globalThis.fetch = fetchTerima;
+      console.warn = warnAsli;
+    }
 
     // 4. Uji tombol Kirim Event Uji
     const hasilUji = await ujiCapiMetaPixel({ ip: "127.0.0.1", email: "admin@uji.test" });

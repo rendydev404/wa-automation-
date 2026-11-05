@@ -260,6 +260,7 @@ globalThis.fetch = async (url, o) => {
     d.status = "cancel";
     return jawab({ status_code: "200", transaction_status: "cancel" });
   }
+  if (u.startsWith("https://graph.facebook.com/")) return jawab({ events_received: 1 });
   return new Response("{}", { status: 404 });
 };
 const charge = () => panggilan.filter((p) => p.url.endsWith("/v2/charge"));
@@ -467,6 +468,36 @@ await cek("nominal dari Midtrans berbeda dengan tagihan = TIDAK diaktifkan; orde
   assert.equal((await L.terapkanStatus(k, o2)).status, "kedaluwarsa");
   dunia.set("WA-999-1-abcdef", { status: "settlement", gross: 5000, payment_type: "qris" }); // dikenal Midtrans, tidak ada di DB kita
   assert.equal(await L.terapkanStatus(k, "WA-999-1-abcdef"), null);
+});
+
+await cek("lunas lewat webhook mengirim Purchase ke Meta sekali, lengkap dengan data pembeli dari checkout", async () => {
+  await setSetting("meta_pixel_aktif", "1");
+  await setSetting("meta_pixel_id", "889900112233445");
+  await setSetting("meta_pixel_capi_token", "EAABuji");
+  const konteks = { fbp: "fb.1.1.123", fbc: "fb.1.1.klik", ip: "203.0.113.10", userAgent: "Mozilla/5.0 Uji", urlSumber: "https://wa.uji/langganan/bayar/1" };
+  const { orderId: o } = await L.mulaiBayar(k, pembeli, starter, "qris", "https://wa.uji", konteks);
+  dunia.get(o).status = "settlement";
+  const keMeta = () => panggilan.filter((p) => p.url.startsWith("https://graph.facebook.com/") && p.body.data[0].event_id === o);
+  await L.terapkanStatus(k, o);
+  await L.terapkanStatus(k, o); // notifikasi ulang tidak mengirim dua kali
+  for (let i = 0; i < 100 && keMeta().length === 0; i++) await new Promise((r) => setTimeout(r, 10));
+  assert.equal(keMeta().length, 1);
+  const ev = keMeta()[0].body.data[0];
+  assert.equal(ev.event_name, "Purchase");
+  assert.equal(ev.custom_data.value, starter.harga);
+  assert.equal(ev.custom_data.currency, "IDR");
+  assert.equal(ev.event_source_url, konteks.urlSumber);
+  const hash = (s) => createHash("sha256").update(s).digest("hex");
+  assert.deepEqual(ev.user_data, {
+    em: [hash(pembeli.email)],
+    external_id: [hash(String(budi.id))],
+    fbp: konteks.fbp,
+    fbc: konteks.fbc,
+    client_ip_address: konteks.ip,
+    client_user_agent: konteks.userAgent,
+  });
+  assert.equal((await sql`SELECT meta_konteks FROM transaksi WHERE order_id = ${o}`)[0].meta_konteks, null); // tidak disimpan setelah lunas
+  await setSetting("meta_pixel_aktif", "0");
 });
 
 await cek("riwayat transaksi per pengguna & semua (admin), terbaru dulu", async () => {

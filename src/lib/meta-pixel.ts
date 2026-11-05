@@ -5,6 +5,7 @@ import {
   EVENT_META_PIXEL,
   KUNCI_EVENT_META,
   type KonfigMetaPixelPublik,
+  type KonteksMeta,
   type KunciEventMeta,
   type PengaturanMetaPixel,
   ekstrakPixelId,
@@ -84,19 +85,18 @@ function sha256(teks: string): string {
   return createHash("sha256").update(teks.trim().toLowerCase()).digest("hex");
 }
 
-export interface DataCapiEvent {
+export interface DataCapiEvent extends KonteksMeta {
   kunci: KunciEventMeta;
   eventId?: string;
   email?: string;
-  ip?: string;
-  userAgent?: string;
-  urlSumber?: string;
+  externalId?: string | number;
   customData?: Record<string, unknown>;
 }
 
 /**
  * Kirim event Server-Side ke Meta Conversions API (bila Pixel aktif, event diizinkan, dan CAPI Access Token terisi).
- * Selalu gagal-aman (tidak pernah melempar error ke alur utama pengguna).
+ * Selalu gagal-aman (tidak pernah melempar error ke alur utama pengguna), tetapi penolakan Meta dicatat di log.
+ * Meta menolak event tanpa data pelanggan yang memadai (subcode 2804050), jadi event tanpa data itu tidak dikirim.
  */
 export async function kirimCapiEvent(data: DataCapiEvent): Promise<boolean> {
   try {
@@ -106,8 +106,15 @@ export async function kirimCapiEvent(data: DataCapiEvent): Promise<boolean> {
     const namaEvent = EVENT_META_PIXEL[data.kunci].kode;
     const userData: Record<string, unknown> = {};
     if (data.email) userData.em = [sha256(data.email)];
+    if (data.externalId !== undefined) userData.external_id = [sha256(String(data.externalId))];
+    if (data.fbp) userData.fbp = data.fbp;
+    if (data.fbc) userData.fbc = data.fbc;
     if (data.ip) userData.client_ip_address = data.ip;
     if (data.userAgent) userData.client_user_agent = data.userAgent;
+    if (Object.keys(userData).length === 0) {
+      console.warn(`[pixel] ${namaEvent} tidak dikirim: tidak ada data pelanggan id=${data.eventId ?? "-"}`);
+      return false;
+    }
 
     const payload: Record<string, unknown> = {
       data: [
@@ -117,7 +124,7 @@ export async function kirimCapiEvent(data: DataCapiEvent): Promise<boolean> {
           action_source: "website",
           ...(data.eventId ? { event_id: data.eventId } : {}),
           ...(data.urlSumber ? { event_source_url: data.urlSumber } : {}),
-          user_data: Object.keys(userData).length > 0 ? userData : { client_user_agent: "Server" },
+          user_data: userData,
           ...(data.customData ? { custom_data: data.customData } : {}),
         },
       ],
@@ -131,8 +138,16 @@ export async function kirimCapiEvent(data: DataCapiEvent): Promise<boolean> {
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(6000),
     });
-    return res.ok;
-  } catch {
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: { error_subcode?: number; message?: string; error_user_title?: string } };
+      const alasan = body.error?.error_user_title || body.error?.message || "tanpa keterangan";
+      console.warn(`[pixel] Meta menolak ${namaEvent} id=${data.eventId ?? "-"}: HTTP ${res.status} subcode=${body.error?.error_subcode ?? "-"} ${alasan}`);
+      return false;
+    }
+    console.log(`[pixel] ${namaEvent} diterima Meta id=${data.eventId ?? "-"}`);
+    return true;
+  } catch (e) {
+    console.warn(`[pixel] ${data.kunci} gagal dikirim id=${data.eventId ?? "-"}: ${e instanceof Error ? e.message : e}`);
     return false;
   }
 }
