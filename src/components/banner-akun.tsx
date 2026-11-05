@@ -1,58 +1,58 @@
 import Link from "@/components/link";
-import { AlertTriangle, BookOpen } from "lucide-react";
-import { aturan, saklar } from "@/lib/aturan";
+import { AlertTriangle } from "lucide-react";
+import { aturan } from "@/lib/aturan";
 import { db, sekarang } from "@/lib/db";
 import { teksHalaman } from "@/lib/bahasa-halaman";
 import { angka, tanggal } from "@/lib/format";
-import { hakAkun, langgananAktif, sisaKuotaAi } from "@/lib/langganan";
+import { hakAkun, sisaKuotaAi } from "@/lib/langganan";
 import { requireUser } from "@/lib/session";
 
-/** Nomor milik pengguna yang belum punya base knowledge sama sekali (satu query, lewat documents_number_idx). */
+/** Nomor milik pengguna yang belum punya base knowledge berisi (satu query, lewat documents_number_idx). */
 async function nomorTanpaKnowledge(userId: number): Promise<{ id: number; label: string }[]> {
   const sql = await db();
   return sql<{ id: number; label: string }[]>`
     SELECT n.id, n.label FROM numbers n
-     WHERE n.user_id = ${userId} AND NOT EXISTS (SELECT 1 FROM documents d WHERE d.number_id = n.id)
+     WHERE n.user_id = ${userId} AND NOT EXISTS (
+       SELECT 1 FROM documents d WHERE d.number_id = n.id AND d.jumlah_karakter > 0
+     )
      ORDER BY n.id`;
 }
 
 /**
- * Banner di paling atas semua halaman workspace: pelanggan berbayar yang nomornya belum punya base knowledge.
+ * Peringatan wajib di paling atas semua halaman workspace selama ada nomor tanpa base knowledge berisi.
  * Dibaca di dalam Suspense: rangka tetap statis.
  */
 export async function BannerAkun() {
   const user = await requireUser();
   if (user.peran === "admin") return null;
-  const [ingatkan, langganan] = await Promise.all([saklar("banner_knowledge"), langgananAktif(user.id)]);
-  const kosong = ingatkan && langganan ? await nomorTanpaKnowledge(user.id) : [];
+  const kosong = await nomorTanpaKnowledge(user.id);
   if (!kosong.length) return null;
   const { t } = await teksHalaman();
 
   return (
-    <div role="alert" className="mb-6 flex flex-col gap-3 rounded-2xl border border-warning/40 bg-warning-soft px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex gap-3">
-        <BookOpen className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden />
+    <div role="alert" className="mb-6 flex flex-col gap-4 rounded-2xl border-2 border-danger/50 bg-danger-soft px-5 py-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div className="flex gap-3.5">
+        <AlertTriangle className="mt-0.5 size-6 shrink-0 text-danger" aria-hidden />
         <div className="text-[13px]">
-          <p className="font-bold text-fg">
+          <h2 className="text-lg font-extrabold text-danger sm:text-xl">
+            {t("Peringatan: AI belum siap membalas pelanggan", "Warning: AI is not ready to reply to customers")}
+          </h2>
+          <p className="mt-1 text-base font-semibold text-fg">
             {kosong.length === 1
-              ? t(`Segera isi base knowledge nomor ${kosong[0].label}`, `Add product knowledge for number ${kosong[0].label} now`)
-              : t(`Segera isi base knowledge ${kosong.length} nomor Anda`, `Add product knowledge for your ${kosong.length} numbers now`)}
+              ? t(`Nomor ${kosong[0].label} belum memiliki base knowledge.`, `Number ${kosong[0].label} does not have product knowledge yet.`)
+              : t(`${kosong.length} nomor WhatsApp Anda belum memiliki base knowledge.`, `${kosong.length} of your WhatsApp numbers do not have product knowledge yet.`)}
           </p>
-          <p className="text-muted">
+          <p className="mt-1 text-sm text-muted">
             {t(
-              `Paket ${langganan?.nama_paket} Anda sudah aktif, tapi AI belum tahu apa pun tentang usaha Anda, jadi ia hanya bisa bilang belum punya informasi. Pakai templat: tinggal ganti nama produk, harga, jam, dan alamat (±5 menit).`,
-              `Your ${langganan?.nama_paket} plan is active, but the AI doesn't know anything about your business yet, so all it can say is that it has no information. Use a template: just swap in your product names, prices, hours, and address (about 5 minutes).`,
+              "Isi base knowledge agar AI tahu informasi usaha yang benar. Sampai diisi, pesan pelanggan tetap tercatat tetapi AI tidak membalas.",
+              "Add product knowledge so the AI knows the correct facts about your business. Until then, customer messages are recorded but the AI will not reply.",
             )}
           </p>
         </div>
       </div>
-      <div className="flex shrink-0 flex-wrap gap-2">
-        {kosong.slice(0, 3).map((n) => (
-          <Link key={n.id} href={`/nomor/${n.id}#knowledge`} className="btn btn-primary max-w-full min-w-0">
-            <span className="truncate">{kosong.length > 1 ? t(`Isi ${n.label}`, `Fill in ${n.label}`) : t("Isi sekarang", "Fill in now")}</span>
-          </Link>
-        ))}
-      </div>
+      <Link href={`/nomor/${kosong[0].id}#knowledge`} className="btn btn-primary w-full shrink-0 sm:w-auto">
+        {t("Isi base knowledge sekarang", "Add product knowledge now")}
+      </Link>
     </div>
   );
 }

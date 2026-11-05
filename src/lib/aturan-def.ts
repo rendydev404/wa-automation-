@@ -22,13 +22,7 @@ export const ATURAN_ANGKA = {
   },
 } as const satisfies Record<string, { label: string; satuan: string; bawaan: number; min: number; max: number; bantu: string }>;
 
-export const ATURAN_SAKLAR = {
-  banner_knowledge: {
-    label: "Ingatkan pelanggan berbayar yang belum mengisi base knowledge",
-    bawaan: true,
-    bantu: "Banner di paling atas semua halaman workspace sampai setiap nomornya punya base knowledge.",
-  },
-} as const satisfies Record<string, { label: string; bawaan: boolean; bantu: string }>;
+export const ATURAN_SAKLAR = {} as const satisfies Record<string, { label: string; bawaan: boolean; bantu: string }>;
 
 export const MAKS_ATURAN_GLOBAL = 4000;
 

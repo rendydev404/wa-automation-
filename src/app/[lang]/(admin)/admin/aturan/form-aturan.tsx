@@ -15,7 +15,7 @@ const CONTOH_GLOBAL = [
 /** Kelompok tampilan; urutan sama dengan formulir. */
 const KELOMPOK: { judul: string; ket: string; angka: KunciAngka[]; saklar: KunciSaklar[] }[] = [
   { judul: "Biaya & panjang balasan", ket: "Pagar biaya per balasan di Claude API.", angka: ["maks_token_balasan"], saklar: [] },
-  { judul: "Pengingat di workspace pengguna", ket: "Banner di paling atas semua halaman pengguna.", angka: ["peringatan_kuota_persen"], saklar: ["banner_knowledge"] },
+  { judul: "Peringatan di workspace pengguna", ket: "Peringatan base knowledge selalu tampil selama ada nomor yang belum diisi; ambang peringatan kuota tetap bisa diatur.", angka: ["peringatan_kuota_persen"], saklar: [] },
 ];
 
 /** Angka yang hanya berlaku bila saklarnya aktif: diredupkan (tetap terkirim) saat saklar mati. */
