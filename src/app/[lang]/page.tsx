@@ -8,6 +8,7 @@ import Link from "@/components/link";
 import { Logo } from "@/components/logo";
 import { alasanSyarat, judulSyarat, syaratNomor } from "@/components/syarat-nomor";
 import { Kalkulator } from "@/components/landing/kalkulator";
+import { PendaftarLoop } from "@/components/landing/pendaftar-loop";
 import { WidgetWaLanding } from "@/components/landing/widget-wa";
 import { type T, bahasaSah, pembuatT } from "@/lib/bahasa";
 import { teksHalaman } from "@/lib/bahasa-halaman";
@@ -240,6 +241,7 @@ export default async function Landing() {
             </ul>
           </div>
           <DemoChat />
+          <PendaftarLoop />
         </section>
       </div>
 
