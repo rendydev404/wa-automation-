@@ -222,18 +222,24 @@ interface CacheKuota {
   batas: number | null;
   terpakai: number;
 }
-const gk = globalThis as unknown as { __waKuota?: Map<number, CacheKuota> };
+const gk = globalThis as unknown as { __waKuota?: Map<number, CacheKuota>; __waKuotaGen?: { n: number } };
 const cacheKuota = (gk.__waKuota ??= new Map());
+/**
+ * Naik setiap segarkanKuota(). Hitungan yang dimulai sebelum penyegaran tidak boleh mengisi cache: tanpa ini, pesan
+ * yang sedang diproses saat admin memberi paket bisa menyimpan "kuota habis" yang lama, dan AI diam sampai 60 dtk.
+ */
+const genKuota = (gk.__waKuotaGen ??= { n: 0 });
 
 export async function sisaKuotaAi(userId: number): Promise<number | null> {
   let c = cacheKuota.get(userId);
   if (!c || Date.now() - c.at > 60_000) {
+    const gen = genKuota.n;
     const sql = await db();
     const [u] = await sql<{ peran: string }[]>`SELECT peran FROM users WHERE id = ${userId}`;
     const hak = await hakAkun({ id: userId, peran: u?.peran ?? "user" });
     // Masa free trial lewat = kuota dianggap habis (paling lambat 60 dtk setelah lewat, sesuai umur cache).
     c = { at: Date.now(), batas: hak.percobaanBerakhir ? 0 : hak.balasan, terpakai: hak.balasan === null || hak.percobaanBerakhir ? 0 : await balasanTerpakai(userId, hak.periodeMulai) };
-    cacheKuota.set(userId, c);
+    if (gen === genKuota.n) cacheKuota.set(userId, c);
   }
   return c.batas === null ? null : Math.max(0, c.batas - c.terpakai);
 }
@@ -245,6 +251,7 @@ export function catatBalasanLokal(userId: number): void {
 
 /** Setelah pembayaran / perubahan langganan: hitung ulang di pesan berikutnya. */
 export function segarkanKuota(userId?: number): void {
+  genKuota.n += 1;
   // Izin katalog (katalog.ts) bergantung pada langganan juga; dipegang di peta global yang sama namanya.
   const katalog = (globalThis as unknown as { __waKatalogBoleh?: Map<number, unknown> }).__waKatalogBoleh;
   if (userId === undefined) {

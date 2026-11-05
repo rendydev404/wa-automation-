@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { db, getSetting, sekarang, setSetting, transaksi } from "./db";
 import { potong, rapikanTeks } from "./knowledge";
+import { skala } from "./skala-waktu";
 
 /**
  * Sinkron otomatis menu, harga, promo, dan outlet Suka Shawarma dari database kasir (Supabase) ke
@@ -104,7 +105,7 @@ export function minta(): void {
   st.jeda = setTimeout(() => {
     st.jeda = null;
     void jalankan();
-  }, JEDA_MS);
+  }, skala(JEDA_MS));
   st.jeda.unref?.();
 }
 

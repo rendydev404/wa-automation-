@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   poweredByHeader: false,
+  // CI mengecek tipe di job terpisah yang berjalan paralel (deploy.yml, job `periksa`); build lokal tetap mengecek.
+  typescript: { ignoreBuildErrors: process.env.LEWATI_CEK_TIPE === "1" },
   // Build mandiri untuk Docker (image kecil).
   output: "standalone",
   outputFileTracingRoot: path.resolve(process.cwd()),

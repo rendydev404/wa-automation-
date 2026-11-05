@@ -20,10 +20,15 @@ mkdirSync(tmp, { recursive: true });
 const pg = await mulaiPg({ dir: path.join(tmp, "pg"), sementara: true });
 process.env.DATABASE_URL = pg.url;
 process.env.DATA_DIR = path.join(tmp, "data-kosong");
-process.env.AI_JEDA_ULANG_MS = "300,600";
+// Pengali waktu (src/lib/skala-waktu.ts): timer jembatan WhatsApp DAN jeda di uji ini diperpendek dengan faktor yang
+// sama, jadi urutan kejadian tetap persis sama. WA_SKALA_WAKTU=1 menjalankan uji dengan waktu sungguhan.
+process.env.WA_SKALA_WAKTU ??= "0.2";
+const SKALA = Number(process.env.WA_SKALA_WAKTU) > 0 && Number(process.env.WA_SKALA_WAKTU) < 1 ? Number(process.env.WA_SKALA_WAKTU) : 1;
+const w = (ms) => Math.max(1, Math.round(ms * SKALA));
+process.env.AI_JEDA_ULANG_MS = `${w(300)},${w(600)}`;
 process.env.ML_PELUANG_AUDIT = "0"; // audit acak penyaring prospek dimatikan supaya uji pasti
 const lib = (f) => import(pathToFileURL(path.join(akar, f)).href);
-const tidur = (ms) => new Promise((r) => setTimeout(r, ms));
+const tidur = (ms) => new Promise((r) => setTimeout(r, w(ms)));
 const kini = () => Math.floor(Date.now() / 1000);
 async function tunggu(fn, ms = 4000, apa = "") {
   const t = Date.now();
@@ -180,10 +185,11 @@ globalThis.__waGerbang.lib = Promise.resolve({
 let lolos = 0;
 const gagalList = [];
 async function cek(nama, fn) {
+  const t0 = performance.now();
   try {
     await fn();
     lolos += 1;
-    console.log(`  ok    ${nama}`);
+    console.log(`  ok    ${nama} (${((performance.now() - t0) / 1000).toFixed(1)} dtk)`);
   } catch (e) {
     gagalList.push(nama);
     console.log(`  GAGAL ${nama}\n        ${String(e?.message ?? e).split("\n").slice(0, 6).join("\n        ")}`);
@@ -371,8 +377,8 @@ await cek("pesan masuk: menunggu manusia dulu (tanpa tanda-baca/mengetik), lalu 
   await tunggu(() => sA.terkirim.length === 1, 7000, "balasan terkirim");
   const h = hermes.panggilan[0];
   // tunggu_detik 1 dtk dipakai sebagai batas bawah, ditambah acak sampai 40%.
-  assert.ok(h.at - t0 >= 950, `AI dipanggil setelah tunggu_detik (${h.at - t0} ms)`);
-  assert.ok(h.at - t0 < 1400 * 1.4, `tanpa jeda tambahan dari database (${h.at - t0} ms)`);
+  assert.ok(h.at - t0 >= w(950), `AI dipanggil setelah tunggu_detik (${h.at - t0} ms)`);
+  assert.ok(h.at - t0 < w(1400 * 1.4) + 250, `tanpa jeda tambahan dari database (${h.at - t0} ms)`);
   assert.equal(h.pesan, "Halo, buka jam berapa?");
   assert.equal(h.sesi, `wa-${kunciChat(A.sesi, P1).slice(0, 24)}-1`);
   assert.match(h.sistem, /KODEUNIK-A/);
@@ -381,7 +387,7 @@ await cek("pesan masuk: menunggu manusia dulu (tanpa tanda-baca/mengetik), lalu 
   assert.equal(k.isi.text, "*Jawaban* untuk: Halo, buka jam berapa?"); // markdown -> format WhatsApp
   assert.equal(k.isi.linkPreview, null);
   // Lama mengetik ikut panjang jawaban (39 huruf: 1.500 + 39 x 25 ms = 2.475 ms, diacak ±20%), dihitung setelah dibaca.
-  assert.ok(k.at - h.at >= 2475 * 0.8 - 50, `ada jeda mengetik sebelum balasan (${k.at - h.at} ms setelah AI dipanggil)`);
+  assert.ok(k.at - h.at >= w(2475 * 0.8) - 50, `ada jeda mengetik sebelum balasan (${k.at - h.at} ms setelah AI dipanggil)`);
   assert.deepEqual(sA.dibaca, [[{ remoteJid: P1, id, fromMe: false }]]);
   // Urutan seperti manusia: baca, mengetik, berhenti, baru kirim.
   assert.deepEqual(sA.urutan, ["baca", "ketik", "berhenti", "kirim"]);
@@ -424,7 +430,7 @@ await cek("pesan beruntun digabung jadi satu giliran AI; semuanya ditandai dibac
 
 // Setelah lama mengetik & tunggu_detik (1.000 ms + acak) terbukti di atas, percepat untuk Bagian C.
 globalThis.__waBridge.minMengetikMs = 20;
-globalThis.__waBridge.tungguMs = 300;
+globalThis.__waBridge.tungguMs = w(300);
 
 await cek("jenis pesan: teks panjang, pesan sementara, gambar dengan/ tanpa keterangan, lokasi", async () => {
   const n0 = hermes.panggilan.length;
@@ -713,7 +719,7 @@ await cek("chat dibuka di HP selagi menunggu: AI menahan diri selama tunggu_baca
   await tunggu(() => hermes.panggilan.length === n0 + 1, 3000);
   const selang = hermes.panggilan.at(-1).at - t0;
   // tunggu_baca_detik 3 dtk = batas bawah, ditambah acak sampai 40% (3–4,2 dtk setelah dibuka).
-  assert.ok(selang >= 3200 && selang < 4200 + 1300, `diambil alih 3–4,2 dtk setelah dibuka (${selang} ms)`);
+  assert.ok(selang >= w(3200) && selang < w(4200 + 1300) + 150, `diambil alih 3–4,2 dtk setelah dibuka (${selang} ms)`);
   await tunggu(() => sA.terkirim.at(-1)?.jid === P3, 4000);
 });
 
@@ -731,7 +737,7 @@ await cek("chat dibuka saat AI sedang menyusun: jawaban ditahan, dikirim tanpa m
   assert.equal(sA.terkirim.length, k0);
   await tunggu(() => sA.terkirim.length === k0 + 1, 3000);
   const selang = sA.terkirim.at(-1).at - tBuka;
-  assert.ok(selang >= 2900, `dikirim setelah masa tunggu baca (${selang} ms)`);
+  assert.ok(selang >= w(2900), `dikirim setelah masa tunggu baca (${selang} ms)`);
   assert.equal(sA.terkirim.at(-1).isi.text, "*Jawaban* untuk: stok masih ada?");
   assert.equal(hermes.panggilan.length, n0 + 1);
   hermes.jedaMs = 40;
@@ -762,7 +768,7 @@ await cek("tanda terkirim / tanda-baca dari PELANGGAN atas pesan bot tidak diang
   dibaca(sA, P, { status: 3 }); // baru terkirim ke perangkat, belum dibaca
   dibaca(sA, P, { dariSaya: true, status: 4 }); // pelanggan membaca pesan kita
   await tunggu(() => hermes.panggilan.length === n0 + 1, 3000);
-  assert.ok(hermes.panggilan.at(-1).at - t0 < 1800, "tetap dijawab setelah tunggu_detik biasa");
+  assert.ok(hermes.panggilan.at(-1).at - t0 < w(1800) + 150, "tetap dijawab setelah tunggu_detik biasa");
   await tunggu(() => sA.terkirim.at(-1)?.jid === P, 4000);
 });
 
@@ -777,7 +783,7 @@ await cek("PN dan LID lawan bicara yang sama = satu percakapan; balasan ke alama
   await tidur(1900);
   assert.equal(hermes.panggilan.length, n0, "tanda-baca LID mengenai percakapan yang masuk lewat PN");
   await tunggu(() => hermes.panggilan.length === n0 + 1, 3000);
-  assert.ok(hermes.panggilan.at(-1).at - t0 >= 3200);
+  assert.ok(hermes.panggilan.at(-1).at - t0 >= w(3200));
   assert.equal(hermes.panggilan.at(-1).sesi, `wa-${kunciChat(A.sesi, LID).slice(0, 24)}-1`);
   await tunggu(() => sA.terkirim.at(-1)?.jid === PN, 4000);
   // sebaliknya: tanda-baca berbentuk PN tanpa LID, pemetaannya dikenal penyimpanan Baileys
@@ -816,7 +822,7 @@ await cek("histori percakapan mencatat pesan pelanggan, balasan AI, dan balasan 
 
 // =====================================================================================
 bagian("D2. Belajar dari balasan manusia");
-globalThis.__waBridge.tungguMs = 450;
+globalThis.__waBridge.tungguMs = w(450);
 const pl = await lib("src/lib/pelajaran.ts");
 const { setBelajar } = await lib("src/lib/numbers.ts");
 // Event diproses asinkron: beri waktu sampai tulisnya masuk antrean, baru tunggu antrean itu tuntas.
@@ -1470,8 +1476,8 @@ await cek("putus berulang: jeda sambung ulang makin panjang (1 dtk, 2 dtk, ...)"
   s.tutup(503);
   s = await tunggu(() => soket[awal], 5000);
   const j2 = Date.now() - t;
-  assert.ok(j1 >= 950 && j1 < 2300, `percobaan 1: ${j1} ms`);
-  assert.ok(j2 >= 1950 && j2 < 3400, `percobaan 2: ${j2} ms`);
+  assert.ok(j1 >= w(950) && j1 < w(2300) + 150, `percobaan 1: ${j1} ms`);
+  assert.ok(j2 >= w(1950) && j2 < w(3400) + 150, `percobaan 2: ${j2} ms`);
   s.pancar("connection.update", { connection: "open" });
   sA = s;
 });
@@ -1756,7 +1762,7 @@ await cek("server mulai ulang: hanya nomor terpasang yang disambungkan, bergilir
   assert.ok(cepat >= 1 && cepat <= 3, `setelah 1 dtk baru ${cepat} soket (bergiliran, bukan serentak)`);
   await tunggu(() => soket.length - awal === 12, 12000, "12 soket");
   const lama = Date.now() - t0;
-  assert.ok(lama > 7000 && lama < 10500, `12 nomor tersambung dalam ${lama} ms`);
+  assert.ok(lama > w(7000) && lama < w(10500) + 400, `12 nomor tersambung dalam ${lama} ms`);
   await tidur(900);
   assert.equal(soket.length - awal, 12, "nomor yang belum dipasangkan tidak dibuatkan soket");
   const baru = soket.slice(awal);
@@ -1829,7 +1835,7 @@ await cek("nomor tertaut gagal dibuat koneksinya berkali-kali: tetap dijadwalkan
 
 await cek("database sempat tidak terjangkau saat server mulai: gerbang mencoba lagi sendiri", async () => {
   const st = globalThis.__waGerbang;
-  st.jedaDbMs = 250;
+  st.jedaDbMs = w(250);
   st.jedaMulaiMs = 30;
   for (const s of st.sesi.values()) if (s.timer) clearTimeout(s.timer);
   st.sesi.clear();

@@ -1,33 +1,36 @@
 // Menjalankan seluruh berkas uji secara paralel dengan klaster template PostgreSQL yang disiapkan sekali,
 // sehingga tidak perlu menjalankan `initdb` berulang-ulang di setiap berkas uji.
+//
+// Tiga jalur berjalan bersamaan. CI menjalankan tiap jalur di mesin sendiri (matrix di deploy.yml):
+//   node uji/jalankan-semua.mjs --jalur=alur        (atau --jalur=tolok,fitur; tanpa --jalur = semua)
 import { spawn } from "node:child_process";
 import { rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { mulaiPg } from "./pg-lokal.mjs";
 
-// Jalur 1: berkas uji yang sebagian besar waktunya menunggu timer (hampir 0% pemakaian CPU).
-const JALUR_TIMER = [
-  "uji/uji-alur.mjs",
-  "uji/uji-sinkron.mjs",
-];
+const JALUR = {
+  // Alur WhatsApp <-> AI: sebagian besar menunggu timer jembatan (dipercepat lewat WA_SKALA_WAKTU di berkasnya).
+  alur: { berkas: ["uji/uji-alur.mjs"], sekaligus: 1 },
+  // Tolok ukur latensi ketat (< 20 ms di uji-data, < 15 ms di uji-pengguna): berurutan, tidak berebut CPU sesamanya.
+  tolok: { berkas: ["uji/uji-data.mjs", "uji/uji-pengguna.mjs"], sekaligus: 1 },
+  // Kebenaran fitur tanpa tolok ukur waktu: boleh berjalan bersamaan.
+  fitur: {
+    berkas: ["uji/uji-auth.mjs", "uji/uji-langganan.mjs", "uji/uji-sinkron.mjs", "uji/uji-ai.mjs", "uji/uji-afiliasi.mjs", "uji/uji-pixel.mjs", "uji/uji-log.mjs"],
+    sekaligus: 3,
+  },
+};
 
-// Jalur 2: berkas uji DB & CPU (termasuk tolok ukur latensi ketat < 20 ms di uji-data & < 15 ms di uji-pengguna).
-// Dijalankan berurutan di jalur ini agar tidak saling berebut CPU/IO dengan sesama instans PostgreSQL.
-const JALUR_DB = [
-  "uji/uji-data.mjs",
-  "uji/uji-pengguna.mjs",
-  "uji/uji-auth.mjs",
-  "uji/uji-langganan.mjs",
-  "uji/uji-ai.mjs",
-  "uji/uji-afiliasi.mjs",
-  "uji/uji-pixel.mjs",
-  "uji/uji-log.mjs",
-];
-const TOTAL_BERKAS = JALUR_TIMER.length + JALUR_DB.length;
+const pilihan = (process.argv.find((a) => a.startsWith("--jalur="))?.slice(8) ?? process.env.UJI_JALUR ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+for (const p of pilihan) if (!JALUR[p]) throw new Error(`jalur tidak dikenal: ${p} (pilihan: ${Object.keys(JALUR).join(", ")})`);
+const dipakai = pilihan.length ? pilihan : Object.keys(JALUR);
+const TOTAL_BERKAS = dipakai.reduce((n, j) => n + JALUR[j].berkas.length, 0);
 
 const t0 = performance.now();
-const tplDir = path.join(os.tmpdir(), "wa-pg-template");
+const tplDir = path.join(os.tmpdir(), `wa-pg-template-${dipakai.join("-")}`);
 
 // 1. Siapkan template PostgreSQL sekali saja (initdb + role wa + database wa), lalu hentikan bersih.
 const tpl = await mulaiPg({ dir: tplDir, sementara: true });
@@ -56,15 +59,17 @@ function jalankanSatu(berkas) {
   });
 }
 
-async function jalankanJalur(daftar) {
-  for (const berkas of daftar) {
-    if (gagal) break;
-    await jalankanSatu(berkas);
-  }
+/** Satu jalur: berkasnya diambil bergiliran oleh `sekaligus` pekerja. Ada yang gagal = berkas berikutnya tidak dimulai. */
+async function jalankanJalur({ berkas, sekaligus }) {
+  const antre = [...berkas];
+  const pekerja = async () => {
+    for (let b = antre.shift(); b && !gagal; b = antre.shift()) await jalankanSatu(b);
+  };
+  await Promise.all(Array.from({ length: Math.min(sekaligus, antre.length) }, pekerja));
 }
 
 try {
-  await Promise.all([jalankanJalur(JALUR_TIMER), jalankanJalur(JALUR_DB)]);
+  await Promise.all(dipakai.map((j) => jalankanJalur(JALUR[j])));
 } finally {
   rmSync(tplDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 }
@@ -74,4 +79,4 @@ if (gagal) {
   console.error(`\nUJI GAGAL setelah ${totalDtk} dtk`);
   process.exit(1);
 }
-console.log(`\nSEMUA ${TOTAL_BERKAS} BERKAS UJI LOLOS dalam ${totalDtk} dtk`);
+console.log(`\nSEMUA ${TOTAL_BERKAS} BERKAS UJI LOLOS (jalur ${dipakai.join(", ")}) dalam ${totalDtk} dtk`);

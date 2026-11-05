@@ -10,6 +10,7 @@ import { catatPesan, chatDipercaya, riwayatUntukAi, tandaiProspek, tandaiSpam } 
 import { alasanSpam, periksaSpam } from "./spam";
 import { type Penilaian, PELUANG_AUDIT, catatAudit, catatPengalaman, hitung, layakDicek, nilaiPesan, setelanMl, yakinLewati } from "./prospek";
 import { BATAS_STRIKE, BISU_BOT_DTK, BOT_BERUNTUN, BOT_CEPAT_MS, STATUS, type StatusChat, ULANG_BERUNTUN, adaKataMinat, berulang, gema, penutupSaja } from "./prospek-def";
+import { skala } from "./skala-waktu";
 import { pelajariBalasan } from "./pelajaran";
 import { CATATAN_KODE_DIBLOKIR, TOLAK_KODE, adaKode } from "./penjaga";
 import { sttTerkonfigurasi, transkripsi } from "./stt";
@@ -60,9 +61,9 @@ const MENGETIK_DASAR_MS = 1_500;
 const MENGETIK_PER_HURUF_MS = 25;
 const MENGETIK_MAKS_MS = 8_000;
 const lamaMengetik = (teks: string): number =>
-  Math.round(Math.min(MENGETIK_MAKS_MS, MENGETIK_DASAR_MS + teks.length * MENGETIK_PER_HURUF_MS) * (0.8 + Math.random() * 0.4));
+  skala(Math.round(Math.min(MENGETIK_MAKS_MS, MENGETIK_DASAR_MS + teks.length * MENGETIK_PER_HURUF_MS) * (0.8 + Math.random() * 0.4)));
 /** Waktu tunggu pengaturan nomor dipakai sebagai batas bawah, ditambah acak sampai 40% supaya tidak pernah tetap. */
-const acakTunggu = (ms: number): number => Math.round(ms * (1 + Math.random() * 0.4));
+const acakTunggu = (ms: number): number => skala(Math.round(ms * (1 + Math.random() * 0.4)));
 const UMUR_PESAN_MAKS_DTK = 120; // pesan lama (mis. menumpuk saat offline) tidak dijawab
 const MAKS_PESAN_KARAKTER = 2_000;
 const MAKS_CATATAN = 6;
@@ -264,12 +265,12 @@ async function kirimKatalog(a: Antrean, kunci: string, tag: KirimProduk, jawaban
     const terkirim: string[] = [];
     const daftar = b.daftarTeks && perluDaftar(jawaban, b.daftar) ? teksKatalog(b.daftar) : "";
     if (daftar) {
-      await tidur(700);
+      await tidur(skala(700));
       await kirimTeks(a.sesi, a.alamat, daftar, (id) => ingat(st.terkirim, id, 500));
       terkirim.push(daftar);
     }
     for (const p of b.foto) {
-      await tidur(900);
+      await tidur(skala(900));
       await kirimGambar(a.sesi, a.alamat, p.data, p.mime, captionProduk(p), (id) => ingat(st.terkirim, id, 500));
       terkirim.push(`[Foto produk] ${captionProduk(p).replace(/\n/g, " · ")}`);
     }
@@ -487,7 +488,7 @@ async function proses(kunci: string): Promise<void> {
     // Seperti manusia: baca dulu, mengetik selama yang wajar untuk jawabannya, berhenti, baru kirim. Baru sekarang
     // pesan ditandai dibaca: sebelum titik ini, tanda-baca di chat hanya bisa berasal dari manusia.
     const lama = st.minMengetikMs ?? lamaMengetik(jawaban);
-    a.botBacaSampai = Date.now() + 6_000 + lama;
+    a.botBacaSampai = Date.now() + skala(6_000) + lama;
     await tandaiDibaca(a.sesi, a.alamat, a.belumDibaca.splice(0));
     void mengetik(a.sesi, a.alamat, true);
     await tidur(lama);
@@ -515,7 +516,7 @@ async function proses(kunci: string): Promise<void> {
     a.jedaUlangMs = 0;
     // Chat sedang dijeda: paling cepat setelah jedanya habis, lalu manusia masih diberi `tunggu` seperti biasa.
     if (a.teks.length || a.siap)
-      jadwalkan(kunci, a, ulang || sisaJedaMs(a) + (a.dibukaManusia ? Math.max(1_000, a.dibacaPada + a.tungguBacaMs - Date.now()) : a.tungguMs));
+      jadwalkan(kunci, a, ulang || sisaJedaMs(a) + (a.dibukaManusia ? Math.max(skala(1_000), a.dibacaPada + a.tungguBacaMs - Date.now()) : a.tungguMs));
   }
 }
 
@@ -607,7 +608,7 @@ async function saringProspek(kunci: string, a: Antrean, nomor: Nomor, teks: stri
 
   // Detektor pola tanpa AI: lawan bicara yang bukan manusia.
   if (a.kirimAkhirMs) {
-    a.cepat = Date.now() - a.kirimAkhirMs < BOT_CEPAT_MS ? a.cepat + 1 : 0;
+    a.cepat = Date.now() - a.kirimAkhirMs < skala(BOT_CEPAT_MS) ? a.cepat + 1 : 0;
     a.kirimAkhirMs = 0;
   }
   const pola =
@@ -899,7 +900,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   a.kutip = ev.kutip ?? null;
   // Pesan baru: manusia diberi kesempatan dari awal. Bila chat masih terbuka di HP, tanda-baca untuk
   // pesan ini segera menyusul (atau baru saja tiba lebih dulu) dan masa tunggunya jadi yang panjang.
-  a.dibukaManusia = Date.now() - a.dibacaPada < 3_000;
+  a.dibukaManusia = Date.now() - a.dibacaPada < skala(3_000);
   // Manusia sedang memegang chat (jeda): pesan menunggu sampai jeda habis; dibalas manusia = antrean dikosongkan.
   if (!a.sedangProses) jadwalkan(kunci, a, sisaJedaMs(a) + (a.dibukaManusia ? a.tungguBacaMs : a.tungguMs));
 }

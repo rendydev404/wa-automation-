@@ -1,5 +1,5 @@
-# Push ke main -> (build + uji server hasil build) dan (lint + seluruh uji) bersamaan -> deploy ke VPS.
-# Deploy hanya terjadi bila kedua job lolos. Di VPS, paketnya diterima oleh deploy/terima-deploy.sh, yang
+# Push ke main -> bersamaan: (build + uji server hasil build), (lint + cek tipe), dan seluruh uji yang dibagi
+# 3 jalur di mesin masing-masing (uji/jalankan-semua.mjs) -> deploy ke VPS. Deploy hanya terjadi bila semua lolos. Di VPS, paketnya diterima oleh deploy/terima-deploy.sh, yang
 # mengembalikan versi sebelumnya bila versi baru tidak sehat.
 #
 # Secrets repo yang dipakai: VPS_HOST, VPS_SSH_KEY (kunci khusus deploy), VPS_KNOWN_HOSTS.
@@ -61,6 +61,9 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          # Cek tipe dikerjakan job `periksa` secara paralel (tsc), jadi tidak diulang di jalur kritis build.
+          LEWATI_CEK_TIPE: "1"
 
       - name: Uji server hasil build
         run: node --no-warnings --import ./uji/loader.mjs uji/uji-next.mjs
@@ -79,12 +82,11 @@ jobs:
           compression-level: 0
           retention-days: 1
 
-  uji:
+  periksa:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    # Push baru saat masih tahap ini langsung membatalkan proses commit lama yang usang (job deploy tidak).
     concurrency:
-      group: ci-uji-${{ github.ref }}
+      group: ci-periksa-${{ github.ref }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
@@ -104,14 +106,57 @@ jobs:
         if: steps.cache-nm.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
 
-      - name: Lint
-        run: npx eslint
+      # Hasil lint & cek tipe per berkas disimpan: commit berikutnya hanya memeriksa ulang berkas yang berubah.
+      - name: Cache lint & cek tipe
+        uses: actions/cache@v4
+        with:
+          path: |
+            .eslintcache
+            tsconfig.tsbuildinfo
+          key: periksa-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            periksa-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
 
-      - name: Uji (2 jalur tanpa perebutan CPU untuk tolok ukur DB)
-        run: npm run uji
+      - name: Lint
+        run: npx eslint --cache --cache-location .eslintcache
+
+      - name: Cek tipe
+        run: npx next typegen && npx tsc --noEmit -p .
+
+  uji:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: true
+      matrix:
+        jalur: [alur, tolok, fitur]
+    # Push baru saat masih tahap ini langsung membatalkan proses commit lama yang usang (job deploy tidak).
+    concurrency:
+      group: ci-uji-${{ matrix.jalur }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Cache node_modules
+        id: cache-nm
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-node24-${{ hashFiles('package-lock.json') }}
+
+      - name: Pasang dependensi (hanya bila package-lock berubah)
+        if: steps.cache-nm.outputs.cache-hit != 'true'
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Uji jalur ${{ matrix.jalur }}
+        run: npm run uji -- --jalur=${{ matrix.jalur }}
 
   deploy:
-    needs: [bangun, uji]
+    needs: [bangun, periksa, uji]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10

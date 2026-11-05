@@ -1,4 +1,5 @@
 import "server-only";
+import { skala } from "./skala-waktu";
 import { createHash } from "node:crypto";
 import type { ConnectionState, SocketConfig, WAMessage, WAPatchName, WASocket, proto } from "baileys";
 import { type BitQr, kemasQr } from "./qr";
@@ -661,7 +662,7 @@ async function sambung(s: Sesi): Promise<void> {
     s.gagal += 1;
     if (s.terpasang || s.gagal <= 5) {
       if (s.terpasang) s.alasan = "Sedang menyambung ulang (database atau WhatsApp belum terjangkau).";
-      s.timer = setTimeout(() => void sambung(s), Math.min(JEDA_ULANG_MAKS_MS, 2_000 * 2 ** (s.gagal - 1)));
+      s.timer = setTimeout(() => void sambung(s), skala(Math.min(JEDA_ULANG_MAKS_MS, 2_000 * 2 ** (s.gagal - 1))));
     } else {
       s.status = "FAILED";
       s.alasan = "Koneksi gagal dibuat (database atau WhatsApp tidak terjangkau). Coba hubungkan ulang.";
@@ -850,7 +851,7 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
         ? JEDA_DIGANTIKAN_MAKS_MS
         : JEDA_ULANG_MAKS_MS
       : Math.min(JEDA_ULANG_MAKS_MS, 1_000 * 2 ** Math.min(s.gagal - 1, 6));
-  const jeda = dasar + Math.floor(Math.random() * 1_000);
+  const jeda = skala(dasar + Math.floor(Math.random() * 1_000));
   s.status = "STARTING";
   s.alasan = "Sedang menyambung ulang secara otomatis ke WhatsApp...";
   console.warn(`[wa ${s.nama}] terputus (kode ${kode}), menyambung ulang dalam ${Math.round(jeda / 1000)} dtk`);
@@ -872,7 +873,7 @@ export async function mulaiGerbang(): Promise<void> {
   } catch (e) {
     st.dimulai = false;
     console.error(`[wa] database belum siap (${e instanceof Error ? e.message : String(e)}); mencoba lagi dalam 5 dtk`);
-    setTimeout(() => void mulaiGerbang(), st.jedaDbMs ?? 5_000);
+    setTimeout(() => void mulaiGerbang(), st.jedaDbMs ?? skala(5_000));
     return;
   }
   // Jeda adaptif: <=20 nomor = 700 ms; 200+ nomor dirapatkan otomatis (min 120 ms) agar seluruh nomor tersambung dalam ±25 dtk.
@@ -883,7 +884,7 @@ export async function mulaiGerbang(): Promise<void> {
     s.terpasang = true;
     if (s.sock || s.timer) return; // sudah dijalankan lewat dashboard selagi menunggu database
     s.status = "STARTING";
-    s.timer = setTimeout(() => void sambung(s), i * jedaMulai + Math.floor(Math.random() * Math.min(200, jedaMulai)));
+    s.timer = setTimeout(() => void sambung(s), skala(i * jedaMulai + Math.floor(Math.random() * Math.min(200, jedaMulai))));
   });
   if (st.timerJaga) clearInterval(st.timerJaga);
   // Penjaga berkala: memastikan tidak ada nomor tertaut yang diam tanpa soket dan tanpa jadwal sambung ulang.
@@ -891,7 +892,7 @@ export async function mulaiGerbang(): Promise<void> {
     let urutan = 0;
     for (const s of st.sesi.values()) {
       if (s.terpasang && !s.sock && !s.timer && s.status !== "WORKING" && s.status !== "SCAN_QR_CODE") {
-        s.timer = setTimeout(() => void sambung(s), urutan++ * 150);
+        s.timer = setTimeout(() => void sambung(s), skala(urutan++ * 150));
       }
     }
   }, 45_000);
@@ -1101,7 +1102,7 @@ export function mengetik(nama: string, alamat: string, nyala: boolean): Promise<
           if (s.mengetik > 0 || !s.online) return;
           s.online = false;
           void s.sock?.sendPresenceUpdate("unavailable").catch(() => {});
-        }, 2_000);
+        }, skala(2_000));
       }
     })
     .catch(() => {

@@ -21,7 +21,10 @@ const pg = await mulaiPg({ dir: path.join(tmp, "pg"), sementara: true });
 process.env.DATABASE_URL = pg.url;
 process.env.DATA_DIR = path.join(tmp, "data-kosong");
 const lib = (f) => import(pathToFileURL(path.join(akar, f)).href);
-const tidur = (ms) => new Promise((r) => setTimeout(r, ms));
+// Pengali waktu (src/lib/skala-waktu.ts): jeda gabung sinyal 5 dtk & jeda di uji ini diperpendek bersama.
+process.env.WA_SKALA_WAKTU ??= "0.2";
+const SKALA = Number(process.env.WA_SKALA_WAKTU) > 0 && Number(process.env.WA_SKALA_WAKTU) < 1 ? Number(process.env.WA_SKALA_WAKTU) : 1;
+const tidur = (ms) => new Promise((r) => setTimeout(r, Math.max(1, Math.round(ms * SKALA))));
 
 // ---------- Database kasir tiruan ----------
 const contoh = JSON.parse(readFileSync(path.join(akar, "uji", "data-sinkron-contoh.json"), "utf8"));
