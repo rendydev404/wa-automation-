@@ -109,21 +109,32 @@ interface Sesi {
   online: boolean;
   timerOffline: ReturnType<typeof setTimeout> | null;
   presensi: Promise<void>;
-  /** Diagnostik sementara: stanza yang tiba vs yang sampai ke `messages.upsert` (lihat catatDiag). */
+  /** Stanza yang tiba vs yang sampai ke `messages.upsert`, dan pendeteksi nomor diam (lihat catatDiag). */
   diag: Diag | null;
 }
 
 interface Diag {
   mulai: number;
+  /** Detik sampai `<success>` diterima; null = login belum selesai. */
+  login: number | null;
   stanza: number;
   pribadi: number;
   status: number;
   offline: number;
+  abaikan: number;
   upsert: number;
+  /** Stanza yang tidak pernah sampai ke `messages.upsert` setelah DIAG_BUANG_MS (mis. gagal dekripsi). */
+  hilang: number;
   tertunda: Map<string, { pada: number; jenis: string; offline: boolean }>;
-  /** Detik sejak tersambung sampai WhatsApp menandai pesan tertunda habis; null = belum. */
+  /** Jumlah semua frame per tag (iq, ib, receipt, ...): membedakan soket mati dari server yang tidak mengirim pesan. */
+  frame: Map<string, number>;
+  frameTerakhir: number;
+  stanzaTerakhir: number;
+  /** Pesan tertunda yang diumumkan server (`offline_preview`); null = tidak diumumkan. */
+  pratinjau: string | null;
+  /** Detik sejak soket dibuat sampai WhatsApp menandai pesan tertunda habis; null = belum. */
   offlineSelesai: number | null;
-  tanda: string;
+  diam: boolean;
   logPada: number;
 }
 
@@ -318,23 +329,49 @@ function sesiAtauBaru(nama: string): Sesi {
 
 const DIAG_TERTUNDA_MAKS = 2_000;
 const DIAG_JEDA_MS = 60_000;
-const DIAG_DIAM_MS = 300_000;
+const DIAG_SEHAT_MS = 300_000;
+/** Nomor lain menerima tanda "pesan tertunda habis" dalam 2-7 dtk; tanpa tanda dan tanpa stanza selama ini = server diam. */
+const DIAM_MS = 180_000;
+const DIAG_BUANG_MS = 600_000;
 
-/** Tanpa isi pesan dan tanpa nomor lawan bicara. Baris sama hanya diulang tiap DIAG_DIAM_MS. */
+type PenilaianDiag = "normal" | "server-diam" | "soket-mati" | "tertahan-baileys";
+
+/** Letak masalah menurut hitungan frame. Bukan penyebab: "server-diam" berarti WhatsApp tidak mengirim, bukan alasannya. */
+function nilaiDiag(d: Diag, tertuaPada: number | null, kini: number): PenilaianDiag {
+  if (kini - (d.frameTerakhir || d.mulai) >= DIAM_MS) return "soket-mati";
+  if (tertuaPada !== null && kini - tertuaPada >= DIAM_MS) return "tertahan-baileys";
+  if (d.offlineSelesai === null && kini - d.mulai >= DIAM_MS && kini - (d.stanzaTerakhir || d.mulai) >= DIAM_MS) return "server-diam";
+  return "normal";
+}
+
+/** Tanpa isi pesan dan tanpa nomor lawan bicara. Nomor sehat dicatat tiap DIAG_SEHAT_MS, nomor bermasalah tiap menit. */
 function catatDiag(): void {
   const kini = Date.now();
   for (const s of st.sesi.values()) {
     const d = s.diag;
     if (!d || s.status !== "WORKING") continue;
-    const tanda = `${d.stanza}/${d.upsert}/${d.tertunda.size}/${d.offlineSelesai}`;
-    if (tanda === d.tanda && kini - d.logPada < DIAG_DIAM_MS) continue;
-    d.tanda = tanda;
-    d.logPada = kini;
+    for (const [id, x] of d.tertunda) {
+      if (kini - x.pada < DIAG_BUANG_MS) break;
+      d.tertunda.delete(id);
+      d.hilang += 1;
+    }
     const tertua = d.tertunda.values().next().value;
-    console.info(
-      `[diag ${s.nama}] umur=${Math.round((kini - d.mulai) / 1000)}dtk stanza=${d.stanza} pribadi=${d.pribadi} status=${d.status} offline=${d.offline} upsert=${d.upsert} tertunda=${d.tertunda.size}` +
-        `${tertua ? ` tertua=${Math.round((kini - tertua.pada) / 1000)}dtk(${tertua.jenis}${tertua.offline ? ",offline" : ""})` : ""} offlineSelesai=${d.offlineSelesai ?? "belum"}`
-    );
+    const nilai = nilaiDiag(d, tertua?.pada ?? null, kini);
+    if (nilai === "server-diam" && !d.diam) {
+      d.diam = true;
+      void import("./notifikasi").then((m) => m.notifNomorDiam(s.nama));
+    } else if (nilai === "normal" && d.diam) {
+      d.diam = false;
+      console.warn(`[wa ${s.nama}] kiriman dari WhatsApp berjalan lagi`);
+    }
+    if (nilai === "normal" && kini - d.logPada < DIAG_SEHAT_MS) continue;
+    d.logPada = kini;
+    const frame = [...d.frame].map(([tag, jumlah]) => `${tag}:${jumlah}`).join(",") || "-";
+    const baris =
+      `[diag ${s.nama}] penilaian=${nilai} umur=${Math.round((kini - d.mulai) / 1000)}dtk login=${d.login ?? "belum"} stanza=${d.stanza} pribadi=${d.pribadi} status=${d.status} offline=${d.offline} abaikan=${d.abaikan} upsert=${d.upsert} hilang=${d.hilang} tertunda=${d.tertunda.size}` +
+      `${tertua ? ` tertua=${Math.round((kini - tertua.pada) / 1000)}dtk(${tertua.jenis}${tertua.offline ? ",offline" : ""})` : ""} offlineSelesai=${d.offlineSelesai ?? "belum"} pratinjau=${d.pratinjau ?? "-"} frameTerakhir=${d.frameTerakhir ? `${Math.round((kini - d.frameTerakhir) / 1000)}dtk` : "-"} frame=${frame}`;
+    if (nilai === "normal") console.info(baris);
+    else console.error(baris);
   }
 }
 
@@ -343,7 +380,25 @@ function diagBaru(): Diag {
     st.timerDiag = setInterval(catatDiag, DIAG_JEDA_MS);
     st.timerDiag.unref?.();
   }
-  return { mulai: Date.now(), stanza: 0, pribadi: 0, status: 0, offline: 0, upsert: 0, tertunda: new Map(), offlineSelesai: null, tanda: "", logPada: 0 };
+  return {
+    mulai: Date.now(),
+    login: null,
+    stanza: 0,
+    pribadi: 0,
+    status: 0,
+    offline: 0,
+    abaikan: 0,
+    upsert: 0,
+    hilang: 0,
+    tertunda: new Map(),
+    frame: new Map(),
+    frameTerakhir: 0,
+    stanzaTerakhir: 0,
+    pratinjau: null,
+    offlineSelesai: null,
+    diam: false,
+    logPada: 0,
+  };
 }
 
 function lepasTunggu(s: Sesi): void {
@@ -641,7 +696,14 @@ async function sambung(s: Sesi): Promise<void> {
     if (ws && typeof ws.emit === "function" && typeof sock.sendMessageAck === "function") {
       const emitAsli = ws.emit.bind(ws);
       ws.emit = (ev: string, ...args: unknown[]) => {
-        if (ev === "CB:success") {
+        if (ev === "frame") {
+          const tag = (args[0] as { tag?: string } | undefined)?.tag;
+          if (tag) {
+            diag.frame.set(tag, (diag.frame.get(tag) ?? 0) + 1);
+            diag.frameTerakhir = Date.now();
+          }
+        } else if (ev === "CB:success") {
+          diag.login = Math.round((Date.now() - diag.mulai) / 1000);
           // Baileys 7 baru menyalin `node.attrs.lid` ke `creds.me.lid` setelah 3 round-trip jaringan
           // (uploadPreKeys, passiveIq, digestKeyBundle). Catat secara sinkron begitu `<success>` tiba agar
           // pesan peer dari iPhone yang masuk selama jeda tersebut langsung dikenali sebagai `fromMe`.
@@ -662,11 +724,13 @@ async function sambung(s: Sesi): Promise<void> {
           const node = args[0] as { attrs?: Record<string, string> } | undefined;
           const dari = node?.attrs?.from;
           if (dari && dari !== "@s.whatsapp.net" && abaikanJid(dari)) {
+            diag.abaikan += 1;
             void sock.sendMessageAck(node as never).catch(() => {});
             return true;
           }
           const a = node?.attrs ?? {};
           diag.stanza += 1;
+          diag.stanzaTerakhir = Date.now();
           const jenisDiag = dari && B.isJidStatusBroadcast(dari) ? "status" : chatPribadi(B, dari) ? "pribadi" : "lain";
           if (jenisDiag === "status") diag.status += 1;
           else if (jenisDiag === "pribadi") diag.pribadi += 1;
@@ -711,6 +775,9 @@ async function sambung(s: Sesi): Promise<void> {
           }
         } else if (ev === "CB:ib,,offline") {
           diag.offlineSelesai = Math.round((Date.now() - diag.mulai) / 1000);
+        } else if (ev === "CB:ib,,offline_preview") {
+          const anak = (args[0] as { content?: { attrs?: Record<string, string> }[] } | undefined)?.content?.[0];
+          diag.pratinjau = JSON.stringify(anak?.attrs ?? {}).slice(0, 120);
         }
         return emitAsli(ev, ...args);
       };
