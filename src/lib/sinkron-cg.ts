@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { db, getSetting, sekarang, setSetting } from "./db";
 import { angka, UMUR_HISTORI_HARI } from "./format";
 import { KANAL_BAYAR, type KanalBayar } from "./harga";
-import { BATAS_DOKUMEN_KARAKTER, BATAS_NOMOR_KARAKTER, rapikanTeks } from "./knowledge";
+import { BATAS_DOKUMEN_KARAKTER, BATAS_NOMOR_KARAKTER, DOKUMEN_CHATGERCEP, rapikanTeks } from "./knowledge";
 import { BATAS_KATALOG } from "./katalog-def";
 import { type AturanPercobaan, type Paket, aturanPercobaan, daftarPaket, kuotaNomorGratis } from "./langganan";
 import { kanalAktif, konfigMidtrans } from "./midtrans";
@@ -23,7 +23,7 @@ import { perbaruiDokumenOtomatis } from "./sinkron";
  * tidak ada query apa pun.
  */
 
-const PENANDA = "sinkron:chatgercep";
+const PENANDA = DOKUMEN_CHATGERCEP; // didahulukan di konteks AI (knowledge.ts)
 const JUDUL = `Data resmi ${MEREK} terbaru: paket, harga, pembayaran, afiliasi & fitur (otomatis)`;
 const KUNCI_NOMOR = "sinkron_cg_nomor";
 const KUNCI_STATUS = "sinkron_cg_status";

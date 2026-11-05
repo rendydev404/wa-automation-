@@ -87,6 +87,8 @@ export async function totalKarakter(numberId: number): Promise<number> {
  * `otomatis` = sertakan dokumen itu (admin).
  */
 export const AWALAN_OTOMATIS = "sinkron:";
+/** Dokumen data resmi ChatGerCep (sinkron-cg.ts): satu-satunya dokumen otomatis yang didahulukan di konteks AI. */
+export const DOKUMEN_CHATGERCEP = "sinkron:chatgercep";
 const bolehDokumen = (sql: Awaited<ReturnType<typeof db>>, otomatis: boolean) =>
   otomatis ? sql`true` : sql`(d.nama_berkas IS NULL OR d.nama_berkas NOT LIKE ${`${AWALAN_OTOMATIS}%`})`;
 
@@ -193,24 +195,26 @@ export function kueriCari(pesan: string): string | null {
 interface Potongan {
   judul: string;
   isi: string;
-  /** Dari dokumen otomatis (AWALAN_OTOMATIS): data langsung dari database sistem, selalu yang terbaru. */
-  otomatis: boolean;
+  /** Dari dokumen data resmi ChatGerCep (DOKUMEN_CHATGERCEP): langsung dari database, selalu yang terbaru. */
+  prioritas: boolean;
 }
 
 export interface Konteks {
   teks: string;
   mode: "kosong" | "utuh" | "relevan";
   karakter: number;
-  /** Ada potongan dokumen otomatis di `teks` (lihat ATURAN_DATA_OTOMATIS). */
-  otomatis: boolean;
+  /** Ada potongan data resmi ChatGerCep di `teks` (lihat ATURAN_DATA_OTOMATIS). */
+  prioritas: boolean;
 }
 
-/** Penanda judul bagian dokumen otomatis di dalam <pengetahuan_nomor>. */
+/** Penanda judul bagian data resmi ChatGerCep di dalam <pengetahuan_nomor>. */
 const TANDA_OTOMATIS = "[DATA OTOMATIS TERBARU]";
 
 /**
- * Dokumen otomatis disusun ulang dari database setiap kali datanya berubah, sedangkan PDF/teks unggahan bisa usang
+ * Khusus nomor yang dinyalakan admin "Data ChatGerCep otomatis" (hanya nomor itu yang punya DOKUMEN_CHATGERCEP).
+ * Dokumen itu disusun ulang dari database setiap kali datanya berubah, sedangkan PDF/teks unggahan bisa usang
  * (mis. harga paket lama). Bila keduanya ada, AI harus memakai yang otomatis dan tidak mempersoalkan selisihnya.
+ * Dokumen otomatis lain (mis. Suka Shawarma, sinkron.ts) dan nomor lain tidak terpengaruh.
  */
 const ATURAN_DATA_OTOMATIS =
   `Bagian bertanda ${TANDA_OTOMATIS} diambil langsung dari database sistem saat ini dan selalu paling baru. ` +
@@ -224,7 +228,7 @@ function gabung(potongan: Potongan[], anggaran: number): string {
   for (const p of potongan) {
     if (terpakai + p.isi.length > anggaran && keluar.length) break;
     if (p.judul !== judulKini) {
-      keluar.push(p.otomatis ? `## ${TANDA_OTOMATIS} ${p.judul}` : `## ${p.judul}`);
+      keluar.push(p.prioritas ? `## ${TANDA_OTOMATIS} ${p.judul}` : `## ${p.judul}`);
       judulKini = p.judul;
     }
     keluar.push(p.isi);
@@ -233,25 +237,26 @@ function gabung(potongan: Potongan[], anggaran: number): string {
   return keluar.join("\n\n");
 }
 
-/** Hasil gabung() + apakah potongan otomatis ikut terpakai (potongan otomatis selalu diurutkan paling depan). */
+/** Hasil gabung() + apakah data resmi ChatGerCep ikut terpakai (selalu diurutkan paling depan). */
 function hasil(potongan: Potongan[], anggaran: number, mode: Konteks["mode"]): Konteks {
   const teks = gabung(potongan, anggaran);
-  return { teks, mode, karakter: teks.length, otomatis: potongan.length > 0 && potongan[0].otomatis };
+  return { teks, mode, karakter: teks.length, prioritas: potongan.length > 0 && potongan[0].prioritas };
 }
 
 /**
- * Pengetahuan untuk satu pesan. Dokumen otomatis (data terbaru dari database) selalu didahulukan — di mode utuh maupun
- * relevan — supaya tidak terdesak potongan dokumen unggahan yang lebih panjang tapi bisa usang.
+ * Pengetahuan untuk satu pesan. Data resmi ChatGerCep (bila saklarnya dinyalakan admin untuk nomor ini) selalu
+ * didahulukan — di mode utuh maupun relevan — supaya tidak terdesak potongan dokumen unggahan yang lebih panjang tapi
+ * bisa usang. Nomor lain: urutan biasa.
  */
 export async function konteksPengetahuan(numberId: number, kueri: string): Promise<Konteks> {
   const total = await totalKarakter(numberId);
-  if (total === 0) return { teks: "", mode: "kosong", karakter: 0, otomatis: false };
+  if (total === 0) return { teks: "", mode: "kosong", karakter: 0, prioritas: false };
   const sql = await db();
-  const otomatis = sql`(d.nama_berkas IS NOT NULL AND d.nama_berkas LIKE ${`${AWALAN_OTOMATIS}%`})`;
+  const prioritas = sql`(d.nama_berkas IS NOT NULL AND d.nama_berkas = ${DOKUMEN_CHATGERCEP})`;
 
   if (total <= BATAS_UTUH) {
     const semua = await sql<Potongan[]>`
-      SELECT d.judul, c.isi, ${otomatis} AS otomatis FROM chunks c JOIN documents d ON d.id = c.document_id
+      SELECT d.judul, c.isi, ${prioritas} AS prioritas FROM chunks c JOIN documents d ON d.id = c.document_id
        WHERE c.number_id = ${numberId} ORDER BY 3 DESC, d.created_at, d.id, c.urutan`;
     return hasil(semua, Infinity, "utuh");
   }
@@ -262,7 +267,7 @@ export async function konteksPengetahuan(numberId: number, kueri: string): Promi
     // Peringkat: potongan yang memuat lebih banyak / lebih sering kata kueri di atas. Angka 1 =
     // dinormalkan terhadap panjang potongan, supaya potongan panjang tidak otomatis menang.
     kena = await sql<Potongan[]>`
-      SELECT d.judul, c.isi, ${otomatis} AS otomatis
+      SELECT d.judul, c.isi, ${prioritas} AS prioritas
         FROM to_tsquery('simple', ${cari}) q,
              chunks c
         JOIN documents d ON d.id = c.document_id
@@ -273,7 +278,7 @@ export async function konteksPengetahuan(numberId: number, kueri: string): Promi
   if (!kena.length) {
     // Sapaan / pertanyaan umum: beri bagian awal dokumen sebagai gambaran.
     kena = await sql<Potongan[]>`
-      SELECT d.judul, c.isi, ${otomatis} AS otomatis FROM chunks c JOIN documents d ON d.id = c.document_id
+      SELECT d.judul, c.isi, ${prioritas} AS prioritas FROM chunks c JOIN documents d ON d.id = c.document_id
        WHERE c.number_id = ${numberId} AND c.urutan < 2 ORDER BY 3 DESC, d.created_at, d.id, c.urutan LIMIT 8`;
     return hasil(kena, BATAS_TANPA_KUERI, "relevan");
   }
@@ -354,7 +359,7 @@ export async function susunSistem(
       konteks.mode === "relevan"
         ? "Ini hanya potongan yang paling relevan dengan pesan terakhir. Bila jawabannya tidak ada di sini, anggap belum ada sumbernya."
         : "Ini seluruh pengetahuan nomor ini.",
-      ...(konteks.otomatis ? [ATURAN_DATA_OTOMATIS] : []),
+      ...(konteks.prioritas ? [ATURAN_DATA_OTOMATIS] : []),
       konteks.teks
     );
   } else if (!pelajaran.n) {

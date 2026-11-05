@@ -890,6 +890,17 @@ await cek("knowledge otomatis ChatGerCep (khusus admin): paket, harga, komisi, m
     assert.notEqual(baru.id, dok[0].id);
     assert.ok((await K.teksDokumen(baru.id, n.id, true)).teks.includes(`Rp${(st.harga + 1000).toLocaleString("id-ID")}`));
     assert.equal((await CG.statusSinkronCg()).galat, null);
+    // Seperti GercepBot di produksi: PDF unggahan panjang (total > BATAS_UTUH) berisi harga lama. Data resmi tetap
+    // didahulukan dan ditandai paling baru, jadi AI tidak memakai harga PDF.
+    const isian = Array.from({ length: 60 }, (_, i) => `Bagian ${i + 1}: daftar paket dan harga paket lama Starter Rp99.000 per 30 hari, penjelasan fitur, kuota, dan cara daftar.`).join("\n\n");
+    const pdf = await K.tambahDokumen({ numberId: n.id, judul: "PDF harga lama", sumber: "teks", teks: isian });
+    const kp = await K.konteksPengetahuan(n.id, "paket chat gercep ada di brp yak?");
+    assert.equal(kp.mode, "relevan");
+    assert.equal(kp.prioritas, true);
+    assert.match(kp.teks, /^## \[DATA OTOMATIS TERBARU\] /, "data resmi ChatGerCep harus di urutan pertama");
+    assert.ok(kp.teks.includes(`Rp${(st.harga + 1000).toLocaleString("id-ID")}`));
+    assert.match((await K.susunSistem({ id: n.id, instruksi: "", belajar: false }, "paket chat gercep ada di brp yak?")).sistem, /dokumen lain itu sudah usang/);
+    await K.hapusDokumen(pdf.id, n.id, true);
     // Dimatikan admin: dokumennya hilang.
     await CG.setNomorSinkronCg(n.id, false);
     assert.equal((await K.daftarDokumen(n.id, true)).length, 0);

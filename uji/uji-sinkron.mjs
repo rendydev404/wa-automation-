@@ -140,18 +140,15 @@ try {
     assert.doesNotMatch(k.teks, /Rp44\.000 di outlet, Rp54\.000/);
   });
 
-  await uji("PDF lama berisi harga usang: data otomatis tetap didahulukan & ditandai paling baru", async () => {
-    // Seperti GercepBot di produksi: PDF unggahan panjang (total > BATAS_UTUH) dengan harga lama + dokumen otomatis.
+  await uji("data otomatis Suka Shawarma: urutan biasa, tanpa aturan prioritas (khusus ChatGerCep)", async () => {
     const isian = Array.from({ length: 60 }, (_, i) => `Bagian ${i + 1}: harga shawarma sapi jumbo dulu Rp44.000 di outlet, cerita menu, jam buka, dan penjelasan umum lainnya.`).join("\n\n");
     const lama = await knowledge.tambahDokumen({ numberId: cs.id, judul: "PDF harga lama", sumber: "teks", teks: isian });
     try {
       const k = await knowledge.konteksPengetahuan(cs.id, "kak harga shawarma sapi jumbo berapa ya");
-      assert.equal(k.mode, "relevan");
-      assert.equal(k.otomatis, true);
-      assert.match(k.teks, /^## \[DATA OTOMATIS TERBARU\] /, "potongan dokumen otomatis harus di urutan pertama");
-      assert.match(k.teks, /Original Sapi Jumbo\*?: Rp46\.000 di outlet/);
+      assert.equal(k.prioritas, false);
+      assert.doesNotMatch(k.teks, /DATA OTOMATIS TERBARU/);
       const { sistem } = await knowledge.susunSistem({ id: cs.id, instruksi: "", belajar: false }, "kak harga shawarma sapi jumbo berapa ya");
-      assert.match(sistem, /dokumen lain itu sudah usang/);
+      assert.doesNotMatch(sistem, /dokumen lain itu sudah usang/);
     } finally {
       await knowledge.hapusDokumen(lama.id, cs.id, true);
     }
