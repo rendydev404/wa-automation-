@@ -1,3 +1,5 @@
+import type { Bahasa } from "./bahasa";
+
 /**
  * Rumus harga paket dari modal nyata + margin keuntungan yang ditentukan admin. Fungsi murni (tanpa I/O), dipakai
  * bersama oleh simulasi di browser dan oleh server saat harga saran diterapkan, jadi hasilnya selalu sama.
@@ -21,10 +23,10 @@ export const MAKS_HARGA_PAKET = 2_000_000_000;
 
 /** Tarif umum Midtrans per transaksi (sesuaikan bila kontrak merchant berbeda). */
 export const METODE_BAYAR = {
-  qris: { label: "QRIS", persen: 0.007, tetap: 0 },
-  va: { label: "Transfer bank (VA)", persen: 0, tetap: 4_000 },
-  ewallet: { label: "GoPay / ShopeePay", persen: 0.02, tetap: 0 },
-  kartu: { label: "Kartu kredit", persen: 0.029, tetap: 2_000 },
+  qris: { label: "QRIS", label_en: "QRIS", persen: 0.007, tetap: 0 },
+  va: { label: "Transfer bank (VA)", label_en: "Bank transfer (VA)", persen: 0, tetap: 4_000 },
+  ewallet: { label: "GoPay / ShopeePay", label_en: "GoPay / ShopeePay", persen: 0.02, tetap: 0 },
+  kartu: { label: "Kartu kredit", label_en: "Credit card", persen: 0.029, tetap: 2_000 },
 } as const;
 export type MetodeBayar = keyof typeof METODE_BAYAR;
 
@@ -34,26 +36,49 @@ export type MetodeBayar = keyof typeof METODE_BAYAR;
  * tokenisasi kartu di browser (client key + 3DS), jadi kartu hanya bisa dicatat admin secara manual.
  */
 export const KANAL_BAYAR = {
-  qris: { label: "QRIS", info: "Scan dari aplikasi e-wallet atau m-banking apa pun", metode: "qris", grup: "QRIS", menit: 15 },
-  gopay: { label: "GoPay", info: "Buka aplikasi Gojek / GoPay", metode: "ewallet", grup: "E-wallet", menit: 15 },
-  shopeepay: { label: "ShopeePay", info: "Buka aplikasi Shopee di HP ini", metode: "ewallet", grup: "E-wallet", menit: 15 },
-  bca: { label: "BCA Virtual Account", info: "BCA mobile, KlikBCA, atau ATM BCA", metode: "va", grup: "Virtual account", menit: 1440 },
-  bni: { label: "BNI Virtual Account", info: "BNI Mobile Banking atau ATM", metode: "va", grup: "Virtual account", menit: 1440 },
-  bri: { label: "BRI Virtual Account", info: "BRImo atau ATM BRI", metode: "va", grup: "Virtual account", menit: 1440 },
-  bsi: { label: "BSI Virtual Account", info: "BSI Mobile atau ATM BSI", metode: "va", grup: "Virtual account", menit: 1440 },
-  cimb: { label: "CIMB Niaga Virtual Account", info: "OCTO Mobile atau ATM CIMB Niaga", metode: "va", grup: "Virtual account", menit: 1440 },
-  mandiri: { label: "Mandiri Bill Payment", info: "Livin' by Mandiri atau ATM Mandiri", metode: "va", grup: "Virtual account", menit: 1440 },
-  permata: { label: "Permata Virtual Account", info: "PermataMobile X atau ATM", metode: "va", grup: "Virtual account", menit: 1440 },
-} as const satisfies Record<string, { label: string; info: string; metode: MetodeBayar; grup: string; menit: number }>;
+  qris: { label: "QRIS", info: "Scan dari aplikasi e-wallet atau m-banking apa pun", metode: "qris", grup: "QRIS", menit: 15,
+    label_en: "QRIS", info_en: "Scan with any e-wallet or mobile banking app", grup_en: "QRIS" },
+  gopay: { label: "GoPay", info: "Buka aplikasi Gojek / GoPay", metode: "ewallet", grup: "E-wallet", menit: 15,
+    label_en: "GoPay", info_en: "Open the Gojek / GoPay app", grup_en: "E-wallet" },
+  shopeepay: { label: "ShopeePay", info: "Buka aplikasi Shopee di HP ini", metode: "ewallet", grup: "E-wallet", menit: 15,
+    label_en: "ShopeePay", info_en: "Open the Shopee app on this phone", grup_en: "E-wallet" },
+  bca: { label: "BCA Virtual Account", info: "BCA mobile, KlikBCA, atau ATM BCA", metode: "va", grup: "Virtual account", menit: 1440,
+    label_en: "BCA Virtual Account", info_en: "BCA mobile, KlikBCA, or a BCA ATM", grup_en: "Virtual account" },
+  bni: { label: "BNI Virtual Account", info: "BNI Mobile Banking atau ATM", metode: "va", grup: "Virtual account", menit: 1440,
+    label_en: "BNI Virtual Account", info_en: "BNI Mobile Banking or an ATM", grup_en: "Virtual account" },
+  bri: { label: "BRI Virtual Account", info: "BRImo atau ATM BRI", metode: "va", grup: "Virtual account", menit: 1440,
+    label_en: "BRI Virtual Account", info_en: "BRImo or a BRI ATM", grup_en: "Virtual account" },
+  bsi: { label: "BSI Virtual Account", info: "BSI Mobile atau ATM BSI", metode: "va", grup: "Virtual account", menit: 1440,
+    label_en: "BSI Virtual Account", info_en: "BSI Mobile or a BSI ATM", grup_en: "Virtual account" },
+  cimb: { label: "CIMB Niaga Virtual Account", info: "OCTO Mobile atau ATM CIMB Niaga", metode: "va", grup: "Virtual account", menit: 1440,
+    label_en: "CIMB Niaga Virtual Account", info_en: "OCTO Mobile or a CIMB Niaga ATM", grup_en: "Virtual account" },
+  mandiri: { label: "Mandiri Bill Payment", info: "Livin' by Mandiri atau ATM Mandiri", metode: "va", grup: "Virtual account", menit: 1440,
+    label_en: "Mandiri Bill Payment", info_en: "Livin' by Mandiri or a Mandiri ATM", grup_en: "Virtual account" },
+  permata: { label: "Permata Virtual Account", info: "PermataMobile X atau ATM", metode: "va", grup: "Virtual account", menit: 1440,
+    label_en: "Permata Virtual Account", info_en: "PermataMobile X or an ATM", grup_en: "Virtual account" },
+} as const satisfies Record<string, { label: string; info: string; metode: MetodeBayar; grup: string; menit: number; label_en: string; info_en: string; grup_en: string }>;
 export type KanalBayar = keyof typeof KANAL_BAYAR;
 export const kanalSah = (x: unknown): x is KanalBayar => typeof x === "string" && Object.hasOwn(KANAL_BAYAR, x);
 
-/** Kanal aktif dalam satu kalimat, mis. "QRIS, GoPay, atau virtual account (BNI, BRI)"; tanpa kanal = "". */
-export function ringkasKanal(kanal: readonly KanalBayar[]): string {
-  const va = kanal.filter((k) => KANAL_BAYAR[k].metode === "va").map((k) => KANAL_BAYAR[k].label.split(" ")[0]);
-  const bagian = [...kanal.filter((k) => KANAL_BAYAR[k].metode !== "va").map((k) => KANAL_BAYAR[k].label), ...(va.length ? [`virtual account (${va.join(", ")})`] : [])];
-  if (bagian.length <= 2) return bagian.join(" atau ");
-  return `${bagian.slice(0, -1).join(", ")}, atau ${bagian.at(-1)}`;
+/** Nama kanal untuk pelanggan sesuai bahasa tampilan. */
+export const labelKanal = (k: KanalBayar, b: Bahasa = "id"): string => (b === "en" ? KANAL_BAYAR[k].label_en : KANAL_BAYAR[k].label);
+/** Keterangan singkat kanal (aplikasi yang dipakai) sesuai bahasa. */
+export const infoKanal = (k: KanalBayar, b: Bahasa = "id"): string => (b === "en" ? KANAL_BAYAR[k].info_en : KANAL_BAYAR[k].info);
+/** Golongan kanal (QRIS, E-wallet, Virtual account) sesuai bahasa. */
+export const grupKanal = (k: KanalBayar, b: Bahasa = "id"): string => (b === "en" ? KANAL_BAYAR[k].grup_en : KANAL_BAYAR[k].grup);
+/** Nama golongan tarif (METODE_BAYAR) sesuai bahasa. */
+export const labelMetodeBayar = (m: MetodeBayar, b: Bahasa = "id"): string => (b === "en" ? METODE_BAYAR[m].label_en : METODE_BAYAR[m].label);
+
+/**
+ * Kanal aktif dalam satu kalimat, mis. "QRIS, GoPay, atau virtual account (BNI, BRI)"
+ * (en: "QRIS, GoPay, or virtual account (BNI, BRI)"); tanpa kanal = "".
+ */
+export function ringkasKanal(kanal: readonly KanalBayar[], b: Bahasa = "id"): string {
+  const atau = b === "en" ? "or" : "atau";
+  const va = kanal.filter((k) => KANAL_BAYAR[k].metode === "va").map((k) => labelKanal(k, b).split(" ")[0]);
+  const bagian = [...kanal.filter((k) => KANAL_BAYAR[k].metode !== "va").map((k) => labelKanal(k, b)), ...(va.length ? [`virtual account (${va.join(", ")})`] : [])];
+  if (bagian.length <= 2) return bagian.join(` ${atau} `);
+  return `${bagian.slice(0, -1).join(", ")}, ${atau} ${bagian.at(-1)}`;
 }
 
 export interface AcuanHarga {

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import type { ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { Loader2 } from "lucide-react";
+import { useBahasa } from "./bahasa";
 
 export function Pill({ nada, children }: { nada: "hijau" | "kuning" | "merah" | "abu"; children: ReactNode }) {
   const kelas = {
@@ -38,7 +39,7 @@ export function Pesan({ ok, children }: { ok: boolean; children: ReactNode }) {
 export function TombolKonfirmasi({
   label,
   tanya,
-  ya = "Ya",
+  ya,
   aksi,
   className = "btn btn-danger",
   ikon,
@@ -50,6 +51,7 @@ export function TombolKonfirmasi({
   className?: string;
   ikon?: ReactNode;
 }) {
+  const { t } = useBahasa();
   const [buka, setBuka] = useState(false);
   const [galat, setGalat] = useState("");
   const [tunggu, mulai] = useTransition();
@@ -75,16 +77,16 @@ export function TombolKonfirmasi({
         onClick={() =>
           mulai(async () => {
             const h = await aksi();
-            if (h && !h.ok) setGalat(h.pesan ?? "Gagal.");
+            if (h && !h.ok) setGalat(h.pesan ?? t("Gagal.", "Failed."));
             setBuka(false);
           })
         }
       >
         {tunggu && <Loader2 className="size-4 animate-spin" aria-hidden />}
-        {ya}
+        {ya ?? t("Ya", "Yes")}
       </button>
       <button type="button" disabled={tunggu} className="btn btn-ghost" onClick={() => setBuka(false)}>
-        Batal
+        {t("Batal", "Cancel")}
       </button>
     </div>
   );

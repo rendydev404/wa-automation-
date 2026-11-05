@@ -60,7 +60,14 @@ export type EventWa =
   /** Pesan masuk di chat ini terbaca dari perangkat lain milik nomor (HP pemilik). */
   | { jenis: "dibaca"; sesi: string; chat: string };
 
-export class WaError extends Error {}
+export class WaError extends Error {
+  /** Pesan versi Inggris (tampilan /eng, dipilih di actions.ts); `message` tetap bahasa Indonesia (juga untuk log). */
+  en?: string;
+  constructor(message: string, en?: string) {
+    super(message);
+    this.en = en;
+  }
+}
 
 /** Pesan suara/audio pelanggan, langsung di memori (tidak disimpan). */
 export interface Audio {
@@ -165,10 +172,11 @@ function simpanPemetaanDiri(B: Baileys, sock: WASocket, creds: { me?: { id?: str
 
 const tidur = (ms: number) => new Promise<null>((r) => setTimeout(() => r(null), ms));
 
-async function denganBatas<T>(janji: Promise<T>, ms: number, aksi: string): Promise<T> {
+async function denganBatas<T>(janji: Promise<T>, ms: number, aksi: string, aksiEn?: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    return await Promise.race([janji, new Promise<never>((_, tolak) => (timer = setTimeout(() => tolak(new WaError(`WhatsApp tidak menjawab saat ${aksi}.`)), ms)))]);
+    const galat = () => new WaError(`WhatsApp tidak menjawab saat ${aksi}.`, aksiEn && `WhatsApp did not respond while ${aksiEn}.`);
+    return await Promise.race([janji, new Promise<never>((_, tolak) => (timer = setTimeout(() => tolak(galat()), ms)))]);
   } finally {
     clearTimeout(timer);
   }
@@ -928,27 +936,27 @@ export function kodePairing(nama: string): string | null {
  */
 export async function mintaKodePairing(nama: string, nomorHp: string): Promise<string> {
   const digit = rapikanNomorWa(nomorHp);
-  if (!digit) throw new WaError("Nomor WhatsApp tidak valid (contoh: 0812-3456-7890).");
+  if (!digit) throw new WaError("Nomor WhatsApp tidak valid (contoh: 0812-3456-7890).", "Invalid WhatsApp number (example: +62 812-3456-7890).");
   const s = sesiAtauBaru(nama);
-  if (s.status === "WORKING") throw new WaError("Nomor ini sudah terhubung ke WhatsApp.");
+  if (s.status === "WORKING") throw new WaError("Nomor ini sudah terhubung ke WhatsApp.", "This number is already connected to WhatsApp.");
   if (!s.sock || s.status === "FAILED" || s.status === "STOPPED") {
     await hubungkan(nama);
   } else if (s.status === "STARTING" && !s.qr) {
     await Promise.race([new Promise<void>((r) => s.tunggu.push(r)), tidur(6_000)]);
   }
-  if ((s.status as SesiNomor["status"]) === "WORKING") throw new WaError("Nomor ini sudah terhubung ke WhatsApp.");
+  if ((s.status as SesiNomor["status"]) === "WORKING") throw new WaError("Nomor ini sudah terhubung ke WhatsApp.", "This number is already connected to WhatsApp.");
   const sock = s.sock;
   if (!sock || s.status !== "SCAN_QR_CODE") {
-    throw new WaError(s.alasan || "Sesi WhatsApp belum siap. Klik Hubungkan ulang lalu coba lagi.");
+    throw new WaError(s.alasan || "Sesi WhatsApp belum siap. Klik Hubungkan ulang lalu coba lagi.", s.alasan ? undefined : "The WhatsApp session isn't ready yet. Click Reconnect and try again.");
   }
   if (typeof sock.requestPairingCode !== "function") {
-    throw new WaError("Koneksi WhatsApp belum mendukung kode tautan.");
+    throw new WaError("Koneksi WhatsApp belum mendukung kode tautan.", "This WhatsApp connection doesn't support link codes yet.");
   }
-  const mentah = await denganBatas(sock.requestPairingCode(digit), 15_000, "meminta kode tautan");
+  const mentah = await denganBatas(sock.requestPairingCode(digit), 15_000, "meminta kode tautan", "requesting the link code");
   const kode = String(mentah ?? "")
     .replace(/[^A-Z0-9]/gi, "")
     .toUpperCase();
-  if (kode.length !== 8) throw new WaError("Gagal mendapatkan kode 8 karakter dari WhatsApp. Coba lagi.");
+  if (kode.length !== 8) throw new WaError("Gagal mendapatkan kode 8 karakter dari WhatsApp. Coba lagi.", "Couldn't get the 8-character code from WhatsApp. Please try again.");
   s.kodePairing = kode;
   return kode;
 }
@@ -1045,7 +1053,7 @@ export async function qr(nama: string): Promise<{ hash: string; kode: BitQr } | 
 
 function aktif(nama: string): { s: Sesi; sock: WASocket } {
   const s = st.sesi.get(nama);
-  if (!s?.sock || s.status !== "WORKING") throw new WaError("Nomor ini sedang tidak terhubung ke WhatsApp.");
+  if (!s?.sock || s.status !== "WORKING") throw new WaError("Nomor ini sedang tidak terhubung ke WhatsApp.", "This number is not connected to WhatsApp right now.");
   return { s, sock: s.sock };
 }
 

@@ -22,7 +22,14 @@ export interface HasilRapikan {
   peringatan: string[];
 }
 
-export class GalatRapikan extends Error {}
+export class GalatRapikan extends Error {
+  /** Pesan versi Inggris (tampilan /eng, dipilih di actions/API); `message` tetap bahasa Indonesia (juga untuk log). */
+  en?: string;
+  constructor(message: string, en?: string) {
+    super(message);
+    this.en = en;
+  }
+}
 
 export function sistemRapikan(jenis: KunciUsaha | null): string {
   const j = jenis ? JENIS_USAHA[jenis] : null;
@@ -95,8 +102,16 @@ export function angkaBaru(hasil: string, asli: string): string[] {
 
 export async function rapikanKnowledge(o: { teks: string; jenis: KunciUsaha | null; userId: number }): Promise<HasilRapikan> {
   const asli = bersihkanKerangka(o.teks);
-  if (infoUsaha(asli).length < BATAS_RAPIKAN.min) throw new GalatRapikan("Tulis dulu sedikit tentang usaha Anda (nama, produk & harga, jam buka) sebelum dirapikan.");
-  if (asli.length > BATAS_RAPIKAN.maks) throw new GalatRapikan(`Tulisan terlalu panjang untuk dirapikan sekaligus (maks ${BATAS_RAPIKAN.maks.toLocaleString("id-ID")} karakter). Pecah jadi beberapa dokumen.`);
+  if (infoUsaha(asli).length < BATAS_RAPIKAN.min)
+    throw new GalatRapikan(
+      "Tulis dulu sedikit tentang usaha Anda (nama, produk & harga, jam buka) sebelum dirapikan.",
+      "Write a little about your business first (name, products & prices, opening hours) before tidying it up."
+    );
+  if (asli.length > BATAS_RAPIKAN.maks)
+    throw new GalatRapikan(
+      `Tulisan terlalu panjang untuk dirapikan sekaligus (maks ${BATAS_RAPIKAN.maks.toLocaleString("id-ID")} karakter). Pecah jadi beberapa dokumen.`,
+      `The text is too long to tidy up at once (max ${BATAS_RAPIKAN.maks.toLocaleString("en-US")} characters). Split it into several documents.`
+    );
   // Sesi baru tiap permintaan: tulisan pengguna tidak tercampur dengan riwayat percakapan mana pun.
   const j = await tanyaHermes({
     sessionId: `rapikan-${o.userId}-${randomBytes(6).toString("hex")}`,
@@ -105,6 +120,6 @@ export async function rapikanKnowledge(o: { teks: string; jenis: KunciUsaha | nu
     timeoutMs: 110_000,
   });
   const u = uraiRapikan(j.teks);
-  if (!u) throw new GalatRapikan("AI belum berhasil merapikan tulisan ini. Coba lagi.");
+  if (!u) throw new GalatRapikan("AI belum berhasil merapikan tulisan ini. Coba lagi.", "The AI couldn't tidy up this text yet. Please try again.");
   return { asli, ...u, peringatan: angkaBaru(u.teks, asli) };
 }

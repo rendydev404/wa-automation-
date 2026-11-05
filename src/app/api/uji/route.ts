@@ -6,9 +6,13 @@ import { susunSistem } from "@/lib/knowledge";
 import { TOLAK_KODE, adaKode } from "@/lib/penjaga";
 import { type Foto, MAKS_FOTO_BYTE } from "@/lib/types";
 import { sesiDanNomor } from "@/lib/akses";
+import { teksPermintaan } from "@/lib/bahasa-server";
 import { terlaluSering } from "@/lib/batas";
 import { alasanSpam, periksaSpam } from "@/lib/spam";
 import { type KirimProduk, type Produk, captionProduk, daftarProduk, katalogBoleh, perluDaftar, pilihUntukKirim, teksKatalog } from "@/lib/katalog";
+
+/** Nama jenis pesan yang diabaikan AI, untuk tampilan Uji bot versi Inggris. */
+const JENIS_ABAIKAN_EN: Record<string, string> = { judi: "gambling", promosi: "promotion", penipuan: "scam", asusila: "adult content" };
 
 /** Yang akan terkirim di WhatsApp untuk tag katalog, dalam bentuk yang bisa ditampilkan Uji bot. */
 function kirimanUji(katalog: Produk[], tag: KirimProduk | null, jawaban: string) {
@@ -27,27 +31,32 @@ export async function POST(req: Request) {
     foto?: string;
     riwayat?: { ai?: boolean; teks?: string }[];
   } | null;
-  const { user, nomor } = await sesiDanNomor(b?.numberId);
-  if (!user) return NextResponse.json({ error: "Sesi berakhir. Silakan login kembali." }, { status: 401 });
+  const [{ user, nomor }, { t }] = await Promise.all([sesiDanNomor(b?.numberId), teksPermintaan()]);
+  if (!user) return NextResponse.json({ error: t("Sesi berakhir. Silakan login kembali.", "Your session has ended. Please sign in again.") }, { status: 401 });
   // Uji memakai kuota AI yang sama dengan WhatsApp: dibatasi per akun.
-  if (terlaluSering(`uji:${user.id}`, 30, 10 * 60_000)) return NextResponse.json({ error: "Terlalu banyak uji. Tunggu beberapa menit." }, { status: 429 });
+  if (terlaluSering(`uji:${user.id}`, 30, 10 * 60_000)) return NextResponse.json({ error: t("Terlalu banyak uji. Tunggu beberapa menit.", "Too many tests. Please wait a few minutes.") }, { status: 429 });
   const teksPesan = b?.pesan?.trim() ?? "";
   const sesi = b?.sesi ?? "";
-  if (!nomor) return NextResponse.json({ error: "Nomor tidak ditemukan." }, { status: 404 });
+  if (!nomor) return NextResponse.json({ error: t("Nomor tidak ditemukan.", "Number not found.") }, { status: 404 });
   // Foto uji (opsional): data URL gambar yang sudah diperkecil di browser, diperlakukan sama dengan foto dari WhatsApp.
   let gambar: Foto[] = [];
   if (b?.foto) {
     const m = /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/]+={0,2})$/.exec(b.foto);
-    if (!m || (m[2].length * 3) / 4 > MAKS_FOTO_BYTE) return NextResponse.json({ error: "Foto tidak valid atau lebih dari 3,7 MB." }, { status: 400 });
+    if (!m || (m[2].length * 3) / 4 > MAKS_FOTO_BYTE) return NextResponse.json({ error: t("Foto tidak valid atau lebih dari 3,7 MB.", "The photo is invalid or larger than 3.7 MB.") }, { status: 400 });
     gambar = [{ mime: m[1] as Foto["mime"], data: m[2] }];
   }
-  if ((!teksPesan && !gambar.length) || teksPesan.length > 2000) return NextResponse.json({ error: "Pesan kosong atau terlalu panjang." }, { status: 400 });
-  if (!/^[a-z0-9]{8,24}$/.test(sesi)) return NextResponse.json({ error: "Sesi uji tidak valid." }, { status: 400 });
+  if ((!teksPesan && !gambar.length) || teksPesan.length > 2000) return NextResponse.json({ error: t("Pesan kosong atau terlalu panjang.", "The message is empty or too long.") }, { status: 400 });
+  if (!/^[a-z0-9]{8,24}$/.test(sesi)) return NextResponse.json({ error: t("Sesi uji tidak valid.", "Invalid test session.") }, { status: 400 });
   const pesan = gambar.length ? (teksPesan ? `${teksPesan}\n[Pelanggan melampirkan foto]` : "[Pelanggan mengirim foto]") : teksPesan;
   // Penyaring spam sama dengan WhatsApp (chat uji = lawan bicara yang belum dikenal).
   const saringSpam = nomor.saring_spam;
   const lokal = saringSpam ? periksaSpam(teksPesan) : null;
-  if (lokal?.spam) return NextResponse.json({ teks: "", ms: 0, abaikan: `${alasanSpam(lokal)}, tanpa memanggil AI` });
+  if (lokal?.spam)
+    return NextResponse.json({
+      teks: "",
+      ms: 0,
+      abaikan: t(`${alasanSpam(lokal)}, tanpa memanggil AI`, `Online gambling promotion (${lokal.sinyal.slice(0, 4).join(", ")}), without calling the AI`),
+    });
 
   // Percakapan uji sejauh ini (dikirim browser). Penyedia tanpa ingatan (Claude API) menerimanya di pesan sistem;
   // untuk semua penyedia ia juga sumber fakta bagi pemeriksa jawaban.
@@ -72,7 +81,14 @@ export async function POST(req: Request) {
   const admin = user.peran === "admin";
   try {
     const j = await tanyaAiTerjaga({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, [sistem, pesan, ...semuaRiwayat].join("\n"), { saringSpam, katalog: katalog.length > 0, gaya: true, nilai: nomor.saring_prospek });
-    if (j.abaikan) return NextResponse.json({ teks: "", ms: j.ms, abaikan: `Dinilai AI: ${j.abaikan.jenis}${j.abaikan.alasan ? ` (${j.abaikan.alasan})` : ""}` });
+    if (j.abaikan) {
+      const alasan = j.abaikan.alasan ? ` (${j.abaikan.alasan})` : "";
+      return NextResponse.json({
+        teks: "",
+        ms: j.ms,
+        abaikan: t(`Dinilai AI: ${j.abaikan.jenis}${alasan}`, `Flagged by the AI: ${JENIS_ABAIKAN_EN[j.abaikan.jenis] ?? j.abaikan.jenis}${alasan}`),
+      });
+    }
     // AI menilai pesan ini tidak perlu dibalas (ucapan penutup saat urusan sudah tuntas).
     if (!j.teks && j.nilai) return NextResponse.json({ teks: "", ms: j.ms, selesai: true, nilai: j.nilai });
     // Penjaga yang sama dengan WhatsApp, supaya hasil uji mencerminkan yang benar-benar terkirim.
@@ -96,6 +112,6 @@ export async function POST(req: Request) {
   } catch (e) {
     const detail = e instanceof Error ? e.message : "galat";
     if (!admin) console.error(`[uji] AI tidak menjawab user=${user.id} nomor=${nomor.id}: ${detail}`);
-    return NextResponse.json({ error: admin ? `AI tidak menjawab: ${detail}` : "AI sedang tidak bisa menjawab. Coba lagi sebentar lagi." }, { status: 502 });
+    return NextResponse.json({ error: admin ? `AI tidak menjawab: ${detail}` : t("AI sedang tidak bisa menjawab. Coba lagi sebentar lagi.", "The AI can't answer right now. Please try again shortly.") }, { status: 502 });
   }
 }

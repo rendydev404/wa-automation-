@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useBahasa } from "./bahasa";
 
 const BAGIAN = [
-  { id: "koneksi", label: "Koneksi" },
-  { id: "histori", label: "Percakapan" },
-  { id: "knowledge", label: "Knowledge" },
-  { id: "katalog", label: "Katalog" },
-  { id: "uji", label: "Uji bot" },
-  { id: "pengaturan", label: "Pengaturan" },
+  { id: "koneksi", label: { id: "Koneksi", en: "Connection" } },
+  { id: "histori", label: { id: "Percakapan", en: "Conversations" } },
+  { id: "knowledge", label: { id: "Knowledge", en: "Knowledge" } },
+  { id: "katalog", label: { id: "Katalog", en: "Catalog" } },
+  { id: "uji", label: { id: "Uji bot", en: "Test bot" } },
+  { id: "pengaturan", label: { id: "Pengaturan", en: "Settings" } },
 ] as const;
 
 /**
@@ -16,6 +17,7 @@ const BAGIAN = [
  * disorot lewat IntersectionObserver (tanpa listener scroll).
  */
 export function NavBagian() {
+  const { b, t } = useBahasa();
   const [aktif, setAktif] = useState<string>(BAGIAN[0].id);
   const wadah = useRef<HTMLDivElement>(null);
 
@@ -50,21 +52,21 @@ export function NavBagian() {
 
   return (
     <nav
-      aria-label="Bagian halaman"
+      aria-label={t("Bagian halaman", "Page sections")}
       className="sticky top-14 z-20 -mx-4 border-b border-line bg-canvas/90 px-4 backdrop-blur-md sm:-mx-6 sm:px-6 lg:top-0 lg:-mx-10 lg:px-10"
     >
       <div ref={wadah} className="flex gap-1 overflow-x-auto py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {BAGIAN.map((b) => (
+        {BAGIAN.map((g) => (
           <a
-            key={b.id}
-            href={`#${b.id}`}
-            data-id={b.id}
-            aria-current={aktif === b.id ? "location" : undefined}
+            key={g.id}
+            href={`#${g.id}`}
+            data-id={g.id}
+            aria-current={aktif === g.id ? "location" : undefined}
             className={`shrink-0 rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors ${
-              aktif === b.id ? "bg-ink text-ink-fg" : "text-muted hover:bg-subtle hover:text-fg"
+              aktif === g.id ? "bg-ink text-ink-fg" : "text-muted hover:bg-subtle hover:text-fg"
             }`}
           >
-            {b.label}
+            {g.label[b]}
           </a>
         ))}
       </div>

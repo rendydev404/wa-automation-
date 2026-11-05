@@ -19,7 +19,19 @@ import type { User } from "./session";
 
 export * from "./afiliasi-def";
 
-export class AfiliasiError extends Error {}
+/**
+ * `en`: pesan versi Inggris (tampilan /eng, dipilih di actions.ts); `message` tetap bahasa Indonesia (juga untuk log).
+ * Nominal di `en` ditulis "{rp}" dan diisi dari `rp` sebagai USD di actions.ts (kurs tidak dibaca di sini).
+ */
+export class AfiliasiError extends Error {
+  en?: string;
+  rp?: number;
+  constructor(message: string, en?: string, rp?: number) {
+    super(message);
+    this.en = en;
+    this.rp = rp;
+  }
+}
 
 export interface PengaturanAfiliasi {
   aktif: boolean;
@@ -95,15 +107,15 @@ export function buatKodeReferralAcak(panjang = 8): string {
 function validasiRekeningAfiliator(input: { bankNama: string; bankNomor: string; bankPemilik: string }) {
   const bankSah = DAFTAR_BANK.some((b) => b.id === input.bankNama);
   if (!bankSah) {
-    throw new AfiliasiError("Pilih bank atau e-wallet tujuan pencairan dari daftar.");
+    throw new AfiliasiError("Pilih bank atau e-wallet tujuan pencairan dari daftar.", "Choose the payout bank or e-wallet from the list.");
   }
   const bankNomor = input.bankNomor.replace(/[^0-9]/g, "").slice(0, 30);
   if (bankNomor.length < 6) {
-    throw new AfiliasiError("Nomor rekening atau nomor e-wallet minimal 6 digit angka.");
+    throw new AfiliasiError("Nomor rekening atau nomor e-wallet minimal 6 digit angka.", "Account or e-wallet number must be at least 6 digits.");
   }
   const bankPemilik = input.bankPemilik.trim().replace(/\s+/g, " ").slice(0, 80);
   if (bankPemilik.length < 2) {
-    throw new AfiliasiError("Nama pemilik rekening wajib diisi (minimal 2 huruf).");
+    throw new AfiliasiError("Nama pemilik rekening wajib diisi (minimal 2 huruf).", "Account holder name is required (at least 2 letters).");
   }
   return { bankNama: input.bankNama, bankNomor, bankPemilik };
 }
@@ -113,17 +125,17 @@ export async function daftarAfiliator(
   input: { kode?: string; bankNama: string; bankNomor: string; bankPemilik: string }
 ): Promise<BarisAfiliator> {
   const atur = await pengaturanAfiliasi();
-  if (!atur.aktif) throw new AfiliasiError("Program afiliasi sedang ditutup sementara oleh admin.");
+  if (!atur.aktif) throw new AfiliasiError("Program afiliasi sedang ditutup sementara oleh admin.", "The affiliate program is temporarily closed by the admin.");
   const { bankNama, bankNomor, bankPemilik } = validasiRekeningAfiliator(input);
   const kodeManual = input.kode && input.kode.trim() !== "" ? normalkanKodeRef(input.kode) : null;
   if (input.kode && input.kode.trim() !== "" && !kodeManual) {
-    throw new AfiliasiError("Kode afiliasi tidak valid.");
+    throw new AfiliasiError("Kode afiliasi tidak valid.", "Invalid affiliate code.");
   }
   const statusAwal: StatusAfiliator = atur.persetujuan === "otomatis" ? "aktif" : "menunggu";
   const sql = await db();
 
   const sudah = await profilAfiliator(userId);
-  if (sudah) throw new AfiliasiError("Akun Anda sudah terdaftar di program afiliasi.");
+  if (sudah) throw new AfiliasiError("Akun Anda sudah terdaftar di program afiliasi.", "Your account is already registered in the affiliate program.");
 
   for (let coba = 0; coba < 6; coba++) {
     const kodePakai = kodeManual ?? buatKodeReferralAcak(8);
@@ -135,11 +147,11 @@ export async function daftarAfiliator(
       return baru;
     } catch {
       if (kodeManual) {
-        throw new AfiliasiError(`Kode afiliasi "${kodeManual}" sudah dipakai orang lain.`);
+        throw new AfiliasiError(`Kode afiliasi "${kodeManual}" sudah dipakai orang lain.`, `The affiliate code "${kodeManual}" is already taken.`);
       }
     }
   }
-  throw new AfiliasiError("Gagal membuat kode afiliasi acak. Silakan coba lagi.");
+  throw new AfiliasiError("Gagal membuat kode afiliasi acak. Silakan coba lagi.", "Couldn't generate a random affiliate code. Please try again.");
 }
 
 export async function ubahProfilAfiliator(
@@ -149,7 +161,7 @@ export async function ubahProfilAfiliator(
   const { bankNama, bankNomor, bankPemilik } = validasiRekeningAfiliator(input);
   const kodeBaru = input.kode && input.kode.trim() !== "" ? normalkanKodeRef(input.kode) : null;
   if (input.kode && input.kode.trim() !== "" && !kodeBaru) {
-    throw new AfiliasiError("Kode afiliasi tidak valid.");
+    throw new AfiliasiError("Kode afiliasi tidak valid.", "Invalid affiliate code.");
   }
   const sql = await db();
   try {
@@ -164,11 +176,11 @@ export async function ubahProfilAfiliator(
              SET bank_nama = ${bankNama}, bank_nomor = ${bankNomor}, bank_pemilik = ${bankPemilik}
            WHERE user_id = ${userId}
            RETURNING ${sql.unsafe(KOLOM_AFILIATOR)}`;
-    if (!ubah) throw new AfiliasiError("Profil afiliasi tidak ditemukan.");
+    if (!ubah) throw new AfiliasiError("Profil afiliasi tidak ditemukan.", "Affiliate profile not found.");
     return ubah;
   } catch (e) {
     if (e instanceof AfiliasiError) throw e;
-    throw new AfiliasiError("Gagal memperbarui profil afiliasi.");
+    throw new AfiliasiError("Gagal memperbarui profil afiliasi.", "Couldn't update the affiliate profile.");
   }
 }
 
@@ -326,22 +338,22 @@ export async function ajukanPenarikan(userId: number, nominalMentah: number): Pr
   const atur = await pengaturanAfiliasi();
   const nominal = Math.round(nominalMentah);
   if (!Number.isInteger(nominal) || nominal < atur.minTarik) {
-    throw new AfiliasiError(`Minimal penarikan komisi adalah Rp${atur.minTarik.toLocaleString("id-ID")}.`);
+    throw new AfiliasiError(`Minimal penarikan komisi adalah Rp${atur.minTarik.toLocaleString("id-ID")}.`, "The minimum commission payout is {rp}.", atur.minTarik);
   }
 
   return transaksiDb(async (tx) => {
     const [af] = await tx<BarisAfiliator[]>`
       SELECT ${tx.unsafe(KOLOM_AFILIATOR)} FROM afiliator WHERE user_id = ${userId} FOR UPDATE`;
-    if (!af) throw new AfiliasiError("Anda belum terdaftar sebagai afiliator.");
-    if (af.status !== "aktif") throw new AfiliasiError("Akun afiliasi Anda belum aktif untuk melakukan penarikan.");
+    if (!af) throw new AfiliasiError("Anda belum terdaftar sebagai afiliator.", "You are not registered as an affiliate yet.");
+    if (af.status !== "aktif") throw new AfiliasiError("Akun afiliasi Anda belum aktif untuk melakukan penarikan.", "Your affiliate account is not active yet, so you can't request a payout.");
     if (af.saldo < nominal) {
-      throw new AfiliasiError(`Saldo komisi tidak mencukupi (tersedia Rp${af.saldo.toLocaleString("id-ID")}).`);
+      throw new AfiliasiError(`Saldo komisi tidak mencukupi (tersedia Rp${af.saldo.toLocaleString("id-ID")}).`, "Insufficient commission balance ({rp} available).", af.saldo);
     }
 
     const [masihMenunggu] = await tx<{ id: number }[]>`
       SELECT id FROM penarikan_afiliasi WHERE afiliator_id = ${userId} AND status = 'menunggu' LIMIT 1`;
     if (masihMenunggu) {
-      throw new AfiliasiError("Anda masih memiliki pengajuan penarikan yang sedang diproses admin.");
+      throw new AfiliasiError("Anda masih memiliki pengajuan penarikan yang sedang diproses admin.", "You still have a payout request being processed by the admin.");
     }
 
     await tx`UPDATE afiliator SET saldo = saldo - ${nominal} WHERE user_id = ${userId}`;

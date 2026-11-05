@@ -5,6 +5,7 @@ import { catatTerhubung, nomorMilik, semuaNomor } from "@/lib/numbers";
 import { getUser } from "@/lib/session";
 import type { StatusWa } from "@/lib/types";
 import { infoSesi } from "@/lib/wa";
+import { teksPermintaan } from "@/lib/bahasa-server";
 
 const g = globalThis as unknown as { __waAiStatus?: { at: number; ok: boolean; janji: Promise<boolean> | null } };
 
@@ -31,7 +32,7 @@ async function aiCache(): Promise<boolean> {
  */
 export async function GET() {
   const user = await getUser();
-  if (!user) return NextResponse.json({ error: "Sesi berakhir." }, { status: 401 });
+  if (!user) return NextResponse.json({ error: (await teksPermintaan()).t("Sesi berakhir.", "Your session has ended.") }, { status: 401 });
 
   const ai = await aiCache();
   // Galat AI berisi detail teknis server (termasuk nama mesin/model): hanya untuk admin.

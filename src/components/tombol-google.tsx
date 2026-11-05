@@ -1,4 +1,5 @@
 import { connection } from "next/server";
+import { teksHalaman } from "@/lib/bahasa-halaman";
 import { googleSiap } from "@/lib/google";
 
 /** Logo "G" resmi Google (empat warna), sesuai pedoman merek tombol masuk Google. */
@@ -18,21 +19,23 @@ function LogoGoogle() {
  * (dibaca saat permintaan, bukan saat build). Tautan biasa (<a>), bukan <Link>: tujuannya route handler yang
  * mengalihkan ke Google.
  */
-export async function TombolGoogle({ label = "Masuk dengan Google" }: { label?: string }) {
+export async function TombolGoogle({ label }: { label?: string }) {
   await connection();
   if (!googleSiap()) return null;
+  const { t } = await teksHalaman();
   return (
     <>
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- route handler (pengalihan ke Google), bukan halaman */}
       <a
         href="/api/auth/google"
         className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-line-strong bg-surface text-[14px] font-semibold text-fg transition-colors hover:bg-subtle"
       >
         <LogoGoogle />
-        {label}
+        {label ?? t("Masuk dengan Google", "Sign in with Google")}
       </a>
       <div className="my-5 flex items-center gap-3 text-[12px] font-medium text-faint">
         <span className="h-px flex-1 bg-line" />
-        atau dengan email
+        {t("atau dengan email", "or with email")}
         <span className="h-px flex-1 bg-line" />
       </div>
     </>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { jamWib, tanggal } from "@/lib/format";
 import { HALAMAN_HARGA, type InfoTarif } from "@/lib/tarif-def";
+import { useBahasa } from "./bahasa";
 
 const SELANG_MS = 10 * 60_000;
 
@@ -14,6 +15,7 @@ const SELANG_MS = 10 * 60_000;
  * lebih baru dari yang tampil, halaman dirender ulang sehingga semua harga model langsung ikut berubah.
  */
 export function TarifInfo({ info }: { info: InfoTarif }) {
+  const { b, t } = useBahasa();
   const router = useRouter();
   const [sedang, mulai] = useTransition();
   const [galat, setGalat] = useState(false);
@@ -56,22 +58,32 @@ export function TarifInfo({ info }: { info: InfoTarif }) {
     <div className="flex flex-wrap items-start justify-between gap-2 rounded-xl bg-subtle/60 px-3 py-2.5 text-[12px]">
       <p className={info.sumber === "resmi" ? "text-muted" : "text-warning"}>
         {info.sumber === "cadangan" ? (
-          "Halaman harga Anthropic belum bisa dibaca; sementara memakai tarif resmi yang dicek manual 29 Okt 2026 (3 model). Dicoba lagi otomatis."
+          t(
+            "Halaman harga Anthropic belum bisa dibaca; sementara memakai tarif resmi yang dicek manual 29 Okt 2026 (3 model). Dicoba lagi otomatis.",
+            "Anthropic's pricing page can't be read yet; using the official rates checked manually on Oct 29, 2026 (3 models) for now. Retrying automatically."
+          )
         ) : (
           <>
-            Harga model = tarif resmi Anthropic ({info.jumlahModel} model) × kurs pasar. Dicek {tanggal(info.diambil)} {jamWib(info.diambil)} WIB, otomatis tiap jam
-            {info.berubah > 0 && <> · terakhir berubah {tanggal(info.berubah)}</>}.
-            {info.sumber === "tersimpan" && " Halaman harga sedang tidak terjangkau; memakai tarif terakhir yang berhasil diambil."}
+            {t(
+              `Harga model = tarif resmi Anthropic (${info.jumlahModel} model) × kurs pasar. Dicek ${tanggal(info.diambil)} ${jamWib(info.diambil)} WIB, otomatis tiap jam`,
+              `Model price = Anthropic's official rate (${info.jumlahModel} ${info.jumlahModel === 1 ? "model" : "models"}) × market exchange rate. Checked ${tanggal(info.diambil, b)} ${jamWib(info.diambil, b)} WIB (UTC+7), automatically every hour`
+            )}
+            {info.berubah > 0 && t(` · terakhir berubah ${tanggal(info.berubah)}`, ` · last changed ${tanggal(info.berubah, b)}`)}.
+            {info.sumber === "tersimpan" &&
+              t(
+                " Halaman harga sedang tidak terjangkau; memakai tarif terakhir yang berhasil diambil.",
+                " The pricing page is unreachable right now; using the last rates fetched successfully."
+              )}
           </>
         )}{" "}
         <a href={HALAMAN_HARGA} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 font-semibold text-accent hover:underline">
-          Halaman harga <ExternalLink className="size-3" aria-hidden />
+          {t("Halaman harga", "Pricing page")} <ExternalLink className="size-3" aria-hidden />
         </a>
-        {galat && <span className="block text-warning">Gagal memperbarui; coba lagi sebentar.</span>}
+        {galat && <span className="block text-warning">{t("Gagal memperbarui; coba lagi sebentar.", "Couldn't refresh; try again in a moment.")}</span>}
       </p>
       <button type="button" onClick={perbarui} disabled={sedang} className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 font-semibold text-accent transition-colors hover:bg-accent-soft disabled:opacity-60">
         {sedang ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <RefreshCw className="size-3.5" aria-hidden />}
-        Perbarui
+        {t("Perbarui", "Refresh")}
       </button>
     </div>
   );

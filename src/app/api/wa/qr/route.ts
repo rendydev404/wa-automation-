@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { sesiDanNomor } from "@/lib/akses";
 import type { QrWa } from "@/lib/types";
 import { infoSesi, kodePairing, qr } from "@/lib/wa";
+import { teksPermintaan } from "@/lib/bahasa-server";
 
 /** QR untuk satu nomor. Matriksnya (±0,7 KB) hanya dikirim bila berubah, supaya polling tetap ringan. */
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const { user, nomor } = await sesiDanNomor(url.searchParams.get("id"));
-  if (!user) return NextResponse.json({ error: "Sesi berakhir." }, { status: 401 });
-  if (!nomor) return NextResponse.json({ error: "Nomor tidak ditemukan." }, { status: 404 });
+  // Bahasa hanya dibaca di jalur galat: polling QR tetap ringan.
+  if (!user) return NextResponse.json({ error: (await teksPermintaan()).t("Sesi berakhir.", "Your session has ended.") }, { status: 401 });
+  if (!nomor) return NextResponse.json({ error: (await teksPermintaan()).t("Nomor tidak ditemukan.", "Number not found.") }, { status: 404 });
 
   const hasil: QrWa = { status: infoSesi(nomor.sesi).status };
   if (hasil.status === "SCAN_QR_CODE") {

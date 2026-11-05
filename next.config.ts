@@ -40,6 +40,23 @@ const nextConfig: NextConfig = {
       { source: "/langganan/selesai", destination: "/langganan", permanent: false },
     ];
   },
+  // Bahasa: /eng/... -> src/app/[lang] dengan lang "en", jalur halaman lain -> lang "id" (URL di browser tetap).
+  // Di sini, bukan di proxy.ts: rewrite dari proxy berupa URL absolut yang host-nya dinormalkan Next ke "localhost",
+  // sehingga dengan HOSTNAME=127.0.0.1 (deploy/docker-compose.yml) dianggap proxy eksternal dan gagal.
+  // Dikecualikan: /api, /_next, berkas statis (ada titik di segmen terakhir: logo, ikon, robots.txt).
+  // Urutan penting: aturan beforeFiles berantai (aturan berikutnya melihat jalur hasil aturan sebelumnya).
+  // /id/... atau /en/... yang dibuka langsung menjadi /id/id/... -> 404 (segmen internal tidak terbuka).
+  // /[lang]/... tidak ditulis ulang: Next meneruskan server action antar-halaman ke jalur worker itu secara internal.
+  async rewrites() {
+    return {
+      beforeFiles: [
+        { source: "/:path((?!api(?:/|$)|_next/|eng(?:/|$)|\\[|%5B)(?!.*\\.[a-zA-Z0-9]+$).+)", destination: "/id/:path" },
+        { source: "/", destination: "/id" },
+        { source: "/eng", destination: "/en" },
+        { source: "/eng/:path((?!.*\\.[a-zA-Z0-9]+$).+)", destination: "/en/:path" },
+      ],
+    };
+  },
   async headers() {
     return [
       // Logo kanal pembayaran: berkas statis kecil, disimpan browser seminggu (ganti logo = ganti nama berkas).

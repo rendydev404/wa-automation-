@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 import { COOKIE_REF, UMUR_COOKIE_REF, normalkanKodeRef } from "@/lib/afiliasi-def";
+import { type Bahasa, HEADER_BAHASA, bahasaSah, tautan, urai } from "@/lib/bahasa";
 
 // /api/sinkron dipanggil database (bukan browser); keabsahannya dicek lewat tanda tangan HMAC di handler-nya.
 // "/" = landing page publik; /api/auth/google* = masuk dengan Google (sebelum ada sesi);
@@ -19,9 +20,39 @@ function asalSama(req: NextRequest): boolean {
   }
 }
 
-/** Pemeriksaan optimistis (tanda tangan + masa berlaku). Otorisasi penuh ada di tiap aksi/handler. */
+/** Bahasa asal permintaan API: dari halaman yang memanggilnya (Referer sama-asal membawa path lengkap). */
+function bahasaReferer(req: NextRequest): Bahasa {
+  const ref = req.headers.get("referer");
+  if (!ref) return "id";
+  try {
+    return urai(new URL(ref).pathname).bahasa;
+  } catch {
+    return "id";
+  }
+}
+
+/**
+ * Pemeriksaan optimistis (tanda tangan + masa berlaku). Otorisasi penuh ada di tiap aksi/handler.
+ * Bahasa: /eng/... = Inggris, jalur lain = Indonesia (penulisan ulang ke src/app/[lang] ada di next.config.ts).
+ */
 export async function proxy(request: NextRequest) {
-  const { pathname, searchParams } = request.nextUrl;
+  const { pathname: asli, searchParams, search } = request.nextUrl;
+  const { bahasa: bahasaUrl, jalur: pathname } = urai(asli);
+  const isApi = pathname === "/api" || pathname.startsWith("/api/");
+  const bahasa: Bahasa = isApi && bahasaUrl === "id" ? bahasaReferer(request) : bahasaUrl;
+  const href = (jalur: string) => tautan(bahasa, jalur);
+
+  // Panel admin hanya berbahasa Indonesia.
+  if (bahasaUrl === "en" && (pathname === "/admin" || pathname.startsWith("/admin/"))) {
+    return NextResponse.redirect(new URL(pathname + search, request.url));
+  }
+
+  const kepala = new Headers(request.headers);
+  // Server action yang diteruskan Next antar-halaman (ke /[lang]/...) membawa header bahasa permintaan aslinya.
+  if (!(request.headers.has("x-action-forwarded") && bahasaSah(request.headers.get(HEADER_BAHASA)))) kepala.set(HEADER_BAHASA, bahasa);
+  // Penulisan ulang /eng/... -> /en/... dan /x -> /id/x ada di next.config.ts (rewrites beforeFiles, dijalankan setelah
+  // proxy ini). Di sini cukup meneruskan bahasa lewat header untuk server action & route handler.
+  const lanjut = (): NextResponse => NextResponse.next({ request: { headers: kepala } });
   const refParam = searchParams.get("ref");
   const kodeRef = refParam ? normalkanKodeRef(refParam) : null;
   const pasangRef = (res: NextResponse): NextResponse => {
@@ -42,22 +73,24 @@ export async function proxy(request: NextRequest) {
     return res;
   };
 
-  if (PUBLIK.has(pathname)) return pasangRef(NextResponse.next());
+  if (PUBLIK.has(pathname)) return pasangRef(lanjut());
 
   const sesi = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
-  const isApi = pathname.startsWith("/api/");
 
   // /login, /daftar & /lupa-password selalu diteruskan: cookie yang sah tanda tangannya belum tentu masih berlaku di database
   // (mis. password diganti, akun diblokir), dan mengalihkannya dari sini akan memutar tanpa henti.
-  if (pathname === "/login" || pathname === "/daftar" || pathname === "/lupa-password") return pasangRef(NextResponse.next());
+  if (pathname === "/login" || pathname === "/daftar" || pathname === "/lupa-password") return pasangRef(lanjut());
   if (!sesi) {
-    if (isApi) return NextResponse.json({ error: "Sesi berakhir. Silakan login kembali." }, { status: 401, headers: { "Cache-Control": "no-store" } });
-    return pasangRef(NextResponse.redirect(new URL("/login", request.url)));
+    if (isApi) {
+      const pesan = bahasa === "en" ? "Your session has ended. Please sign in again." : "Sesi berakhir. Silakan login kembali.";
+      return NextResponse.json({ error: pesan }, { status: 401, headers: { "Cache-Control": "no-store" } });
+    }
+    return pasangRef(NextResponse.redirect(new URL(href("/login"), request.url)));
   }
   if (isApi && request.method !== "GET" && request.method !== "HEAD" && !asalSama(request)) {
-    return NextResponse.json({ error: "Permintaan tidak valid." }, { status: 403 });
+    return NextResponse.json({ error: bahasa === "en" ? "Invalid request." : "Permintaan tidak valid." }, { status: 403 });
   }
-  return pasangRef(NextResponse.next());
+  return pasangRef(lanjut());
 }
 
 // Ikon aplikasi (src/app/icon.svg, apple-icon.png) harus terbuka tanpa login: dipakai tab peramban & layar utama HP.

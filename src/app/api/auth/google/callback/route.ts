@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { COOKIE_GOOGLE, GoogleError, asal, googleSiap, selesaikanGoogle } from "@/lib/google";
+import { COOKIE_GOOGLE, COOKIE_GOOGLE_BAHASA, GoogleError, asal, googleSiap, selesaikanGoogle } from "@/lib/google";
+import { bahasaSah, tautan } from "@/lib/bahasa";
 import { akunGoogle } from "@/lib/pengguna";
 import { catatLoginBerhasil, halamanAwal, mulaiSesi, pastikanAdminAwal, pendaftaranDibuka } from "@/lib/session";
 import { COOKIE_REF, terapkanReferral } from "@/lib/afiliasi";
@@ -9,14 +10,17 @@ import { COOKIE_PIXEL_REG, kirimCapiEvent } from "@/lib/meta-pixel";
 /** Kembali dari Google: verifikasi, cari/tautkan/buat akun, lalu mulai sesi login biasa. */
 export async function GET(req: Request) {
   const app = asal(req);
+  const toples = await cookies();
+  const bahasaAsal = toples.get(COOKIE_GOOGLE_BAHASA)?.value;
+  const b = bahasaSah(bahasaAsal) ? bahasaAsal : "id";
   const ke = (jalur: string) => {
-    const res = NextResponse.redirect(`${app}${jalur}`);
+    const res = NextResponse.redirect(`${app}${tautan(b, jalur)}`);
     res.cookies.delete({ name: COOKIE_GOOGLE, path: "/api/auth/google" }); // sekali pakai
+    res.cookies.delete({ name: COOKIE_GOOGLE_BAHASA, path: "/api/auth/google" });
     return res;
   };
   if (!googleSiap()) return ke("/login?galat=belum");
 
-  const toples = await cookies();
   let identitas;
   try {
     identitas = await selesaikanGoogle(app, new URL(req.url).searchParams, toples.get(COOKIE_GOOGLE)?.value);

@@ -1,13 +1,15 @@
 "use client";
 
 import type { ReactNode } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import Link from "@/components/link";
 import { CircleHelp, CreditCard, LayoutDashboard, LogOut, MessageCircle, Share2, ShieldCheck, UserRound } from "lucide-react";
 import { logoutAction } from "@/app/actions";
+import type { T } from "@/lib/bahasa";
 import { formatNomor } from "@/lib/format";
 import type { StatusSesiWa } from "@/lib/types";
+import { useBahasa, useJalur } from "./bahasa";
 import { BilahBawah, TabBawah, TabLembar } from "./bilah-bawah";
+import { GantiBahasa } from "./ganti-bahasa";
 import { TUR_DASHBOARD, TUR_NOMOR } from "./isi-tur";
 import { TombolTambahNomor } from "./tambah-nomor";
 import { TombolTur } from "./tur";
@@ -21,13 +23,13 @@ export interface ItemNomorNav {
 
 const JUDUL_KECIL = "px-3 text-[11px] font-semibold tracking-[0.08em] text-ink-muted/80 uppercase";
 
-function teksStatus(s: StatusSesiWa | undefined): string {
-  if (!s) return "Memeriksa…";
-  if (s === "WORKING") return "Terhubung";
-  if (s === "SCAN_QR_CODE") return "Menunggu scan QR";
-  if (s === "STARTING") return "Menyiapkan";
-  if (s === "FAILED") return "Perlu dimulai ulang";
-  return "Belum terhubung";
+function teksStatus(s: StatusSesiWa | undefined, t: T): string {
+  if (!s) return t("Memeriksa…", "Checking…");
+  if (s === "WORKING") return t("Terhubung", "Connected");
+  if (s === "SCAN_QR_CODE") return t("Menunggu scan QR", "Waiting for QR scan");
+  if (s === "STARTING") return t("Menyiapkan", "Starting up");
+  if (s === "FAILED") return t("Perlu dimulai ulang", "Needs a restart");
+  return t("Belum terhubung", "Not connected");
 }
 
 function warnaStatus(s: StatusSesiWa | undefined): string {
@@ -59,9 +61,10 @@ function TautanNav({ href, aktif, ikon, children, tur }: { href: string; aktif: 
 }
 
 function ItemNomor({ n, aktif }: { n: ItemNomorNav; aktif: boolean }) {
+  const { t } = useBahasa();
   const sesi = useSesiNomor(n.id);
   const wa = sesi?.status === "WORKING" && sesi.waId ? sesi.waId : n.wa_id;
-  const status = teksStatus(sesi?.status);
+  const status = teksStatus(sesi?.status, t);
   return (
     <li>
       <Link href={`/nomor/${n.id}`} aria-current={aktif ? "page" : undefined} className={kelasTautan(aktif)}>
@@ -81,27 +84,28 @@ function ItemNomor({ n, aktif }: { n: ItemNomorNav; aktif: boolean }) {
 }
 
 export function NavUtama({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; admin: boolean; pengguna: { nama: string; email: string } }) {
-  const jalur = usePathname();
+  const jalur = useJalur();
+  const { t } = useBahasa();
   return (
     <>
       <div className="space-y-0.5 px-3 pt-3 pendek:pt-2">
         <p className={`${JUDUL_KECIL} pb-2 pendek:pb-1`}>Menu</p>
         <TautanNav href="/dashboard" aktif={jalur === "/dashboard"} ikon={<LayoutDashboard className="size-4" aria-hidden />}>
-          Ringkasan
+          {t("Ringkasan", "Overview")}
         </TautanNav>
         <TautanNav href="/akun" aktif={jalur === "/akun"} ikon={<UserRound className="size-4" aria-hidden />}>
-          <span className="block leading-tight">Akun saya</span>
+          <span className="block leading-tight">{t("Akun saya", "My account")}</span>
           <span className="block max-w-40 truncate text-[11.5px] leading-tight font-medium text-ink-muted">{pengguna.nama}</span>
         </TautanNav>
         <TautanNav href="/langganan" aktif={jalur === "/langganan"} ikon={<CreditCard className="size-4" aria-hidden />} tur="nav-langganan">
-          Langganan
+          {t("Langganan", "Subscription")}
         </TautanNav>
         <TautanNav href="/afiliasi" aktif={jalur === "/afiliasi"} ikon={<Share2 className="size-4" aria-hidden />}>
-          Afiliasi
+          {t("Afiliasi", "Affiliate")}
         </TautanNav>
         {admin && (
           <TautanNav href="/admin" aktif={jalur.startsWith("/admin")} ikon={<ShieldCheck className="size-4" aria-hidden />}>
-            Panel admin
+            {t("Panel admin", "Admin panel")}
           </TautanNav>
         )}
         {/* Panduan: tur halaman yang sedang dibuka (halaman nomor punya tur sendiri). */}
@@ -114,12 +118,12 @@ export function NavUtama({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
             <span className="grid size-8 place-items-center rounded-lg bg-white/[0.05] text-ink-muted group-hover:text-ink-fg">
               <CircleHelp className="size-4" aria-hidden />
             </span>
-            <span className="text-[13.5px] font-semibold">Panduan</span>
+            <span className="text-[13.5px] font-semibold">{t("Panduan", "Guide")}</span>
           </TombolTur>
         </span>
       </div>
       <div data-tur="nav-nomor" className="mt-6 flex items-center justify-between pr-6 pb-2 pl-3 pendek:mt-3 pendek:pb-1">
-        <p className={JUDUL_KECIL}>Nomor WhatsApp</p>
+        <p className={JUDUL_KECIL}>{t("Nomor WhatsApp", "WhatsApp numbers")}</p>
         <span className="rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted tabular-nums">{nomor.length}</span>
       </div>
       {/* Daftar tidak pernah dijepit di bawah tinggi 3 nomor (atau sebanyak nomor yang ada); selebihnya digulir di dalam daftar. */}
@@ -130,7 +134,7 @@ export function NavUtama({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
         {nomor.map((n) => (
           <ItemNomor key={n.id} n={n} aktif={jalur === `/nomor/${n.id}`} />
         ))}
-        {nomor.length === 0 && <li className="px-3 py-2 text-[12.5px] text-ink-muted">Belum ada nomor.</li>}
+        {nomor.length === 0 && <li className="px-3 py-2 text-[12.5px] text-ink-muted">{t("Belum ada nomor.", "No numbers yet.")}</li>}
       </ul>
       <div className="px-3 pb-3">
         <TombolTambahNomor varian="nav" />
@@ -144,20 +148,24 @@ function turHalaman(jalur: string) {
   return jalur.startsWith("/nomor/") ? { nama: "nomor", langkah: TUR_NOMOR } : { nama: "dashboard", langkah: TUR_DASHBOARD };
 }
 
-/** Tombol Panduan di bilah atas HP: selalu terlihat tanpa membuka menu. */
+/** Tombol pindah bahasa + Panduan di bilah atas HP: selalu terlihat tanpa membuka menu. */
 export function TombolPanduanAtas() {
-  const tur = turHalaman(usePathname());
+  const tur = turHalaman(useJalur());
+  const { t } = useBahasa();
   return (
-    <span data-tur="nav-panduan" className="block">
-      <TombolTur
-        nama={tur.nama}
-        langkah={tur.langkah}
-        className="flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-[13px] font-semibold text-ink-muted transition-colors hover:bg-ink-raised hover:text-ink-fg"
-      >
-        <CircleHelp className="size-[18px]" aria-hidden />
-        Panduan
-      </TombolTur>
-    </span>
+    <>
+      <GantiBahasa gelap className="h-10" />
+      <span data-tur="nav-panduan" className="block">
+        <TombolTur
+          nama={tur.nama}
+          langkah={tur.langkah}
+          className="flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-[13px] font-semibold text-ink-muted transition-colors hover:bg-ink-raised hover:text-ink-fg"
+        >
+          <CircleHelp className="size-[18px]" aria-hidden />
+          {t("Panduan", "Guide")}
+        </TombolTur>
+      </span>
+    </>
   );
 }
 
@@ -166,14 +174,15 @@ const KELAS_KELUAR =
 
 /** Menu bawah HP untuk workspace pengguna: Ringkasan, Nomor (lembar), Langganan, Afiliasi, Akun (lembar). */
 export function NavBawah({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; admin: boolean; pengguna: { nama: string; email: string } }) {
-  const jalur = usePathname();
+  const jalur = useJalur();
+  const { t } = useBahasa();
   const tur = turHalaman(jalur);
   return (
-    <BilahBawah label="Menu utama">
-      <TabBawah href="/dashboard" label="Ringkasan" aktif={jalur === "/dashboard"} ikon={<LayoutDashboard className="size-5" aria-hidden />} />
+    <BilahBawah label={t("Menu utama", "Main menu")}>
+      <TabBawah href="/dashboard" label={t("Ringkasan", "Overview")} aktif={jalur === "/dashboard"} ikon={<LayoutDashboard className="size-5" aria-hidden />} />
       <TabLembar
-        label="Nomor"
-        judul="Nomor WhatsApp"
+        label={t("Nomor", "Numbers")}
+        judul={t("Nomor WhatsApp", "WhatsApp numbers")}
         tur="nav-nomor"
         aktif={jalur.startsWith("/nomor/")}
         ikon={<MessageCircle className="size-5" aria-hidden />}
@@ -189,15 +198,23 @@ export function NavBawah({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
           {nomor.map((n) => (
             <ItemNomor key={n.id} n={n} aktif={jalur === `/nomor/${n.id}`} />
           ))}
-          {nomor.length === 0 && <li className="px-3 py-2 text-[13px] text-ink-muted">Belum ada nomor. Tambahkan nomor WhatsApp pertama Anda.</li>}
+          {nomor.length === 0 && (
+            <li className="px-3 py-2 text-[13px] text-ink-muted">{t("Belum ada nomor. Tambahkan nomor WhatsApp pertama Anda.", "No numbers yet. Add your first WhatsApp number.")}</li>
+          )}
         </ul>
         <div className="pt-3">
           <TombolTambahNomor varian="nav" />
         </div>
       </TabLembar>
-      <TabBawah href="/langganan" label="Langganan" tur="nav-langganan" aktif={jalur === "/langganan" || jalur.startsWith("/langganan/")} ikon={<CreditCard className="size-5" aria-hidden />} />
-      <TabBawah href="/afiliasi" label="Afiliasi" aktif={jalur === "/afiliasi"} ikon={<Share2 className="size-5" aria-hidden />} />
-      <TabLembar label="Akun" judul="Akun" aktif={jalur === "/akun"} ikon={<UserRound className="size-5" aria-hidden />}>
+      <TabBawah
+        href="/langganan"
+        label={t("Langganan", "Plan")}
+        tur="nav-langganan"
+        aktif={jalur === "/langganan" || jalur.startsWith("/langganan/")}
+        ikon={<CreditCard className="size-5" aria-hidden />}
+      />
+      <TabBawah href="/afiliasi" label={t("Afiliasi", "Affiliate")} aktif={jalur === "/afiliasi"} ikon={<Share2 className="size-5" aria-hidden />} />
+      <TabLembar label={t("Akun", "Account")} judul={t("Akun", "Account")} aktif={jalur === "/akun"} ikon={<UserRound className="size-5" aria-hidden />}>
         <div className="mb-2 flex items-center gap-3 rounded-2xl bg-white/[0.04] px-3 py-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-ink-signal/15 text-[15px] font-bold text-ink-signal uppercase">{pengguna.nama.trim().charAt(0) || "#"}</span>
           <span className="min-w-0">
@@ -207,11 +224,11 @@ export function NavBawah({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
         </div>
         <div className="space-y-0.5">
           <TautanNav href="/akun" aktif={jalur === "/akun"} ikon={<UserRound className="size-4" aria-hidden />}>
-            Akun saya
+            {t("Akun saya", "My account")}
           </TautanNav>
           {admin && (
             <TautanNav href="/admin" aktif={false} ikon={<ShieldCheck className="size-4" aria-hidden />}>
-              Panel admin
+              {t("Panel admin", "Admin panel")}
             </TautanNav>
           )}
           <span data-tutup-laci className="block">
@@ -219,7 +236,7 @@ export function NavBawah({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
               <span className="grid size-8 place-items-center rounded-lg bg-white/[0.05] text-ink-muted group-hover:text-ink-fg">
                 <CircleHelp className="size-4" aria-hidden />
               </span>
-              <span className="text-[13.5px] font-semibold">Panduan</span>
+              <span className="text-[13.5px] font-semibold">{t("Panduan", "Guide")}</span>
             </TombolTur>
           </span>
         </div>
@@ -228,7 +245,7 @@ export function NavBawah({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
           <form action={logoutAction}>
             <button type="submit" className={KELAS_KELUAR}>
               <LogOut className="size-4" aria-hidden />
-              Keluar
+              {t("Keluar", "Sign out")}
             </button>
           </form>
         </div>
@@ -257,6 +274,7 @@ export function NavKerangka() {
 /** Kesehatan layanan di kaki sidebar: dari poller status bersama, tanpa permintaan tambahan. */
 export function StatusLayanan() {
   const { data } = useWaStatus();
+  const { t } = useBahasa();
   const semua = data ? Object.values(data.nomor) : [];
   const terhubung = semua.filter((s) => s.status === "WORKING").length;
   const ok = !!data?.ai;
@@ -267,9 +285,11 @@ export function StatusLayanan() {
           {ok && <span className="absolute inset-0 animate-ping rounded-full bg-ink-signal opacity-60" />}
           <span className={`relative size-2.5 rounded-full ${!data ? "bg-ink-muted/50" : ok ? "bg-ink-signal" : "bg-amber-400"}`} />
         </span>
-        <p className="text-[12.5px] font-semibold">{!data ? "Memeriksa layanan…" : ok ? "AI aktif" : "AI tidak terjangkau"}</p>
+        <p className="text-[12.5px] font-semibold">{!data ? t("Memeriksa layanan…", "Checking service…") : ok ? t("AI aktif", "AI active") : t("AI tidak terjangkau", "AI unreachable")}</p>
       </div>
-      <p className="mt-1 pl-5 text-[11.5px] text-ink-muted">{data ? `${terhubung} dari ${semua.length} nomor terhubung` : " "}</p>
+      <p className="mt-1 pl-5 text-[11.5px] text-ink-muted">
+        {data ? t(`${terhubung} dari ${semua.length} nomor terhubung`, `${terhubung} of ${semua.length} ${semua.length === 1 ? "number" : "numbers"} connected`) : " "}
+      </p>
     </div>
   );
 }

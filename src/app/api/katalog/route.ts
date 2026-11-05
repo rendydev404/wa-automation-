@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { nomorUntuk } from "@/lib/akses";
 import { BATAS_KATALOG, KatalogError, katalogBoleh, simpanProduk } from "@/lib/katalog";
 import { getUser } from "@/lib/session";
+import { teksPermintaan } from "@/lib/bahasa-server";
 
 const galat = (pesan: string, status = 400) => NextResponse.json({ error: pesan }, { status });
 
@@ -11,18 +12,18 @@ const galat = (pesan: string, status = 400) => NextResponse.json({ error: pesan 
  * langganan aktif (admin selalu boleh). Foto sudah diperkecil di browser; jenisnya dicek dari isi berkas di katalog.ts.
  */
 export async function POST(req: Request) {
-  const user = await getUser();
-  if (!user) return galat("Sesi berakhir. Silakan login kembali.", 401);
-  if (Number(req.headers.get("content-length") ?? 0) > BATAS_KATALOG.fotoByte + 64 * 1024) return galat("Foto terlalu besar (maksimal 1,5 MB).", 413);
+  const [user, { b, t }] = await Promise.all([getUser(), teksPermintaan()]);
+  if (!user) return galat(t("Sesi berakhir. Silakan login kembali.", "Your session has ended. Please sign in again."), 401);
+  if (Number(req.headers.get("content-length") ?? 0) > BATAS_KATALOG.fotoByte + 64 * 1024) return galat(t("Foto terlalu besar (maksimal 1,5 MB).", "Photo is too large (max 1.5 MB)."), 413);
   let form: FormData;
   try {
     form = await req.formData();
   } catch {
-    return galat("Isian tidak terbaca.");
+    return galat(t("Isian tidak terbaca.", "The form couldn't be read."));
   }
   const nomor = await nomorUntuk(user, form.get("number_id"));
-  if (!nomor) return galat("Nomor tidak ditemukan.", 404);
-  if (user.peran !== "admin" && !(await katalogBoleh(nomor.user_id))) return galat("Katalog produk tersedia untuk paket berbayar. Pilih paket di halaman Langganan.", 403);
+  if (!nomor) return galat(t("Nomor tidak ditemukan.", "Number not found."), 404);
+  if (user.peran !== "admin" && !(await katalogBoleh(nomor.user_id))) return galat(t("Katalog produk tersedia untuk paket berbayar. Pilih paket di halaman Langganan.", "The product catalog is available on paid plans. Choose a plan on the Subscription page."), 403);
 
   const idMentah = Number(form.get("id"));
   const hargaMentah = String(form.get("harga") ?? "").replace(/\D/g, "");
@@ -42,7 +43,7 @@ export async function POST(req: Request) {
     revalidatePath(`/nomor/${nomor.id}`);
     return NextResponse.json({ ok: true, id });
   } catch (e) {
-    if (e instanceof KatalogError) return galat(e.message);
+    if (e instanceof KatalogError) return galat((b === "en" && e.en) || e.message);
     throw e;
   }
 }

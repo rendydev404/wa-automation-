@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { Logo } from "@/components/logo";
+import { teksHalaman } from "@/lib/bahasa-halaman";
 
 function Merek({ beranda, lencana }: { beranda: string; lencana?: string }) {
   return (
@@ -19,7 +20,7 @@ function Merek({ beranda, lencana }: { beranda: string; lencana?: string }) {
  * Rangka aplikasi. Desktop (lg+): sidebar gelap tetap di kiri. HP/tablet: bilah atas tipis (logo + aksi) dan bilah
  * menu di bawah layar seperti aplikasi HP (`bawah`); sidebar tidak dirender sebagai laci.
  */
-export function Rangka({
+export async function Rangka({
   sidebar,
   bawah,
   aksiAtas,
@@ -37,6 +38,7 @@ export function Rangka({
   /** Penanda kecil di samping logo, mis. "Admin" di panel admin. */
   lencana?: string;
 }) {
+  const { t } = await teksHalaman();
   return (
     <div className="min-h-svh lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-ink-line bg-ink/95 px-4 text-ink-fg backdrop-blur sm:px-6 lg:hidden">
@@ -44,7 +46,7 @@ export function Rangka({
         {aksiAtas && <div className="-mr-2 flex shrink-0 items-center gap-1">{aksiAtas}</div>}
       </header>
 
-      <aside aria-label="Navigasi" className="hidden bg-ink text-ink-fg lg:sticky lg:top-0 lg:flex lg:h-svh lg:flex-col">
+      <aside aria-label={t("Navigasi", "Navigation")} className="hidden bg-ink text-ink-fg lg:sticky lg:top-0 lg:flex lg:h-svh lg:flex-col">
         <div className="relative flex h-16 shrink-0 items-center gap-2 px-5">
           <div aria-hidden className="kisi-tinta pointer-events-none absolute inset-0 opacity-60" />
           <div className="relative min-w-0">

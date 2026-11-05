@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
-import Link from "next/link";
+import Link from "@/components/link";
 import { X } from "lucide-react";
+import { useBahasa } from "./bahasa";
 
 /**
  * Bilah menu bawah ala aplikasi HP (di bawah lg). Menggantikan laci sidebar: menu utama selalu terjangkau jempol,
@@ -85,6 +86,7 @@ export function TabLembar({
 }
 
 function Lembar({ judul, tutup, children }: { judul: string; tutup: () => void; children: ReactNode }) {
+  const { t } = useBahasa();
   const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -123,7 +125,7 @@ function Lembar({ judul, tutup, children }: { judul: string; tutup: () => void; 
           <p className="text-[15px] font-bold text-white">{judul}</p>
           <button
             type="button"
-            aria-label="Tutup"
+            aria-label={t("Tutup", "Close")}
             onClick={tutup}
             className="-mr-2 grid size-10 place-items-center rounded-xl text-ink-muted transition-colors hover:bg-ink-raised hover:text-ink-fg"
           >

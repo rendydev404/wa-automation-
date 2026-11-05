@@ -9,6 +9,8 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
  */
 
 export const COOKIE_GOOGLE = "wa_google";
+/** Bahasa halaman asal saat mulai masuk dengan Google ("id" | "en"). */
+export const COOKIE_GOOGLE_BAHASA = "wa_google_bahasa";
 export const JALUR_CALLBACK = "/api/auth/google/callback";
 
 export function googleSiap(): boolean {

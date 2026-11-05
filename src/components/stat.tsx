@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
+import { type Bahasa, LOKAL, pembuatT } from "@/lib/bahasa";
 import { angka } from "@/lib/format";
 
 /**
@@ -64,10 +65,11 @@ export function Delta({
   kini,
   lalu,
   mode = "persen",
-  format = angka,
+  format,
   naikBaik = true,
   pembanding,
   gelap = false,
+  b = "id",
 }: {
   kini: number;
   lalu: number;
@@ -77,16 +79,20 @@ export function Delta({
   /** Mis. "30 hari sebelumnya"; tampil di samping angka perubahan. */
   pembanding: string;
   gelap?: boolean;
+  /** Bahasa tampilan (komponen ini murni, tanpa hook): bawaan "id". */
+  b?: Bahasa;
 }) {
+  const t = pembuatT(b);
+  const fmt = format ?? ((n: number) => angka(n, b));
   const beda = kini - lalu;
   const arah = beda > 0 ? 1 : beda < 0 ? -1 : 0;
   const persen = mode === "persen" && lalu > 0 ? (beda / lalu) * 100 : null;
   const teks =
     arah === 0
-      ? "Sama"
+      ? t("Sama", "No change")
       : persen !== null
-        ? `${Math.abs(persen) < 10 ? Math.abs(persen).toLocaleString("id-ID", { maximumFractionDigits: 1 }) : angka(Math.round(Math.abs(persen)))}%`
-        : format(Math.abs(beda));
+        ? `${Math.abs(persen) < 10 ? Math.abs(persen).toLocaleString(LOKAL[b], { maximumFractionDigits: 1 }) : angka(Math.round(Math.abs(persen)), b)}%`
+        : fmt(Math.abs(beda));
   const baik = arah === 0 ? null : (arah > 0) === naikBaik;
   const nada = gelap
     ? baik === null
@@ -104,7 +110,7 @@ export function Delta({
     <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs">
       <span className={`inline-flex items-center gap-0.5 rounded-full py-0.5 pr-1.5 pl-1 font-semibold tabular-nums ${nada}`}>
         <Ikon className="size-3.5" aria-hidden strokeWidth={2.5} />
-        <span className="sr-only">{arah > 0 ? "naik" : arah < 0 ? "turun" : ""}</span>
+        <span className="sr-only">{arah > 0 ? t("naik", "up") : arah < 0 ? t("turun", "down") : ""}</span>
         {arah !== 0 && persen === null && (arah > 0 ? "+" : "−")}
         {teks}
       </span>

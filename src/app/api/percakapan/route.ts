@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sesiDanNomor } from "@/lib/akses";
+import { teksPermintaan } from "@/lib/bahasa-server";
 import { type FilterPercakapan, ambilPesanPercakapan, daftarPercakapan, ringkasanPercakapan } from "@/lib/percakapan";
 
 const FILTER_SAH = new Set<FilterPercakapan>(["semua", "bot", "manusia"]);
@@ -11,21 +12,21 @@ const FILTER_SAH = new Set<FilterPercakapan>(["semua", "bot", "manusia"]);
 export async function GET(req: Request) {
   const u = new URL(req.url);
   const { user, nomor } = await sesiDanNomor(u.searchParams.get("number_id"));
-  if (!user) return NextResponse.json({ error: "Sesi berakhir. Silakan login kembali." }, { status: 401 });
-  if (!nomor) return NextResponse.json({ error: "Nomor tidak ditemukan." }, { status: 404 });
+  // Bahasa hanya dibaca di jalur galat.
+  if (!user) return NextResponse.json({ error: (await teksPermintaan()).t("Sesi berakhir. Silakan login kembali.", "Your session has ended. Please sign in again.") }, { status: 401 });
+  if (!nomor) return NextResponse.json({ error: (await teksPermintaan()).t("Nomor tidak ditemukan.", "Number not found.") }, { status: 404 });
   const numberId = nomor.id;
+  const tidakAda = async () => NextResponse.json({ error: (await teksPermintaan()).t("Percakapan tidak ditemukan.", "Conversation not found.") }, { status: 404 });
 
   const percakapanIdParam = u.searchParams.get("percakapan_id");
   if (percakapanIdParam !== null) {
     const percakapanId = Number(percakapanIdParam);
-    if (!Number.isInteger(percakapanId) || percakapanId <= 0) {
-      return NextResponse.json({ error: "Percakapan tidak ditemukan." }, { status: 404 });
-    }
+    if (!Number.isInteger(percakapanId) || percakapanId <= 0) return tidakAda();
     const sebelumId = Number(u.searchParams.get("sebelum_id")) || undefined;
     const setelahId = Number(u.searchParams.get("setelah_id")) || undefined;
     const batas = Number(u.searchParams.get("batas")) || undefined;
     const hasil = await ambilPesanPercakapan(numberId, percakapanId, { sebelumId, setelahId, batas });
-    if (!hasil) return NextResponse.json({ error: "Percakapan tidak ditemukan." }, { status: 404 });
+    if (!hasil) return tidakAda();
     return NextResponse.json(hasil, { headers: { "Cache-Control": "no-store" } });
   }
 

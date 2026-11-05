@@ -112,7 +112,7 @@ try {
       const req = http.request(dasar + jalur, { method: metode, headers: { cookie, ...headers }, agent }, (res) => {
         const potong = [];
         res.on("data", (c) => potong.push(c));
-        res.on("end", () => resolve({ status: res.statusCode, ms: performance.now() - t, bytes: Buffer.concat(potong).length, enc: res.headers["content-encoding"] ?? "-", setCookie: res.headers["set-cookie"] ?? [], teks: Buffer.concat(potong).toString() }));
+        res.on("end", () => resolve({ status: res.statusCode, ms: performance.now() - t, bytes: Buffer.concat(potong).length, enc: res.headers["content-encoding"] ?? "-", setCookie: res.headers["set-cookie"] ?? [], lokasi: res.headers.location ?? "", teks: Buffer.concat(potong).toString() }));
       });
       req.on("error", reject);
       if (body) req.write(body);
@@ -157,6 +157,38 @@ try {
   assert.equal(halAdminPx.status, 200);
   assert.match(halAdminPx.teks, /Meta Ads Pixel/);
   console.log("  /program-afiliasi (+ cookie wa_ref), /afiliasi, /admin/afiliasi, dan /admin/pixel lolos 200 OK");
+
+  console.log("\n== versi Inggris di /eng ==");
+  const identitas = { "accept-encoding": "identity" };
+  const enLanding = await minta("GET", "/eng", { headers: { cookie: "", ...identitas } });
+  assert.equal(enLanding.status, 200);
+  assert.match(enLanding.teks, /<html lang="en"/);
+  assert.match(enLanding.teks, /AI that replies to your customers 24\/7/);
+  assert.match(enLanding.teks, /hrefLang="id"|hreflang="id"/i);
+  assert.match((await minta("GET", "/", { headers: { cookie: "", ...identitas } })).teks, /<html lang="id"/);
+  const enDash = await minta("GET", "/eng/dashboard", { headers: identitas });
+  assert.equal(enDash.status, 200);
+  assert.match(enDash.teks, /Overview/);
+  assert.match(enDash.teks, /href="\/eng\/nomor\/\d+"/, "tautan di versi Inggris harus berawalan /eng");
+  const enNomor = await minta("GET", "/eng/nomor/7", { headers: identitas });
+  assert.equal(enNomor.status, 200);
+  assert.match(enNomor.teks, /Nomor uji 7/);
+  for (const jalur of ["/eng/login", "/eng/daftar", "/eng/lupa-password", "/eng/langganan", "/eng/akun", "/eng/afiliasi", "/eng/program-afiliasi?ref=af8k3m9x"]) {
+    const r = await minta("GET", jalur, { headers: jalur.includes("program") ? { cookie: "", ...identitas } : identitas });
+    assert.equal(r.status, 200, jalur);
+    assert.match(r.teks, /<html lang="en"/, jalur);
+  }
+  const enAnon = await minta("GET", "/eng/dashboard", { headers: { cookie: "" } });
+  assert.equal(enAnon.status, 307);
+  assert.match(enAnon.lokasi, /\/eng\/login$/, "tanpa sesi di /eng diarahkan ke /eng/login");
+  const enAdmin = await minta("GET", "/eng/admin/afiliasi", { headers: identitas });
+  assert.equal(enAdmin.status, 307, "panel admin hanya berbahasa Indonesia");
+  assert.match(enAdmin.lokasi, /^(https?:\/\/[^/]+)?\/admin\/afiliasi$/);
+  assert.equal((await minta("GET", "/id/dashboard", { headers: identitas })).status, 404, "segmen internal /id tidak boleh terbuka langsung");
+  assert.equal((await minta("GET", "/logo-bayar/bca.svg", { headers: identitas })).status, 200, "berkas public/ tidak boleh ditulis ulang ke /id");
+  baris("GET /eng (landing Inggris, gzip)", await ukur("/eng", 60, { "accept-encoding": "gzip" }));
+  baris("GET /eng/dashboard (gzip)", await ukur("/eng/dashboard", 60, { "accept-encoding": "gzip" }));
+  console.log("  /eng, /eng/dashboard, /eng/nomor/7, auth, langganan, akun, afiliasi lolos; /eng/admin -> /admin; /id/* tertutup");
 
   console.log("\n== kecepatan endpoint (12 nomor) ==");
   await ukur("/api/wa/status", 30);

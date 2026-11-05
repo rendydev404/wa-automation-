@@ -3,6 +3,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { Check, ChevronDown, Search } from "lucide-react";
+import { type Bahasa, LOKAL } from "@/lib/bahasa";
+import { useBahasa } from "./bahasa";
 
 /** Satu pilihan model beserta harganya (dari tarif resmi Anthropic × kurs pasar; null = tidak tercantum di halaman harga). */
 export interface OpsiModel {
@@ -17,8 +19,8 @@ export interface OpsiModel {
 
 const BATAS_TANPA_CARI = 5;
 
-const rpBalasan = (n: number) => `±Rp${n.toLocaleString("id-ID", { maximumFractionDigits: n < 10 ? 1 : 0 })}`;
-const usd = (n: number) => `$${n.toLocaleString("id-ID", { minimumFractionDigits: n < 1 ? 2 : 0, maximumFractionDigits: 3 })}`;
+const rpBalasan = (n: number, b: Bahasa) => `±Rp${n.toLocaleString(LOKAL[b], { maximumFractionDigits: n < 10 ? 1 : 0 })}`;
+const usd = (n: number, b: Bahasa) => `$${n.toLocaleString(LOKAL[b], { minimumFractionDigits: n < 1 ? 2 : 0, maximumFractionDigits: 3 })}`;
 
 /**
  * Pemilih model Claude buatan sendiri (bukan <select> bawaan browser): tiap model tampil dengan biaya per balasan dan
@@ -33,7 +35,7 @@ export function PilihModel({
   opsi,
   kosong,
   label,
-  satuan = "balasan",
+  satuan: satuanProp,
 }: {
   id?: string;
   name?: string;
@@ -44,6 +46,8 @@ export function PilihModel({
   label: string;
   satuan?: string;
 }) {
+  const { b, t } = useBahasa();
+  const satuan = satuanProp ?? t("balasan", "reply");
   const [lokal, setLokal] = useState(nilai);
   const aktif = onUbah ? nilai : lokal;
   const [buka, setBuka] = useState(false);
@@ -131,7 +135,7 @@ export function PilihModel({
         <span className="flex shrink-0 items-center gap-2">
           {terpilih?.rpBalasan != null && (
             <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11.5px] font-bold text-accent tabular-nums">
-              {rpBalasan(terpilih.rpBalasan)}/{satuan}
+              {rpBalasan(terpilih.rpBalasan, b)}/{satuan}
             </span>
           )}
           <ChevronDown className={`size-4 text-muted transition-transform ${buka ? "rotate-180" : ""}`} aria-hidden />
@@ -151,8 +155,8 @@ export function PilihModel({
                   setSorot(0);
                 }}
                 onKeyDown={tombolDaftar}
-                placeholder="Cari model…"
-                aria-label="Cari model"
+                placeholder={t("Cari model…", "Search models…")}
+                aria-label={t("Cari model", "Search models")}
                 aria-controls={idDaftar}
                 autoComplete="off"
                 className="field py-1.5 pl-9"
@@ -185,23 +189,23 @@ export function PilihModel({
                       {o.rpBalasan != null ? (
                         <>
                           <span className="block text-[12.5px] font-bold">
-                            {rpBalasan(o.rpBalasan)}/{satuan}
+                            {rpBalasan(o.rpBalasan, b)}/{satuan}
                           </span>
                           {o.masuk != null && o.keluar != null && (
                             <span className="block text-[11px] text-faint">
-                              {usd(o.masuk)} / {usd(o.keluar)} per 1 jt token
+                              {usd(o.masuk, b)} / {usd(o.keluar, b)} {t("per 1 jt token", "per 1M tokens")}
                             </span>
                           )}
                         </>
                       ) : (
-                        <span className="block text-[11.5px] text-faint">harga belum tercantum</span>
+                        <span className="block text-[11.5px] text-faint">{t("harga belum tercantum", "price not listed yet")}</span>
                       )}
                     </span>
                   )}
                 </li>
               );
             })}
-            {!tampil.length && <li className="px-3 py-6 text-center text-[13px] text-muted">Tidak ada model yang cocok dengan “{cari}”.</li>}
+            {!tampil.length && <li className="px-3 py-6 text-center text-[13px] text-muted">{t(`Tidak ada model yang cocok dengan “${cari}”.`, `No models match “${cari}”.`)}</li>}
           </ul>
         </div>
       )}

@@ -20,8 +20,10 @@ import {
   X,
 } from "lucide-react";
 import { bangunkanChatAction, bukanSpamAction, hapusPercakapanAction } from "@/app/actions";
+import type { T } from "@/lib/bahasa";
 import { angka, formatNomor, jamWib, kunciHariWib, tanggal, UMUR_HISTORI_HARI, waktuSingkatWib } from "@/lib/format";
 import type { ItemPercakapan, ItemPesan, PeranPesan, RingkasanPercakapan } from "@/lib/percakapan";
+import { useBahasa } from "./bahasa";
 import { Pill, TombolKonfirmasi } from "./ui";
 
 /** Render cetak tebal WhatsApp (*teks*) menjadi elemen <b>. */
@@ -35,15 +37,15 @@ function TeksWa({ teks }: { teks: string }) {
   );
 }
 
-function namaTampil(p: ItemPercakapan): string {
+function namaTampil(p: ItemPercakapan, t: T): string {
   if (p.nama) return p.nama;
   if (p.telepon) return formatNomor(p.telepon);
-  return `Pelanggan #${p.id}`;
+  return t(`Pelanggan #${p.id}`, `Customer #${p.id}`);
 }
 
-function awalanCuplikan(peran: PeranPesan): string {
+function awalanCuplikan(peran: PeranPesan, t: T): string {
   if (peran === 1) return "AI: ";
-  if (peran === 2) return "Admin: ";
+  if (peran === 2) return t("Admin: ", "You: ");
   return "";
 }
 
@@ -81,6 +83,7 @@ export function HistoriPercakapan({
   const [menyegarkan, setMenyegarkan] = useState(false);
   const [tersalin, setTersalin] = useState(false);
   const [kini, setKini] = useState(kiniAwal);
+  const { b, t } = useBahasa();
 
   const wadahPesanRef = useRef<HTMLDivElement>(null);
   const bagianRef = useRef<HTMLElement>(null);
@@ -290,7 +293,7 @@ export function HistoriPercakapan({
   }
 
   async function hapusSatu() {
-    if (aktifId === null) return { ok: false, pesan: "Pilih percakapan dulu." };
+    if (aktifId === null) return { ok: false, pesan: t("Pilih percakapan dulu.", "Select a conversation first.") };
     const h = await hapusPercakapanAction(numberId, aktifId);
     if (h.ok) {
       setDetailMobile(false);
@@ -344,17 +347,28 @@ export function HistoriPercakapan({
           </span>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-[15px] font-bold tracking-tight">Histori percakapan</h2>
-              <Pill nada="abu">{angka(ringkasan.total_percakapan)} pelanggan</Pill>
+              <h2 className="text-[15px] font-bold tracking-tight">{t("Histori percakapan", "Conversation history")}</h2>
+              <Pill nada="abu">
+                {angka(ringkasan.total_percakapan, b)} {t("pelanggan", ringkasan.total_percakapan === 1 ? "customer" : "customers")}
+              </Pill>
             </div>
             <p className="hint mt-0.5">
               {ringkasan.total_percakapan === 0
-                ? "Belum ada percakapan yang tercatat di nomor ini. Pesan pelanggan, balasan AI, dan balasan manusia dari HP akan muncul terstruktur di sini."
-                : `${angka(ringkasan.total_masuk)} pesan pelanggan · ${angka(ringkasan.total_bot)} balasan AI · ${angka(ringkasan.total_manusia)} balasan manusia`}
+                ? t(
+                    "Belum ada percakapan yang tercatat di nomor ini. Pesan pelanggan, balasan AI, dan balasan manusia dari HP akan muncul terstruktur di sini.",
+                    "No conversations recorded on this number yet. Customer messages, AI replies, and your replies from the phone will appear here, neatly organized.",
+                  )
+                : t(
+                    `${angka(ringkasan.total_masuk)} pesan pelanggan · ${angka(ringkasan.total_bot)} balasan AI · ${angka(ringkasan.total_manusia)} balasan manusia`,
+                    `${angka(ringkasan.total_masuk, b)} customer ${ringkasan.total_masuk === 1 ? "message" : "messages"} · ${angka(ringkasan.total_bot, b)} AI ${ringkasan.total_bot === 1 ? "reply" : "replies"} · ${angka(ringkasan.total_manusia, b)} human ${ringkasan.total_manusia === 1 ? "reply" : "replies"}`,
+                  )}
             </p>
             <p className="hint mt-1 flex items-center gap-1.5">
               <Clock className="size-3.5 shrink-0" aria-hidden />
-              Riwayat chat disimpan {UMUR_HISTORI_HARI} hari. Pesan yang lebih lama terhapus otomatis.
+              {t(
+                `Riwayat chat disimpan ${UMUR_HISTORI_HARI} hari. Pesan yang lebih lama terhapus otomatis.`,
+                `Chat history is kept for ${UMUR_HISTORI_HARI} days; older messages are deleted automatically. Times are in WIB (UTC+7).`,
+              )}
             </p>
           </div>
         </div>
@@ -362,9 +376,12 @@ export function HistoriPercakapan({
         <div className="flex flex-wrap items-center justify-end gap-2">
           {ringkasan.total_percakapan > 0 && (
             <TombolKonfirmasi
-              label="Hapus semua"
-              tanya={`Hapus ${angka(ringkasan.total_percakapan)} percakapan beserta isinya? Tidak bisa dikembalikan.`}
-              ya="Ya, hapus semua"
+              label={t("Hapus semua", "Delete all")}
+              tanya={t(
+                `Hapus ${angka(ringkasan.total_percakapan)} percakapan beserta isinya? Tidak bisa dikembalikan.`,
+                `Delete ${angka(ringkasan.total_percakapan, b)} ${ringkasan.total_percakapan === 1 ? "conversation" : "conversations"} and all their messages? This can't be undone.`,
+              )}
+              ya={t("Ya, hapus semua", "Yes, delete all")}
               aksi={hapusSemua}
               className="btn btn-danger h-9 sm:h-8 px-3 text-xs"
               ikon={<Trash2 className="size-3.5" aria-hidden />}
@@ -375,10 +392,10 @@ export function HistoriPercakapan({
             onClick={() => void segarkan()}
             disabled={menyegarkan}
             className="btn btn-ghost h-9 sm:h-8 px-3 text-xs"
-            aria-label="Segarkan histori percakapan"
+            aria-label={t("Segarkan histori percakapan", "Refresh conversation history")}
           >
             <RefreshCw className={`size-3.5 ${menyegarkan ? "animate-spin" : ""}`} aria-hidden />
-            Segarkan
+            {t("Segarkan", "Refresh")}
           </button>
         </div>
       </div>
@@ -396,15 +413,15 @@ export function HistoriPercakapan({
                 value={inputCari}
                 onChange={(e) => setInputCari(e.target.value)}
                 maxLength={80}
-                placeholder="Cari nama, nomor WA, atau isi pesan…"
-                aria-label="Cari percakapan"
+                placeholder={t("Cari nama, nomor WA, atau isi pesan…", "Search name, WhatsApp number, or message…")}
+                aria-label={t("Cari percakapan", "Search conversations")}
                 className="field py-2 pr-9 pl-9 sm:py-1.5 sm:text-[13px]"
               />
               {inputCari && (
                 <button
                   type="button"
                   onClick={() => setInputCari("")}
-                  aria-label="Hapus pencarian"
+                  aria-label={t("Hapus pencarian", "Clear search")}
                   className="absolute right-1.5 grid size-7 place-items-center rounded-md text-faint hover:bg-subtle hover:text-fg"
                 >
                   <X className="size-3.5" aria-hidden />
@@ -417,17 +434,20 @@ export function HistoriPercakapan({
           <div className="max-h-[65svh] min-h-0 flex-1 overflow-y-auto md:max-h-none">
             {memuatDaftar ? (
               <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-muted">
-                <Loader2 className="size-4 animate-spin" aria-hidden /> Memuat percakapan…
+                <Loader2 className="size-4 animate-spin" aria-hidden /> {t("Memuat percakapan…", "Loading conversations…")}
               </div>
             ) : daftar.length === 0 ? (
               <div className="px-5 py-14 text-center">
                 <p className="text-[13.5px] font-semibold text-fg">
-                  {cariAktif ? "Tidak ada percakapan yang cocok" : "Belum ada histori percakapan"}
+                  {cariAktif ? t("Tidak ada percakapan yang cocok", "No matching conversations") : t("Belum ada histori percakapan", "No conversation history yet")}
                 </p>
                 <p className="hint mt-1">
                   {cariAktif
-                    ? "Coba ubah kata kunci pencarian."
-                    : "Saat pelanggan mengirim chat ke nomor WhatsApp ini, percakapannya langsung tampil di sini."}
+                    ? t("Coba ubah kata kunci pencarian.", "Try a different search term.")
+                    : t(
+                        "Saat pelanggan mengirim chat ke nomor WhatsApp ini, percakapannya langsung tampil di sini.",
+                        "When customers message this WhatsApp number, their conversations show up here right away.",
+                      )}
                 </p>
               </div>
             ) : (
@@ -454,8 +474,8 @@ export function HistoriPercakapan({
 
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline justify-between gap-2">
-                            <p className="truncate text-[13.5px] font-semibold text-fg">{namaTampil(item)}</p>
-                            <span className="shrink-0 text-[11px] text-faint tabular-nums">{waktuSingkatWib(item.terakhir_pada, kini)}</span>
+                            <p className="truncate text-[13.5px] font-semibold text-fg">{namaTampil(item, t)}</p>
+                            <span className="shrink-0 text-[11px] text-faint tabular-nums">{waktuSingkatWib(item.terakhir_pada, kini, b)}</span>
                           </div>
 
                           {item.nama && item.telepon && (
@@ -463,7 +483,7 @@ export function HistoriPercakapan({
                           )}
 
                           <p className="mt-0.5 truncate text-[12.5px] text-muted">
-                            <span className="font-medium text-fg">{awalanCuplikan(item.pengirim_akhir)}</span>
+                            <span className="font-medium text-fg">{awalanCuplikan(item.pengirim_akhir, t)}</span>
                             {item.cuplikan || "—"}
                           </p>
 
@@ -478,7 +498,7 @@ export function HistoriPercakapan({
                             )}
                             {dijeda && (
                               <span className="inline-flex items-center gap-1 rounded-md bg-subtle px-1.5 py-0.5 font-medium text-muted">
-                                <Clock className="size-3" aria-hidden /> Dijeda manusia
+                                <Clock className="size-3" aria-hidden /> {t("Dijeda manusia", "Paused by you")}
                               </span>
                             )}
                             {item.spam === 1 && (
@@ -488,7 +508,7 @@ export function HistoriPercakapan({
                             )}
                             {item.prospek >= 2 && (
                               <span className="inline-flex items-center gap-1 rounded-md bg-subtle px-1.5 py-0.5 font-medium text-muted">
-                                <MicOff className="size-3" aria-hidden /> {item.prospek === 3 ? "Bot" : "Dibisukan"}
+                                <MicOff className="size-3" aria-hidden /> {item.prospek === 3 ? "Bot" : t("Dibisukan", "Muted")}
                               </span>
                             )}
                           </div>
@@ -509,7 +529,7 @@ export function HistoriPercakapan({
                   className="btn btn-ghost h-9 sm:h-8 w-full text-xs"
                 >
                   {memuatLagi ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <ChevronDown className="size-3.5" aria-hidden />}
-                  Muat percakapan lainnya
+                  {t("Muat percakapan lainnya", "Load more conversations")}
                 </button>
               </div>
             )}
@@ -523,8 +543,13 @@ export function HistoriPercakapan({
               <span className="mx-auto mb-3 grid size-11 place-items-center rounded-2xl bg-subtle text-muted">
                 <MessagesSquare className="size-5" aria-hidden />
               </span>
-              <p className="text-[14px] font-semibold text-fg">Pilih percakapan</p>
-              <p className="hint mt-1 max-w-xs">Klik salah satu pelanggan di sebelah kiri untuk melihat seluruh riwayat tanya-jawabnya.</p>
+              <p className="text-[14px] font-semibold text-fg">{t("Pilih percakapan", "Select a conversation")}</p>
+              <p className="hint mt-1 max-w-xs">
+                {t(
+                  "Klik salah satu pelanggan di sebelah kiri untuk melihat seluruh riwayat tanya-jawabnya.",
+                  "Click a customer on the left to see their full conversation.",
+                )}
+              </p>
             </div>
           ) : (
             <>
@@ -534,24 +559,24 @@ export function HistoriPercakapan({
                   <button
                     type="button"
                     onClick={() => setDetailMobile(false)}
-                    aria-label="Kembali ke daftar percakapan"
+                    aria-label={t("Kembali ke daftar percakapan", "Back to conversation list")}
                     className="-ml-1 grid size-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-subtle hover:text-fg md:hidden"
                   >
                     <ArrowLeft className="size-4" aria-hidden />
                   </button>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate text-[14px] font-bold text-fg">{namaTampil(percakapanAktif)}</p>
-                      {percakapanAktif.jeda_sampai > kini && <Pill nada="kuning">AI sedang jeda (ditangani manusia)</Pill>}
+                      <p className="truncate text-[14px] font-bold text-fg">{namaTampil(percakapanAktif, t)}</p>
+                      {percakapanAktif.jeda_sampai > kini && <Pill nada="kuning">{t("AI sedang jeda (ditangani manusia)", "AI paused (handled by you)")}</Pill>}
                       {percakapanAktif.spam === 1 && <Pill nada="merah">Spam</Pill>}
-                      {percakapanAktif.prospek === 1 && <Pill nada="hijau">Prospek</Pill>}
+                      {percakapanAktif.prospek === 1 && <Pill nada="hijau">{t("Prospek", "Lead")}</Pill>}
                     </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
                       {percakapanAktif.telepon && (
                         <button
                           type="button"
                           onClick={() => void salinNomor(percakapanAktif.telepon!)}
-                          title="Salin nomor WhatsApp"
+                          title={t("Salin nomor WhatsApp", "Copy WhatsApp number")}
                           className="inline-flex items-center gap-1 font-medium text-muted tabular-nums hover:text-fg"
                         >
                           {formatNomor(percakapanAktif.telepon)}
@@ -559,7 +584,10 @@ export function HistoriPercakapan({
                         </button>
                       )}
                       <span>
-                        {angka(percakapanAktif.masuk_n)} masuk · {angka(percakapanAktif.bot_n)} AI · {angka(percakapanAktif.manusia_n)} manusia
+                        {t(
+                          `${angka(percakapanAktif.masuk_n)} masuk · ${angka(percakapanAktif.bot_n)} AI · ${angka(percakapanAktif.manusia_n)} manusia`,
+                          `${angka(percakapanAktif.masuk_n, b)} in · ${angka(percakapanAktif.bot_n, b)} AI · ${angka(percakapanAktif.manusia_n, b)} you`,
+                        )}
                       </span>
                     </div>
                   </div>
@@ -567,9 +595,9 @@ export function HistoriPercakapan({
                 {/* key: konfirmasi yang sedang terbuka tertutup lagi saat pindah percakapan. */}
                 <TombolKonfirmasi
                   key={percakapanAktif.id}
-                  label="Hapus"
-                  tanya="Hapus percakapan ini beserta isinya?"
-                  ya="Ya, hapus"
+                  label={t("Hapus", "Delete")}
+                  tanya={t("Hapus percakapan ini beserta isinya?", "Delete this conversation and all its messages?")}
+                  ya={t("Ya, hapus", "Yes, delete")}
                   aksi={hapusSatu}
                   className="btn btn-danger h-9 sm:h-8 px-2.5 text-xs"
                   ikon={<Trash2 className="size-3.5" aria-hidden />}
@@ -579,12 +607,12 @@ export function HistoriPercakapan({
               {percakapanAktif.spam === 1 && (
                 <div role="status" className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-danger-soft/60 px-4 py-2.5 text-[12.5px] sm:px-5">
                   <p className="min-w-0 flex-1 text-fg">
-                    <span className="font-semibold text-danger">AI tidak membalas pesan spam di chat ini.</span>{" "}
+                    <span className="font-semibold text-danger">{t("AI tidak membalas pesan spam di chat ini.", "AI doesn't reply to spam in this chat.")}</span>{" "}
                     {percakapanAktif.spam_alasan && <span className="text-muted">{percakapanAktif.spam_alasan}.</span>}
                   </p>
                   <button type="button" onClick={() => void bukanSpam(percakapanAktif.id)} disabled={menandai} className="btn btn-ghost h-9 sm:h-8 border border-line bg-surface px-3 text-xs">
                     {menandai && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
-                    Bukan spam, balas seperti biasa
+                    {t("Bukan spam, balas seperti biasa", "Not spam, reply as usual")}
                   </button>
                 </div>
               )}
@@ -592,15 +620,22 @@ export function HistoriPercakapan({
               {percakapanAktif.prospek >= 2 && (
                 <div role="status" className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-subtle px-4 py-2.5 text-[12.5px] sm:px-5">
                   <p className="min-w-0 flex-1 text-fg">
-                    <span className="font-semibold">{percakapanAktif.prospek === 3 ? "AI berhenti membalas: lawan bicara terdeteksi bot." : "AI tidak lagi melayani chat ini: dinilai bukan prospek."}</span>{" "}
+                    <span className="font-semibold">{percakapanAktif.prospek === 3
+                        ? t("AI berhenti membalas: lawan bicara terdeteksi bot.", "AI stopped replying: the other side looks like a bot.")
+                        : t("AI tidak lagi melayani chat ini: dinilai bukan prospek.", "AI no longer serves this chat: judged not to be a lead.")}</span>{" "}
                     <span className="text-muted">
                       {percakapanAktif.prospek_alasan ? `${percakapanAktif.prospek_alasan}. ` : ""}
-                      {percakapanAktif.prospek === 3 ? "Dicoba lagi otomatis setelah 6 jam." : "Otomatis dilayani lagi bila kontak ini menanyakan hal seputar usaha Anda."}
+                      {percakapanAktif.prospek === 3
+                        ? t("Dicoba lagi otomatis setelah 6 jam.", "It will try again automatically after 6 hours.")
+                        : t(
+                            "Otomatis dilayani lagi bila kontak ini menanyakan hal seputar usaha Anda.",
+                            "It's served again automatically if this contact asks about your business.",
+                          )}
                     </span>
                   </p>
                   <button type="button" onClick={() => void bangunkan(percakapanAktif.id)} disabled={menandai} className="btn btn-ghost h-9 sm:h-8 border border-line bg-surface px-3 text-xs">
                     {menandai && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
-                    Layani lagi
+                    {t("Layani lagi", "Serve again")}
                   </button>
                 </div>
               )}
@@ -612,7 +647,10 @@ export function HistoriPercakapan({
               >
                 {!adaSebelumnya && !memuatPesan && pesan.length > 0 && (
                   <p className="mb-1 text-center text-[11.5px] text-faint">
-                    Pesan yang lebih lama dari {UMUR_HISTORI_HARI} hari terhapus otomatis.
+                    {t(
+                      `Pesan yang lebih lama dari ${UMUR_HISTORI_HARI} hari terhapus otomatis.`,
+                      `Messages older than ${UMUR_HISTORI_HARI} days are deleted automatically.`,
+                    )}
                   </p>
                 )}
                 {adaSebelumnya && (
@@ -624,17 +662,17 @@ export function HistoriPercakapan({
                       className="btn btn-ghost h-7 px-3 text-xs"
                     >
                       {memuatSebelumnya && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
-                      Muat pesan sebelumnya
+                      {t("Muat pesan sebelumnya", "Load earlier messages")}
                     </button>
                   </div>
                 )}
 
                 {memuatPesan ? (
                   <div className="m-auto flex items-center gap-2 py-12 text-[13px] text-muted">
-                    <Loader2 className="size-4 animate-spin" aria-hidden /> Memuat isi percakapan…
+                    <Loader2 className="size-4 animate-spin" aria-hidden /> {t("Memuat isi percakapan…", "Loading messages…")}
                   </div>
                 ) : pesan.length === 0 ? (
-                  <p className="m-auto text-center text-[13px] text-faint">Belum ada pesan di percakapan ini.</p>
+                  <p className="m-auto text-center text-[13px] text-faint">{t("Belum ada pesan di percakapan ini.", "No messages in this conversation yet.")}</p>
                 ) : (
                   pesan.map((m, idx) => {
                     const hariIni = kunciHariWib(m.waktu);
@@ -648,7 +686,7 @@ export function HistoriPercakapan({
                         {tampilkanHari && (
                           <div className="my-1 flex justify-center">
                             <span className="rounded-full border border-line bg-surface px-3 py-0.5 text-[11px] font-semibold text-muted">
-                              {tanggal(m.waktu)}
+                              {tanggal(m.waktu, b)}
                             </span>
                           </div>
                         )}
@@ -671,19 +709,19 @@ export function HistoriPercakapan({
                               <span className="inline-flex items-center gap-1">
                                 {dariPelanggan ? (
                                   <>
-                                    <User className="size-3" aria-hidden /> Pelanggan
+                                    <User className="size-3" aria-hidden /> {t("Pelanggan", "Customer")}
                                   </>
                                 ) : dariBot ? (
                                   <>
-                                    <Bot className="size-3" aria-hidden /> Balasan AI
+                                    <Bot className="size-3" aria-hidden /> {t("Balasan AI", "AI reply")}
                                   </>
                                 ) : (
                                   <>
-                                    <Smartphone className="size-3" aria-hidden /> Balasan Manusia (HP)
+                                    <Smartphone className="size-3" aria-hidden /> {t("Balasan Manusia (HP)", "You (phone)")}
                                   </>
                                 )}
                               </span>
-                              <span className="font-normal tabular-nums">{jamWib(m.waktu)} WIB</span>
+                              <span className="font-normal tabular-nums">{jamWib(m.waktu, b)} WIB</span>
                             </div>
 
                             <div>

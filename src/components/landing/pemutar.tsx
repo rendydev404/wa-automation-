@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { Player, type PlayerRef } from "@remotion/player";
+import { useBahasa } from "@/components/bahasa";
 import { ALUR_DURASI, ALUR_FPS, AlurDemo, PANJANG_BABAK } from "@/remotion/alur-demo";
 import { CHAT_FPS, CHAT_LEBAR, CHAT_TINGGI, ChatDemo, type PropsChatDemo, durasiChat } from "@/remotion/chat-demo";
 
 /**
  * Pemutar Remotion untuk landing page. Modul ini (beserta remotion & @remotion/player) dimuat terpisah
- * lewat next/dynamic, jadi tidak membebani bundel awal halaman.
+ * lewat next/dynamic, jadi tidak membebani bundel awal halaman. Bahasa halaman diteruskan ke komposisi sebagai
+ * input prop `bahasa` (komposisi Remotion tidak membaca konteks React).
  */
 
 const KUERI_GERAK = "(prefers-reduced-motion: reduce)";
@@ -39,6 +41,8 @@ export function PemutarChat({ skenario }: { skenario: PropsChatDemo }) {
   const ref = useRef<PlayerRef>(null);
   const wadah = useRef<HTMLDivElement>(null);
   const kurangi = useGerakDikurangi();
+  const { b } = useBahasa();
+  const props = useMemo(() => ({ ...skenario, bahasa: b }), [skenario, b]);
   const durasi = durasiChat(skenario.pesan);
   usePutarSaatTerlihat(ref, wadah, !kurangi);
 
@@ -47,7 +51,7 @@ export function PemutarChat({ skenario }: { skenario: PropsChatDemo }) {
       <Player
         ref={ref}
         component={ChatDemo}
-        inputProps={skenario}
+        inputProps={props}
         durationInFrames={durasi}
         fps={CHAT_FPS}
         compositionWidth={CHAT_LEBAR}
@@ -71,6 +75,8 @@ export function PemutarAlur({ minta, onBabak }: { minta: { babak: number; n: num
   const ref = useRef<PlayerRef>(null);
   const wadah = useRef<HTMLDivElement>(null);
   const kurangi = useGerakDikurangi();
+  const { b } = useBahasa();
+  const props = useMemo(() => ({ bahasa: b }), [b]);
   usePutarSaatTerlihat(ref, wadah, !kurangi);
 
   useEffect(() => {
@@ -98,6 +104,7 @@ export function PemutarAlur({ minta, onBabak }: { minta: { babak: number; n: num
       <Player
         ref={ref}
         component={AlurDemo}
+        inputProps={props}
         durationInFrames={ALUR_DURASI}
         fps={ALUR_FPS}
         compositionWidth={1200}

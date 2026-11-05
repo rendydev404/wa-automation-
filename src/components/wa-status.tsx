@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useRouterBahasa } from "./bahasa";
 import type { SesiNomor, StatusWa } from "@/lib/types";
 
 interface Nilai {
@@ -37,7 +37,7 @@ export function useSesiNomor(id: number): SesiNomor | undefined {
  * berhenti saat tab tidak terlihat.
  */
 export function WaStatusProvider({ children }: { children: ReactNode }) {
-  const router = useRouter();
+  const router = useRouterBahasa();
   const [data, setData] = useState<StatusWa | null>(null);
   const picu = useRef<() => void>(() => {});
 

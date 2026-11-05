@@ -1,5 +1,6 @@
 import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
+import { type Bahasa, pembuatT } from "./bahasa";
 import { MEREK, PERUSAHAAN } from "./merek";
 
 /**
@@ -81,6 +82,8 @@ const HURUF = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Aria
 const MONO = "'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace";
 
 export interface IsiEmail {
+  /** Bahasa teks bawaan email (petunjuk salin kode, kaki email); bawaan "id". Isi lainnya ditulis pemanggil. */
+  bahasa?: Bahasa;
   /** Teks pratinjau di daftar kotak masuk (tidak tampil di badan email). */
   pratinjau: string;
   /** Ikon besar di header: berkas public/email/<ikon>.png (ikon Lucide). */
@@ -108,6 +111,8 @@ export interface IsiEmail {
  * menampilkan SVG), dimuat dari APP_URL. Bila gambar diblokir, nama merek dan semua teks tetap terbaca.
  */
 export function htmlEmail(o: IsiEmail): string {
+  const b = o.bahasa ?? "id";
+  const t = pembuatT(b);
   const asal = (process.env.APP_URL ?? "").replace(/\/+$/, "");
   const baris = (isi: string, gaya = "") => `<tr><td style="${gaya}">${isi}</td></tr>`;
   const p = (t: string, gaya = "") => `<p style="margin:0 0 14px;font-family:${HURUF};font-size:15px;line-height:1.6;color:${W.teks};${gaya}">${aman(t)}</p>`;
@@ -124,7 +129,7 @@ export function htmlEmail(o: IsiEmail): string {
   // disalin. Email tidak bisa menjalankan JavaScript, jadi tombol "Salin" sungguhan tidak mungkin; user-select:all
   // membuat satu ketukan memilih seluruh kode di Apple Mail & aplikasi yang mendukungnya.
   const kode = o.kode
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:6px auto 8px"><tr><td style="padding:12px 18px 12px 28px;border-radius:14px;background:${W.kanvas};border:1px solid ${W.garis};border-bottom:3px solid ${W.aksen};font-family:${MONO};font-size:32px;line-height:1.1;font-weight:700;letter-spacing:10px;color:${W.teks};-webkit-user-select:all;user-select:all">${aman(o.kode)}</td></tr></table><p style="margin:0 0 12px;text-align:center;font-family:${HURUF};font-size:12px;color:${W.redup}">Tekan lama atau ketuk dua kali kodenya untuk menyalin</p>${
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:6px auto 8px"><tr><td style="padding:12px 18px 12px 28px;border-radius:14px;background:${W.kanvas};border:1px solid ${W.garis};border-bottom:3px solid ${W.aksen};font-family:${MONO};font-size:32px;line-height:1.1;font-weight:700;letter-spacing:10px;color:${W.teks};-webkit-user-select:all;user-select:all">${aman(o.kode)}</td></tr></table><p style="margin:0 0 12px;text-align:center;font-family:${HURUF};font-size:12px;color:${W.redup}">${t("Tekan lama atau ketuk dua kali kodenya untuk menyalin", "Long-press or double-tap the code to copy it")}</p>${
         o.berlaku
           ? `<p style="margin:0 0 22px;text-align:center"><span style="display:inline-block;padding:6px 12px;border-radius:999px;background:${W.aksenLembut};font-family:${HURUF};font-size:12.5px;font-weight:600;color:${W.aksen}">${ikon("jam", 14, "margin:-2px 6px 0 0")}${aman(o.berlaku)}</span></p>`
           : ""
@@ -159,11 +164,11 @@ export function htmlEmail(o: IsiEmail): string {
     "padding:0 24px 26px"
   )}</table>`;
   const badan = `${o.sapaan ? p(o.sapaan, "font-weight:600") : ""}${o.paragraf.map((t) => p(t)).join("")}${kode}${rincian}${tombol}${peringatan}${o.catatan ? p(o.catatan, `font-size:13px;color:${W.redup};margin:0`) : ""}`;
-  const kaki = `<p style="margin:0 0 6px;font-family:${HURUF};font-size:12.5px;font-weight:700;color:${W.teks}">Chat<span style="color:${W.aksen}">GerCep</span> <span style="font-weight:400;color:${W.redup}">· Asisten AI WhatsApp untuk usaha Anda</span></p><p style="margin:0;font-family:${HURUF};font-size:12px;line-height:1.6;color:${W.redup}">Email ini dikirim otomatis, mohon tidak dibalas.${
+  const kaki = `<p style="margin:0 0 6px;font-family:${HURUF};font-size:12.5px;font-weight:700;color:${W.teks}">Chat<span style="color:${W.aksen}">GerCep</span> <span style="font-weight:400;color:${W.redup}">· ${t("Asisten AI WhatsApp untuk usaha Anda", "AI WhatsApp assistant for your business")}</span></p><p style="margin:0;font-family:${HURUF};font-size:12px;line-height:1.6;color:${W.redup}">${t("Email ini dikirim otomatis, mohon tidak dibalas.", "This email was sent automatically, please don't reply.")}${
     asal ? ` <a href="${aman(asal)}" style="color:${W.aksen};text-decoration:none;font-weight:600">${aman(asal.replace(/^https?:\/\//, ""))}</a>` : ""
-  }<br>&copy; ${new Date().getFullYear()} ${aman(PERUSAHAAN)}. ${aman(MEREK)} adalah produk ${aman(PERUSAHAAN)}.</p>`;
+  }<br>&copy; ${new Date().getFullYear()} ${aman(PERUSAHAAN)}. ${aman(MEREK)} ${t("adalah produk", "is a product of")} ${aman(PERUSAHAAN)}.</p>`;
 
-  return `<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${aman(o.judul)}</title></head>
+  return `<!doctype html><html lang="${b}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${aman(o.judul)}</title></head>
 <body style="margin:0;padding:0;background:${W.latar}">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${aman(o.pratinjau)}&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${W.latar}"><tr><td align="center" style="padding:24px 10px">

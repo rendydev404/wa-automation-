@@ -2,16 +2,20 @@
 
 import { useState } from "react";
 import { ArrowUpRight, CheckCircle2, Send, Sparkles, X } from "lucide-react";
+import { useBahasa } from "@/components/bahasa";
 import { IkonWhatsApp } from "@/components/ikon-whatsapp";
+import type { T } from "@/lib/bahasa";
 import { MEREK, NOMOR_WA_DEMO } from "@/lib/merek";
 
-const CONTOH_PESAN = [
-  `Halo ${MEREK}, saya mau coba tes secepat apa AI membalas chat ini.`,
-  `Halo, boleh jelaskan fitur dan pilihan paket ${MEREK}?`,
-  `Halo, saya ingin konsultasi dan coba demo bot WA dulu sebelum daftar.`,
+const contohPesan = (t: T) => [
+  t(`Halo ${MEREK}, saya mau coba tes secepat apa AI membalas chat ini.`, `Hi ${MEREK}, I'd like to see how fast the AI replies to this chat.`),
+  t(`Halo, boleh jelaskan fitur dan pilihan paket ${MEREK}?`, `Hi, could you walk me through ${MEREK}'s features and plans?`),
+  t(`Halo, saya ingin konsultasi dan coba demo bot WA dulu sebelum daftar.`, `Hi, I'd like to ask a few questions and try the WhatsApp bot demo before signing up.`),
 ];
 
 export function WidgetWaLanding() {
+  const { t } = useBahasa();
+  const CONTOH_PESAN = contohPesan(t);
   const [terbuka, setTerbuka] = useState(false);
   const [pesan, setPesan] = useState(CONTOH_PESAN[0]);
 
@@ -22,7 +26,7 @@ export function WidgetWaLanding() {
       {terbuka && (
         <div
           role="dialog"
-          aria-label="Coba tes WhatsApp AI langsung"
+          aria-label={t("Coba tes WhatsApp AI langsung", "Try the WhatsApp AI live")}
           className="mb-3 w-[calc(100vw-2rem)] max-w-[360px] overflow-hidden rounded-3xl border border-line bg-surface shadow-pop animate-masuk"
         >
           {/* Header Solid */}
@@ -34,7 +38,7 @@ export function WidgetWaLanding() {
               </span>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <p className="text-[14px] font-extrabold text-white">Coba Tes Bot WA</p>
+                  <p className="text-[14px] font-extrabold text-white">{t("Coba Tes Bot WA", "Try the WA Bot")}</p>
                   <span className="rounded-full bg-ink-signal/15 px-2 py-0.5 text-[10.5px] font-bold text-ink-signal">
                     Online 24/7
                   </span>
@@ -47,7 +51,7 @@ export function WidgetWaLanding() {
             <button
               type="button"
               onClick={() => setTerbuka(false)}
-              aria-label="Tutup widget WhatsApp"
+              aria-label={t("Tutup widget WhatsApp", "Close WhatsApp widget")}
               className="rounded-xl p-1.5 text-ink-muted transition-colors hover:bg-white/10 hover:text-white"
             >
               <X className="size-4" aria-hidden />
@@ -59,16 +63,19 @@ export function WidgetWaLanding() {
             <div className="rounded-2xl border border-line bg-subtle/60 p-3.5 text-[12.5px] leading-relaxed text-fg">
               <p className="flex items-center gap-1.5 font-bold text-accent">
                 <Sparkles className="size-3.5 shrink-0" aria-hidden />
-                Uji Coba & Testimoni Langsung
+                {t("Uji Coba & Testimoni Langsung", "Live test drive")}
               </p>
               <p className="mt-1 text-muted">
-                Ingin membuktikan secepat apa AI membalas pelanggan atau tanya-tanya dulu? Kirim pesan ke Customer Service WhatsApp kami.
+                {t(
+                  "Ingin membuktikan secepat apa AI membalas pelanggan atau tanya-tanya dulu? Kirim pesan ke Customer Service WhatsApp kami.",
+                  "Want to see for yourself how fast the AI replies, or just have a few questions? Message our WhatsApp customer service.",
+                )}
               </p>
             </div>
 
             <div>
               <p className="text-[11.5px] font-bold tracking-[0.06em] text-muted uppercase">
-                Pilih pesan uji coba cepat:
+                {t("Pilih pesan uji coba cepat:", "Pick a quick test message:")}
               </p>
               <div className="mt-2 space-y-1.5">
                 {CONTOH_PESAN.map((contoh) => {
@@ -97,14 +104,14 @@ export function WidgetWaLanding() {
 
             <div>
               <label htmlFor="input-wa-landing" className="text-[11.5px] font-bold tracking-[0.06em] text-muted uppercase">
-                Atau tulis pesan sendiri:
+                {t("Atau tulis pesan sendiri:", "Or write your own:")}
               </label>
               <textarea
                 id="input-wa-landing"
                 rows={2}
                 value={pesan}
                 onChange={(e) => setPesan(e.target.value)}
-                placeholder="Ketik pesan untuk dikirim ke WhatsApp..."
+                placeholder={t("Ketik pesan untuk dikirim ke WhatsApp...", "Type a message to send on WhatsApp...")}
                 className="field mt-1.5 resize-none py-2 text-[12.5px]"
               />
             </div>
@@ -116,7 +123,7 @@ export function WidgetWaLanding() {
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-accent px-4 py-3 text-[13.5px] font-bold text-on-accent transition-transform hover:-translate-y-0.5"
             >
               <Send className="size-4" aria-hidden />
-              Kirim & Tes di WhatsApp Sekarang
+              {t("Kirim & Tes di WhatsApp Sekarang", "Send & test on WhatsApp now")}
               <ArrowUpRight className="size-4" aria-hidden />
             </a>
           </div>
@@ -140,18 +147,18 @@ export function WidgetWaLanding() {
           type="button"
           onClick={() => setTerbuka((v) => !v)}
           aria-expanded={terbuka}
-          aria-label={terbuka ? "Tutup widget WhatsApp" : "Chat Customer Service di WhatsApp"}
+          aria-label={terbuka ? t("Tutup widget WhatsApp", "Close WhatsApp widget") : t("Chat Customer Service di WhatsApp", "Chat with customer service on WhatsApp")}
           className="group inline-flex items-center gap-2.5 rounded-full bg-accent px-4 py-3.5 text-[13.5px] font-bold text-on-accent shadow-pop transition-transform hover:-translate-y-0.5"
         >
           {terbuka ? (
             <>
               <X className="size-5" aria-hidden />
-              <span>Tutup</span>
+              <span>{t("Tutup", "Close")}</span>
             </>
           ) : (
             <>
               <IkonWhatsApp className="size-5" />
-              <span>Coba Tes Bot WA</span>
+              <span>{t("Coba Tes Bot WA", "Try the WA Bot")}</span>
             </>
           )}
         </button>

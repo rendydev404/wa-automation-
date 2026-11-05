@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
 import { selesaiTurAction } from "@/app/actions";
+import type { T } from "@/lib/bahasa";
+import { useBahasa } from "./bahasa";
 
 /**
  * Tur panduan: menyorot satu bagian layar per langkah (elemen dengan atribut data-tur="..."), sisanya diredupkan.
@@ -19,6 +21,12 @@ export interface LangkahTur {
   judul: string;
   isi: ReactNode;
 }
+
+/**
+ * Isi satu tur, dibuat sesuai bahasa halaman: `(t) => [...]`. Berupa fungsi dari modul klien (isi-tur.tsx), jadi
+ * Server Component tetap bisa meneruskannya ke TurOtomatis sebagai referensi klien.
+ */
+export type IsiTur = (t: T) => LangkahTur[];
 
 interface KonteksTur {
   mulai: (nama: string, langkah: LangkahTur[]) => void;
@@ -56,22 +64,24 @@ export function PenyediaTur({ children }: { children: ReactNode }) {
  * Pasang di bagian halaman yang sudah membaca sesi: tur `nama` otomatis mulai sekali untuk akun yang belum
  * pernah melihatnya (`sudah` dibaca server dari users.tur_selesai).
  */
-export function TurOtomatis({ nama, langkah, sudah }: { nama: string; langkah: LangkahTur[]; sudah: boolean }) {
+export function TurOtomatis({ nama, langkah, sudah }: { nama: string; langkah: IsiTur; sudah: boolean }) {
   const { mulai } = useTur();
+  const { t } = useBahasa();
   useEffect(() => {
     if (sudah || sudahDibuka.has(nama)) return;
     // Tunggu bagian halaman lain selesai tampil (di-stream) sebelum mengukur posisi elemen.
-    const t = setTimeout(() => mulai(nama, langkah), 900);
-    return () => clearTimeout(t);
-  }, [nama, langkah, mulai, sudah]);
+    const jeda = setTimeout(() => mulai(nama, langkah(t)), 900);
+    return () => clearTimeout(jeda);
+  }, [nama, langkah, mulai, sudah, t]);
   return null;
 }
 
 /** Tombol untuk memutar ulang tur `nama`. */
-export function TombolTur({ nama, langkah, children, className }: { nama: string; langkah: LangkahTur[]; children: ReactNode; className?: string }) {
+export function TombolTur({ nama, langkah, children, className }: { nama: string; langkah: IsiTur; children: ReactNode; className?: string }) {
   const { mulai } = useTur();
+  const { t } = useBahasa();
   return (
-    <button type="button" className={className} onClick={() => mulai(nama, langkah)}>
+    <button type="button" className={className} onClick={() => mulai(nama, langkah(t))}>
       {children}
     </button>
   );
@@ -92,6 +102,7 @@ function sasaranTerlihat(nama: string): HTMLElement | null {
 }
 
 function Sorot({ langkah: semua, tutup }: { langkah: LangkahTur[]; tutup: () => void }) {
+  const { t } = useBahasa();
   // Hanya langkah yang elemennya ada di halaman ini.
   const [langkah] = useState(() => semua.filter((l) => !l.sasaran || sasaranTerlihat(l.sasaran)));
   const [i, setI] = useState(0);
@@ -169,9 +180,9 @@ function Sorot({ langkah: semua, tutup }: { langkah: LangkahTur[]; tutup: () => 
       >
         <div className="flex items-start justify-between gap-3">
           <p className="text-[11.5px] font-semibold tracking-[0.08em] text-accent uppercase">
-            Panduan {i + 1}/{langkah.length}
+            {t("Panduan", "Guide")} {i + 1}/{langkah.length}
           </p>
-          <button type="button" onClick={tutup} aria-label="Tutup panduan" className="-mt-1 -mr-1 grid size-7 place-items-center rounded-lg text-muted hover:bg-subtle hover:text-fg">
+          <button type="button" onClick={tutup} aria-label={t("Tutup panduan", "Close guide")} className="-mt-1 -mr-1 grid size-7 place-items-center rounded-lg text-muted hover:bg-subtle hover:text-fg">
             <X className="size-4" aria-hidden />
           </button>
         </div>
@@ -188,17 +199,17 @@ function Sorot({ langkah: semua, tutup }: { langkah: LangkahTur[]; tutup: () => 
           <div className="flex gap-2">
             {i > 0 && (
               <button type="button" onClick={() => setI(i - 1)} className="btn btn-ghost border border-line">
-                <ArrowLeft className="size-4" aria-hidden /> Kembali
+                <ArrowLeft className="size-4" aria-hidden /> {t("Kembali", "Back")}
               </button>
             )}
             <button type="button" onClick={() => (terakhir ? tutup() : setI(i + 1))} className="btn btn-primary">
               {terakhir ? (
                 <>
-                  <Check className="size-4" aria-hidden /> Mengerti
+                  <Check className="size-4" aria-hidden /> {t("Mengerti", "Got it")}
                 </>
               ) : (
                 <>
-                  Lanjut <ArrowRight className="size-4" aria-hidden />
+                  {t("Lanjut", "Next")} <ArrowRight className="size-4" aria-hidden />
                 </>
               )}
             </button>

@@ -1,4 +1,5 @@
 import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { type Bahasa, pembuatT } from "./bahasa";
 
 // Format: scrypt:N:r:p:saltBase64:hashBase64
 const KEY_LEN = 64;
@@ -22,14 +23,15 @@ export async function hashPassword(password: string): Promise<string> {
 
 const UMUM = new Set(["1234567890", "12345678910", "qwertyuiop", "password123", "passw0rd123", "katasandi123", "bismillah123", "indonesia123", "asdfghjkl1", "0987654321"]);
 
-/** Aturan password akun: null = boleh dipakai, selain itu pesan penjelasannya. */
-export function cekPassword(password: string, email = ""): string | null {
-  if (password.length < 10) return "Password minimal 10 karakter.";
-  if (password.length > 200) return "Password maksimal 200 karakter.";
-  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) return "Password harus memuat huruf dan angka.";
-  if (/^(.)\1+$/.test(password) || UMUM.has(password.toLowerCase())) return "Password terlalu mudah ditebak.";
+/** Aturan password akun: null = boleh dipakai, selain itu pesan penjelasannya (dalam bahasa `b`). */
+export function cekPassword(password: string, email = "", b: Bahasa = "id"): string | null {
+  const t = pembuatT(b);
+  if (password.length < 10) return t("Password minimal 10 karakter.", "Password must be at least 10 characters.");
+  if (password.length > 200) return t("Password maksimal 200 karakter.", "Password can be at most 200 characters.");
+  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) return t("Password harus memuat huruf dan angka.", "Password must contain both letters and numbers.");
+  if (/^(.)\1+$/.test(password) || UMUM.has(password.toLowerCase())) return t("Password terlalu mudah ditebak.", "Password is too easy to guess.");
   const lokal = email.split("@")[0]?.toLowerCase();
-  if (lokal && lokal.length >= 4 && password.toLowerCase().includes(lokal)) return "Password tidak boleh memuat email Anda.";
+  if (lokal && lokal.length >= 4 && password.toLowerCase().includes(lokal)) return t("Password tidak boleh memuat email Anda.", "Password must not contain your email.");
   return null;
 }
 

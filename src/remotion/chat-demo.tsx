@@ -1,8 +1,10 @@
 import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { type Bahasa, pembuatT } from "../lib/bahasa";
 
 /**
  * Komposisi Remotion: percakapan WhatsApp yang dibalas AI. Semua gerak dihitung dari nomor frame
  * (tanpa transisi CSS), jadi bisa diputar, dihentikan, dan digeser di Player secara deterministik.
+ * Bahasa teks layar datang dari input prop `bahasa` (bukan konteks React: komposisi juga bisa dirender di luar app).
  */
 
 export const W = {
@@ -25,6 +27,8 @@ export interface PropsChatDemo {
   nama: string;
   inisial: string;
   pesan: PesanDemo[];
+  /** Bahasa teks layar (bawaan "id"). */
+  bahasa?: Bahasa;
   [k: string]: unknown;
 }
 
@@ -71,10 +75,10 @@ const TINGGI_KETIK = 150;
 const HIJAU_WA = "#008069";
 const BIRU_CENTANG = "#53bdeb";
 
-/** Jam pesan ke-i (jam yang sama di bilah status dan gelembung). */
-const jamPesan = (i: number) => `09.${String(41 + Math.floor(i / 2)).padStart(2, "0")}`;
+/** Jam pesan ke-i (jam yang sama di bilah status dan gelembung): "09.41" (id) / "9:41" (en). */
+const jamPesan = (i: number, b: Bahasa = "id") => `${b === "en" ? "9:" : "09."}${String(41 + Math.floor(i / 2)).padStart(2, "0")}`;
 
-function Gelembung({ p, i, frame, fps }: { p: ReturnType<typeof jadwal>[number]; i: number; frame: number; fps: number }) {
+function Gelembung({ p, i, frame, fps, b }: { p: ReturnType<typeof jadwal>[number]; i: number; frame: number; fps: number; b: Bahasa }) {
   const masuk = spring({ frame: frame - p.mulai, fps, config: { damping: 16, stiffness: 170 } });
   const ai = p.dari === "ai";
   const huruf = ai ? Math.floor(interpolate(frame, [p.mulai, p.selesai], [0, p.teks.length], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })) : p.teks.length;
@@ -101,13 +105,13 @@ function Gelembung({ p, i, frame, fps }: { p: ReturnType<typeof jadwal>[number];
         </svg>
         {ai && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, fontSize: 21, fontWeight: 700, color: W.aksen, letterSpacing: 0.3 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 10, background: W.signal }} /> AI · otomatis
+            <span style={{ width: 10, height: 10, borderRadius: 10, background: W.signal }} /> {b === "en" ? "AI · auto" : "AI · otomatis"}
           </div>
         )}
         {p.teks.slice(0, huruf)}
         {ai && huruf < p.teks.length && <span style={{ opacity: frame % 16 < 8 ? 1 : 0 }}>▍</span>}
         <span style={{ float: "right", display: "inline-flex", alignItems: "center", gap: 4, margin: "14px 0 -4px 14px", fontSize: 20, color: "#54656f" }}>
-          {jamPesan(i)}
+          {jamPesan(i, b)}
           {!ai && (
             <svg width="30" height="18" viewBox="0 0 16 11" aria-hidden>
               <path d="M11.07.65 4.6 7.12 2.1 4.6l-.95.95L4.6 9 12 1.6zM15.05.65 8.6 7.12l-.6-.6-.95.95L8.6 9 16 1.6z" fill={BIRU_CENTANG} />
@@ -135,10 +139,10 @@ function Mengetik({ frame }: { frame: number }) {
 }
 
 /** Bilah status iOS: jam di kiri takik, sinyal, Wi-Fi, dan baterai di kanan. */
-function BilahStatus() {
+function BilahStatus({ b }: { b: Bahasa }) {
   return (
     <div style={{ position: "absolute", zIndex: 3, top: 0, left: 0, right: 0, height: TINGGI_STATUS, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 40px 0 70px", color: "#000" }}>
-      <span style={{ fontSize: 31, fontWeight: 600, letterSpacing: 0.2 }}>09.41</span>
+      <span style={{ fontSize: 31, fontWeight: 600, letterSpacing: 0.2 }}>{jamPesan(0, b)}</span>
       {/* Muat di "telinga" kanan takik: (710 - 384) / 2 - 40 = 123 unit. */}
       <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
         <svg width="30" height="19" viewBox="0 0 34 22" aria-hidden>
@@ -200,7 +204,8 @@ const Ikon = ({ d, w = 40 }: { d: string; w?: number }) => (
   </svg>
 );
 
-export function ChatDemo({ nama, inisial, pesan }: PropsChatDemo) {
+export function ChatDemo({ nama, inisial, pesan, bahasa = "id" }: PropsChatDemo) {
+  const t = pembuatT(bahasa);
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const j = jadwal(pesan);
@@ -230,7 +235,7 @@ export function ChatDemo({ nama, inisial, pesan }: PropsChatDemo) {
         <div style={{ height: "100%", borderRadius: BADAN.sudut - BINGKAI, padding: BEZEL, background: "#000" }}>
           <div style={{ position: "relative", height: "100%", borderRadius: SUDUT_LAYAR, overflow: "hidden", background: "#efeae2" }}>
             <Takik />
-            <BilahStatus />
+            <BilahStatus b={bahasa} />
             {/* Kepala chat (WhatsApp iOS) */}
             <div
               style={{
@@ -254,7 +259,7 @@ export function ChatDemo({ nama, inisial, pesan }: PropsChatDemo) {
               <div style={{ width: 62, height: 62, borderRadius: 62, background: W.aksen, color: "#fff", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 25, flexShrink: 0 }}>{inisial}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 30, color: "#111b21", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nama}</div>
-                <div style={{ fontSize: 22, color: "#54656f" }}>{sedangKetik ? "mengetik…" : "online"}</div>
+                <div style={{ fontSize: 22, color: "#54656f" }}>{sedangKetik ? t("mengetik…", "typing…") : "online"}</div>
               </div>
               <Ikon d="M15 10l4.6-2.7A1 1 0 0 1 21 8.2v7.6a1 1 0 0 1-1.4.9L15 14M4 6h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" />
               <span style={{ width: 22 }} />
@@ -263,19 +268,19 @@ export function ChatDemo({ nama, inisial, pesan }: PropsChatDemo) {
             {/* Latar chat: pola titik halus seperti wallpaper bawaan WhatsApp. */}
             <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(rgba(84,101,111,0.09) 2px, transparent 2.5px)", backgroundSize: "34px 34px" }} />
             <div style={{ position: "absolute", zIndex: 1, top: TINGGI_STATUS + TINGGI_KEPALA + 22, left: "50%", transform: "translateX(-50%)", padding: "7px 20px", borderRadius: 14, background: "#ffffff", color: "#54656f", fontSize: 21, fontWeight: 600, boxShadow: "0 1px 1px rgba(11,20,26,0.1)" }}>
-              Hari ini
+              {t("Hari ini", "Today")}
             </div>
             {/* Isi chat, ditambatkan ke bawah: pesan baru mendorong yang lama ke atas, seperti WhatsApp. */}
             <div style={{ position: "absolute", left: 30, right: 30, top: TINGGI_STATUS + TINGGI_KEPALA + 84, bottom: TINGGI_KETIK + 20, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 14, overflow: "hidden" }}>
               {terlihat.map((p) => (
-                <Gelembung key={j.indexOf(p)} p={p} i={j.indexOf(p)} frame={frame} fps={fps} />
+                <Gelembung key={j.indexOf(p)} p={p} i={j.indexOf(p)} frame={frame} fps={fps} b={bahasa} />
               ))}
               {sedangKetik && <Mengetik frame={frame} />}
             </div>
             {/* Kolom ketik + indikator beranda */}
             <div style={{ position: "absolute", zIndex: 2, left: 0, right: 0, bottom: 0, height: TINGGI_KETIK, background: "#f6f6f6", borderTop: "1.5px solid #d8d8d8", padding: "14px 22px 0", display: "flex", alignItems: "flex-start", gap: 16 }}>
               <Ikon d="M12 5v14M5 12h14" w={44} />
-              <div style={{ flex: 1, height: 58, borderRadius: 30, background: "#fff", border: "1.5px solid #e1e1e1", display: "flex", alignItems: "center", padding: "0 22px", color: "#54656f", fontSize: 25 }}>Ketik pesan</div>
+              <div style={{ flex: 1, height: 58, borderRadius: 30, background: "#fff", border: "1.5px solid #e1e1e1", display: "flex", alignItems: "center", padding: "0 22px", color: "#54656f", fontSize: 25 }}>{t("Ketik pesan", "Message")}</div>
               <Ikon d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" w={42} />
               <Ikon d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM5 11a7 7 0 0 0 14 0M12 18v3" w={42} />
               <span style={{ position: "absolute", left: "50%", bottom: 16, width: 256, height: 10, marginLeft: -128, borderRadius: 5, background: "#111" }} />
@@ -305,9 +310,9 @@ export function ChatDemo({ nama, inisial, pesan }: PropsChatDemo) {
       >
         <span style={{ fontSize: 32, color: W.signal }}>⚡</span>
         <span>
-          Dibalas dalam
+          {t("Dibalas dalam", "Replied in")}
           <br />
-          <span style={{ color: W.signal, fontSize: 30 }}>4 detik</span>
+          <span style={{ color: W.signal, fontSize: 30 }}>{t("4 detik", "4 seconds")}</span>
         </span>
       </div>
     </AbsoluteFill>

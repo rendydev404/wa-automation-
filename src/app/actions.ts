@@ -21,7 +21,9 @@ import {
 } from "@/lib/afiliasi";
 import { nomorUntuk } from "@/lib/akses";
 import { kunciAnthropic, kursUsd, perkiraanPerBalasan } from "@/lib/ai";
-import { KANAL_BAYAR, type KanalBayar, MAKS_HARGA_PAKET, METODE_BAYAR, kanalSah } from "@/lib/harga";
+import { KANAL_BAYAR, type KanalBayar, MAKS_HARGA_PAKET, METODE_BAYAR, kanalSah, labelKanal } from "@/lib/harga";
+import type { Bahasa, T } from "@/lib/bahasa";
+import { alihkanPermintaan, teksPermintaan } from "@/lib/bahasa-server";
 import { authConfigured } from "@/lib/auth";
 import { asalAplikasi, ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
 import { sekarang, setSetting } from "@/lib/db";
@@ -37,7 +39,7 @@ import {
 import { ATURAN_ANGKA, ATURAN_SAKLAR, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
 import { type IsiKhusus, METODE_MANUAL, type MetodeManual, batalkanBayar, berikanPaketManual, hapusPaket, hentikanLangganan, mulaiBayar, ORDER_SAH, paketById, segarkanKuota, simpanPaket, terapkanSimulasi } from "@/lib/langganan";
 import { MidtransError, kanalAktif, kanalBelumAktif, konfigMidtrans, setKanalMati } from "@/lib/midtrans";
-import { tanggal } from "@/lib/format";
+import { tanggal, uang } from "@/lib/format";
 import { GalatCustom, customTampil, periksaCustom, ringkasCustom, simpanPaketCustom } from "@/lib/paket-custom";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
 import { geserProduk, hapusProduk, katalogBoleh, setTersedia } from "@/lib/katalog";
@@ -94,50 +96,70 @@ export interface Hasil {
 // Hash pengganti saat email tidak terdaftar: verifikasi tetap berjalan supaya waktu respons tidak membocorkan email.
 const HASH_PALSU = "scrypt:16384:8:1:AAAAAAAAAAAAAAAAAAAAAA==:AAAA";
 
+// Pesan yang dipakai banyak aksi pengguna (versi Inggris untuk halaman /eng).
+const belumDikonfigurasi = (t: T): Hasil => ({ ok: false, pesan: t("AUTH_SECRET belum dikonfigurasi di server.", "AUTH_SECRET is not configured on the server.") });
+const terlaluBanyak = (t: T): Hasil => ({ ok: false, pesan: t("Terlalu banyak percobaan. Coba lagi beberapa menit lagi.", "Too many attempts. Please try again in a few minutes.") });
+const nomorTidakAda = (t: T): Hasil => ({ ok: false, pesan: t("Nomor tidak ditemukan.", "Number not found.") });
+const percakapanTidakSah = (t: T): Hasil => ({ ok: false, pesan: t("Percakapan tidak valid.", "Invalid conversation.") });
+const ulangiTidakSama = (t: T): Hasil => ({ ok: false, pesan: t("Ulangi password baru tidak sama.", "The new passwords don't match.") });
+
 export async function loginAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
-  if (!authConfigured()) return { ok: false, pesan: "AUTH_SECRET belum dikonfigurasi di server." };
+  const { t, href } = await teksPermintaan();
+  if (!authConfigured()) return belumDikonfigurasi(t);
   const ip = await ipKlien();
   const email = String(form.get("email") ?? "").trim().toLowerCase().slice(0, 254);
   const password = String(form.get("password") ?? "");
   // Dua lapis: per IP (penebakan massal) dan per email (satu akun ditebak dari banyak IP; ada juga kunci akun di database).
-  if (terlaluSering(`login:${ip}`, 10, 5 * 60_000) || terlaluSering(`login-email:${email}`, 20, 15 * 60_000))
-    return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." };
+  if (terlaluSering(`login:${ip}`, 10, 5 * 60_000) || terlaluSering(`login-email:${email}`, 20, 15 * 60_000)) return terlaluBanyak(t);
 
   const user = email && password.length <= 200 ? await findUserByEmail(email) : undefined;
   const cocok = await verifyPassword(password, user?.password_hash ?? HASH_PALSU);
-  if (user && user.kunci_sampai > sekarang())
-    return { ok: false, pesan: `Akun dikunci sementara setelah ${MAKS_GAGAL_LOGIN} kali gagal masuk. Coba lagi dalam ${Math.ceil((user.kunci_sampai - sekarang()) / 60)} menit.` };
+  if (user && user.kunci_sampai > sekarang()) {
+    const menit = Math.ceil((user.kunci_sampai - sekarang()) / 60);
+    return {
+      ok: false,
+      pesan: t(
+        `Akun dikunci sementara setelah ${MAKS_GAGAL_LOGIN} kali gagal masuk. Coba lagi dalam ${menit} menit.`,
+        `Account temporarily locked after ${MAKS_GAGAL_LOGIN} failed sign-in attempts. Try again in ${menit} ${menit === 1 ? "minute" : "minutes"}.`
+      ),
+    };
+  }
   if (!user || !cocok) {
     if (user) await catatLoginGagal(user.id);
-    return { ok: false, pesan: "Email atau password salah." };
+    return { ok: false, pesan: t("Email atau password salah.", "Incorrect email or password.") };
   }
-  if (user.status === "diblokir") return { ok: false, pesan: `Akun Anda diblokir oleh admin${user.alasan_blokir ? `: ${user.alasan_blokir}` : "."}` };
+  if (user.status === "diblokir") {
+    const alasan = user.alasan_blokir ? `: ${user.alasan_blokir}` : ".";
+    return { ok: false, pesan: t(`Akun Anda diblokir oleh admin${alasan}`, `Your account has been blocked by the admin${alasan}`) };
+  }
 
   await catatLoginBerhasil(user.id);
   await mulaiSesi(user, await lewatHttps());
-  redirect(halamanAwal(user.peran));
+  redirect(href(halamanAwal(user.peran)));
 }
 
 export async function daftarAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
-  if (!authConfigured()) return { ok: false, pesan: "AUTH_SECRET belum dikonfigurasi di server." };
-  if (!(await pendaftaranDibuka())) return { ok: false, pesan: "Pendaftaran akun baru sedang ditutup oleh admin." };
+  const { b, t, href } = await teksPermintaan();
+  if (!authConfigured()) return belumDikonfigurasi(t);
+  if (!(await pendaftaranDibuka())) return { ok: false, pesan: t("Pendaftaran akun baru sedang ditutup oleh admin.", "New sign-ups are currently closed by the admin.") };
   // Kolom jebakan: tidak terlihat oleh manusia, biasanya diisi bot.
-  if (String(form.get("situs") ?? "")) return { ok: false, pesan: "Pendaftaran ditolak." };
-  if (terlaluSering(`daftar:${await ipKlien()}`, 5, 60 * 60_000)) return { ok: false, pesan: "Terlalu banyak pendaftaran dari jaringan ini. Coba lagi nanti." };
+  if (String(form.get("situs") ?? "")) return { ok: false, pesan: t("Pendaftaran ditolak.", "Sign-up rejected.") };
+  if (terlaluSering(`daftar:${await ipKlien()}`, 5, 60 * 60_000))
+    return { ok: false, pesan: t("Terlalu banyak pendaftaran dari jaringan ini. Coba lagi nanti.", "Too many sign-ups from this network. Please try again later.") };
 
   const nama = String(form.get("nama") ?? "").trim().replace(/\s+/g, " ").slice(0, 60);
   const email = normalkanEmail(String(form.get("email") ?? ""));
   const password = String(form.get("password") ?? "");
-  if (nama.length < 2) return { ok: false, pesan: "Nama minimal 2 huruf." };
-  if (!email) return { ok: false, pesan: "Email tidak valid." };
-  const lemah = cekPassword(password, email);
+  if (nama.length < 2) return { ok: false, pesan: t("Nama minimal 2 huruf.", "Name must be at least 2 letters.") };
+  if (!email) return { ok: false, pesan: t("Email tidak valid.", "Invalid email.") };
+  const lemah = cekPassword(password, email, b);
   if (lemah) return { ok: false, pesan: lemah };
-  if (password !== String(form.get("ulang") ?? "")) return { ok: false, pesan: "Ulangi password tidak sama." };
-  if (form.get("setuju") !== "on") return { ok: false, pesan: "Setujui aturan penggunaan dulu." };
+  if (password !== String(form.get("ulang") ?? "")) return { ok: false, pesan: t("Ulangi password tidak sama.", "The passwords don't match.") };
+  if (form.get("setuju") !== "on") return { ok: false, pesan: t("Setujui aturan penggunaan dulu.", "Please agree to the terms of use first.") };
 
   await pastikanAdminAwal();
   const akun = await buatAkun({ email, nama, password });
-  if (!akun) return { ok: false, pesan: "Email ini sudah terdaftar. Silakan masuk." };
+  if (!akun) return { ok: false, pesan: t("Email ini sudah terdaftar. Silakan masuk.", "This email is already registered. Please sign in.") };
   const toples = await cookies();
   const refKode = toples.get(COOKIE_REF)?.value;
   if (refKode) {
@@ -148,41 +170,49 @@ export async function daftarAction(_lalu: Hasil | null, form: FormData): Promise
   void kirimCapiEvent({ kunci: "complete_registration", email });
   await catatLoginBerhasil(akun.id);
   await mulaiSesi(akun, await lewatHttps());
-  redirect(halamanAwal(akun.peran));
+  redirect(href(halamanAwal(akun.peran)));
 }
 
 export async function logoutAction(): Promise<void> {
   await akhiriSesi();
-  redirect("/login");
+  await alihkanPermintaan("/login");
 }
 
 // ---------- Akun sendiri ----------
 
 export async function ubahProfilAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   const user = await requireUser();
+  const { t } = await teksPermintaan();
   const nama = String(form.get("nama") ?? "").trim().replace(/\s+/g, " ").slice(0, 60);
-  if (nama.length < 2) return { ok: false, pesan: "Nama minimal 2 huruf." };
+  if (nama.length < 2) return { ok: false, pesan: t("Nama minimal 2 huruf.", "Name must be at least 2 letters.") };
   await ubahNama(user.id, nama);
   revalidatePath("/", "layout");
-  return { ok: true, pesan: "Profil tersimpan." };
+  return { ok: true, pesan: t("Profil tersimpan.", "Profile saved.") };
 }
 
 export async function gantiPasswordAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   const user = await requireUser();
-  if (terlaluSering(`ganti-pw:${user.id}`, 6, 15 * 60_000)) return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi nanti." };
+  const { b, t } = await teksPermintaan();
+  if (terlaluSering(`ganti-pw:${user.id}`, 6, 15 * 60_000)) return { ok: false, pesan: t("Terlalu banyak percobaan. Coba lagi nanti.", "Too many attempts. Please try again later.") };
   const lama = String(form.get("lama") ?? "");
   const baru = String(form.get("baru") ?? "");
   const tersimpan = (await passwordHash(user.id)) ?? HASH_PALSU;
   // Akun dari Google belum punya password: boleh langsung memasang (sudah terbukti lewat sesi login yang sah).
-  if (tersimpan !== TANPA_PASSWORD && !(await verifyPassword(lama, tersimpan))) return { ok: false, pesan: "Password saat ini salah." };
-  const lemah = cekPassword(baru, user.email);
+  if (tersimpan !== TANPA_PASSWORD && !(await verifyPassword(lama, tersimpan))) return { ok: false, pesan: t("Password saat ini salah.", "Your current password is incorrect.") };
+  const lemah = cekPassword(baru, user.email, b);
   if (lemah) return { ok: false, pesan: lemah };
-  if (baru !== String(form.get("ulang") ?? "")) return { ok: false, pesan: "Ulangi password baru tidak sama." };
-  if (tersimpan !== TANPA_PASSWORD && baru === lama) return { ok: false, pesan: "Password baru harus berbeda." };
+  if (baru !== String(form.get("ulang") ?? "")) return ulangiTidakSama(t);
+  if (tersimpan !== TANPA_PASSWORD && baru === lama) return { ok: false, pesan: t("Password baru harus berbeda.", "The new password must be different.") };
   // Sesi lain batal karena sidik hash password berubah; sesi di perangkat ini diperbarui.
   await mulaiSesi(await gantiPassword(user.id, baru), await lewatHttps());
   revalidatePath("/akun");
-  return { ok: true, pesan: tersimpan === TANPA_PASSWORD ? "Password terpasang. Sekarang bisa masuk juga dengan email." : "Password diganti. Perangkat lain otomatis keluar." };
+  return {
+    ok: true,
+    pesan:
+      tersimpan === TANPA_PASSWORD
+        ? t("Password terpasang. Sekarang bisa masuk juga dengan email.", "Password set. You can now also sign in with your email.")
+        : t("Password diganti. Perangkat lain otomatis keluar.", "Password changed. Other devices were signed out automatically."),
+  };
 }
 
 /**
@@ -191,96 +221,123 @@ export async function gantiPasswordAction(_lalu: Hasil | null, form: FormData): 
  * jeda 60 detik per akun di lupa-password.ts.
  */
 export async function mintaOtpAction(_lalu: Hasil | null, form: FormData): Promise<Hasil & { email?: string }> {
+  const { b, t } = await teksPermintaan();
   const email = normalkanEmail(String(form.get("email") ?? ""));
-  if (!email) return { ok: false, pesan: "Format email tidak valid." };
+  if (!email) return { ok: false, pesan: t("Format email tidak valid.", "Invalid email format.") };
   if (terlaluSering(`otp:${await ipKlien()}`, 5, 15 * 60_000) || terlaluSering(`otp-email:${email}`, 3, 15 * 60_000))
-    return { ok: false, pesan: "Terlalu banyak permintaan kode. Coba lagi beberapa menit lagi." };
+    return { ok: false, pesan: t("Terlalu banyak permintaan kode. Coba lagi beberapa menit lagi.", "Too many code requests. Please try again in a few minutes.") };
   let hasil;
   try {
-    hasil = await mintaOtp(email);
+    hasil = await mintaOtp(email, b);
   } catch (e) {
-    if (e instanceof GalatOtp) return { ok: false, pesan: e.message };
+    if (e instanceof GalatOtp) return { ok: false, pesan: teksGalat(e, b) };
     throw e;
   }
-  if (hasil === "tidak-terdaftar") return { ok: false, pesan: "Email ini belum terdaftar. Periksa lagi ejaannya, atau daftar akun baru." };
-  if (hasil === "diblokir") return { ok: false, pesan: "Akun ini sedang diblokir admin, jadi password tidak bisa diatur ulang. Hubungi admin." };
-  return { ok: true, pesan: `Kode 6 digit sudah dikirim ke ${email}. Cek juga folder Spam atau Promosi.`, email };
+  if (hasil === "tidak-terdaftar")
+    return { ok: false, pesan: t("Email ini belum terdaftar. Periksa lagi ejaannya, atau daftar akun baru.", "This email isn't registered. Check the spelling, or sign up for a new account.") };
+  if (hasil === "diblokir")
+    return { ok: false, pesan: t("Akun ini sedang diblokir admin, jadi password tidak bisa diatur ulang. Hubungi admin.", "This account is blocked by the admin, so the password can't be reset. Please contact the admin.") };
+  return {
+    ok: true,
+    pesan: t(`Kode 6 digit sudah dikirim ke ${email}. Cek juga folder Spam atau Promosi.`, `A 6-digit code has been sent to ${email}. Also check your Spam or Promotions folder.`),
+    email,
+  };
 }
 
 /** Lupa password tahap 2: periksa kode OTP. Benar = token reset sekali pakai untuk tahap 3. */
 export async function verifikasiOtpAction(_lalu: Hasil | null, form: FormData): Promise<Hasil & { token?: string }> {
-  if (terlaluSering(`otp-pakai:${await ipKlien()}`, 20, 15 * 60_000)) return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." };
+  const { b, t } = await teksPermintaan();
+  if (terlaluSering(`otp-pakai:${await ipKlien()}`, 20, 15 * 60_000)) return terlaluBanyak(t);
   try {
     const token = await verifikasiOtp(String(form.get("email") ?? "").slice(0, 254), String(form.get("kode") ?? "").slice(0, 20));
     return { ok: true, token };
   } catch (e) {
-    if (e instanceof GalatOtp) return { ok: false, pesan: e.message };
+    if (e instanceof GalatOtp) return { ok: false, pesan: teksGalat(e, b) };
     throw e;
   }
 }
 
 /** Lupa password tahap 3: password baru dengan token dari tahap 2. Berhasil = semua sesi lama keluar, lalu langsung masuk. */
 export async function resetPasswordOtpAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
-  if (!authConfigured()) return { ok: false, pesan: "AUTH_SECRET belum dikonfigurasi di server." };
-  if (terlaluSering(`otp-ganti:${await ipKlien()}`, 20, 15 * 60_000)) return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." };
+  const { b, t, href } = await teksPermintaan();
+  if (!authConfigured()) return belumDikonfigurasi(t);
+  if (terlaluSering(`otp-ganti:${await ipKlien()}`, 20, 15 * 60_000)) return terlaluBanyak(t);
   const email = String(form.get("email") ?? "").slice(0, 254);
   const baru = String(form.get("baru") ?? "");
-  const lemah = cekPassword(baru, email);
+  const lemah = cekPassword(baru, email, b);
   if (lemah) return { ok: false, pesan: lemah };
-  if (baru !== String(form.get("ulang") ?? "")) return { ok: false, pesan: "Ulangi password baru tidak sama." };
+  if (baru !== String(form.get("ulang") ?? "")) return ulangiTidakSama(t);
   let u;
   try {
-    u = await gantiPasswordDenganToken(email, String(form.get("token") ?? "").slice(0, 100), baru);
+    u = await gantiPasswordDenganToken(email, String(form.get("token") ?? "").slice(0, 100), baru, b);
   } catch (e) {
-    if (e instanceof GalatOtp) return { ok: false, pesan: e.message };
+    if (e instanceof GalatOtp) return { ok: false, pesan: teksGalat(e, b) };
     throw e;
   }
-  if (u.status !== "aktif") return { ok: true, pesan: "Password sudah diganti, tetapi akun Anda sedang diblokir admin." };
+  if (u.status !== "aktif") return { ok: true, pesan: t("Password sudah diganti, tetapi akun Anda sedang diblokir admin.", "Your password was changed, but your account is blocked by the admin.") };
   await mulaiSesi(u, await lewatHttps());
-  redirect(halamanAwal(u.peran));
+  redirect(href(halamanAwal(u.peran)));
 }
 
 export async function keluarSemuaAction(): Promise<Hasil> {
   const user = await requireUser();
+  const { t } = await teksPermintaan();
   await mulaiSesi(await cabutSesi(user.id), await lewatHttps());
-  return { ok: true, pesan: "Semua perangkat lain sudah dikeluarkan." };
+  return { ok: true, pesan: t("Semua perangkat lain sudah dikeluarkan.", "All other devices have been signed out.") };
 }
 
 // ---------- Koneksi WhatsApp ----------
 
-const pesanGalat = (e: unknown): string =>
-  e instanceof WaError || e instanceof KnowledgeError || e instanceof PenggunaError || e instanceof AfiliasiError ? e.message : "Terjadi kesalahan. Coba lagi.";
+/** Galat lib dua bahasa: kelasnya (WaError, KnowledgeError, AfiliasiError, GalatOtp, ...) membawa versi `en`. */
+const teksGalat = (e: Error & { en?: string }, b: Bahasa): string => (b === "en" && e.en) || e.message;
+
+/** Pesan galat untuk pengguna; `b` bawaan "id" (aksi admin tetap berbahasa Indonesia). */
+const pesanGalat = (e: unknown, b: Bahasa = "id"): string =>
+  e instanceof WaError || e instanceof KnowledgeError || e instanceof PenggunaError || e instanceof AfiliasiError
+    ? teksGalat(e, b)
+    : b === "en"
+      ? "Something went wrong. Please try again."
+      : "Terjadi kesalahan. Coba lagi.";
+
+/** Seperti pesanGalat, ditambah nominal "{rp}" di galat afiliasi versi Inggris yang ditampilkan sebagai USD. */
+async function pesanGalatAfiliasi(e: unknown, b: Bahasa): Promise<string> {
+  if (b === "en" && e instanceof AfiliasiError && e.en && e.rp !== undefined) return e.en.replace("{rp}", uang(e.rp, b, await kursUsd()));
+  return pesanGalat(e, b);
+}
 
 export async function hubungkanWaAction(id: number): Promise<Hasil> {
   const nomor = await nomorUntuk(await requireUser(), id);
-  if (!nomor) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  const { b, t } = await teksPermintaan();
+  if (!nomor) return nomorTidakAda(t);
   try {
     await hubungkan(nomor.sesi);
     return { ok: true };
   } catch (e) {
-    return { ok: false, pesan: pesanGalat(e) };
+    return { ok: false, pesan: pesanGalat(e, b) };
   }
 }
 
 export async function kodePairingWaAction(id: number, telepon: string): Promise<Hasil & { kode?: string }> {
   const nomor = await nomorUntuk(await requireUser(), id);
-  if (!nomor) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  const { b, t } = await teksPermintaan();
+  if (!nomor) return nomorTidakAda(t);
   try {
     const kode = await mintaKodePairing(nomor.sesi, telepon);
     return { ok: true, kode };
   } catch (e) {
-    return { ok: false, pesan: pesanGalat(e) };
+    return { ok: false, pesan: pesanGalat(e, b) };
   }
 }
 
 export async function logoutWaAction(id: number): Promise<Hasil> {
   const nomor = await nomorUntuk(await requireUser(), id);
-  if (!nomor) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  const { b, t } = await teksPermintaan();
+  if (!nomor) return nomorTidakAda(t);
   try {
     await logout(nomor.sesi);
     return { ok: true };
   } catch (e) {
-    return { ok: false, pesan: pesanGalat(e) };
+    return { ok: false, pesan: pesanGalat(e, b) };
   }
 }
 
@@ -292,18 +349,29 @@ const MAKS_NOMOR = Math.max(1, Number(process.env.MAKS_NOMOR) || 250);
 /** Tambah nomor (dalam kuota akun): buat jalurnya, nyalakan sesi WhatsApp-nya, lalu buka halamannya (QR langsung tampil). */
 export async function tambahNomorAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   const user = await requireUser();
+  const { t, href } = await teksPermintaan();
   const label = String(form.get("label") ?? "").trim().slice(0, 60);
-  if (!label) return { ok: false, pesan: "Nama nomor wajib diisi." };
+  if (!label) return { ok: false, pesan: t("Nama nomor wajib diisi.", "Number name is required.") };
   const kuota = await kuotaNomor(user);
   if (kuota !== null && (await nomorMilik(user.id)).length >= kuota)
-    return { ok: false, pesan: kuota === 0 ? "Akun Anda belum diberi kuota nomor. Hubungi admin." : `Kuota akun Anda ${kuota} nomor. Hubungi admin untuk menambah kuota.` };
-  if ((await semuaNomor()).length >= MAKS_NOMOR) return { ok: false, pesan: "Kapasitas server sedang penuh. Coba lagi nanti atau hubungi admin." };
+    return {
+      ok: false,
+      pesan:
+        kuota === 0
+          ? t("Akun Anda belum diberi kuota nomor. Hubungi admin.", "Your account doesn't have a number quota yet. Please contact the admin.")
+          : t(
+              `Kuota akun Anda ${kuota} nomor. Hubungi admin untuk menambah kuota.`,
+              `Your account quota is ${kuota} ${kuota === 1 ? "number" : "numbers"}. Contact the admin to increase it.`
+            ),
+    };
+  if ((await semuaNomor()).length >= MAKS_NOMOR)
+    return { ok: false, pesan: t("Kapasitas server sedang penuh. Coba lagi nanti atau hubungi admin.", "The server is at capacity right now. Try again later or contact the admin.") };
   const nomor = await tambahNomor(label, user.id);
   // Gagal menyalakan sesi tidak membatalkan pembuatan: tombol "Hubungkan" di halamannya bisa mengulang.
   await hubungkan(nomor.sesi).catch(() => {});
   // "layout": daftar nomor di sidebar ikut diperbarui, bukan hanya halamannya.
   revalidatePath("/", "layout");
-  redirect(`/nomor/${nomor.id}`);
+  redirect(href(`/nomor/${nomor.id}`));
 }
 
 export async function ubahNomorAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
@@ -311,27 +379,46 @@ export async function ubahNomorAction(_lalu: Hasil | null, form: FormData): Prom
   const id = Number(form.get("id"));
   const label = String(form.get("label") ?? "").trim().slice(0, 60);
   const instruksi = String(form.get("instruksi") ?? "").trim().slice(0, 2000);
-  if (!(await nomorUntuk(user, id))) return { ok: false, pesan: "Nomor tidak ditemukan." };
-  if (!label) return { ok: false, pesan: "Nama nomor wajib diisi." };
+  const { t } = await teksPermintaan();
+  if (!(await nomorUntuk(user, id))) return nomorTidakAda(t);
+  if (!label) return { ok: false, pesan: t("Nama nomor wajib diisi.", "Number name is required.") };
   const tungguDetik = Math.round(Number(form.get("tunggu_detik")));
   const tungguBacaDetik = Math.round(Number(form.get("tunggu_baca_detik")));
   // Lama AI diam diisi dengan satuan pilihan (detik/menit), disimpan dalam detik.
   const jedaNilai = Math.round(Number(form.get("jeda_nilai")));
   const jedaDetik = form.get("jeda_satuan") === "detik" ? jedaNilai : jedaNilai * 60;
   if (!(tungguDetik >= BATAS_TUNGGU_DETIK.min && tungguDetik <= BATAS_TUNGGU_DETIK.maks))
-    return { ok: false, pesan: `Waktu tunggu harus ${BATAS_TUNGGU_DETIK.min}–${BATAS_TUNGGU_DETIK.maks} detik.` };
+    return {
+      ok: false,
+      pesan: t(
+        `Waktu tunggu harus ${BATAS_TUNGGU_DETIK.min}–${BATAS_TUNGGU_DETIK.maks} detik.`,
+        `Wait time must be ${BATAS_TUNGGU_DETIK.min}–${BATAS_TUNGGU_DETIK.maks} seconds.`
+      ),
+    };
   if (!(tungguBacaDetik >= BATAS_TUNGGU_BACA_DETIK.min && tungguBacaDetik <= BATAS_TUNGGU_BACA_DETIK.maks))
-    return { ok: false, pesan: `Waktu setelah chat dibuka harus ${BATAS_TUNGGU_BACA_DETIK.min}–${BATAS_TUNGGU_BACA_DETIK.maks} detik.` };
+    return {
+      ok: false,
+      pesan: t(
+        `Waktu setelah chat dibuka harus ${BATAS_TUNGGU_BACA_DETIK.min}–${BATAS_TUNGGU_BACA_DETIK.maks} detik.`,
+        `Wait time after the chat is opened must be ${BATAS_TUNGGU_BACA_DETIK.min}–${BATAS_TUNGGU_BACA_DETIK.maks} seconds.`
+      ),
+    };
   if (!(jedaDetik >= BATAS_JEDA_DETIK.min && jedaDetik <= BATAS_JEDA_DETIK.maks))
-    return { ok: false, pesan: "Lama AI diam harus 0 sampai 24 jam (1.440 menit atau 86.400 detik)." };
+    return {
+      ok: false,
+      pesan: t(
+        "Lama AI diam harus 0 sampai 24 jam (1.440 menit atau 86.400 detik).",
+        "AI pause must be between 0 and 24 hours (1,440 minutes or 86,400 seconds)."
+      ),
+    };
   await ubahNomor(id, { label, instruksi, tungguDetik, tungguBacaDetik, jedaDetik });
   revalidatePath("/", "layout"); // nama nomor juga tampil di sidebar
-  return { ok: true, pesan: "Tersimpan." };
+  return { ok: true, pesan: t("Tersimpan.", "Saved.") };
 }
 
 export async function setBotAktifAction(id: number, aktif: boolean): Promise<Hasil> {
   const nomor = await nomorUntuk(await requireUser(), id);
-  if (!nomor) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  if (!nomor) return nomorTidakAda((await teksPermintaan()).t);
   await setBotAktif(id, aktif);
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${id}`);
@@ -361,17 +448,18 @@ export async function setSinkronCgAction(id: number, aktif: boolean): Promise<Ha
 
 export async function hapusNomorAction(id: number): Promise<Hasil> {
   const nomor = await nomorUntuk(await requireUser(), id);
-  if (!nomor) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  const { b, t, href } = await teksPermintaan();
+  if (!nomor) return nomorTidakAda(t);
   // Sesi WhatsApp-nya ikut dihapus (perangkat tertaut dicabut). Bila itu gagal, nomor tidak dihapus
   // supaya tidak tertinggal sesi yatim yang masih terhubung ke WhatsApp.
   try {
     await hapusSesi(nomor.sesi);
   } catch (e) {
-    return { ok: false, pesan: pesanGalat(e) };
+    return { ok: false, pesan: pesanGalat(e, b) };
   }
   await hapusNomor(id);
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  redirect(href("/dashboard"));
 }
 
 // ---------- Katalog produk (tambah/ubah lewat /api/katalog karena membawa foto) ----------
@@ -384,17 +472,20 @@ async function produkMilik(numberId: number, tulis: boolean): Promise<{ id: numb
   return { id: nomor.id };
 }
 
+const katalogTerkunci = (t: T): Hasil => ({ ok: false, pesan: t("Katalog tidak bisa diubah.", "The catalog can't be changed.") });
+
 export async function hapusProdukAction(numberId: number, id: number): Promise<Hasil> {
   const n = await produkMilik(numberId, false); // menghapus tetap boleh walau paket sudah habis
-  if (!n || !Number.isInteger(id)) return { ok: false, pesan: "Produk tidak ditemukan." };
+  const { t } = await teksPermintaan();
+  if (!n || !Number.isInteger(id)) return { ok: false, pesan: t("Produk tidak ditemukan.", "Product not found.") };
   await hapusProduk(n.id, id);
   revalidatePath(`/nomor/${n.id}`);
-  return { ok: true, pesan: "Produk dihapus." };
+  return { ok: true, pesan: t("Produk dihapus.", "Product deleted.") };
 }
 
 export async function tersediaProdukAction(numberId: number, id: number, tersedia: boolean): Promise<Hasil> {
   const n = await produkMilik(numberId, true);
-  if (!n || !Number.isInteger(id)) return { ok: false, pesan: "Katalog tidak bisa diubah." };
+  if (!n || !Number.isInteger(id)) return katalogTerkunci((await teksPermintaan()).t);
   await setTersedia(n.id, id, tersedia);
   revalidatePath(`/nomor/${n.id}`);
   return { ok: true };
@@ -402,7 +493,7 @@ export async function tersediaProdukAction(numberId: number, id: number, tersedi
 
 export async function geserProdukAction(numberId: number, id: number, arah: -1 | 1): Promise<Hasil> {
   const n = await produkMilik(numberId, true);
-  if (!n || !Number.isInteger(id) || (arah !== -1 && arah !== 1)) return { ok: false, pesan: "Katalog tidak bisa diubah." };
+  if (!n || !Number.isInteger(id) || (arah !== -1 && arah !== 1)) return katalogTerkunci((await teksPermintaan()).t);
   await geserProduk(n.id, id, arah);
   revalidatePath(`/nomor/${n.id}`);
   return { ok: true };
@@ -413,25 +504,26 @@ export async function geserProdukAction(numberId: number, id: number, arah: -1 |
 export async function tambahTeksAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   const numberId = Number(form.get("number_id"));
   const user = await requireUser();
-  if (!(await nomorUntuk(user, numberId))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  const { b, t } = await teksPermintaan();
+  if (!(await nomorUntuk(user, numberId))) return nomorTidakAda(t);
   const judul = String(form.get("judul") ?? "").trim();
-  if (!judul) return { ok: false, pesan: "Judul wajib diisi." };
+  if (!judul) return { ok: false, pesan: t("Judul wajib diisi.", "Title is required.") };
   // `ganti_id`: dokumen lama yang disempurnakan; dihapus setelah versi barunya tersimpan (tidak pernah keduanya hilang).
   const gantiId = Number(form.get("ganti_id"));
   try {
     await tambahDokumen({ numberId, judul, sumber: "teks", teks: String(form.get("isi") ?? "") });
     if (Number.isInteger(gantiId) && gantiId > 0) await hapusDokumen(gantiId, numberId, user.peran === "admin");
   } catch (e) {
-    return { ok: false, pesan: pesanGalat(e) };
+    return { ok: false, pesan: pesanGalat(e, b) };
   }
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${numberId}`);
-  return { ok: true, pesan: gantiId > 0 ? "Dokumen diperbarui." : "Tersimpan ke base knowledge." };
+  return { ok: true, pesan: gantiId > 0 ? t("Dokumen diperbarui.", "Document updated.") : t("Tersimpan ke base knowledge.", "Saved to product knowledge.") };
 }
 
 export async function hapusDokumenAction(id: number, numberId: number): Promise<Hasil> {
   const user = await requireUser();
-  if (!(await nomorUntuk(user, numberId))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  if (!(await nomorUntuk(user, numberId))) return nomorTidakAda((await teksPermintaan()).t);
   await hapusDokumen(id, numberId, user.peran === "admin");
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${numberId}`);
@@ -442,41 +534,47 @@ export async function hapusDokumenAction(id: number, numberId: number): Promise<
 
 /** Hapus satu percakapan (`percakapanId`) atau seluruh histori percakapan sebuah nomor. */
 export async function hapusPercakapanAction(numberId: number, percakapanId?: number): Promise<Hasil> {
-  if (!(await nomorUntuk(await requireUser(), numberId))) return { ok: false, pesan: "Nomor tidak ditemukan." };
-  if (percakapanId !== undefined && !Number.isInteger(percakapanId)) return { ok: false, pesan: "Percakapan tidak valid." };
+  const user = await requireUser();
+  const { t } = await teksPermintaan();
+  if (!(await nomorUntuk(user, numberId))) return nomorTidakAda(t);
+  if (percakapanId !== undefined && !Number.isInteger(percakapanId)) return percakapanTidakSah(t);
   const n = await hapusPercakapan(numberId, percakapanId);
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${numberId}`);
-  return { ok: true, pesan: `${n} percakapan dihapus.` };
+  return { ok: true, pesan: t(`${n} percakapan dihapus.`, `${n} ${n === 1 ? "conversation" : "conversations"} deleted.`) };
 }
 
 /** Pemilik menandai sebuah chat "bukan spam": AI tidak menyaring chat itu lagi (berlaku di pesan berikutnya). */
 export async function bukanSpamAction(numberId: number, percakapanId: number): Promise<Hasil> {
-  if (!(await nomorUntuk(await requireUser(), numberId))) return { ok: false, pesan: "Nomor tidak ditemukan." };
-  if (!Number.isInteger(percakapanId)) return { ok: false, pesan: "Percakapan tidak valid." };
-  if (!(await tandaiBukanSpam(numberId, percakapanId))) return { ok: false, pesan: "Percakapan tidak ditemukan." };
-  return { ok: true, pesan: "Ditandai bukan spam. Pesan berikutnya dari kontak ini dijawab AI seperti biasa." };
+  const user = await requireUser();
+  const { t } = await teksPermintaan();
+  if (!(await nomorUntuk(user, numberId))) return nomorTidakAda(t);
+  if (!Number.isInteger(percakapanId)) return percakapanTidakSah(t);
+  if (!(await tandaiBukanSpam(numberId, percakapanId))) return { ok: false, pesan: t("Percakapan tidak ditemukan.", "Conversation not found.") };
+  return { ok: true, pesan: t("Ditandai bukan spam. Pesan berikutnya dari kontak ini dijawab AI seperti biasa.", "Marked as not spam. The AI will reply to this contact's next messages as usual.") };
 }
 
 /** Chat yang dibisukan penyaring prospek dilayani AI lagi mulai pesan berikutnya (opsional; penyaring belajar dari ini). */
 export async function bangunkanChatAction(numberId: number, percakapanId: number): Promise<Hasil> {
-  if (!(await nomorUntuk(await requireUser(), numberId))) return { ok: false, pesan: "Nomor tidak ditemukan." };
-  if (!Number.isInteger(percakapanId)) return { ok: false, pesan: "Percakapan tidak valid." };
+  const user = await requireUser();
+  const { t } = await teksPermintaan();
+  if (!(await nomorUntuk(user, numberId))) return nomorTidakAda(t);
+  if (!Number.isInteger(percakapanId)) return percakapanTidakSah(t);
   const kunci = await kunciPercakapan(numberId, percakapanId);
-  if (!kunci) return { ok: false, pesan: "Percakapan tidak ditemukan." };
+  if (!kunci) return { ok: false, pesan: t("Percakapan tidak ditemukan.", "Conversation not found.") };
   await bangunkanChat(numberId, kunci);
-  return { ok: true, pesan: "Pesan berikutnya dari kontak ini dijawab AI lagi." };
+  return { ok: true, pesan: t("Pesan berikutnya dari kontak ini dijawab AI lagi.", "The AI will reply to this contact's next messages again.") };
 }
 
 export async function setSaringProspekAction(id: number, aktif: boolean): Promise<Hasil> {
-  if (!(await nomorUntuk(await requireUser(), id))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  if (!(await nomorUntuk(await requireUser(), id))) return nomorTidakAda((await teksPermintaan()).t);
   await setSaringProspek(id, aktif);
   revalidatePath(`/nomor/${id}`);
   return { ok: true };
 }
 
 export async function setSaringSpamAction(id: number, aktif: boolean): Promise<Hasil> {
-  if (!(await nomorUntuk(await requireUser(), id))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  if (!(await nomorUntuk(await requireUser(), id))) return nomorTidakAda((await teksPermintaan()).t);
   await setSaringSpam(id, aktif);
   revalidatePath(`/nomor/${id}`);
   return { ok: true };
@@ -485,7 +583,7 @@ export async function setSaringSpamAction(id: number, aktif: boolean): Promise<H
 // ---------- Belajar dari balasan manusia ----------
 
 export async function setBelajarAction(id: number, aktif: boolean): Promise<Hasil> {
-  if (!(await nomorUntuk(await requireUser(), id))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  if (!(await nomorUntuk(await requireUser(), id))) return nomorTidakAda((await teksPermintaan()).t);
   await setBelajar(id, aktif);
   revalidatePath(`/nomor/${id}`);
   return { ok: true };
@@ -499,11 +597,13 @@ export async function muatPelajaranAction(numberId: number, waktu: number, id: n
 
 /** Hapus satu pelajaran (`id`) atau semua pelajaran sebuah nomor. */
 export async function hapusPelajaranAction(numberId: number, id?: number): Promise<Hasil> {
-  if (!(await nomorUntuk(await requireUser(), numberId))) return { ok: false, pesan: "Nomor tidak ditemukan." };
-  if (id !== undefined && !Number.isInteger(id)) return { ok: false, pesan: "Data tidak valid." };
+  const user = await requireUser();
+  const { t } = await teksPermintaan();
+  if (!(await nomorUntuk(user, numberId))) return nomorTidakAda(t);
+  if (id !== undefined && !Number.isInteger(id)) return { ok: false, pesan: t("Data tidak valid.", "Invalid data.") };
   const n = await hapusPelajaran(numberId, id);
   revalidatePath(`/nomor/${numberId}`);
-  return { ok: true, pesan: `${n} pelajaran dihapus.` };
+  return { ok: true, pesan: t(`${n} pelajaran dihapus.`, `${n} ${n === 1 ? "lesson" : "lessons"} deleted.`) };
 }
 
 export async function pratinjauAction(id: number, numberId: number): Promise<string | null> {
@@ -740,13 +840,15 @@ export async function selesaiTurAction(nama: string): Promise<void> {
 /** `kanalMati`: kanal yang baru ketahuan belum aktif; browser menghapusnya dari pilihan. */
 export async function bayarPaketAction(paketId: number, kanal: string): Promise<Hasil & { orderId?: string; kanalMati?: KanalBayar }> {
   const user = await requireUser();
-  if (terlaluSering(`bayar:${user.id}`, 10, 10 * 60_000)) return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." };
+  const { b, t } = await teksPermintaan();
+  if (terlaluSering(`bayar:${user.id}`, 10, 10 * 60_000)) return terlaluBanyak(t);
   const k = await konfigMidtrans();
-  if (!k) return { ok: false, pesan: "Pembayaran belum diaktifkan admin." };
-  if (!kanalSah(kanal)) return { ok: false, pesan: "Metode pembayaran ini sedang tidak tersedia. Pilih metode lain." };
-  if (!(await kanalAktif()).includes(kanal)) return { ok: false, pesan: "Metode pembayaran ini sedang tidak tersedia. Pilih metode lain.", kanalMati: kanal };
+  if (!k) return { ok: false, pesan: t("Pembayaran belum diaktifkan admin.", "Payments haven't been enabled by the admin yet.") };
+  const tidakTersedia = t("Metode pembayaran ini sedang tidak tersedia. Pilih metode lain.", "This payment method isn't available right now. Please choose another one.");
+  if (!kanalSah(kanal)) return { ok: false, pesan: tidakTersedia };
+  if (!(await kanalAktif()).includes(kanal)) return { ok: false, pesan: tidakTersedia, kanalMati: kanal };
   const paket = Number.isInteger(paketId) ? await paketById(paketId) : undefined;
-  if (!paket || !paket.aktif || paket.harga < 1) return { ok: false, pesan: "Paket tidak ditemukan." };
+  if (!paket || !paket.aktif || paket.harga < 1) return { ok: false, pesan: t("Paket tidak ditemukan.", "Plan not found.") };
   try {
     const h = await mulaiBayar(k, user, paket, kanal, await asalAplikasi());
     if (h.baru) {
@@ -763,9 +865,16 @@ export async function bayarPaketAction(paketId: number, kanal: string): Promise<
     if (e instanceof MidtransError && kanalBelumAktif(e.kode)) {
       revalidatePath("/langganan", "layout");
       mintaSinkronCg(); // metode bayar yang disebut bot ChatGerCep ikut diperbarui
-      return { ok: false, pesan: `${KANAL_BAYAR[kanal].label} belum tersedia. Pilih metode pembayaran lain.`, kanalMati: kanal };
+      const label = labelKanal(kanal, b);
+      return { ok: false, pesan: t(`${label} belum tersedia. Pilih metode pembayaran lain.`, `${label} isn't available yet. Please choose another payment method.`), kanalMati: kanal };
     }
-    return { ok: false, pesan: e instanceof MidtransError ? "Tagihan sedang tidak bisa dibuat. Coba lagi sebentar lagi atau pilih metode lain." : "Terjadi kesalahan. Coba lagi." };
+    return {
+      ok: false,
+      pesan:
+        e instanceof MidtransError
+          ? t("Tagihan sedang tidak bisa dibuat. Coba lagi sebentar lagi atau pilih metode lain.", "The invoice can't be created right now. Try again shortly or choose another method.")
+          : pesanGalat(null, b),
+    };
   }
 }
 
@@ -784,15 +893,23 @@ export async function setKanalTampilAction(kanal: string, tampil: boolean): Prom
 /** Pelanggan membatalkan tagihannya yang belum dibayar. */
 export async function batalBayarAction(orderId: string): Promise<Hasil & { status?: string }> {
   const user = await requireUser();
+  const { t } = await teksPermintaan();
+  const tidakAda = t("Tagihan tidak ditemukan.", "Invoice not found.");
   const k = await konfigMidtrans();
-  if (!k || !ORDER_SAH.test(orderId)) return { ok: false, pesan: "Tagihan tidak ditemukan." };
+  if (!k || !ORDER_SAH.test(orderId)) return { ok: false, pesan: tidakAda };
   try {
     const status = await batalkanBayar(k, user.id, orderId);
-    if (!status) return { ok: false, pesan: "Tagihan tidak ditemukan." };
+    if (!status) return { ok: false, pesan: tidakAda };
     revalidatePath("/langganan");
-    return status === "dibatalkan" ? { ok: true, status } : { ok: false, status, pesan: status === "lunas" ? "Tagihan ini sudah dibayar." : "Tagihan ini sudah tidak bisa dibatalkan." };
+    return status === "dibatalkan"
+      ? { ok: true, status }
+      : {
+          ok: false,
+          status,
+          pesan: status === "lunas" ? t("Tagihan ini sudah dibayar.", "This invoice has already been paid.") : t("Tagihan ini sudah tidak bisa dibatalkan.", "This invoice can no longer be canceled."),
+        };
   } catch {
-    return { ok: false, pesan: "Tagihan belum bisa dibatalkan. Coba lagi sebentar lagi." };
+    return { ok: false, pesan: t("Tagihan belum bisa dibatalkan. Coba lagi sebentar lagi.", "The invoice can't be canceled yet. Please try again shortly.") };
   }
 }
 
@@ -1056,9 +1173,8 @@ export async function adminHargaAction(_lalu: Hasil | null, form: FormData): Pro
 
 export async function daftarAfiliasiAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   const user = await requireUser();
-  if (terlaluSering(`daftar-af:${user.id}`, 6, 10 * 60_000)) {
-    return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." };
-  }
+  const { b, t } = await teksPermintaan();
+  if (terlaluSering(`daftar-af:${user.id}`, 6, 10 * 60_000)) return terlaluBanyak(t);
   const kode = String(form.get("kode") ?? "");
   const bankNama = String(form.get("bank_nama") ?? "");
   const bankNomor = String(form.get("bank_nomor") ?? "");
@@ -1071,16 +1187,20 @@ export async function daftarAfiliasiAction(_lalu: Hasil | null, form: FormData):
       ok: true,
       pesan:
         af.status === "aktif"
-          ? "Selamat! Akun afiliasi Anda sudah aktif. Bagikan tautan Anda untuk mulai mendapat komisi."
-          : "Pendaftaran afiliasi berhasil dikirim dan sedang menunggu persetujuan admin.",
+          ? t(
+              "Selamat! Akun afiliasi Anda sudah aktif. Bagikan tautan Anda untuk mulai mendapat komisi.",
+              "Congratulations! Your affiliate account is active. Share your link to start earning commissions."
+            )
+          : t("Pendaftaran afiliasi berhasil dikirim dan sedang menunggu persetujuan admin.", "Your affiliate application has been sent and is awaiting admin approval."),
     };
   } catch (e) {
-    return { ok: false, pesan: pesanGalat(e) };
+    return { ok: false, pesan: await pesanGalatAfiliasi(e, b) };
   }
 }
 
 export async function ubahAfiliasiAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   const user = await requireUser();
+  const { b, t } = await teksPermintaan();
   const kode = String(form.get("kode") ?? "");
   const bankNama = String(form.get("bank_nama") ?? "");
   const bankNomor = String(form.get("bank_nomor") ?? "");
@@ -1089,17 +1209,16 @@ export async function ubahAfiliasiAction(_lalu: Hasil | null, form: FormData): P
     await ubahProfilAfiliator(user.id, { kode, bankNama, bankNomor, bankPemilik });
     revalidatePath("/afiliasi");
     revalidatePath("/admin/afiliasi");
-    return { ok: true, pesan: "Profil & rekening pencairan berhasil diperbarui." };
+    return { ok: true, pesan: t("Profil & rekening pencairan berhasil diperbarui.", "Profile & payout account updated.") };
   } catch (e) {
-    return { ok: false, pesan: pesanGalat(e) };
+    return { ok: false, pesan: await pesanGalatAfiliasi(e, b) };
   }
 }
 
 export async function tarikKomisiAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   const user = await requireUser();
-  if (terlaluSering(`tarik-af:${user.id}`, 5, 10 * 60_000)) {
-    return { ok: false, pesan: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." };
-  }
+  const { b, t } = await teksPermintaan();
+  if (terlaluSering(`tarik-af:${user.id}`, 5, 10 * 60_000)) return terlaluBanyak(t);
   const nominal = Number(String(form.get("nominal") ?? "").replace(/[^\d]/g, ""));
   try {
     const p = await ajukanPenarikan(user.id, nominal);
@@ -1107,10 +1226,13 @@ export async function tarikKomisiAction(_lalu: Hasil | null, form: FormData): Pr
     revalidatePath("/admin/afiliasi");
     return {
       ok: true,
-      pesan: `Pengajuan penarikan Rp${p.nominal.toLocaleString("id-ID")} berhasil dikirim dan akan segera diproses.`,
+      pesan:
+        b === "en"
+          ? `Your payout request for ${uang(p.nominal, b, await kursUsd())} has been sent and will be processed soon.`
+          : `Pengajuan penarikan Rp${p.nominal.toLocaleString("id-ID")} berhasil dikirim dan akan segera diproses.`,
     };
   } catch (e) {
-    return { ok: false, pesan: pesanGalat(e) };
+    return { ok: false, pesan: await pesanGalatAfiliasi(e, b) };
   }
 }
 

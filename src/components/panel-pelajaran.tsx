@@ -5,6 +5,7 @@ import { GraduationCap, Loader2, Trash2 } from "lucide-react";
 import { hapusPelajaranAction, muatPelajaranAction, setBelajarAction } from "@/app/actions";
 import { angka, waktuSingkatWib } from "@/lib/format";
 import type { ItemPelajaran } from "@/lib/pelajaran";
+import { useBahasa } from "./bahasa";
 import { Saklar, TombolKonfirmasi } from "./ui";
 
 /**
@@ -26,6 +27,7 @@ export function PanelPelajaran({
   adaLagiAwal: boolean;
   kini: number;
 }) {
+  const { b, t } = useBahasa();
   const [aktif, setAktif] = useOptimistic(aktifAwal);
   const [daftar, setDaftar] = useState(daftarAwal);
   const [adaLagi, setAdaLagi] = useState(adaLagiAwal);
@@ -52,16 +54,22 @@ export function PanelPelajaran({
     <section className="card">
       <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4 sm:px-6">
         <div className="min-w-0">
-          <h2 className="text-[15px] font-bold tracking-tight">Belajar dari balasan manusia</h2>
+          <h2 className="text-[15px] font-bold tracking-tight">{t("Belajar dari balasan manusia", "Learn from human replies")}</h2>
           <p className="hint mt-0.5">
             {aktif
-              ? "Saat Anda membalas sendiri dari HP, balasan itu diingat dan dipakai AI untuk pertanyaan serupa dari pelanggan lain."
-              : "Mati: balasan dari HP tidak diingat dan yang sudah tersimpan tidak dipakai AI."}
+              ? t(
+                  "Saat Anda membalas sendiri dari HP, balasan itu diingat dan dipakai AI untuk pertanyaan serupa dari pelanggan lain.",
+                  "When you reply yourself from your phone, that reply is remembered and used by the AI for similar questions from other customers."
+                )
+              : t(
+                  "Mati: balasan dari HP tidak diingat dan yang sudah tersimpan tidak dipakai AI.",
+                  "Off: replies from your phone aren't remembered, and the AI doesn't use the ones already saved."
+                )}
           </p>
         </div>
         <Saklar
           aktif={aktif}
-          label="Belajar dari balasan manusia"
+          label={t("Belajar dari balasan manusia", "Learn from human replies")}
           onUbah={(v) =>
             mulaiSaklar(async () => {
               setAktif(v);
@@ -73,12 +81,12 @@ export function PanelPelajaran({
 
       <div className="px-5 py-5 sm:px-6">
         <div className="mb-2 flex items-center justify-between gap-3">
-          <p className="text-xs font-semibold tracking-wide text-faint uppercase">Balasan dipelajari ({angka(total)})</p>
+          <p className="text-xs font-semibold tracking-wide text-faint uppercase">{t("Balasan dipelajari", "Learned replies")} ({angka(total, b)})</p>
           {total > 0 && (
             <TombolKonfirmasi
-              label="Hapus semua"
-              tanya="Hapus semua pelajaran?"
-              ya="Ya, hapus"
+              label={t("Hapus semua", "Delete all")}
+              tanya={t("Hapus semua pelajaran?", "Delete all learned replies?")}
+              ya={t("Ya, hapus", "Yes, delete")}
               className="btn btn-ghost h-8 px-3 text-danger"
               aksi={async () => {
                 const h = await hapusPelajaranAction(numberId);
@@ -95,8 +103,10 @@ export function PanelPelajaran({
         {daftar.length === 0 ? (
           <div className="rounded-xl border border-dashed border-line-strong px-4 py-8 text-center text-[13px] text-muted">
             <GraduationCap className="mx-auto mb-2 size-6 text-faint" aria-hidden />
-            Belum ada. Balasan Anda dari HP yang cukup berisi (mis. nomor rekening, cara pemesanan, kebijakan) akan muncul di sini. Balasan pendek
-            seperti &quot;ok kak&quot; dilewati.
+            {t(
+              'Belum ada. Balasan Anda dari HP yang cukup berisi (mis. nomor rekening, cara pemesanan, kebijakan) akan muncul di sini. Balasan pendek seperti "ok kak" dilewati.',
+              'Nothing yet. Substantial replies you send from your phone (e.g. bank account details, how to order, policies) will show up here. Short replies like "ok, thanks" are skipped.'
+            )}
           </div>
         ) : (
           <ul className="max-h-[480px] divide-y divide-line overflow-y-auto rounded-xl border border-line">
@@ -108,12 +118,14 @@ export function PanelPelajaran({
         {adaLagi && (
           <button type="button" onClick={muatLagi} disabled={memuat} className="btn btn-ghost mt-3 w-full">
             {memuat && <Loader2 className="size-4 animate-spin" aria-hidden />}
-            Muat lagi
+            {t("Muat lagi", "Load more")}
           </button>
         )}
         <p className="hint mt-3">
-          AI memakai fakta umum dari balasan ini (rekening, prosedur, kebijakan) dan meniru cara Anda menjawab, tetapi tidak menyebut detail milik
-          pelanggan lain. Bila bertentangan dengan base knowledge, base knowledge yang diikuti. Hapus balasan yang tidak boleh ditiru.
+          {t(
+            "AI memakai fakta umum dari balasan ini (rekening, prosedur, kebijakan) dan meniru cara Anda menjawab, tetapi tidak menyebut detail milik pelanggan lain. Bila bertentangan dengan base knowledge, base knowledge yang diikuti. Hapus balasan yang tidak boleh ditiru.",
+            "The AI uses general facts from these replies (bank details, procedures, policies) and mimics how you answer, but never mentions details belonging to other customers. If they conflict with your product knowledge, the product knowledge wins. Delete any reply that shouldn't be copied."
+          )}
         </p>
       </div>
     </section>
@@ -121,6 +133,7 @@ export function PanelPelajaran({
 }
 
 function Baris({ p, numberId, kini, onHapus }: { p: ItemPelajaran; numberId: number; kini: number; onHapus: () => void }) {
+  const { b, t } = useBahasa();
   const [tanya, setTanya] = useState(false);
   const [tunggu, mulai] = useTransition();
   return (
@@ -128,17 +141,17 @@ function Baris({ p, numberId, kini, onHapus }: { p: ItemPelajaran; numberId: num
       <div className="min-w-0 flex-1 space-y-1.5 text-[13px] leading-relaxed [overflow-wrap:anywhere]">
         {p.pertanyaan && (
           <p className="line-clamp-3 whitespace-pre-wrap text-muted">
-            <span className="font-semibold text-faint">Pelanggan: </span>
+            <span className="font-semibold text-faint">{t("Pelanggan: ", "Customer: ")}</span>
             {p.pertanyaan}
           </p>
         )}
         <p className="line-clamp-6 whitespace-pre-wrap text-fg">
-          <span className="font-semibold text-accent">Anda: </span>
+          <span className="font-semibold text-accent">{t("Anda: ", "You: ")}</span>
           {p.jawaban}
         </p>
         <p className="hint">
-          {waktuSingkatWib(p.terakhir_pada, kini)}
-          {p.kali > 1 && ` · dikirim ${angka(p.kali)}×`}
+          {waktuSingkatWib(p.terakhir_pada, kini, b)}
+          {p.kali > 1 && t(` · dikirim ${angka(p.kali)}×`, ` · sent ${angka(p.kali, b)}×`)}
         </p>
       </div>
       {tanya ? (
@@ -156,17 +169,17 @@ function Baris({ p, numberId, kini, onHapus }: { p: ItemPelajaran; numberId: num
             }
           >
             {tunggu && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
-            Hapus
+            {t("Hapus", "Delete")}
           </button>
           <button type="button" disabled={tunggu} className="btn btn-ghost h-8 px-3" onClick={() => setTanya(false)}>
-            Batal
+            {t("Batal", "Cancel")}
           </button>
         </div>
       ) : (
         <button
           type="button"
           onClick={() => setTanya(true)}
-          aria-label="Hapus pelajaran ini"
+          aria-label={t("Hapus pelajaran ini", "Delete this learned reply")}
           className="grid size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-danger-soft hover:text-danger"
         >
           <Trash2 className="size-4" aria-hidden />

@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { Check, ChevronDown, Search } from "lucide-react";
+import { useBahasa } from "./bahasa";
 
 export interface ItemOpsi {
   id: string;
@@ -25,7 +26,7 @@ export function PilihOpsi({
   onUbah,
   opsi,
   label,
-  placeholder = "Pilih opsi…",
+  placeholder: placeholderProp,
 }: {
   id?: string;
   name?: string;
@@ -35,6 +36,8 @@ export function PilihOpsi({
   label: string;
   placeholder?: string;
 }) {
+  const { t } = useBahasa();
+  const placeholder = placeholderProp ?? t("Pilih opsi…", "Choose an option…");
   const [lokal, setLokal] = useState(nilai);
   const aktif = onUbah ? nilai : lokal;
   const [buka, setBuka] = useState(false);
@@ -150,8 +153,8 @@ export function PilihOpsi({
                   setSorot(0);
                 }}
                 onKeyDown={tombolDaftar}
-                placeholder="Ketik untuk mencari…"
-                aria-label={`Cari ${label}`}
+                placeholder={t("Ketik untuk mencari…", "Type to search…")}
+                aria-label={t(`Cari ${label}`, `Search ${label}`)}
                 aria-controls={idDaftar}
                 autoComplete="off"
                 className="field py-1.5 pl-9"
@@ -196,7 +199,7 @@ export function PilihOpsi({
               );
             })}
             {!tampil.length && (
-              <li className="px-3 py-5 text-center text-[13px] text-muted">Tidak ditemukan pilihan untuk &ldquo;{cari}&rdquo;.</li>
+              <li className="px-3 py-5 text-center text-[13px] text-muted">{t(`Tidak ditemukan pilihan untuk “${cari}”.`, `No options found for “${cari}”.`)}</li>
             )}
           </ul>
         </div>

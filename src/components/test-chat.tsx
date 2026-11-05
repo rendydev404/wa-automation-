@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Loader2, RotateCcw, Send, X } from "lucide-react";
+import { useBahasa } from "./bahasa";
 
 interface Gelembung {
   /** info = AI sengaja tidak membalas (spam); tidak ikut riwayat uji. */
@@ -13,9 +14,18 @@ interface Gelembung {
 
 const sesiBaru = () => Math.random().toString(36).slice(2, 14).padEnd(8, "0");
 
-const MODE = { kosong: "tanpa knowledge", utuh: "knowledge utuh", relevan: "potongan relevan" } as const;
+const MODE = {
+  kosong: { id: "tanpa knowledge", en: "no knowledge" },
+  utuh: { id: "knowledge utuh", en: "full knowledge" },
+  relevan: { id: "potongan relevan", en: "relevant excerpts" },
+} as const;
 /** Penilaian AI atas pesan uji (penyaring prospek). */
-const NILAI = { prospek: "dinilai prospek", netral: "dinilai netral", selesai: "dinilai penutup", bukan: "dinilai bukan prospek" } as const;
+const NILAI = {
+  prospek: { id: "dinilai prospek", en: "judged a lead" },
+  netral: { id: "dinilai netral", en: "judged neutral" },
+  selesai: { id: "dinilai penutup", en: "judged a closing message" },
+  bukan: { id: "dinilai bukan prospek", en: "judged not a lead" },
+} as const;
 
 /** Tebal ala WhatsApp (*teks*) dirender sebagai <b>. */
 function TeksWa({ teks }: { teks: string }) {
@@ -49,6 +59,7 @@ export function TestChat({ numberId }: { numberId: number }) {
   const sesi = useRef(sesiBaru());
   const lalu = useRef("");
   const bawah = useRef<HTMLDivElement>(null);
+  const { b, t } = useBahasa();
 
   useEffect(() => {
     bawah.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -79,19 +90,46 @@ export function TestChat({ numberId }: { numberId: number }) {
       });
       const d = (await res.json().catch(() => ({}))) as { teks?: string; ms?: number; mode?: keyof typeof MODE; pelajaran?: number; diblokir?: boolean; error?: string; abaikan?: string; selesai?: boolean; nilai?: keyof typeof NILAI | null; katalog?: { daftar: string; foto: { id: number; caption: string }[] } | null };
       if (res.ok && d.abaikan) {
-        setPesan((p) => [...p, { dari: "info", teks: `Tidak dibalas: terdeteksi spam. ${d.abaikan}. Di WhatsApp pesan ini hanya tercatat di histori dengan tanda Spam.` }]);
+        setPesan((p) => [
+          ...p,
+          {
+            dari: "info",
+            teks: t(
+              `Tidak dibalas: terdeteksi spam. ${d.abaikan}. Di WhatsApp pesan ini hanya tercatat di histori dengan tanda Spam.`,
+              `Not answered: detected as spam. ${d.abaikan}. On WhatsApp this message is only logged in the history with a Spam tag.`,
+            ),
+          },
+        ]);
       } else if (res.ok && d.selesai) {
-        setPesan((p) => [...p, { dari: "info", teks: "Tidak dibalas: AI menilai ini ucapan penutup dan urusannya sudah tuntas, jadi tidak perlu dijawab." }]);
+        setPesan((p) => [
+          ...p,
+          {
+            dari: "info",
+            teks: t(
+              "Tidak dibalas: AI menilai ini ucapan penutup dan urusannya sudah tuntas, jadi tidak perlu dijawab.",
+              "Not answered: AI judged this a closing message and the matter is settled, so no reply is needed.",
+            ),
+          },
+        ]);
       } else if (res.ok && d.teks) {
         lalu.current = isi;
-        const meta = `${((d.ms ?? 0) / 1000).toFixed(1).replace(".", ",")} dtk · ${MODE[d.mode ?? "kosong"]}${d.pelajaran ? ` · ${d.pelajaran} balasan admin` : ""}${d.diblokir ? " · kode diblokir" : ""}${d.nilai ? ` · ${NILAI[d.nilai]}` : ""}`;
+        const detik = ((d.ms ?? 0) / 1000).toFixed(1);
+        const meta = [
+          t(`${detik.replace(".", ",")} dtk`, `${detik} s`),
+          MODE[d.mode ?? "kosong"][b],
+          d.pelajaran ? t(`${d.pelajaran} balasan admin`, `${d.pelajaran} admin ${d.pelajaran === 1 ? "reply" : "replies"}`) : "",
+          d.diblokir ? t("kode diblokir", "code blocked") : "",
+          d.nilai ? NILAI[d.nilai][b] : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
         // Katalog: di WhatsApp dikirim sebagai pesan terpisah setelah jawaban (daftar, lalu foto + nama + harga).
         const kat = d.katalog;
         const kiriman: Gelembung[] = kat ? [...(kat.daftar ? [{ dari: "bot" as const, teks: kat.daftar }] : []), ...kat.foto.map((f) => ({ dari: "bot" as const, teks: f.caption, foto: `/api/katalog/foto?id=${f.id}` }))] : [];
         setPesan((p) => [...p, { dari: "bot", teks: d.teks!, meta }, ...kiriman]);
-      } else setPesan((p) => [...p, { dari: "galat", teks: d.error ?? `Gagal (HTTP ${res.status}).` }]);
+      } else setPesan((p) => [...p, { dari: "galat", teks: d.error ?? t(`Gagal (HTTP ${res.status}).`, `Failed (HTTP ${res.status}).`) }]);
     } catch {
-      setPesan((p) => [...p, { dari: "galat", teks: "Koneksi terputus." }]);
+      setPesan((p) => [...p, { dari: "galat", teks: t("Koneksi terputus.", "Connection lost.") }]);
     } finally {
       setTunggu(false);
     }
@@ -101,13 +139,13 @@ export function TestChat({ numberId }: { numberId: number }) {
     <section className="card flex flex-col">
       <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
         <div>
-          <h2 className="text-[15px] font-bold tracking-tight">Uji bot</h2>
-          <p className="hint mt-0.5">Sama persis dengan jawaban di WhatsApp, tanpa mengirim pesan.</p>
+          <h2 className="text-[15px] font-bold tracking-tight">{t("Uji bot", "Test the bot")}</h2>
+          <p className="hint mt-0.5">{t("Sama persis dengan jawaban di WhatsApp, tanpa mengirim pesan.", "Exactly the same answers as on WhatsApp, without sending any message.")}</p>
         </div>
         <button
           type="button"
-          aria-label="Mulai percakapan baru"
-          title="Mulai percakapan baru"
+          aria-label={t("Mulai percakapan baru", "Start a new conversation")}
+          title={t("Mulai percakapan baru", "Start a new conversation")}
           className="grid size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-subtle hover:text-fg"
           onClick={() => {
             sesi.current = sesiBaru();
@@ -120,7 +158,9 @@ export function TestChat({ numberId }: { numberId: number }) {
       </div>
 
       <div className="flex h-80 flex-col gap-2 overflow-y-auto bg-subtle/40 px-4 py-4 xl:h-96" aria-live="polite">
-        {pesan.length === 0 && !tunggu && <p className="m-auto max-w-56 text-center text-[13px] text-faint">Coba tanyakan sesuatu yang ada di base knowledge, lalu yang tidak ada.</p>}
+        {pesan.length === 0 && !tunggu && <p className="m-auto max-w-56 text-center text-[13px] text-faint">
+            {t("Coba tanyakan sesuatu yang ada di base knowledge, lalu yang tidak ada.", "Ask something that's in your product knowledge, then something that isn't.")}
+          </p>}
         {pesan.map((g, i) => (
           <div key={i} className={`max-w-[85%] animate-masuk ${g.dari === "saya" ? "self-end" : "self-start"}`}>
             <div
@@ -130,7 +170,7 @@ export function TestChat({ numberId }: { numberId: number }) {
             >
               {g.foto && (
                 // eslint-disable-next-line @next/next/no-img-element -- data URL lokal / foto katalog privat, bukan aset yang perlu dioptimasi
-                <img src={g.foto} alt={g.dari === "bot" ? "Foto produk" : "Foto uji"} className={`max-h-48 rounded-lg object-cover ${g.teks ? "mb-1.5" : ""}`} />
+                <img src={g.foto} alt={g.dari === "bot" ? t("Foto produk", "Product photo") : t("Foto uji", "Test photo")} className={`max-h-48 rounded-lg object-cover ${g.teks ? "mb-1.5" : ""}`} />
               )}
               {g.dari === "bot" ? <TeksWa teks={g.teks} /> : g.teks}
             </div>
@@ -139,7 +179,7 @@ export function TestChat({ numberId }: { numberId: number }) {
         ))}
         {tunggu && (
           <div className="flex items-center gap-2 self-start rounded-2xl rounded-bl-md border border-line bg-surface px-3.5 py-2 text-[13px] text-muted">
-            <Loader2 className="size-3.5 animate-spin" aria-hidden /> mengetik…
+            <Loader2 className="size-3.5 animate-spin" aria-hidden /> {t("mengetik…", "typing…")}
           </div>
         )}
         <div ref={bawah} />
@@ -149,8 +189,8 @@ export function TestChat({ numberId }: { numberId: number }) {
         {foto && (
           <div className="mb-2 flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element -- pratinjau data URL lokal */}
-            <img src={foto} alt="Foto yang akan dikirim" className="size-14 rounded-lg object-cover" />
-            <button type="button" onClick={() => setFoto(null)} aria-label="Batalkan foto" className="grid size-8 place-items-center rounded-lg text-faint hover:bg-subtle hover:text-fg">
+            <img src={foto} alt={t("Foto yang akan dikirim", "Photo to send")} className="size-14 rounded-lg object-cover" />
+            <button type="button" onClick={() => setFoto(null)} aria-label={t("Batalkan foto", "Remove photo")} className="grid size-8 place-items-center rounded-lg text-faint hover:bg-subtle hover:text-fg">
               <X className="size-4" aria-hidden />
             </button>
           </div>
@@ -160,8 +200,8 @@ export function TestChat({ numberId }: { numberId: number }) {
             type="button"
             onClick={() => inputFoto.current?.click()}
             disabled={tunggu}
-            aria-label="Lampirkan foto"
-            title="Lampirkan foto"
+            aria-label={t("Lampirkan foto", "Attach photo")}
+            title={t("Lampirkan foto", "Attach photo")}
             className="btn btn-ghost h-auto w-11 shrink-0 px-0"
           >
             <ImagePlus className="size-4" aria-hidden />
@@ -169,7 +209,7 @@ export function TestChat({ numberId }: { numberId: number }) {
           <input
             ref={inputFoto}
             type="file"
-            aria-label="Lampirkan foto"
+            aria-label={t("Lampirkan foto", "Attach photo")}
             tabIndex={-1}
             accept="image/jpeg,image/png,image/webp"
             className="sr-only"
@@ -180,12 +220,17 @@ export function TestChat({ numberId }: { numberId: number }) {
               try {
                 setFoto(await perkecil(berkas));
               } catch {
-                setPesan((p) => [...p, { dari: "galat", teks: "Foto tidak bisa dibaca." }]);
+                setPesan((p) => [...p, { dari: "galat", teks: t("Foto tidak bisa dibaca.", "Couldn't read the photo.") }]);
               }
             }}
           />
-          <input value={teks} onChange={(e) => setTeks(e.target.value)} maxLength={2000} placeholder={foto ? "Keterangan foto (opsional)…" : "Tulis pesan seperti orang yang chat ke nomor ini…"} aria-label="Pesan uji" className="field" />
-          <button type="submit" disabled={tunggu || (!teks.trim() && !foto)} aria-label="Kirim" className="btn btn-primary h-auto w-11 shrink-0 px-0">
+          <input value={teks} onChange={(e) => setTeks(e.target.value)} maxLength={2000} placeholder={
+              foto
+                ? t("Keterangan foto (opsional)…", "Photo caption (optional)…")
+                : t("Tulis pesan seperti orang yang chat ke nomor ini…", "Write a message as if you were a customer chatting this number…")
+            }
+            aria-label={t("Pesan uji", "Test message")} className="field" />
+          <button type="submit" disabled={tunggu || (!teks.trim() && !foto)} aria-label={t("Kirim", "Send")} className="btn btn-primary h-auto w-11 shrink-0 px-0">
             <Send className="size-4" aria-hidden />
           </button>
         </div>

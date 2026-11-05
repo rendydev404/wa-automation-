@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { KnowledgeError, tambahDokumen } from "@/lib/knowledge";
 import { getUser } from "@/lib/session";
 import { nomorUntuk } from "@/lib/akses";
+import { teksPermintaan } from "@/lib/bahasa-server";
 
 const MAKS_BYTE = 10 * 1024 * 1024;
 const EKSTENSI_TEKS = new Set(["txt", "md", "markdown", "csv"]);
@@ -11,21 +12,22 @@ const galat = (pesan: string, status = 400) => NextResponse.json({ error: pesan 
 
 /** Unggah PDF / berkas teks ke base knowledge sebuah nomor. Hanya teksnya yang disimpan. */
 export async function POST(req: Request) {
-  const user = await getUser();
-  if (!user) return galat("Sesi berakhir. Silakan login kembali.", 401);
-  if (Number(req.headers.get("content-length") ?? 0) > MAKS_BYTE + 64 * 1024) return galat("Berkas terlalu besar (maksimal 10 MB).", 413);
+  const [user, { b, t }] = await Promise.all([getUser(), teksPermintaan()]);
+  if (!user) return galat(t("Sesi berakhir. Silakan login kembali.", "Your session has ended. Please sign in again."), 401);
+  const terlaluBesar = () => galat(t("Berkas terlalu besar (maksimal 10 MB).", "File is too large (max 10 MB)."), 413);
+  if (Number(req.headers.get("content-length") ?? 0) > MAKS_BYTE + 64 * 1024) return terlaluBesar();
 
   let form: FormData;
   try {
     form = await req.formData();
   } catch {
-    return galat("Unggahan tidak terbaca.");
+    return galat(t("Unggahan tidak terbaca.", "The upload couldn't be read."));
   }
   const numberId = Number(form.get("number_id"));
   const berkas = form.get("berkas");
-  if (!(await nomorUntuk(user, numberId))) return galat("Nomor tidak ditemukan.", 404);
-  if (!(berkas instanceof File) || berkas.size === 0) return galat("Pilih berkas dulu.");
-  if (berkas.size > MAKS_BYTE) return galat("Berkas terlalu besar (maksimal 10 MB).", 413);
+  if (!(await nomorUntuk(user, numberId))) return galat(t("Nomor tidak ditemukan.", "Number not found."), 404);
+  if (!(berkas instanceof File) || berkas.size === 0) return galat(t("Pilih berkas dulu.", "Choose a file first."));
+  if (berkas.size > MAKS_BYTE) return terlaluBesar();
 
   const ext = berkas.name.split(".").pop()?.toLowerCase() ?? "";
   const data = new Uint8Array(await berkas.arrayBuffer());
@@ -35,13 +37,19 @@ export async function POST(req: Request) {
     try {
       teks = (await (await import("@/lib/pdf")).teksDariPdf(data)).teks;
     } catch {
-      return galat("PDF tidak bisa dibaca (rusak atau terkunci password).");
+      return galat(t("PDF tidak bisa dibaca (rusak atau terkunci password).", "The PDF can't be read (it's damaged or password-protected)."));
     }
-    if (teks.replace(/\s/g, "").length < 20) return galat("PDF ini tidak memuat teks (kemungkinan hasil pindai/foto). Salin isinya lewat \"Tulis teks\".");
+    if (teks.replace(/\s/g, "").length < 20)
+      return galat(
+        t(
+          "PDF ini tidak memuat teks (kemungkinan hasil pindai/foto). Salin isinya lewat \"Tulis teks\".",
+          "This PDF contains no text (it's probably a scan or photo). Copy its content using \"Write text\"."
+        )
+      );
   } else if (EKSTENSI_TEKS.has(ext) || berkas.type.startsWith("text/")) {
     teks = new TextDecoder("utf-8").decode(data);
   } else {
-    return galat("Format belum didukung. Unggah PDF atau berkas teks (.txt, .md, .csv).");
+    return galat(t("Format belum didukung. Unggah PDF atau berkas teks (.txt, .md, .csv).", "Unsupported format. Upload a PDF or a text file (.txt, .md, .csv)."));
   }
 
   try {
@@ -57,6 +65,7 @@ export async function POST(req: Request) {
     revalidatePath(`/nomor/${numberId}`);
     return NextResponse.json({ ok: true, ...hasil });
   } catch (e) {
-    return galat(e instanceof KnowledgeError ? e.message : "Gagal menyimpan dokumen.", e instanceof KnowledgeError ? 400 : 500);
+    if (e instanceof KnowledgeError) return galat((b === "en" && e.en) || e.message);
+    return galat(t("Gagal menyimpan dokumen.", "Couldn't save the document."), 500);
   }
 }

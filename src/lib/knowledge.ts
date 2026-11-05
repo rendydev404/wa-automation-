@@ -98,7 +98,14 @@ export async function daftarDokumen(numberId: number, otomatis: boolean): Promis
   return [...baris];
 }
 
-export class KnowledgeError extends Error {}
+export class KnowledgeError extends Error {
+  /** Pesan versi Inggris (tampilan /eng, dipilih di actions/API); `message` tetap bahasa Indonesia (juga untuk log). */
+  en?: string;
+  constructor(message: string, en?: string) {
+    super(message);
+    this.en = en;
+  }
+}
 
 export async function tambahDokumen(d: {
   numberId: number;
@@ -109,11 +116,14 @@ export async function tambahDokumen(d: {
   teks: string;
 }): Promise<{ id: number; karakter: number; potongan: number }> {
   const teks = rapikanTeks(d.teks);
-  if (teks.length < 20) throw new KnowledgeError("Teksnya terlalu pendek atau tidak terbaca.");
+  if (teks.length < 20) throw new KnowledgeError("Teksnya terlalu pendek atau tidak terbaca.", "The text is too short or couldn't be read.");
   if (teks.length > BATAS_DOKUMEN_KARAKTER)
-    throw new KnowledgeError(`Dokumen terlalu besar (${teks.length.toLocaleString("id-ID")} karakter, maksimal ${BATAS_DOKUMEN_KARAKTER.toLocaleString("id-ID")}).`);
+    throw new KnowledgeError(
+      `Dokumen terlalu besar (${teks.length.toLocaleString("id-ID")} karakter, maksimal ${BATAS_DOKUMEN_KARAKTER.toLocaleString("id-ID")}).`,
+      `Document is too large (${teks.length.toLocaleString("en-US")} characters, max ${BATAS_DOKUMEN_KARAKTER.toLocaleString("en-US")}).`
+    );
   if ((await totalKarakter(d.numberId)) + teks.length > BATAS_NOMOR_KARAKTER)
-    throw new KnowledgeError("Total base knowledge nomor ini sudah mencapai batas 1 juta karakter.");
+    throw new KnowledgeError("Total base knowledge nomor ini sudah mencapai batas 1 juta karakter.", "This number's product knowledge has reached the 1 million character limit.");
 
   const potongan = potong(teks);
   return transaksi(async (tx) => {
@@ -183,13 +193,29 @@ export function kueriCari(pesan: string): string | null {
 interface Potongan {
   judul: string;
   isi: string;
+  /** Dari dokumen otomatis (AWALAN_OTOMATIS): data langsung dari database sistem, selalu yang terbaru. */
+  otomatis: boolean;
 }
 
 export interface Konteks {
   teks: string;
   mode: "kosong" | "utuh" | "relevan";
   karakter: number;
+  /** Ada potongan dokumen otomatis di `teks` (lihat ATURAN_DATA_OTOMATIS). */
+  otomatis: boolean;
 }
+
+/** Penanda judul bagian dokumen otomatis di dalam <pengetahuan_nomor>. */
+const TANDA_OTOMATIS = "[DATA OTOMATIS TERBARU]";
+
+/**
+ * Dokumen otomatis disusun ulang dari database setiap kali datanya berubah, sedangkan PDF/teks unggahan bisa usang
+ * (mis. harga paket lama). Bila keduanya ada, AI harus memakai yang otomatis dan tidak mempersoalkan selisihnya.
+ */
+const ATURAN_DATA_OTOMATIS =
+  `Bagian bertanda ${TANDA_OTOMATIS} diambil langsung dari database sistem saat ini dan selalu paling baru. ` +
+  "Untuk harga, paket, kuota, promo, komisi, metode pembayaran, jadwal, outlet, dan angka lain: pakai data dari bagian itu. " +
+  "Bila dokumen lain menyebut angka atau fakta berbeda, dokumen lain itu sudah usang: jangan sebut angka lamanya dan jangan bilang ada perbedaan, cukup sampaikan data terbaru dengan yakin.";
 
 function gabung(potongan: Potongan[], anggaran: number): string {
   const keluar: string[] = [];
@@ -198,7 +224,7 @@ function gabung(potongan: Potongan[], anggaran: number): string {
   for (const p of potongan) {
     if (terpakai + p.isi.length > anggaran && keluar.length) break;
     if (p.judul !== judulKini) {
-      keluar.push(`## ${p.judul}`);
+      keluar.push(p.otomatis ? `## ${TANDA_OTOMATIS} ${p.judul}` : `## ${p.judul}`);
       judulKini = p.judul;
     }
     keluar.push(p.isi);
@@ -207,17 +233,27 @@ function gabung(potongan: Potongan[], anggaran: number): string {
   return keluar.join("\n\n");
 }
 
+/** Hasil gabung() + apakah potongan otomatis ikut terpakai (potongan otomatis selalu diurutkan paling depan). */
+function hasil(potongan: Potongan[], anggaran: number, mode: Konteks["mode"]): Konteks {
+  const teks = gabung(potongan, anggaran);
+  return { teks, mode, karakter: teks.length, otomatis: potongan.length > 0 && potongan[0].otomatis };
+}
+
+/**
+ * Pengetahuan untuk satu pesan. Dokumen otomatis (data terbaru dari database) selalu didahulukan — di mode utuh maupun
+ * relevan — supaya tidak terdesak potongan dokumen unggahan yang lebih panjang tapi bisa usang.
+ */
 export async function konteksPengetahuan(numberId: number, kueri: string): Promise<Konteks> {
   const total = await totalKarakter(numberId);
-  if (total === 0) return { teks: "", mode: "kosong", karakter: 0 };
+  if (total === 0) return { teks: "", mode: "kosong", karakter: 0, otomatis: false };
   const sql = await db();
+  const otomatis = sql`(d.nama_berkas IS NOT NULL AND d.nama_berkas LIKE ${`${AWALAN_OTOMATIS}%`})`;
 
   if (total <= BATAS_UTUH) {
     const semua = await sql<Potongan[]>`
-      SELECT d.judul, c.isi FROM chunks c JOIN documents d ON d.id = c.document_id
-       WHERE c.number_id = ${numberId} ORDER BY d.created_at, d.id, c.urutan`;
-    const teks = gabung(semua, Infinity);
-    return { teks, mode: "utuh", karakter: teks.length };
+      SELECT d.judul, c.isi, ${otomatis} AS otomatis FROM chunks c JOIN documents d ON d.id = c.document_id
+       WHERE c.number_id = ${numberId} ORDER BY 3 DESC, d.created_at, d.id, c.urutan`;
+    return hasil(semua, Infinity, "utuh");
   }
 
   const cari = kueriCari(kueri);
@@ -226,24 +262,22 @@ export async function konteksPengetahuan(numberId: number, kueri: string): Promi
     // Peringkat: potongan yang memuat lebih banyak / lebih sering kata kueri di atas. Angka 1 =
     // dinormalkan terhadap panjang potongan, supaya potongan panjang tidak otomatis menang.
     kena = await sql<Potongan[]>`
-      SELECT d.judul, c.isi
+      SELECT d.judul, c.isi, ${otomatis} AS otomatis
         FROM to_tsquery('simple', ${cari}) q,
              chunks c
         JOIN documents d ON d.id = c.document_id
        WHERE c.number_id = ${numberId} AND c.cari @@ q
-       ORDER BY ts_rank(c.cari, q, 1) DESC, c.id
+       ORDER BY 3 DESC, ts_rank(c.cari, q, 1) DESC, c.id
        LIMIT 14`;
   }
   if (!kena.length) {
     // Sapaan / pertanyaan umum: beri bagian awal dokumen sebagai gambaran.
     kena = await sql<Potongan[]>`
-      SELECT d.judul, c.isi FROM chunks c JOIN documents d ON d.id = c.document_id
-       WHERE c.number_id = ${numberId} AND c.urutan < 2 ORDER BY d.created_at, d.id, c.urutan LIMIT 8`;
-    const teks = gabung(kena, BATAS_TANPA_KUERI);
-    return { teks, mode: "relevan", karakter: teks.length };
+      SELECT d.judul, c.isi, ${otomatis} AS otomatis FROM chunks c JOIN documents d ON d.id = c.document_id
+       WHERE c.number_id = ${numberId} AND c.urutan < 2 ORDER BY 3 DESC, d.created_at, d.id, c.urutan LIMIT 8`;
+    return hasil(kena, BATAS_TANPA_KUERI, "relevan");
   }
-  const teks = gabung(kena, BATAS_RELEVAN);
-  return { teks, mode: "relevan", karakter: teks.length };
+  return hasil(kena, BATAS_RELEVAN, "relevan");
 }
 
 const waktuWib = (): string =>
@@ -320,6 +354,7 @@ export async function susunSistem(
       konteks.mode === "relevan"
         ? "Ini hanya potongan yang paling relevan dengan pesan terakhir. Bila jawabannya tidak ada di sini, anggap belum ada sumbernya."
         : "Ini seluruh pengetahuan nomor ini.",
+      ...(konteks.otomatis ? [ATURAN_DATA_OTOMATIS] : []),
       konteks.teks
     );
   } else if (!pelajaran.n) {

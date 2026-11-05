@@ -1,7 +1,8 @@
 import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
+import { alihkanPermintaan } from "./bahasa-server";
 import { SESSION_COOKIE, SESSION_MAX_AGE, createSessionToken, passwordFingerprint, verifySessionToken } from "./auth";
 import { db, getSetting, sekarang } from "./db";
 import { hakAkun } from "./langganan";
@@ -80,8 +81,8 @@ export const getUser = cache(async (): Promise<User | null> => {
 
 export async function requireUser(): Promise<User> {
   const user = await getUser();
-  if (!user) redirect("/login");
-  return user;
+  if (!user) await alihkanPermintaan("/login");
+  return user!;
 }
 
 /** Halaman/aksi khusus admin. Bukan admin = 404 (keberadaan halamannya tidak dibocorkan). */

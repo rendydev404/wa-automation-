@@ -10,7 +10,14 @@ export * from "./katalog-def";
  * Daftar untuk AI dibaca tanpa kolom foto; foto hanya dibaca saat benar-benar dikirim atau ditampilkan di dashboard.
  */
 
-export class KatalogError extends Error {}
+export class KatalogError extends Error {
+  /** Pesan versi Inggris (tampilan /eng, dipilih di actions/API); `message` tetap bahasa Indonesia (juga untuk log). */
+  en?: string;
+  constructor(message: string, en?: string) {
+    super(message);
+    this.en = en;
+  }
+}
 
 type FotoMime = "image/jpeg" | "image/png" | "image/webp";
 
@@ -56,13 +63,13 @@ export interface IsianProduk {
 
 /** Periksa isian dari formulir; galat berupa pesan untuk pengguna. */
 export function periksaIsianProduk(p: IsianProduk): void {
-  if (p.nama.trim().length < 2) throw new KatalogError("Nama produk wajib diisi.");
-  if (p.nama.length > BATAS_KATALOG.nama) throw new KatalogError(`Nama produk maksimal ${BATAS_KATALOG.nama} karakter.`);
-  if (p.deskripsi.length > BATAS_KATALOG.deskripsi) throw new KatalogError(`Keterangan maksimal ${BATAS_KATALOG.deskripsi} karakter.`);
-  if (p.harga !== null && !(Number.isInteger(p.harga) && p.harga >= 0 && p.harga <= MAKS_HARGA_PRODUK)) throw new KatalogError("Harga tidak valid.");
+  if (p.nama.trim().length < 2) throw new KatalogError("Nama produk wajib diisi.", "Product name is required.");
+  if (p.nama.length > BATAS_KATALOG.nama) throw new KatalogError(`Nama produk maksimal ${BATAS_KATALOG.nama} karakter.`, `Product name can be at most ${BATAS_KATALOG.nama} characters.`);
+  if (p.deskripsi.length > BATAS_KATALOG.deskripsi) throw new KatalogError(`Keterangan maksimal ${BATAS_KATALOG.deskripsi} karakter.`, `Description can be at most ${BATAS_KATALOG.deskripsi} characters.`);
+  if (p.harga !== null && !(Number.isInteger(p.harga) && p.harga >= 0 && p.harga <= MAKS_HARGA_PRODUK)) throw new KatalogError("Harga tidak valid.", "Invalid price.");
   if (p.foto) {
-    if (p.foto.length > BATAS_KATALOG.fotoByte) throw new KatalogError("Foto terlalu besar (maksimal 1,5 MB).");
-    if (!jenisFoto(p.foto)) throw new KatalogError("Foto harus berupa JPG, PNG, atau WebP.");
+    if (p.foto.length > BATAS_KATALOG.fotoByte) throw new KatalogError("Foto terlalu besar (maksimal 1,5 MB).", "Photo is too large (max 1.5 MB).");
+    if (!jenisFoto(p.foto)) throw new KatalogError("Foto harus berupa JPG, PNG, atau WebP.", "Photo must be a JPG, PNG, or WebP.");
   }
 }
 
@@ -83,11 +90,11 @@ export async function simpanProduk(numberId: number, p: IsianProduk): Promise<nu
              foto_mime = CASE WHEN ${ubahFoto} THEN ${mime}::text ELSE foto_mime END
        WHERE id = ${p.id} AND number_id = ${numberId}
       RETURNING id`;
-    if (!r) throw new KatalogError("Produk tidak ditemukan.");
+    if (!r) throw new KatalogError("Produk tidak ditemukan.", "Product not found.");
     return r.id;
   }
   const [{ n, maks }] = await sql<{ n: number; maks: number }[]>`SELECT COUNT(*)::int AS n, COALESCE(MAX(urutan), 0)::int AS maks FROM produk WHERE number_id = ${numberId}`;
-  if (n >= BATAS_KATALOG.produk) throw new KatalogError(`Katalog sudah penuh (maksimal ${BATAS_KATALOG.produk} produk per nomor).`);
+  if (n >= BATAS_KATALOG.produk) throw new KatalogError(`Katalog sudah penuh (maksimal ${BATAS_KATALOG.produk} produk per nomor).`, `The catalog is full (max ${BATAS_KATALOG.produk} products per number).`);
   const [r] = await sql<{ id: number }[]>`
     INSERT INTO produk(number_id, nama, harga, deskripsi, tersedia, foto, foto_mime, urutan, created_at, updated_at)
     VALUES (${numberId}, ${nama}, ${p.harga}, ${deskripsi}, ${p.tersedia}, ${foto}, ${mime}, ${maks + 1}, ${t}, ${t})

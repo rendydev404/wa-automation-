@@ -1,10 +1,11 @@
 "use client";
 
 import { useOptimistic, useTransition } from "react";
-import Link from "next/link";
+import Link from "@/components/link";
 import { ArrowUpRight, BookOpen, QrCode } from "lucide-react";
 import { setBotAktifAction } from "@/app/actions";
 import { angka, formatNomor } from "@/lib/format";
+import { useBahasa } from "./bahasa";
 import { LencanaSesi } from "./connection-card";
 import { Sparkline } from "./stat";
 import { TombolTambahNomor } from "./tambah-nomor";
@@ -26,15 +27,21 @@ export interface KartuNomor {
 }
 
 export function NumbersList({ nomor }: { nomor: KartuNomor[] }) {
+  const { t } = useBahasa();
   return (
     <section aria-labelledby="judul-nomor">
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
           <h2 id="judul-nomor" className="flex items-center gap-2 text-[17px] font-bold tracking-tight">
-            Nomor WhatsApp
+            {t("Nomor WhatsApp", "WhatsApp numbers")}
             <span className="rounded-md bg-subtle px-1.5 py-0.5 text-xs font-semibold text-muted tabular-nums">{nomor.length}</span>
           </h2>
-          <p className="hint mt-0.5 max-w-2xl">Tiap nomor punya koneksi dan base knowledge sendiri. AI menjawab memakai knowledge nomor yang menerima chat.</p>
+          <p className="hint mt-0.5 max-w-2xl">
+            {t(
+              "Tiap nomor punya koneksi dan base knowledge sendiri. AI menjawab memakai knowledge nomor yang menerima chat.",
+              "Each number has its own connection and product knowledge. The AI answers using the knowledge of the number that receives the chat."
+            )}
+          </p>
         </div>
       </div>
 
@@ -43,8 +50,10 @@ export function NumbersList({ nomor }: { nomor: KartuNomor[] }) {
           <span className="mb-3 grid size-12 place-items-center rounded-2xl bg-accent-soft text-accent">
             <QrCode className="size-5" aria-hidden />
           </span>
-          <p className="text-[15px] font-bold">Belum ada nomor</p>
-          <p className="hint mt-1 mb-5 max-w-sm">Tambah nomor, pindai kode QR-nya dari HP, lalu isi base knowledge-nya.</p>
+          <p className="text-[15px] font-bold">{t("Belum ada nomor", "No numbers yet")}</p>
+          <p className="hint mt-1 mb-5 max-w-sm">
+            {t("Tambah nomor, pindai kode QR-nya dari HP, lalu isi base knowledge-nya.", "Add a number, scan its QR code with your phone, then fill in its product knowledge.")}
+          </p>
           <TombolTambahNomor />
         </div>
       ) : (
@@ -59,15 +68,17 @@ export function NumbersList({ nomor }: { nomor: KartuNomor[] }) {
 }
 
 function Angka({ label, nilai }: { label: string; nilai: number }) {
+  const { b } = useBahasa();
   return (
     <div className="min-w-0 px-2 py-2.5 sm:px-3">
       <dt className="text-[11px] leading-tight font-medium text-muted">{label}</dt>
-      <dd className="mt-0.5 text-lg leading-tight font-bold tabular-nums">{angka(nilai)}</dd>
+      <dd className="mt-0.5 text-lg leading-tight font-bold tabular-nums">{angka(nilai, b)}</dd>
     </div>
   );
 }
 
 function Kartu({ n }: { n: KartuNomor }) {
+  const { b, t } = useBahasa();
   const sesi = useSesiNomor(n.id);
   const [aktif, setAktif] = useOptimistic(n.bot_aktif);
   const [, mulai] = useTransition();
@@ -81,7 +92,7 @@ function Kartu({ n }: { n: KartuNomor }) {
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-bold tracking-tight">{n.label}</p>
-          <p className="mt-0.5 truncate text-[13px] text-muted tabular-nums">{wa ? formatNomor(wa) : "Belum ada nomor tertaut"}</p>
+          <p className="mt-0.5 truncate text-[13px] text-muted tabular-nums">{wa ? formatNomor(wa) : t("Belum ada nomor tertaut", "No number linked yet")}</p>
           {sesi && (
             <div className="mt-2">
               <LencanaSesi status={sesi.status} />
@@ -92,18 +103,23 @@ function Kartu({ n }: { n: KartuNomor }) {
       </Link>
 
       <dl className="mx-5 grid grid-cols-3 divide-x divide-line rounded-xl bg-subtle/70">
-        <Angka label="Masuk hari ini" nilai={n.masuk_hari_ini} />
-        <Angka label="Dibalas AI" nilai={n.dibalas_hari_ini} />
-        <Angka label="Pelanggan" nilai={n.jumlah_percakapan} />
+        <Angka label={t("Masuk hari ini", "Incoming today")} nilai={n.masuk_hari_ini} />
+        <Angka label={t("Dibalas AI", "AI replies")} nilai={n.dibalas_hari_ini} />
+        <Angka label={t("Pelanggan", "Customers")} nilai={n.jumlah_percakapan} />
       </dl>
 
       <div className="flex items-center justify-between gap-4 px-5 py-4">
         <p className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-muted">
           <BookOpen className="size-3.5 shrink-0" aria-hidden />
-          <span className="truncate">{n.jumlah_dokumen ? `${n.jumlah_dokumen} dokumen · ${angka(n.jumlah_karakter)} karakter` : "Knowledge kosong"}</span>
+          <span className="truncate">{n.jumlah_dokumen
+              ? t(
+                  `${n.jumlah_dokumen} dokumen · ${angka(n.jumlah_karakter)} karakter`,
+                  `${n.jumlah_dokumen} ${n.jumlah_dokumen === 1 ? "document" : "documents"} · ${angka(n.jumlah_karakter, b)} characters`
+                )
+              : t("Knowledge kosong", "No knowledge yet")}</span>
         </p>
-        <div className="flex shrink-0 items-center gap-2" title="Pesan masuk 7 hari terakhir">
-          <span className="text-[11px] text-faint">7 hari</span>
+        <div className="flex shrink-0 items-center gap-2" title={t("Pesan masuk 7 hari terakhir", "Incoming messages, last 7 days")}>
+          <span className="text-[11px] text-faint">{t("7 hari", "7 days")}</span>
           <Sparkline nilai={n.tren} warna="var(--c-seri-masuk)" className="h-6 w-16" />
         </div>
       </div>
@@ -111,14 +127,14 @@ function Kartu({ n }: { n: KartuNomor }) {
       <div className="mt-auto flex items-center justify-between gap-3 border-t border-line bg-subtle/40 px-5 py-3">
         {perluScan ? (
           <Link href={`/nomor/${n.id}`} className="flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline">
-            <QrCode className="size-4" aria-hidden /> Scan QR untuk menautkan
+            <QrCode className="size-4" aria-hidden /> {t("Scan QR untuk menautkan", "Scan QR to link")}
           </Link>
         ) : (
-          <span className="text-[13px] font-medium">{aktif ? "Balasan otomatis aktif" : "Balasan otomatis mati"}</span>
+          <span className="text-[13px] font-medium">{aktif ? t("Balasan otomatis aktif", "Auto-reply on") : t("Balasan otomatis mati", "Auto-reply off")}</span>
         )}
         <Saklar
           aktif={aktif}
-          label={`Balasan otomatis ${n.label}`}
+          label={t(`Balasan otomatis ${n.label}`, `Auto-reply for ${n.label}`)}
           onUbah={(v) =>
             mulai(async () => {
               setAktif(v);

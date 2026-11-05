@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useBahasa } from "./bahasa";
 
 /**
  * Tampilan "AI sedang merapikan": kertas dokumen yang terisi pelan-pelan, satu teks status yang berganti halus, bilah
@@ -9,16 +10,17 @@ import { useEffect, useState } from "react";
  */
 
 const LANGKAH = [
-  { dari: 0, teks: "Membaca tulisan Anda" },
-  { dari: 4, teks: "Menyusun menu, harga, dan jam buka" },
-  { dari: 11, teks: "Memeriksa angka, alamat, dan nomor" },
-  { dari: 19, teks: "Menyusun jadi dokumen yang rapi" },
+  { dari: 0, teks: { id: "Membaca tulisan Anda", en: "Reading what you wrote" } },
+  { dari: 4, teks: { id: "Menyusun menu, harga, dan jam buka", en: "Organizing the menu, prices, and opening hours" } },
+  { dari: 11, teks: { id: "Memeriksa angka, alamat, dan nomor", en: "Checking figures, addresses, and phone numbers" } },
+  { dari: 19, teks: { id: "Menyusun jadi dokumen yang rapi", en: "Putting it into a tidy document" } },
 ] as const;
 
 // Lebar baris pada kertas (persen).
 const BARIS = [100, 88, 94, 62, 100, 80, 46];
 
 export function LoadingAi({ judul, onBatal }: { judul: string; onBatal: () => void }) {
+  const { b, t } = useBahasa();
   const [detik, setDetik] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setDetik((d) => d + 1), 1000);
@@ -48,27 +50,27 @@ export function LoadingAi({ judul, onBatal }: { judul: string; onBatal: () => vo
         <p className="mt-6 text-[15px] font-bold tracking-tight">{judul}</p>
         {/* key = teks: tiap pergantian langkah memicu animasi masuk */}
         <p key={aktif} className="mt-1 animate-masuk text-[13.5px] text-muted">
-          {LANGKAH[aktif].teks}…
+          {LANGKAH[aktif].teks[b]}…
         </p>
 
         {/* Penanda langkah */}
-        <ol aria-label="Langkah" className="mt-5 flex w-52 gap-1.5">
+        <ol aria-label={t("Langkah", "Steps")} className="mt-5 flex w-52 gap-1.5">
           {LANGKAH.map((l, i) => (
-            <li key={l.teks} className={`h-1 flex-1 rounded-full transition-colors duration-700 ${i <= aktif ? "bg-accent" : "bg-line"}`}>
+            <li key={l.dari} className={`h-1 flex-1 rounded-full transition-colors duration-700 ${i <= aktif ? "bg-accent" : "bg-line"}`}>
               <span className="sr-only">
-                {l.teks} {i < aktif ? "(selesai)" : i === aktif ? "(sedang dikerjakan)" : "(menunggu)"}
+                {l.teks[b]} {i < aktif ? t("(selesai)", "(done)") : i === aktif ? t("(sedang dikerjakan)", "(in progress)") : t("(menunggu)", "(waiting)")}
               </span>
             </li>
           ))}
         </ol>
 
-        <p className="mt-4 max-w-xs text-[12px] text-faint">Harga, jam, dan alamat tetap persis seperti yang Anda tulis.</p>
+        <p className="mt-4 max-w-xs text-[12px] text-faint">{t("Harga, jam, dan alamat tetap persis seperti yang Anda tulis.", "Prices, hours, and addresses stay exactly as you wrote them.")}</p>
       </div>
 
       <div className="flex items-center justify-between gap-3 border-t border-line px-5 py-3">
-        <span className="text-[12px] text-faint tabular-nums">Biasanya 10–40 detik · {detik} dtk</span>
+        <span className="text-[12px] text-faint tabular-nums">{t(`Biasanya 10–40 detik · ${detik} dtk`, `Usually 10–40 seconds · ${detik}s`)}</span>
         <button type="button" onClick={onBatal} className="rounded-lg px-3 py-1.5 text-[12.5px] font-semibold text-muted transition-colors hover:bg-subtle hover:text-fg">
-          Batal
+          {t("Batal", "Cancel")}
         </button>
       </div>
     </div>
