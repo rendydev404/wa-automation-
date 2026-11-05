@@ -123,6 +123,7 @@ interface Diag {
   offline: number;
   abaikan: number;
   upsert: number;
+  ackStatus: number;
   /** Stanza yang tidak pernah sampai ke `messages.upsert` setelah DIAG_BUANG_MS (mis. gagal dekripsi). */
   hilang: number;
   tertunda: Map<string, { pada: number; jenis: string; offline: boolean }>;
@@ -368,7 +369,7 @@ function catatDiag(): void {
     d.logPada = kini;
     const frame = [...d.frame].map(([tag, jumlah]) => `${tag}:${jumlah}`).join(",") || "-";
     const baris =
-      `[diag ${s.nama}] penilaian=${nilai} umur=${Math.round((kini - d.mulai) / 1000)}dtk login=${d.login ?? "belum"} stanza=${d.stanza} pribadi=${d.pribadi} status=${d.status} offline=${d.offline} abaikan=${d.abaikan} upsert=${d.upsert} hilang=${d.hilang} tertunda=${d.tertunda.size}` +
+      `[diag ${s.nama}] penilaian=${nilai} umur=${Math.round((kini - d.mulai) / 1000)}dtk login=${d.login ?? "belum"} stanza=${d.stanza} pribadi=${d.pribadi} status=${d.status} offline=${d.offline} abaikan=${d.abaikan} upsert=${d.upsert} ackStatus=${d.ackStatus} hilang=${d.hilang} tertunda=${d.tertunda.size}` +
       `${tertua ? ` tertua=${Math.round((kini - tertua.pada) / 1000)}dtk(${tertua.jenis}${tertua.offline ? ",offline" : ""})` : ""} offlineSelesai=${d.offlineSelesai ?? "belum"} pratinjau=${d.pratinjau ?? "-"} frameTerakhir=${d.frameTerakhir ? `${Math.round((kini - d.frameTerakhir) / 1000)}dtk` : "-"} frame=${frame}`;
     if (nilai === "normal") console.info(baris);
     else console.error(baris);
@@ -389,6 +390,7 @@ function diagBaru(): Diag {
     offline: 0,
     abaikan: 0,
     upsert: 0,
+    ackStatus: 0,
     hilang: 0,
     tertunda: new Map(),
     frame: new Map(),
@@ -671,6 +673,7 @@ async function sambung(s: Sesi): Promise<void> {
     // (`stream:error > ack{"class":"status"}`) sementara pesan pelanggan tertahan di belakangnya, berjam-jam,
     // pada nomor yang kontaknya banyak memasang status. Baileys yang memprosesnya; pesanTiba lalu membuangnya
     // karena bukan chat pribadi, jadi tidak pernah sampai ke AI.
+    // Sebagian akun menerima status sebagai frame `<status>`, bukan `<message>`: lihat "CB:status" di bawah.
     const abaikanJid = (jid: string | undefined): boolean =>
       !!jid && !!(B.isJidGroup(jid) || B.isJidNewsletter(jid) || (B.isJidBroadcast(jid) && !B.isJidStatusBroadcast(jid)));
     sock = B.makeWASocket({
@@ -773,6 +776,11 @@ async function sambung(s: Sesi): Promise<void> {
               simpanPemetaanDiri(B, sock, auth.creds);
             }
           }
+        } else if (ev === "CB:status") {
+          // Baileys rc14 belum punya penangan `<status>` (Baileys #2858, PR #2883): tanpa ack ini server menahan pesan
+          // masuk dan memutus stream tiap 50 menit. Ack polos tanpa error, isinya tidak dibaca. Hapus bila sudah ada di rilis.
+          diag.ackStatus += 1;
+          void sock.sendMessageAck(args[0] as never).catch((e) => console.error(`[wa ${s.nama}] gagal meng-ack status:`, e instanceof Error ? e.message : e));
         } else if (ev === "CB:ib,,offline") {
           diag.offlineSelesai = Math.round((Date.now() - diag.mulai) / 1000);
         } else if (ev === "CB:ib,,offline_preview") {

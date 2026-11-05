@@ -165,8 +165,8 @@ export async function notifNomorTerputus(sesi: string): Promise<void> {
 }
 
 /**
- * Soket tersambung tetapi WhatsApp tidak mengirim apa pun (lihat catatDiag di wa.ts): sambung ulang tidak memulihkannya,
- * pemilik perlu menautkan ulang. Sekali per nomor per hari, supaya restart/deploy tidak mengulang notifikasi.
+ * Soket tersambung tetapi pesan tidak datang dari WhatsApp (lihat catatDiag di wa.ts). Sekali per nomor per hari,
+ * supaya restart/deploy tidak mengulang notifikasi.
  */
 export async function notifNomorDiam(sesi: string): Promise<void> {
   try {
@@ -178,8 +178,8 @@ export async function notifNomorDiam(sesi: string): Promise<void> {
       jenis: "nomor",
       judul: { id: `Nomor ${n.label} tersambung, tapi pesan tidak masuk`, en: `Number ${n.label} is connected, but messages are not arriving` },
       isi: {
-        id: "WhatsApp tidak mengirim pesan ke perangkat ini, jadi AI tidak membalas dan chat tidak masuk ke dashboard. Putuskan nomor ini, lalu pindai QR lagi.",
-        en: "WhatsApp is not delivering messages to this device, so the AI is not replying and chats are not reaching the dashboard. Disconnect this number, then scan the QR code again.",
+        id: "Pesan dari WhatsApp tertahan di perangkat ini, jadi AI tidak membalas dan chat tidak masuk ke dashboard. Bila belum pulih dalam beberapa menit, putuskan nomor ini lalu pindai QR lagi.",
+        en: "Messages from WhatsApp are being held back on this device, so the AI is not replying and chats are not reaching the dashboard. If this does not clear within a few minutes, disconnect this number and scan the QR code again.",
       },
       tautan: `/nomor/${n.id}`,
       kunci: `nomor_diam:${n.id}:${hari}`,
