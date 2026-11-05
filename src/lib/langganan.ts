@@ -244,6 +244,25 @@ export async function sisaKuotaAi(userId: number): Promise<number | null> {
   return c.batas === null ? null : Math.max(0, c.batas - c.terpakai);
 }
 
+/**
+ * Akun trial/gratis yang kuota balasan AI-nya habis boleh diberi tahu lewat chat SEKALI per periode kuota (free trial =
+ * sekali seumur akun, kuota gratis bulanan = sekali per bulan). Akun berbayar & admin: tidak pernah (false).
+ * Klaim atomik lewat UPDATE ... RETURNING: dua chat yang masuk bersamaan tidak bisa sama-sama mendapat true.
+ * Hanya dipanggil saat kuota sudah habis, jadi tidak menambah query di jalur balasan biasa.
+ */
+export async function klaimPemberitahuanKuota(userId: number): Promise<boolean> {
+  const sql = await db();
+  const [u] = await sql<{ peran: string }[]>`SELECT peran FROM users WHERE id = ${userId}`;
+  if (!u || u.peran === "admin") return false;
+  const hak = await hakAkun({ id: userId, peran: u.peran });
+  if (hak.sampai !== null) return false;
+  const [r] = await sql<{ id: number }[]>`
+    UPDATE users SET kuota_habis_diberitahu = ${hak.periodeMulai}
+     WHERE id = ${userId} AND kuota_habis_diberitahu IS DISTINCT FROM ${hak.periodeMulai}
+     RETURNING id`;
+  return !!r;
+}
+
 export function catatBalasanLokal(userId: number): void {
   const c = cacheKuota.get(userId);
   if (c) c.terpakai += 1;

@@ -579,7 +579,7 @@ await cek("spam yang dinilai AI (tag <abaikan>): tidak dikirim, tidak memotong k
   assert.equal(sA.terkirim.at(-1).isi.text, "Halo kak, ada yang bisa dibantu?");
 });
 
-await cek("kuota balasan AI pemilik habis: pesan tercatat tetapi AI diam; kuota ditambah = AI membalas lagi", async () => {
+await cek("kuota balasan AI akun gratis habis: AI diam, pemberitahuan berlangganan dikirim SEKALI saja; kuota ditambah = AI membalas lagi", async () => {
   const L = await lib("src/lib/langganan.ts");
   const { setSetting } = await lib("src/lib/db.ts");
   const [u] = await sql`INSERT INTO users(email, password_hash, created_at) VALUES ('kuota@uji.test', 'x', ${kini()}) RETURNING id`;
@@ -596,8 +596,19 @@ await cek("kuota balasan AI pemilik habis: pesan tercatat tetapi AI diam; kuota 
   await tidur(750);
   assert.equal(hermes.panggilan.length, n0, "AI tidak dipanggil saat kuota habis");
   assert.equal((await stat(A.id)).masuk, m0 + 2, "pesan tetap dihitung masuk");
-  // Tidak ada pesan apa pun yang dikirim, juga tidak ke pemilik: pesan tanpa diminta memicu blokir WhatsApp.
-  assert.equal(sA.terkirim.length, kirim0, "tidak ada pesan keluar saat kuota habis");
+  // Akun gratis: tepat SATU pemberitahuan berlangganan, sebagai balasan di chat yang sedang masuk (bukan pesan tanpa
+  // diminta ke nomor lain, yang memicu blokir WhatsApp). Chat kedua tidak mendapat apa-apa.
+  await tunggu(() => sA.terkirim.length === kirim0 + 1, 3000, "pemberitahuan kuota habis");
+  await tidur(300);
+  const baru = sA.terkirim.slice(kirim0);
+  assert.equal(baru.length, 1, "pemberitahuan hanya sekali untuk akun ini");
+  assert.ok(["555000305@lid", "555000315@lid"].includes(baru[0].jid), `dikirim ke chat yang sedang masuk (${baru[0].jid})`);
+  assert.match(baru[0].isi.text, /kuota balasan otomatis \(AI\) gratis untuk nomor WhatsApp ini telah habis/);
+  assert.match(baru[0].isi.text, /https?:\/\/\S+\/langganan/);
+  tiba(sA, pesan("555000305@lid", "halo? masih ada orang?"));
+  await tidur(750);
+  assert.equal(sA.terkirim.length, kirim0 + 1, "pesan berikutnya selama kuota habis: tidak ada pemberitahuan lagi");
+  assert.equal(hermes.panggilan.length, n0);
   assert.equal((await sql`SELECT COUNT(*)::int AS n FROM ai_pakai`)[0].n, pakai0, "kuota balasan AI tidak terpotong");
   await setSetting("kuota_percobaan", "100");
   L.segarkanKuota();

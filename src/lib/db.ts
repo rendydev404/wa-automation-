@@ -490,6 +490,11 @@ const MIGRASI: string[] = [
   `
   CREATE INDEX transaksi_order_pola_idx ON transaksi (order_id text_pattern_ops);
   `,
+  // v22: akun trial/gratis yang kuota balasan AI-nya habis diberi tahu sekali lewat chat (bridge.ts). Kolom ini
+  //   menyimpan awal periode kuota yang sudah diberi tahu: trial = sekali seumur akun, kuota bulanan = sekali per bulan.
+  `
+  ALTER TABLE users ADD COLUMN kuota_habis_diberitahu bigint;
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

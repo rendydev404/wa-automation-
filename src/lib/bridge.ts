@@ -2,7 +2,8 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { db, sekarang, setSetting } from "./db";
 import { catatPakai, tanpaIngatan, tanyaAiTerjaga } from "./ai";
-import { aiUntukAkun, catatBalasanLokal, sisaKuotaAi } from "./langganan";
+import { aiUntukAkun, catatBalasanLokal, klaimPemberitahuanKuota, sisaKuotaAi } from "./langganan";
+import { MEREK } from "./merek";
 import { susunSistem } from "./knowledge";
 import { type KirimProduk, bahanKirim, captionProduk, daftarProduk, katalogBoleh, perluDaftar, teksKatalog } from "./katalog";
 import { type Nomor, catatStat, catatTerhubung, nomorBySesi } from "./numbers";
@@ -306,6 +307,36 @@ function statistik(numberId: number, kolom: "masuk" | "dibalas" | "gagal"): void
   tulisLatar(() => catatStat(numberId, kolom));
 }
 
+/**
+ * Pemberitahuan sekali kirim saat kuota balasan AI akun trial/gratis habis (klaimPemberitahuanKuota menjamin sekali per
+ * periode kuota). Dikirim sebagai balasan di chat yang sedang masuk, jadi bukan pesan tanpa diminta: pelanggan tahu
+ * pesannya tetap akan dibalas pemilik, dan pemilik nomor mendapat tautan untuk berlangganan.
+ */
+export function teksKuotaHabis(): string {
+  const asal = (process.env.APP_URL || "https://chatgercep.com").replace(/\/+$/, "");
+  return [
+    "Terima kasih telah menghubungi kami.",
+    "",
+    "Saat ini kuota balasan otomatis (AI) gratis untuk nomor WhatsApp ini telah habis, sehingga pesan Anda belum dapat dijawab secara otomatis. Pesan Anda tetap kami terima dan akan dibalas langsung oleh pemilik nomor.",
+    "",
+    `Untuk pemilik nomor: aktifkan kembali asisten AI dengan memilih paket berlangganan ${MEREK} di tautan berikut:`,
+    `${asal}/langganan`,
+    "",
+    `_Pesan otomatis dari ${MEREK}_`,
+  ].join("\n");
+}
+
+async function beritahuKuotaHabis(a: Antrean, kunci: string): Promise<void> {
+  const teks = teksKuotaHabis();
+  try {
+    await kirimTeks(a.sesi, a.alamat, teks, (id) => ingat(st.terkirim, id, 500));
+    tulisLatar(() => catatPesan({ numberId: a.numberId, kunci, peran: 1, teks, waktu: sekarang() }));
+    console.info(`[bridge] kuota habis: pemberitahuan berlangganan dikirim sekali sesi=${a.sesi}`);
+  } catch (e) {
+    galat(a, e);
+  }
+}
+
 function galat(a: Antrean, e: unknown): void {
   statistik(a.numberId, "gagal");
   const nilai = JSON.stringify({ at: sekarang(), pesan: e instanceof Error ? e.message : String(e) });
@@ -335,6 +366,10 @@ async function proses(kunci: string): Promise<void> {
     // Kuota habis: AI diam (pemilik melihatnya di dasbor). Bot tidak pernah mengirim pesan ke nomor yang tidak
     // sedang chat dengannya, karena pesan tanpa diminta seperti itu memicu blokir WhatsApp.
     const habis = !!nomor && nomor.bot_aktif && nomor.pemilik_aktif && (await kuotaHabis(nomor.user_id));
+    // Akun trial/gratis: kuota habis diberitahukan SEKALI di chat yang sedang masuk (lalu diam seperti biasa).
+    if (habis && nomor && nomor.user_id !== null && a.teks.length && (await klaimPemberitahuanKuota(nomor.user_id).catch(() => false))) {
+      await beritahuKuotaHabis(a, kunci);
+    }
     if (!nomor || !nomor.bot_aktif || !nomor.pemilik_aktif || habis) {
       a.teks.length = 0;
       a.foto.length = 0;

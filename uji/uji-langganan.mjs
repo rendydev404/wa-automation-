@@ -981,6 +981,17 @@ await cek("lencana paket & transaksi admin: tingkat dari kode paket, cari ID pem
   console.log(`        (halaman transaksi admin: daftar + hitung + ringkasan paralel ${(performance.now() - t0).toFixed(1)} ms)`);
 });
 
+await cek("pemberitahuan kuota habis: akun gratis sekali per periode kuota; berbayar & admin tidak pernah", async () => {
+  const gratis = await P.buatAkun({ email: "gratis-kuota@uji.test", nama: "Gratis", password: "rahasia-gratis-01" });
+  const [pertama, kedua] = await Promise.all([L.klaimPemberitahuanKuota(gratis.id), L.klaimPemberitahuanKuota(gratis.id)]);
+  assert.equal(Number(pertama) + Number(kedua), 1, "dua chat bersamaan: hanya satu yang boleh mengirim");
+  assert.equal(await L.klaimPemberitahuanKuota(gratis.id), false, "sudah diberi tahu di periode ini");
+  const bayar = await P.buatAkun({ email: "bayar-kuota@uji.test", nama: "Bayar", password: "rahasia-bayar-01" });
+  await L.berikanPaketManual(bayar.id, { paketId: starter.id, metode: "manual_transfer", jumlah: starter.harga, catatan: "" });
+  assert.equal(await L.klaimPemberitahuanKuota(bayar.id), false, "akun berbayar tidak diberi pemberitahuan berlangganan");
+  assert.equal(await L.klaimPemberitahuanKuota(admin.id), false, "admin tidak pernah");
+});
+
 void AI;
 await sql.end({ timeout: 2 });
 await pg.berhenti();
