@@ -123,7 +123,7 @@ export function PendaftarLoop() {
         <div
           className={`pointer-events-none z-40 ${
             menempel
-              ? "fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-4 max-w-[calc(100%-2rem)] sm:left-6 sm:max-w-sm lg:bottom-6"
+              ? "fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-3 max-w-[min(20rem,calc(100%-1.5rem))] sm:left-6 sm:max-w-sm lg:bottom-6"
               : "absolute bottom-2.5 left-4 max-w-[calc(100%-2rem)] sm:left-6 lg:bottom-8"
           }`}
         >
@@ -135,14 +135,15 @@ export function PendaftarLoop() {
             }}
           >
             {giliranPromo ? (
-              <Link href="/daftar" className="relative flex items-center gap-3 rounded-[15px] bg-ink-raised py-2.5 pr-4 pl-2.5 transition-colors hover:bg-ink">
-                <span className="pendaftar-avatar relative grid size-10 shrink-0 place-items-center rounded-full bg-ink-signal text-ink">
-                  <Zap className="size-5" strokeWidth={2.5} aria-hidden />
+              <Link href="/daftar" className="relative flex items-center gap-2 rounded-[15px] bg-ink-raised py-1.5 pr-3 pl-1.5 transition-colors hover:bg-ink sm:gap-3 sm:py-2.5 sm:pr-4 sm:pl-2.5">
+                <span className="pendaftar-avatar relative grid size-8 shrink-0 place-items-center rounded-full bg-ink-signal text-ink sm:size-10">
+                  <Zap className="size-4 sm:size-5" strokeWidth={2.5} aria-hidden />
                 </span>
                 <div className="min-w-0">
-                  <p className="pendaftar-baris text-[13.5px] leading-snug font-bold text-white">{ajakan.judul}</p>
-                  <p className="pendaftar-baris pendaftar-baris-2 mt-0.5 text-[11.5px] leading-snug text-ink-muted">
-                    {ajakan.isi}{" "}
+                  {/* HP: judul satu baris + "Coba gratis" saja, supaya kartu yang menempel tidak menutupi isi halaman. */}
+                  <p className="pendaftar-baris truncate text-[12.5px] leading-snug font-bold text-white sm:overflow-visible sm:text-[13.5px] sm:whitespace-normal">{ajakan.judul}</p>
+                  <p className="pendaftar-baris pendaftar-baris-2 text-[11px] leading-snug text-ink-muted sm:mt-0.5 sm:text-[11.5px]">
+                    <span className="hidden sm:inline">{ajakan.isi} </span>
                     <span className="inline-flex items-center gap-0.5 font-bold whitespace-nowrap text-ink-signal">
                       {t("Coba gratis", "Try free")} <ArrowRight className="size-3" aria-hidden />
                     </span>
@@ -153,18 +154,18 @@ export function PendaftarLoop() {
               </Link>
             ) : (
               p && (
-                <div className="relative flex items-center gap-3 rounded-[15px] bg-ink-raised py-2.5 pr-5 pl-2.5">
-                  <span className={`pendaftar-avatar relative grid size-10 shrink-0 place-items-center rounded-full bg-gradient-to-br text-[15px] font-extrabold text-ink ${WARNA_AVATAR[Math.floor(ke / 2) % WARNA_AVATAR.length]}`}>
+                <div className="relative flex items-center gap-2 rounded-[15px] bg-ink-raised py-1.5 pr-3.5 pl-1.5 sm:gap-3 sm:py-2.5 sm:pr-5 sm:pl-2.5">
+                  <span className={`pendaftar-avatar relative grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br text-[13px] font-extrabold text-ink sm:size-10 sm:text-[15px] ${WARNA_AVATAR[Math.floor(ke / 2) % WARNA_AVATAR.length]}`}>
                     {p.nama.charAt(0)}
                     <span className="absolute -right-0.5 -bottom-0.5 grid size-4 place-items-center rounded-full border-2 border-ink-raised bg-ink-signal">
                       <Check className="size-2.5 text-ink" strokeWidth={4} aria-hidden />
                     </span>
                   </span>
                   <div className="min-w-0">
-                    <p className="pendaftar-baris truncate text-[13.5px] leading-snug font-bold text-white">
+                    <p className="pendaftar-baris truncate text-[12.5px] leading-snug font-bold text-white sm:text-[13.5px]">
                       {p.nama} <span className="font-medium text-ink-muted">{t("mendaftar", "signed up")}</span>
                     </p>
-                    <p className="pendaftar-baris pendaftar-baris-2 mt-0.5 flex items-center gap-1.5 text-[11.5px] leading-snug text-ink-muted">
+                    <p className="pendaftar-baris pendaftar-baris-2 flex items-center gap-1.5 text-[11px] leading-snug text-ink-muted sm:mt-0.5 sm:text-[11.5px]">
                       <span className="relative flex size-1.5">
                         <span className="absolute inset-0 animate-ping rounded-full bg-ink-signal opacity-70" />
                         <span className="relative size-1.5 rounded-full bg-ink-signal" />
