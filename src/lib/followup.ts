@@ -654,7 +654,7 @@ async function konteksAkun(userId: number): Promise<string | null> {
   if (!u) return null;
   const [hak, sisa, pakai] = await Promise.all([hakAkun(u), sisaKuotaAi(u.id), pemakaianAkun(u.id)]);
   const paket = hak.sampai === null ? `paket gratis${sisa === 0 ? " yang kuota balasan AI-nya sudah HABIS (AI di WhatsApp-nya berhenti membalas pelanggan)" : ` (sisa ${sisa ?? "∞"} balasan AI)`}` : `paket ${hak.paket} yang masih aktif`;
-  return `Lawan bicara ini pemilik akun ${MEREK} "${u.nama || "-"}" (email login ${u.email}), ${paket}. Bot-nya sudah mengirim ${pakai.balasan} balasan AI ke ${pakai.pelanggan} pelanggan. Bila ia mau mengaktifkan lagi, bantu memilih paket yang pas lalu arahkan ke ${asal()}/langganan (login dengan email tadi). Jangan memaksa.`;
+  return `Lawan bicara ini pemilik akun ${MEREK} "${u.nama || "-"}" (email login ${u.email}), ${paket}. Bot-nya sudah mengirim ${pakai.balasan} balasan AI ke ${pakai.pelanggan} pelanggan. Bila ia mau mengaktifkan lagi, bantu memilih paket yang pas lalu arahkan ke ${asal()}/${hak.sampai === null && sisa === 0 ? "trial-habis" : "langganan"} (login dengan email tadi). Jangan memaksa.`;
 }
 
 async function pesanMasuk(d: { numberId: number; kunci: string; teks: string; telepon: string | null }): Promise<string | null> {

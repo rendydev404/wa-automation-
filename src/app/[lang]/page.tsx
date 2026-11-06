@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ArrowRight, BookOpenText, Camera, Check, GraduationCap, Hand, History, Lock, MessageSquareLock, ShieldCheck, Smartphone, TriangleAlert, Zap } from "lucide-react";
 import { GantiBahasa } from "@/components/ganti-bahasa";
 import { DemoAlur, DemoChat } from "@/components/landing/demo";
-import { HargaLanding } from "@/components/landing/harga";
+import { BandingLanding, HargaLanding } from "@/components/landing/harga";
 import Link from "@/components/link";
 import { Logo } from "@/components/logo";
 import { alasanSyarat, judulSyarat, syaratNomor } from "@/components/syarat-nomor";
@@ -289,6 +289,25 @@ export default async function Landing() {
             </article>
           ))}
         </div>
+      </section>
+
+      {/* ---------- Gaji admin vs ChatGerCep (jangkar harga sebelum cara kerja & daftar harga) ---------- */}
+      <section id="banding-biaya" aria-labelledby="judul-banding" className="mx-auto max-w-[1200px] scroll-mt-8 px-4 pb-20 sm:px-6 lg:pb-28">
+        <div className="max-w-2xl">
+          <p className="text-[12px] font-bold tracking-[0.1em] text-accent uppercase">{t("Bandingkan biayanya", "Compare the cost")}</p>
+          <h2 id="judul-banding" className="mt-2 text-3xl font-extrabold tracking-tight sm:text-[40px]">
+            {t("Gaji 1 admin CS sebulan bisa untuk ChatGerCep bertahun-tahun.", "One CS admin's monthly salary covers ChatGerCep for years.")}
+          </h2>
+          <p className="mt-3 text-[16px] text-muted">
+            {t(
+              "Admin CS hanya bekerja 8 jam, butuh gaji, BPJS, dan THR, dan tetap bisa telat membalas. Hitung sendiri berapa yang bisa Anda hemat.",
+              "A CS admin works 8 hours, needs a salary, insurance, and a holiday bonus, and can still reply late. Work out how much you could save.",
+            )}
+          </p>
+        </div>
+        <Suspense fallback={<div aria-hidden className="mt-10 h-[34rem] animate-denyut rounded-3xl bg-subtle" />}>
+          <BandingLanding />
+        </Suspense>
       </section>
 
       {/* ---------- Cara kerja (gelap, Remotion interaktif) ---------- */}

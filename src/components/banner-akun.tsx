@@ -126,7 +126,8 @@ export async function BannerKuota() {
 
   // Akun gratis yang AI-nya sudah berhenti: tombol chat CS di WhatsApp dengan kode akun (pengguna yang chat duluan
   // adalah jalur paling aman; kodenya menautkan chat itu ke akun ini dari HP mana pun, lihat followup.ts).
-  const chatCs = hak.sampai === null && (hak.percobaanBerakhir || sisa === 0) ? await tautanChatCs(user.id).catch(() => null) : null;
+  const habisGratis = hak.sampai === null && (hak.percobaanBerakhir || sisa === 0);
+  const chatCs = habisGratis ? await tautanChatCs(user.id).catch(() => null) : null;
 
   return (
     <div role="alert" className="flex flex-col gap-3 rounded-2xl border border-danger/30 bg-danger-soft px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
@@ -144,8 +145,9 @@ export async function BannerKuota() {
             {t("Chat CS di WhatsApp", "Chat support on WhatsApp")}
           </a>
         )}
-        <Link href="/langganan" className="btn btn-primary">
-          {t("Lihat paket", "View plans")}
+        {/* Akun gratis yang AI-nya berhenti: ke halaman hasil trial + pilihan paket, bukan langsung ke tagihan. */}
+        <Link href={habisGratis ? "/trial-habis" : "/langganan"} className="btn btn-primary">
+          {habisGratis ? t("Nyalakan AI lagi", "Turn the AI back on") : t("Lihat paket", "View plans")}
         </Link>
       </div>
     </div>

@@ -627,7 +627,7 @@ await cek("kuota balasan AI akun gratis habis: AI diam, pemberitahuan berlanggan
   assert.ok(["555000305@lid", "555000315@lid"].includes(baru[0].jid), `dikirim ke chat yang sedang masuk (${baru[0].jid})`);
   assert.match(baru[0].isi.text, /Asisten AI WhatsApp Kamu Sudah Berhenti Membalas/);
   assert.match(baru[0].isi.text, /Cukup mulai Rp\d[\d.]* untuk \d+ hari/, "harga paket termurah dari database");
-  assert.match(baru[0].isi.text, /https?:\/\/\S+\/langganan/);
+  assert.match(baru[0].isi.text, /https?:\/\/\S+\/trial-habis/);
   tiba(sA, pesan("555000305@lid", "halo? masih ada orang?"));
   await tidur(750);
   assert.equal(sA.terkirim.length, kirim0 + 1, "pesan berikutnya selama kuota habis: tidak ada pemberitahuan lagi");

@@ -356,6 +356,7 @@ function statistik(numberId: number, kolom: "masuk" | "dibalas" | "gagal"): void
  * Pemberitahuan sekali kirim saat kuota balasan AI akun trial/gratis habis (klaimPemberitahuanKuota menjamin sekali per
  * periode kuota). Dikirim sebagai balasan di chat yang sedang masuk, jadi bukan pesan tanpa diminta. Isinya ajakan
  * berlangganan untuk pemilik nomor; harga "mulai" diambil dari paket aktif termurah (tanpa harga bila belum ada paket).
+ * Tautannya ke /trial-habis (hasil trial + pilihan paket), bukan langsung ke halaman tagihan.
  */
 export function teksKuotaHabis(mulai: { harga: number; hari: number } | null = null): string {
   const asal = (process.env.APP_URL || "https://chatgercep.com").replace(/\/+$/, "");
@@ -381,7 +382,7 @@ export function teksKuotaHabis(mulai: { harga: number; hari: number } | null = n
     "",
     ...(mulai ? [`🔥 *Cukup mulai ${uang(mulai.harga)} untuk ${mulai.hari} hari*, lebih murah dari satu pesanan yang hilang.`, ""] : []),
     "Aktifkan sekarang supaya tidak ada pembeli yang lepas lagi:",
-    `👉 ${asal}/langganan`,
+    `👉 ${asal}/trial-habis`,
     "",
     `*${MEREK} — Bales WA Pakai AI, Tidak Pernah Segercep Ini!*`,
   ].join("\n");

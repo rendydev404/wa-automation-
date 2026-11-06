@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 import { COOKIE_REF, UMUR_COOKIE_REF, normalkanKodeRef } from "@/lib/afiliasi-def";
 import { type Bahasa, HEADER_BAHASA, bahasaSah, tautan, urai } from "@/lib/bahasa";
+import { jalurLanjut } from "@/lib/lanjut";
 
 // /api/sinkron dipanggil database (bukan browser); keabsahannya dicek lewat tanda tangan HMAC di handler-nya.
 // "/" = landing page publik; /api/auth/google* = masuk dengan Google (sebelum ada sesi);
@@ -85,7 +86,11 @@ export async function proxy(request: NextRequest) {
       const pesan = bahasa === "en" ? "Your session has ended. Please sign in again." : "Sesi berakhir. Silakan login kembali.";
       return NextResponse.json({ error: pesan }, { status: 401, headers: { "Cache-Control": "no-store" } });
     }
-    return pasangRef(NextResponse.redirect(new URL(href("/login"), request.url)));
+    // Halaman yang dibuka (mis. /trial-habis dari tautan WhatsApp) dibawa ke /login supaya setelah masuk kembali ke sana.
+    const tujuan = new URL(href("/login"), request.url);
+    const asal = pathname + search;
+    if (pathname !== "/" && request.method === "GET" && jalurLanjut(asal)) tujuan.searchParams.set("lanjut", asal);
+    return pasangRef(NextResponse.redirect(tujuan));
   }
   if (isApi && request.method !== "GET" && request.method !== "HEAD" && !asalSama(request)) {
     return NextResponse.json({ error: bahasa === "en" ? "Invalid request." : "Permintaan tidak valid." }, { status: 403 });

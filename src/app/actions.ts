@@ -26,6 +26,7 @@ import type { Bahasa, T } from "@/lib/bahasa";
 import { alihkanPermintaan, teksPermintaan } from "@/lib/bahasa-server";
 import { authConfigured } from "@/lib/auth";
 import { asalAplikasi, ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
+import { jalurLanjut } from "@/lib/lanjut";
 import { sekarang, setSetting } from "@/lib/db";
 import {
   COOKIE_PIXEL_REG,
@@ -138,7 +139,9 @@ export async function loginAction(_lalu: Hasil | null, form: FormData): Promise<
 
   await catatLoginBerhasil(user.id);
   await mulaiSesi(user, await lewatHttps());
-  redirect(href(halamanAwal(user.peran)));
+  // Kembali ke halaman yang tadi dibuka sebelum diminta login (admin selalu ke panel admin).
+  const lanjut = user.peran === "admin" ? null : jalurLanjut(form.get("lanjut"));
+  redirect(href(lanjut ?? halamanAwal(user.peran)));
 }
 
 export async function daftarAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {

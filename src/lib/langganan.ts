@@ -346,7 +346,8 @@ export async function catatKuotaHabis(userId: number): Promise<boolean> {
     isi: gratis
       ? { id: "AI berhenti membalas pelanggan. Pilih paket berlangganan untuk mengaktifkannya lagi.", en: "The AI has stopped replying to customers. Choose a plan to turn it back on." }
       : { id: "AI berhenti membalas sampai paket diperpanjang atau dinaikkan.", en: "The AI has stopped replying until you renew or upgrade your plan." },
-    tautan: "/langganan",
+    // Akun gratis: ke halaman hasil trial + pilihan paket (diarahkan ke Langganan bila pernah berlangganan).
+    tautan: gratis ? "/trial-habis" : "/langganan",
     kunci: `kuota100:${hak.periodeMulai}:${hak.balasan ?? 0}`,
   });
   return gratis && (await klaimPemberitahuanKuota(userId));

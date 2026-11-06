@@ -10,6 +10,7 @@ import { aturanPercobaan, daftarPaket } from "@/lib/langganan";
 import { kanalAktif, konfigMidtrans } from "@/lib/midtrans";
 import { customTampil, paketCustom, tautanCustom } from "@/lib/paket-custom";
 import { KartuCustom, TombolWaCustom } from "../kartu-custom";
+import { BandingAdminLanding } from "../banding-admin";
 
 
 const hari = (n: number, b: Bahasa) => (b === "en" ? `${n} ${n === 1 ? "day" : "days"}` : `${n} hari`);
@@ -98,4 +99,25 @@ export async function HargaLanding() {
       </p>
     </div>
   );
+}
+
+/**
+ * Perbandingan gaji admin CS vs langganan ChatGerCep (setelah section Fitur). Paket dari database (sama dengan daftar
+ * harga, satu query daftarPaket yang ringan); database tak terjangkau = bagian ini tidak tampil.
+ */
+export async function BandingLanding() {
+  await connection();
+  const { b } = await teksHalaman();
+  let paket, kurs;
+  try {
+    [paket, kurs] = await Promise.all([daftarPaket(), b === "en" ? kursUsd() : Promise.resolve(undefined)]);
+  } catch {
+    return null;
+  }
+  const dijual = paket
+    .filter((p) => p.harga > 0)
+    .sort((x, y) => x.harga - y.harga)
+    .map(({ id, nama, harga, durasi_hari, kuota_balasan }) => ({ id, nama, harga, durasi_hari, kuota_balasan }));
+  if (!dijual.length) return null;
+  return <BandingAdminLanding paket={dijual} kurs={kurs} />;
 }

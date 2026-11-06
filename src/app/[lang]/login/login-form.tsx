@@ -1,16 +1,26 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useSyncExternalStore } from "react";
 import Link from "@/components/link";
 import { loginAction } from "@/app/actions";
 import { useBahasa } from "@/components/bahasa";
 import { Pesan, SubmitButton } from "@/components/ui";
+import { jalurLanjut } from "@/lib/lanjut";
+
+const tanpaLangganan = () => () => {};
 
 export function LoginForm() {
   const { t } = useBahasa();
   const [hasil, aksi] = useActionState(loginAction, null);
+  // ?lanjut= dari proxy (halaman yang dibuka sebelum login); dibaca di klien supaya halaman login tetap statis.
+  const lanjut = useSyncExternalStore(
+    tanpaLangganan,
+    () => jalurLanjut(new URLSearchParams(window.location.search).get("lanjut")) ?? "",
+    () => "",
+  );
   return (
     <form action={aksi} className="space-y-4">
+      {lanjut && <input type="hidden" name="lanjut" value={lanjut} />}
       <div>
         <label htmlFor="email" className="label">
           Email

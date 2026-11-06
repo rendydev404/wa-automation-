@@ -8,6 +8,7 @@ import { bahasaSah, pembuatT } from "@/lib/bahasa";
 import { alihkanHalaman, teksHalaman } from "@/lib/bahasa-halaman";
 import { getUser, halamanAwal } from "@/lib/session";
 import { LoginForm } from "./login-form";
+import { jalurLanjut } from "@/lib/lanjut";
 import { MEREK } from "@/lib/merek";
 
 export async function generateMetadata({ params }: PageProps<"/[lang]/login">): Promise<Metadata> {
@@ -16,14 +17,16 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/login">): 
   return { title: `${t("Masuk", "Sign in")} · ${MEREK}` };
 }
 
-/** Sudah login (sesi benar-benar sah di database)? Langsung ke halaman awalnya (admin: panel admin). */
-async function SudahMasuk() {
+/** Sudah login (sesi benar-benar sah di database)? Langsung ke tujuan ?lanjut= atau halaman awalnya (admin: panel admin). */
+async function SudahMasuk({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await getUser();
-  if (user) await alihkanHalaman(halamanAwal(user.peran));
+  if (!user) return null;
+  const lanjut = user.peran === "admin" ? null : jalurLanjut((await searchParams).lanjut);
+  await alihkanHalaman(lanjut ?? halamanAwal(user.peran));
   return null;
 }
 
-export default async function LoginPage() {
+export default async function LoginPage(props: PageProps<"/[lang]/login">) {
   const { t } = await teksHalaman();
   return (
     <KartuAuth
@@ -39,7 +42,7 @@ export default async function LoginPage() {
       }
     >
       <Suspense fallback={null}>
-        <SudahMasuk />
+        <SudahMasuk searchParams={props.searchParams} />
         <GalatGoogle />
       </Suspense>
       <Suspense fallback={<div aria-hidden className="h-[74px]" />}>

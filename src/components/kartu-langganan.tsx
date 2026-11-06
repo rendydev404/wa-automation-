@@ -73,7 +73,8 @@ export async function KartuLangganan({ tautan = false }: { tautan?: boolean }) {
           </p>
         </div>
         {tautan && hak.paket !== "Admin" && (
-          <Link href="/langganan" className={`btn self-start ${habis || tipis ? "btn-primary" : "btn-ghost border border-line"}`}>
+          // Akun gratis yang AI-nya berhenti: ke halaman hasil trial + pilihan paket (/trial-habis), bukan langsung ke tagihan.
+          <Link href={habis && hak.sampai === null ? "/trial-habis" : "/langganan"} className={`btn self-start ${habis || tipis ? "btn-primary" : "btn-ghost border border-line"}`}>
             {hak.paket === "Gratis" ? t("Pilih paket", "Choose a plan") : habis ? t("Perpanjang paket", "Renew plan") : t("Kelola paket", "Manage plan")}
           </Link>
         )}
