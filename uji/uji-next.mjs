@@ -202,7 +202,11 @@ try {
   }
   const enAnon = await minta("GET", "/eng/dashboard", { headers: { cookie: "" } });
   assert.equal(enAnon.status, 307);
-  assert.match(enAnon.lokasi, /\/eng\/login$/, "tanpa sesi di /eng diarahkan ke /eng/login");
+  // Halaman asal ikut dibawa (?lanjut=, tanpa awalan bahasa) supaya setelah masuk kembali ke sana.
+  assert.match(enAnon.lokasi, /\/eng\/login\?lanjut=%2Fdashboard$/, "tanpa sesi di /eng diarahkan ke /eng/login dengan ?lanjut");
+  const trialAnon = await minta("GET", "/trial-habis", { headers: { cookie: "" } });
+  assert.equal(trialAnon.status, 307);
+  assert.match(trialAnon.lokasi, /\/login\?lanjut=%2Ftrial-habis$/, "tautan WA ke /trial-habis tanpa sesi -> /login?lanjut=/trial-habis");
   const enAdmin = await minta("GET", "/eng/admin/afiliasi", { headers: identitas });
   assert.equal(enAdmin.status, 307, "panel admin hanya berbahasa Indonesia");
   assert.match(enAdmin.lokasi, /^(https?:\/\/[^/]+)?\/admin\/afiliasi$/);
