@@ -410,6 +410,8 @@ await cek("tombol Chat CS: tautan wa.me berkode akun; pesan berkode menautkan ch
   tiba(sCS, pesan(jid("6287700003333"), `halo (Kode akun: ${akun.fajar.id}-ffff)`));
   await tunggu(async () => (await bridge.tulisTuntas(), (await sql`SELECT 1 FROM percakapan WHERE telepon = '6287700003333'`).length), 4000, "chat kode palsu");
   assert.equal((await sql`SELECT cs_kunci FROM users WHERE id = ${akun.fajar.id}`)[0].cs_kunci, null);
+  // Balasan AI CS untuk chat kode palsu ditunggu tuntas, supaya tidak terhitung di uji berikutnya.
+  await tunggu(() => sCS.terkirim.some((k) => k.jid === jid("6287700003333")), 8000, "jawaban CS untuk kode palsu");
 });
 
 await cek("sudah berlangganan sebelum disapa: dibatalkan tanpa pesan", async () => {
@@ -426,11 +428,13 @@ await cek("sudah berlangganan sebelum disapa: dibatalkan tanpa pesan", async () 
 
 await cek("pengguna chat CS duluan setelah kuota habis: follow-up dibatalkan", async () => {
   await sql`UPDATE followup SET dibuat = ${kini() - 3600} WHERE user_id = ${akun.gita.id}`;
-  const awal = sCS.terkirim.length;
+  // Dihitung hanya kiriman ke chat Gita: balasan AI CS untuk chat lain (uji sebelumnya) bisa tiba kapan saja.
+  const keGita = () => sCS.terkirim.filter((k) => k.jid === jid(akun.gita.wa)).length;
+  const awal = keGita();
   tiba(sCS, pesan(jid(akun.gita.wa), "kak kuota saya habis nih"));
-  await tunggu(() => sCS.terkirim.length > awal, 8000, "jawaban CS");
+  await tunggu(() => keGita() > awal, 8000, "jawaban CS");
   await putaranUntuk(akun.gita.id);
-  assert.equal(sCS.terkirim.length, awal + 1, "hanya jawaban CS, tanpa follow-up");
+  assert.equal(keGita(), awal + 1, "hanya jawaban CS, tanpa follow-up");
   assert.equal((await baris(akun.gita.id)).alasan, "Pengguna sudah chat CS duluan");
 });
 
