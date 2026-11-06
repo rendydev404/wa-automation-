@@ -43,7 +43,17 @@ const UMUR_PEMILIK_MS = 5 * 60_000;
 const g = globalThis as unknown as {
   __waVapid?: Promise<Vapid>;
   __waPushPemilik?: { ids: Set<number>; at: number } | null;
+  __waPushTerima?: Map<string, LaporanTerima>;
 };
+
+/** Laporan service worker setelah menerima push (diagnosis "terkirim tapi tidak muncul"). Hanya di memori. */
+export interface LaporanTerima {
+  at: number;
+  tampil: boolean;
+  izin: string | null;
+  galat: string | null;
+}
+const terima = (g.__waPushTerima ??= new Map());
 
 function subjek(): string {
   const env = process.env.VAPID_SUBJECT?.trim();
@@ -182,4 +192,31 @@ export async function kirimPush(userIds: number[], isi: IsiPush | ((userId: numb
     console.warn("[push] gagal:", e instanceof Error ? e.message : e);
   }
   return hasil;
+}
+
+/** Catat laporan terima dari service worker perangkat milik userId (endpoint harus terdaftar atas nama akun itu). */
+export async function catatTerima(userId: number, endpoint: string, lap: Omit<LaporanTerima, "at">): Promise<boolean> {
+  const sql = await db();
+  const [p] = await sql<{ id: number }[]>`SELECT id FROM push_langganan WHERE user_id = ${userId} AND endpoint = ${endpoint}`;
+  if (!p) return false;
+  if (terima.size > 500) terima.clear();
+  terima.set(endpoint, { ...lap, at: Date.now() });
+  console.log(`[push] diterima perangkat=#${p.id} tampil=${lap.tampil ? "ya" : "tidak"} izin=${lap.izin ?? "-"}${lap.galat ? ` galat=${lap.galat}` : ""}`);
+  return true;
+}
+
+/** Nama singkat perangkat dari user agent, mis. "Chrome · Android". */
+export function namaPerangkat(ua: string | null): string {
+  if (!ua) return "Perangkat";
+  const os = /Android/.test(ua) ? "Android" : /iPhone|iPad|iPod/.test(ua) ? "iPhone" : /Windows/.test(ua) ? "Windows" : /Mac OS X/.test(ua) ? "Mac" : /Linux/.test(ua) ? "Linux" : "";
+  const br = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /SamsungBrowser/.test(ua) ? "Samsung Internet" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "Browser";
+  return os ? `${br} · ${os}` : br;
+}
+
+/** Perangkat milik userId beserta laporan terima terakhir (untuk tombol Uji). */
+export async function statusPerangkat(userId: number): Promise<{ id: number; nama: string; endpoint: string; terima: LaporanTerima | null }[]> {
+  const sql = await db();
+  const rows = await sql<{ id: number; endpoint: string; perangkat: string | null }[]>`
+    SELECT id, endpoint, perangkat FROM push_langganan WHERE user_id = ${userId} ORDER BY id`;
+  return rows.map((r) => ({ id: r.id, nama: namaPerangkat(r.perangkat), endpoint: r.endpoint, terima: terima.get(r.endpoint) ?? null }));
 }

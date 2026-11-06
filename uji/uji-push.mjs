@@ -103,6 +103,18 @@ try {
   // Admin kedua tetap dapat notifikasi lonceng walau tanpa perangkat push.
   assert.equal((await sql`SELECT COUNT(*)::int AS n FROM notifikasi WHERE user_id = ${admin2.id}`)[0].n, 1);
 
+  // --- Laporan terima dari service worker: hanya untuk perangkat milik akun itu ---
+  assert.equal(await push.catatTerima(admin2.id, hp.langganan.endpoint, { tampil: true, izin: "granted", galat: null }), false, "endpoint akun lain ditolak");
+  assert.equal(await push.catatTerima(admin.id, hp.langganan.endpoint, { tampil: false, izin: "denied", galat: "x" }), true);
+  const st = await push.statusPerangkat(admin.id);
+  assert.equal(st.length, 2);
+  assert.equal(st.find((p) => p.id === idHp).nama, "Browser · Android");
+  assert.deepEqual({ ...st.find((p) => p.id === idHp).terima, at: 0 }, { at: 0, tampil: false, izin: "denied", galat: "x" });
+  assert.equal(st.find((p) => p.id !== idHp).terima, null);
+  assert.equal(push.namaPerangkat("Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Mobile Safari/537.36"), "Chrome · Android");
+  assert.equal(push.namaPerangkat("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0"), "Edge · Windows");
+  assert.equal(push.namaPerangkat("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"), "Safari · iPhone");
+
   // --- Notifikasi untuk pengguna tanpa perangkat: tidak ada pengiriman dan tidak ada query push ---
   diterima.length = 0;
   const t0 = performance.now();

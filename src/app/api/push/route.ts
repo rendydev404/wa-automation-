@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { lewatHttps, terlaluSering } from "@/lib/batas";
-import { COOKIE_PUSH, hapusLangganan, kirimPush, kunciPublikPush, simpanLangganan, uraiLangganan } from "@/lib/push";
+import { COOKIE_PUSH, catatTerima, hapusLangganan, kirimPush, kunciPublikPush, simpanLangganan, statusPerangkat, uraiLangganan } from "@/lib/push";
 import { getUser } from "@/lib/session";
 
 const tanpaCache = { "Cache-Control": "no-store" };
@@ -13,10 +13,33 @@ async function admin() {
 
 const tolak = () => NextResponse.json({ error: "Hanya admin yang bisa memakai notifikasi push." }, { status: 403, headers: tanpaCache });
 
-/** GET: kunci publik VAPID untuk browser. Khusus admin. */
-export async function GET() {
-  if (!(await admin())) return tolak();
+/**
+ * GET: kunci publik VAPID untuk browser. Khusus admin.
+ * GET ?status=1: perangkat akun ini + laporan terima terakhir dari service worker-nya (diagnosis tombol Uji).
+ */
+export async function GET(req: Request) {
+  const user = await admin();
+  if (!user) return tolak();
+  if (new URL(req.url).searchParams.get("status")) {
+    const daftar = await statusPerangkat(user.id);
+    const perangkat = daftar.map((p) => ({ id: p.id, nama: p.nama, terima: p.terima }));
+    return NextResponse.json({ perangkat, kini: Date.now() }, { headers: tanpaCache });
+  }
   return NextResponse.json({ kunci: await kunciPublikPush() }, { headers: tanpaCache });
+}
+
+/** PUT {endpoint, tampil, izin, galat}: laporan dari service worker bahwa push sampai di perangkat (dan tampil atau tidak). */
+export async function PUT(req: Request) {
+  const user = await getUser();
+  if (!user) return NextResponse.json({ ok: false }, { status: 401, headers: tanpaCache });
+  const b = (await req.json().catch(() => ({}))) as { endpoint?: unknown; tampil?: unknown; izin?: unknown; galat?: unknown };
+  if (typeof b.endpoint !== "string" || b.endpoint.length > 1000) return NextResponse.json({ ok: false }, { status: 400, headers: tanpaCache });
+  const ok = await catatTerima(user.id, b.endpoint, {
+    tampil: b.tampil === true,
+    izin: typeof b.izin === "string" ? b.izin.slice(0, 20) : null,
+    galat: typeof b.galat === "string" ? b.galat.slice(0, 200) : null,
+  });
+  return NextResponse.json({ ok }, { headers: tanpaCache });
 }
 
 /**

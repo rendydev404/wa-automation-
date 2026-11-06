@@ -8,6 +8,12 @@ import { BellOff, BellRing, Loader2, Send, Smartphone } from "lucide-react";
  * menekan "Aktifkan", jadi pengguna biasa dan admin yang tidak memakainya tidak memuat apa pun.
  */
 
+interface HasilUji {
+  id: number;
+  nama: string;
+  terima: { at: number; tampil: boolean; izin: string | null; galat: string | null } | null;
+}
+
 type Keadaan = "memuat" | "tidak-didukung" | "ios-pasang" | "diblokir" | "mati" | "aktif";
 
 const KUNCI_SINKRON = "wa_push_sinkron";
@@ -39,7 +45,10 @@ const kirimKeServer = (s: PushSubscription) =>
  */
 export function useSinkronPush(aktif: boolean) {
   useEffect(() => {
-    if (!aktif || sudahSinkron || !didukung() || Notification.permission !== "granted") return;
+    if (!aktif || sudahSinkron || !didukung()) return;
+    // Service worker versi baru langsung dipasang (tanpa menunggu pemeriksaan berkala browser).
+    void navigator.serviceWorker.getRegistration("/").then((r) => r?.update()).catch(() => {});
+    if (Notification.permission !== "granted") return;
     sudahSinkron = true;
     if (sessionStorage.getItem(KUNCI_SINKRON)) return;
     void langgananSaatIni()
@@ -54,6 +63,7 @@ export function PengaturPush() {
   const [keadaan, setKeadaan] = useState<Keadaan>("memuat");
   const [sibuk, setSibuk] = useState(false);
   const [pesan, setPesan] = useState<string | null>(null);
+  const [hasilUji, setHasilUji] = useState<HasilUji[] | null>(null);
 
   useEffect(() => {
     let hidup = true;
@@ -124,10 +134,34 @@ export function PengaturPush() {
   const uji = async () => {
     setSibuk(true);
     setPesan(null);
+    setHasilUji(null);
     try {
+      const mulai = Date.now();
       const r = await fetch("/api/push", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ uji: true }) });
-      const d = (await r.json().catch(() => ({}))) as { terkirim?: number; error?: string };
-      setPesan(!r.ok ? (d.error ?? "Gagal mengirim uji.") : d.terkirim ? `Terkirim ke ${d.terkirim} perangkat.` : "Belum ada perangkat yang terdaftar.");
+      const d = (await r.json().catch(() => ({}))) as { terkirim?: number; gagal?: number; error?: string };
+      if (!r.ok) return setPesan(d.error ?? "Gagal mengirim uji.");
+      if (!d.terkirim) return setPesan(d.gagal ? "Layanan push menolak semua perangkat. Matikan lalu aktifkan lagi." : "Belum ada perangkat yang terdaftar.");
+      setPesan(`Terkirim ke ${d.terkirim} perangkat. Menunggu laporan dari perangkat…`);
+      // Service worker melapor balik saat push sampai (lihat public/sw.js); tunggu sampai semua melapor atau 12 dtk.
+      let daftar: HasilUji[] = [];
+      for (const jeda of [1500, 1500, 2000, 3000, 4000]) {
+        await new Promise((x) => setTimeout(x, jeda));
+        const s = await fetch("/api/push?status=1", { cache: "no-store" });
+        if (!s.ok) break;
+        const st = (await s.json()) as { perangkat: { id: number; nama: string; terima: { at: number; tampil: boolean; izin: string | null; galat: string | null } | null }[]; kini: number };
+        const geser = st.kini - Date.now(); // jam server vs jam perangkat
+        daftar = st.perangkat.map((p) => ({ id: p.id, nama: p.nama, terima: p.terima && p.terima.at - geser >= mulai - 1000 ? p.terima : null }));
+        setHasilUji(daftar);
+        if (daftar.every((p) => p.terima)) break;
+      }
+      const sampai = daftar.filter((p) => p.terima).length;
+      setPesan(
+        sampai === daftar.length
+          ? daftar.every((p) => p.terima?.tampil)
+            ? "Semua perangkat menerima dan menampilkan notifikasi."
+            : "Push sampai, tapi ada perangkat yang gagal menampilkan (lihat di bawah)."
+          : "Ada perangkat yang belum menerima. Pastikan browser-nya terbuka/berjalan, notifikasi Chrome tidak dimatikan di pengaturan HP/Windows, dan mode Jangan Ganggu mati.",
+      );
     } catch {
       setPesan("Gagal mengirim uji.");
     } finally {
@@ -179,6 +213,24 @@ export function PengaturPush() {
         <p role="status" className="mt-1.5 text-[12px] text-muted">
           {pesan}
         </p>
+      )}
+      {hasilUji && hasilUji.length > 0 && (
+        <ul className="mt-1.5 space-y-0.5 text-[12px]">
+          {hasilUji.map((p) => (
+            <li key={p.id} className="flex items-start justify-between gap-2">
+              <span className="text-fg">
+                #{p.id} {p.nama}
+              </span>
+              <span className={!p.terima ? "text-muted" : p.terima.tampil ? "text-success" : "text-danger"}>
+                {!p.terima
+                  ? "belum ada laporan"
+                  : p.terima.tampil
+                    ? "diterima & tampil"
+                    : `diterima, gagal tampil${p.terima.izin && p.terima.izin !== "granted" ? ` (izin: ${p.terima.izin})` : ""}${p.terima.galat ? `: ${p.terima.galat}` : ""}`}
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
