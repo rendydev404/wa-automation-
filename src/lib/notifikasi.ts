@@ -1,5 +1,6 @@
 import "server-only";
 import { db, sekarang } from "./db";
+import { kirimPush } from "./push";
 
 /**
  * Notifikasi in-app (lonceng di dashboard). Dibuat oleh aktivitas di server: pembayaran, paket, kuota AI, bonus dari
@@ -76,11 +77,16 @@ export async function kirimNotif(userIds: number | number[], n: IsiNotif): Promi
       kunci: n.kunci ?? null,
       dibuat: kini,
     }));
-    const masuk = await sql<{ user_id: number }[]>`
+    const masuk = await sql<{ id: number; user_id: number }[]>`
       INSERT INTO notifikasi ${sql(baris)}
       ON CONFLICT (user_id, kunci) WHERE kunci IS NOT NULL DO NOTHING
-      RETURNING user_id`;
+      RETURNING id::int AS id, user_id`;
     for (const r of masuk) ubahBelum(r.user_id, (n) => n + 1);
+    // Push ke perangkat admin yang mendaftar (push.ts); tanpa perangkat terdaftar = tanpa query tambahan. Tidak ditunggu.
+    if (masuk.length) {
+      const idNotif = new Map(masuk.map((r) => [r.user_id, r.id]));
+      void kirimPush([...idNotif.keys()], (uid) => ({ id: idNotif.get(uid), judul: n.judul.id, isi: n.isi?.id, tautan: n.tautan ?? null }));
+    }
   } catch (e) {
     console.warn("[notifikasi] gagal disimpan:", e instanceof Error ? e.message : e);
   }

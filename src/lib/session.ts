@@ -7,6 +7,7 @@ import { SESSION_COOKIE, SESSION_MAX_AGE, createSessionToken, passwordFingerprin
 import { db, getSetting, sekarang } from "./db";
 import { hakAkun } from "./langganan";
 import { hashPassword } from "./password";
+import { COOKIE_PUSH, hapusLangganan } from "./push";
 
 export type Peran = "admin" | "user";
 
@@ -103,7 +104,15 @@ export async function mulaiSesi(user: Pick<UserRow, "id" | "password_hash" | "se
 }
 
 export async function akhiriSesi(): Promise<void> {
-  (await cookies()).delete(SESSION_COOKIE);
+  const kue = await cookies();
+  // Push notification di perangkat ini ikut dimatikan (push.ts): perangkat bersama tidak terus menerima notifikasi admin.
+  const idPush = Number(kue.get(COOKIE_PUSH)?.value);
+  if (Number.isInteger(idPush) && idPush > 0) {
+    const user = await getUser();
+    if (user) await hapusLangganan(user.id, { id: idPush }).catch(() => {});
+    kue.delete(COOKIE_PUSH);
+  }
+  kue.delete(SESSION_COOKIE);
 }
 
 // ---------- Kunci akun setelah login gagal beruntun ----------

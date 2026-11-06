@@ -9,7 +9,13 @@ import { requireAdmin } from "@/lib/session";
 import { NavAdmin, NavAdminBawah } from "./nav-admin";
 import { MEREK } from "@/lib/merek";
 
-export const metadata: Metadata = { title: `Panel admin · ${MEREK}` };
+// Manifest hanya di panel admin: admin bisa memasang panel ke layar utama (syarat push di iPhone), sedangkan landing
+// page dan dashboard pengguna tidak menjadi "aplikasi yang bisa dipasang".
+export const metadata: Metadata = {
+  title: `Panel admin · ${MEREK}`,
+  manifest: "/admin.webmanifest",
+  appleWebApp: { capable: true, title: "GerCep Admin" },
+};
 export const viewport: Viewport = { themeColor: "#0b1813" };
 
 /** Pemeriksa akses: bukan admin = 404 (keberadaan panel tidak dibocorkan). Di dalam Suspense supaya rangka tetap statis. */
@@ -24,8 +30,8 @@ export default function LayoutAdmin({ children }: LayoutProps<"/[lang]/admin">) 
     <Rangka
       beranda="/admin"
       lencana="Admin"
-      aksiSidebar={<LoncengNotifikasi gelap />}
-      aksiAtas={<LoncengNotifikasi gelap />}
+      aksiSidebar={<LoncengNotifikasi gelap push />}
+      aksiAtas={<LoncengNotifikasi gelap push />}
       bawah={
         <Suspense fallback={<NavBawahKerangka />}>
           <NavAdminBawah />

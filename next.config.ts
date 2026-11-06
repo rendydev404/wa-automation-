@@ -63,6 +63,8 @@ const nextConfig: NextConfig = {
     return [
       // Logo kanal pembayaran: berkas statis kecil, disimpan browser seminggu (ganti logo = ganti nama berkas).
       { source: "/logo-bayar/:berkas", headers: [{ key: "Cache-Control", value: "public, max-age=604800" }] },
+      // Service worker push admin: selalu dicek ulang supaya perubahan langsung terpakai.
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }, { key: "Content-Type", value: "application/javascript; charset=utf-8" }] },
       {
         source: "/:path*",
         headers: [

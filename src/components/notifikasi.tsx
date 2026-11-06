@@ -6,6 +6,7 @@ import { Bell, CalendarClock, CheckCheck, CreditCard, Gauge, Gift, HandCoins, Lo
 import Link from "@/components/link";
 import { waktuSingkatWib } from "@/lib/format";
 import { useBahasa, useRouterBahasa } from "./bahasa";
+import { PengaturPush, useSinkronPush } from "./push-admin";
 import { useWaStatus } from "./wa-status";
 
 /** Bentuk notifikasi dari /api/notifikasi (lihat src/lib/notifikasi.ts). */
@@ -79,10 +80,11 @@ export function useBukaNotif(setelah?: (belum: number) => void) {
 /**
  * Lonceng notifikasi di bilah atas (HP) dan sidebar (desktop). Jumlah belum dibaca ikut di polling status WhatsApp
  * yang sudah berjalan; di panel admin (tanpa polling itu) ditanyakan sendiri tiap 60 dtk selama tab terlihat.
- * Daftar baru dimuat saat panel dibuka.
+ * Daftar baru dimuat saat panel dibuka. `push` (panel admin): pengaturan push notification di perangkat ini.
  */
-export function LoncengNotifikasi({ gelap = false, awal = 0 }: { gelap?: boolean; awal?: number }) {
+export function LoncengNotifikasi({ gelap = false, awal = 0, push = false }: { gelap?: boolean; awal?: number; push?: boolean }) {
   const { t } = useBahasa();
+  useSinkronPush(push);
   const { data } = useWaStatus();
   const [buka, setBuka] = useState(false);
   // Hitungan lokal (setelah membaca / dari polling sendiri) berlaku sampai polling status berikutnya membawa data baru.
@@ -226,6 +228,7 @@ export function LoncengNotifikasi({ gelap = false, awal = 0 }: { gelap?: boolean
               )}
               {memuat && daftar !== null && <p className="sr-only">{t("Memuat…", "Loading…")}</p>}
             </div>
+            {push && <PengaturPush />}
             <Link href="/notifikasi" onClick={() => setBuka(false)} className="block border-t border-line px-4 py-3 text-center text-[12.5px] font-semibold text-accent hover:bg-subtle/60">
               {t("Lihat semua notifikasi", "View all notifications")}
             </Link>
