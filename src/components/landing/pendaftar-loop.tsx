@@ -53,8 +53,8 @@ function acak(n: number): number[] {
 /**
  * Kartu di pojok kiri bawah hero yang bergantian tanpa henti: pendaftar terbaru, lalu satu ajakan coba (teks acak),
  * lalu pendaftar berikutnya, dan seterusnya. Pergantian mengikuti akhir animasi CSS (globals.css, .kartu-pendaftar),
- * jadi tanpa timer, dan hover cukup menjedakan animasinya. Begitu hero lewat saat di-scroll, kartu menempel di pojok
- * kiri bawah layar (fixed) sampai pengunjung kembali ke atas. Data dimuat setelah halaman tampil supaya landing tetap
+ * jadi tanpa timer, dan hover cukup menjedakan animasinya. Selama tempat aslinya di hero tidak terlihat (sudah lewat
+ * saat di-scroll, atau di bawah lipatan layar), kartu menempel di pojok kiri bawah layar; di HP di atas tombol WhatsApp. Data dimuat setelah halaman tampil supaya landing tetap
  * statis. Gerakan dikurangi: animasi mati, kartu diam menampilkan kartu pertama.
  */
 export function PendaftarLoop() {
@@ -84,13 +84,29 @@ export function PendaftarLoop() {
     };
   }, []);
 
-  // Hero sudah lewat (jangkar di atas layar) = menempel; kembali ke hero = ikut hero lagi. Tanpa event scroll.
+  // Tempat asli kartu (pojok kiri bawah hero) tidak terlihat, entah belum sampai (desktop: di bawah lipatan) atau sudah
+  // lewat: kartu menempel di pojok layar. Dicek saat scroll/ubah ukuran, paling sering sekali per frame. (Bukan
+  // IntersectionObserver: lompatan scroll jauh dari bawah layar langsung ke atasnya tidak memicu callback.)
   useEffect(() => {
     const el = jangkar.current;
     if (!el) return;
-    const io = new IntersectionObserver(([e]) => setMenempel(!e.isIntersecting && e.boundingClientRect.top < 0));
-    io.observe(el);
-    return () => io.disconnect();
+    let bingkai = 0;
+    const cek = () => {
+      bingkai = 0;
+      const r = el.getBoundingClientRect();
+      setMenempel(r.top < 0 || r.bottom > window.innerHeight);
+    };
+    const jadwal = () => {
+      if (!bingkai) bingkai = requestAnimationFrame(cek);
+    };
+    cek();
+    window.addEventListener("scroll", jadwal, { passive: true });
+    window.addEventListener("resize", jadwal, { passive: true });
+    return () => {
+      if (bingkai) cancelAnimationFrame(bingkai);
+      window.removeEventListener("scroll", jadwal);
+      window.removeEventListener("resize", jadwal);
+    };
   }, []);
 
   const promo = PROMO(t);
@@ -107,7 +123,7 @@ export function PendaftarLoop() {
         <div
           className={`pointer-events-none z-40 ${
             menempel
-              ? "fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 max-w-[calc(100%-6.5rem)] sm:bottom-6 sm:left-6 sm:max-w-sm"
+              ? "fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-4 max-w-[calc(100%-2rem)] sm:left-6 sm:max-w-sm lg:bottom-6"
               : "absolute bottom-2.5 left-4 max-w-[calc(100%-2rem)] sm:left-6 lg:bottom-8"
           }`}
         >
