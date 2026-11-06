@@ -12,7 +12,7 @@ function Gelembung({ teks, label }: { teks: string; label: string }) {
   return (
     <div>
       <p className="mb-1 text-[11px] font-semibold tracking-[0.06em] text-muted uppercase">{label}</p>
-      <div className="max-w-xl rounded-2xl rounded-tl-sm border border-line bg-success-soft/40 px-3.5 py-2.5 text-[13px] leading-relaxed whitespace-pre-wrap text-fg">
+      <div className="max-w-xl rounded-2xl rounded-tl-sm border border-line bg-success-soft/40 px-3.5 py-2.5 text-[13px] leading-relaxed break-words whitespace-pre-wrap text-fg [overflow-wrap:anywhere]">
         {baris.map((b, i) =>
           /^\*[^*\n]+\*$/.test(b) ? <strong key={i}>{b.slice(1, -1)}</strong> : /^_[^_\n]+_$/.test(b) ? <em key={i}>{b.slice(1, -1)}</em> : <span key={i}>{b}</span>,
         )}

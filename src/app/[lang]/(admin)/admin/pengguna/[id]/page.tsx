@@ -248,7 +248,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                           <span className="block font-semibold tabular-nums">+{angka(x.jumlah)} balasan</span>
                           {x.catatan && <span className="block truncate text-muted">{x.catatan}</span>}
                         </span>
-                        <span className="shrink-0 text-right text-[11.5px] text-faint">
+                        <span className="max-w-[45%] min-w-0 shrink text-right text-[11.5px] text-faint">
                           {tanggal(x.dibuat)}
                           {x.oleh_email && <span className="block truncate">{x.oleh_email}</span>}
                         </span>
@@ -286,7 +286,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             </section>
           )}
           {!diriSendiri && (
-            <section className="card border-danger/30 p-6">
+            <section className="card border-danger/30 p-4 sm:p-6">
               <h2 className="text-[15px] font-bold text-danger">Hapus akun</h2>
               <p className="mt-0.5 text-[13px] text-muted">Semua nomor, knowledge, dan histori percakapannya ikut terhapus permanen.</p>
               <div className="mt-4">

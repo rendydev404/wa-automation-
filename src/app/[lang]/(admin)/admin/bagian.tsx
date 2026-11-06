@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ArrowDown, Bot, ChevronRight, Package, ShieldCheck, Sparkles, UserPlus, Wallet } from "lucide-react";
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
-import { type FilterPengguna, daftarLog, daftarPengguna, hitungPengguna } from "@/lib/pengguna";
+import { type FilterPengguna, daftarLog, daftarPengguna, hitungPaketPengguna, hitungPengguna } from "@/lib/pengguna";
+import { SaringPaket } from "./pengguna/saring-paket";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
 import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, SaklarKanal, TombolHapusPengguna } from "./form-admin";
 import { customTampil, hargaAngka, paketCustom } from "@/lib/paket-custom";
@@ -172,7 +173,7 @@ export async function KelolaPaket() {
       <p className="mt-0.5 text-[13px] text-muted">Perubahan berlaku untuk pembelian berikutnya; pelanggan yang sedang aktif tetap memakai kuota saat ia membeli.</p>
       <details className="mt-4 rounded-xl border border-accent/30 bg-accent-soft/30" open>
         <summary className="cursor-pointer px-4 py-3 text-[13.5px] font-semibold text-accent">Margin keuntungan & simulasi paket (pratinjau langsung)</summary>
-        <div className="border-t border-accent/20 bg-surface p-3 sm:p-4">
+        <div className="border-t border-accent/20 bg-surface p-2 sm:p-4">
           <SimulasiHarga
             paket={paket.map((p) => ({
               id: p.id,
@@ -308,14 +309,25 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
   const sp = await searchParams;
   const cari = typeof sp.q === "string" ? sp.q : "";
   const filter = (FILTER.find((f) => f.nilai === sp.f)?.nilai ?? "semua") as FilterPengguna;
+  const paket = typeof sp.p === "string" ? sp.p.slice(0, 122) : "";
   const sebelum = Number(sp.sebelum);
-  const [{ daftar, adaLagi }, jumlah] = await Promise.all([
-    daftarPengguna({ cari, filter, sebelumId: Number.isInteger(sebelum) && sebelum > 0 ? sebelum : undefined }),
-    hitungPengguna({ cari }),
+  const [{ daftar, adaLagi }, jumlah, perPaket] = await Promise.all([
+    daftarPengguna({ cari, filter, paket, sebelumId: Number.isInteger(sebelum) && sebelum > 0 ? sebelum : undefined }),
+    hitungPengguna({ cari, paket }),
+    hitungPaketPengguna({ cari, filter }),
   ]);
+  const angkaId = (n: number) => n.toLocaleString("id-ID");
+  const opsiPaket = [
+    { id: "", label: "Semua paket" },
+    { id: "g", label: "Gratis", lencana: angkaId(perPaket.gratis) },
+    { id: "b", label: "Berbayar (semua paket)", lencana: angkaId(perPaket.berbayar) },
+    ...perPaket.paket.map((x) => ({ id: `n:${x.nama}`, label: x.nama, sub: "Berbayar", lencana: angkaId(x.n) })),
+  ];
+  // Paket yang sedang disaring tapi tidak punya pelanggan di saringan ini tetap tampil sebagai pilihan aktif.
+  if (paket.startsWith("n:") && !opsiPaket.some((o) => o.id === paket)) opsiPaket.push({ id: paket, label: paket.slice(2), sub: "Berbayar", lencana: "0" });
   const tautan = (ubah: Record<string, string | undefined>) => {
     const q = new URLSearchParams();
-    const semua = { q: cari || undefined, f: filter === "semua" ? undefined : filter, ...ubah };
+    const semua = { q: cari || undefined, f: filter === "semua" ? undefined : filter, p: paket || undefined, ...ubah };
     for (const [k, v] of Object.entries(semua)) if (v) q.set(k, v);
     const s = q.toString();
     return s ? `/admin/pengguna?${s}` : "/admin/pengguna";
@@ -323,17 +335,21 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
 
   return (
     <section className="card min-w-0 overflow-hidden">
-      <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <form action="/admin/pengguna" className="flex w-full max-w-sm gap-2">
+      <div className="flex flex-col gap-3 border-b border-line p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex w-full flex-col gap-2 sm:flex-row xl:max-w-xl">
+        <form action="/admin/pengguna" className="flex w-full gap-2 sm:max-w-sm">
           {filter !== "semua" && <input type="hidden" name="f" value={filter} />}
+          {paket && <input type="hidden" name="p" value={paket} />}
           <label htmlFor="cari-pengguna" className="sr-only">
             Cari pengguna
           </label>
           <input id="cari-pengguna" name="q" defaultValue={cari} placeholder="Cari nama atau email…" className="field" />
-          <button type="submit" className="btn btn-ghost border border-line">
+          <button type="submit" className="btn btn-ghost min-h-[2.75rem] border border-line">
             Cari
           </button>
         </form>
+        <SaringPaket nilai={paket} opsi={opsiPaket} param={Object.fromEntries(Object.entries({ q: cari, f: filter === "semua" ? "" : filter }).filter(([, v]) => v))} />
+        </div>
         <nav aria-label="Saring pengguna" className="flex max-w-full gap-1 overflow-x-auto rounded-xl bg-subtle p-1">
           {FILTER.map((f) => (
             <Link
@@ -460,6 +476,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
           Menampilkan <b className="font-semibold text-fg tabular-nums">{daftar.length.toLocaleString("id-ID")}</b> dari{" "}
           <b className="font-semibold text-fg tabular-nums">{jumlah[filter].toLocaleString("id-ID")}</b> pengguna
           {cari ? ` yang cocok dengan "${cari}"` : ""}
+          {paket ? ` · paket: ${opsiPaket.find((o) => o.id === paket)?.label ?? paket.slice(2)}` : ""}
         </p>
         {(adaLagi || sp.sebelum) && (
           <div className="flex gap-2">

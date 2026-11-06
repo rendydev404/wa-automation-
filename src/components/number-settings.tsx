@@ -287,16 +287,21 @@ export function NumberSettings({
                 defaultValue={jedaAwal}
                 className="field w-20 px-2 py-1.5 text-center tabular-nums"
               />
-              <select
-                name="jeda_satuan"
-                aria-label={t("Satuan lama AI diam", "Unit for how long AI stays quiet")}
-                value={satuanJeda}
-                onChange={(e) => setSatuanJeda(e.target.value as "detik" | "menit")}
-                className="field w-auto cursor-pointer py-1.5 pr-2 pl-2.5"
-              >
-                <option value="detik">{t("detik", "seconds")}</option>
-                <option value="menit">{t("menit", "minutes")}</option>
-              </select>
+              <input type="hidden" name="jeda_satuan" value={satuanJeda} />
+              <span role="radiogroup" aria-label={t("Satuan lama AI diam", "Unit for how long AI stays quiet")} className="inline-flex rounded-xl border border-line-strong bg-surface p-0.5">
+                {(["detik", "menit"] as const).map((u) => (
+                  <button
+                    key={u}
+                    type="button"
+                    role="radio"
+                    aria-checked={satuanJeda === u}
+                    onClick={() => setSatuanJeda(u)}
+                    className={`min-h-9 rounded-[0.6rem] px-3 text-[13px] font-semibold transition-colors ${satuanJeda === u ? "bg-accent text-on-accent" : "text-muted hover:text-fg"}`}
+                  >
+                    {u === "detik" ? t("detik", "seconds") : t("menit", "minutes")}
+                  </button>
+                ))}
+              </span>
             </span>
           </div>
           <p className="hint">

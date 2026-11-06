@@ -104,6 +104,23 @@ export async function akunGoogle(g: { sub: string; email: string; nama: string }
 export type FilterPengguna = "semua" | "aktif" | "diblokir" | "admin";
 
 /**
+ * Saring paket: "" = semua, "g" = gratis (akun biasa tanpa langganan aktif), "b" = berbayar (langganan aktif apa pun),
+ * "n:<nama paket>" = langganan aktif dengan nama paket itu (nama tersalin di langganan saat dibeli, jadi paket yang
+ * sudah dihapus/diganti nama tetap bisa disaring).
+ */
+export type SaringPaket = string;
+const saringPaket = (v?: string): { jenis: "" | "g" | "b" | "n"; nama: string } => {
+  if (v === "g" || v === "b") return { jenis: v, nama: "" };
+  if (v?.startsWith("n:") && v.length > 2) return { jenis: "n", nama: v.slice(2, 120) };
+  return { jenis: "", nama: "" };
+};
+/** Kondisi saring paket di atas LATERAL PAKET_AKTIF (alias pk). */
+const kondisiPaket = (sql: Awaited<ReturnType<typeof db>>, v?: string) => {
+  const p = saringPaket(v);
+  return sql`(${p.jenis} = '' OR (${p.jenis} = 'g' AND pk.paket_nama IS NULL AND u.peran = 'user') OR (${p.jenis} = 'b' AND pk.paket_nama IS NOT NULL) OR (${p.jenis} = 'n' AND pk.paket_nama = ${p.nama}))`;
+};
+
+/**
  * Satu halaman pengguna, terbaru dulu, dengan kursor id (tanpa OFFSET). Jumlah nomor dihitung per baris
  * lewat indeks numbers_user_idx (LATERAL), bukan GROUP BY seluruh tabel nomor.
  */
@@ -112,7 +129,7 @@ const polaCari = (mentah?: string) => {
   return { cari, pola: `%${cari.replace(/[\\%_]/g, (c) => `\\${c}`)}%` };
 };
 
-export async function daftarPengguna(opsi: { cari?: string; filter?: FilterPengguna; sebelumId?: number; batas?: number }) {
+export async function daftarPengguna(opsi: { cari?: string; filter?: FilterPengguna; paket?: SaringPaket; sebelumId?: number; batas?: number }) {
   const sql = await db();
   const batas = Math.min(Math.max(opsi.batas ?? 25, 1), 100);
   const { cari, pola } = polaCari(opsi.cari);
@@ -127,23 +144,58 @@ export async function daftarPengguna(opsi: { cari?: string; filter?: FilterPengg
      WHERE (${opsi.sebelumId ?? null}::integer IS NULL OR u.id < ${opsi.sebelumId ?? null}::integer)
        AND (${cari} = '' OR u.email LIKE ${pola} OR lower(u.nama) LIKE ${pola})
        AND (${f} = 'semua' OR (${f} = 'admin' AND u.peran = 'admin') OR u.status = ${f})
+       AND ${kondisiPaket(sql, opsi.paket)}
      ORDER BY u.id DESC
      LIMIT ${batas + 1}`;
   return { daftar: baris.slice(0, batas), adaLagi: baris.length > batas };
 }
 
-/** Jumlah akun per tab saring (mengikuti kata kunci pencarian), dalam satu pemindaian tabel users. */
-export async function hitungPengguna(opsi: { cari?: string } = {}): Promise<Record<FilterPengguna, number>> {
+/** Jumlah akun per tab saring (mengikuti kata kunci pencarian & saring paket), dalam satu pemindaian tabel users. */
+export async function hitungPengguna(opsi: { cari?: string; paket?: SaringPaket } = {}): Promise<Record<FilterPengguna, number>> {
   const sql = await db();
   const { cari, pola } = polaCari(opsi.cari);
+  const pakaiPaket = saringPaket(opsi.paket).jenis !== "";
   const [r] = await sql<Record<FilterPengguna, number>[]>`
     SELECT COUNT(*)::int AS semua,
-           COUNT(*) FILTER (WHERE status = 'aktif')::int AS aktif,
-           COUNT(*) FILTER (WHERE status = 'diblokir')::int AS diblokir,
-           COUNT(*) FILTER (WHERE peran = 'admin')::int AS admin
-      FROM users
-     WHERE ${cari} = '' OR email LIKE ${pola} OR lower(nama) LIKE ${pola}`;
+           COUNT(*) FILTER (WHERE u.status = 'aktif')::int AS aktif,
+           COUNT(*) FILTER (WHERE u.status = 'diblokir')::int AS diblokir,
+           COUNT(*) FILTER (WHERE u.peran = 'admin')::int AS admin
+      FROM users u
+      ${pakaiPaket ? PAKET_AKTIF(sql, sekarang()) : sql``}
+     WHERE (${cari} = '' OR u.email LIKE ${pola} OR lower(u.nama) LIKE ${pola})
+       AND ${pakaiPaket ? kondisiPaket(sql, opsi.paket) : sql`true`}`;
   return r;
+}
+
+/**
+ * Jumlah akun per paket aktif (mengikuti pencarian & tab status) untuk pilihan saring paket: gratis, berbayar, dan
+ * tiap nama paket. Satu query: langganan aktif per akun lewat langganan_user_sampai_idx (LATERAL), dikelompokkan di DB.
+ */
+export async function hitungPaketPengguna(opsi: { cari?: string; filter?: FilterPengguna } = {}): Promise<{ gratis: number; berbayar: number; paket: { nama: string; kode: string | null; n: number }[] }> {
+  const sql = await db();
+  const { cari, pola } = polaCari(opsi.cari);
+  const f = opsi.filter ?? "semua";
+  const baris = await sql<{ paket_nama: string | null; paket_kode: string | null; admin: boolean; n: number }[]>`
+    SELECT pk.paket_nama, MIN(pk.paket_kode) AS paket_kode, u.peran = 'admin' AS admin, COUNT(*)::int AS n
+      FROM users u
+      ${PAKET_AKTIF(sql, sekarang())}
+     WHERE (${cari} = '' OR u.email LIKE ${pola} OR lower(u.nama) LIKE ${pola})
+       AND (${f} = 'semua' OR (${f} = 'admin' AND u.peran = 'admin') OR u.status = ${f})
+     GROUP BY pk.paket_nama, u.peran = 'admin'`;
+  let gratis = 0;
+  let berbayar = 0;
+  const paket = new Map<string, { nama: string; kode: string | null; n: number }>();
+  for (const b of baris) {
+    if (b.paket_nama === null) {
+      if (!b.admin) gratis += b.n;
+      continue;
+    }
+    berbayar += b.n;
+    const x = paket.get(b.paket_nama) ?? { nama: b.paket_nama, kode: b.paket_kode, n: 0 };
+    x.n += b.n;
+    paket.set(b.paket_nama, x);
+  }
+  return { gratis, berbayar, paket: [...paket.values()].sort((a, b) => b.n - a.n || a.nama.localeCompare(b.nama)) };
 }
 
 export async function penggunaById(id: number): Promise<BarisPengguna | undefined> {

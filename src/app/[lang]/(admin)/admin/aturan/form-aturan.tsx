@@ -75,7 +75,7 @@ export function FormAturan({ nilai }: { nilai: AturanSistem }) {
                 key={c}
                 type="button"
                 onClick={() => setGlobal((g) => (g.includes(c) ? g : `${g.trim()}${g.trim() ? "\n" : ""}${c}`))}
-                className="rounded-md border border-line px-2 py-1 text-muted hover:border-accent/50 hover:text-fg"
+                className="min-h-9 rounded-md border border-line px-2.5 text-muted hover:border-accent/50 hover:text-fg sm:min-h-0 sm:py-1"
                 title={c}
               >
                 + {c.split(" ").slice(0, 4).join(" ")}…
@@ -85,7 +85,7 @@ export function FormAturan({ nilai }: { nilai: AturanSistem }) {
         </div>
       </fieldset>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <SubmitButton>Simpan aturan sistem</SubmitButton>
         <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
       </div>

@@ -28,6 +28,7 @@ import {
   kuotaDariAnggaran,
 } from "@/lib/paket-custom-def";
 import type { DataNyata } from "./simulasi-harga";
+import { PilihOpsi } from "@/components/pilih-opsi";
 
 /**
  * Pembangun paket Custom (Paket & harga). Semua angka di layar dihitung ulang tiap kali admin mengubah sesuatu, dengan
@@ -263,16 +264,15 @@ export function PembangunCustom({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
+            <div className="block">
               <span className="label">Pembulatan harga otomatis</span>
-              <select value={c.pembulatan} onChange={(e) => ubah({ pembulatan: Number(e.target.value) })} className="field">
-                {PEMBULATAN.map((l) => (
-                  <option key={l} value={l}>
-                    Ke atas, kelipatan {rp(l)}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <PilihOpsi
+                nilai={String(c.pembulatan)}
+                onUbah={(v) => ubah({ pembulatan: Number(v) })}
+                label="Pembulatan harga otomatis"
+                opsi={PEMBULATAN.map((l) => ({ id: String(l), label: `Ke atas, kelipatan ${rp(l)}` }))}
+              />
+            </div>
             <div className="flex items-center justify-between gap-3 rounded-xl border border-line px-3 py-2 sm:mt-[1.6rem]">
               <span>
                 <span className="block text-[13px] font-semibold">Harga cantik</span>
@@ -440,16 +440,15 @@ export function PembangunCustom({
               />
               {!usd && <span className="mt-1 block text-[12px] text-warning">Tarif {c.model} tidak tercantum di halaman harga resmi; pilih model lain.</span>}
             </div>
-            <label className="block">
+            <div className="block">
               <span className="label">Metode bayar acuan (biaya Midtrans)</span>
-              <select value={c.metode} onChange={(e) => ubah({ metode: e.target.value as MetodeBayar })} className="field">
-                {(Object.keys(METODE_BAYAR) as MetodeBayar[]).map((m) => (
-                  <option key={m} value={m}>
-                    {METODE_BAYAR[m].label} · {tarifBayar(m)}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <PilihOpsi
+                nilai={c.metode}
+                onUbah={(v) => ubah({ metode: v as MetodeBayar })}
+                label="Metode bayar acuan"
+                opsi={(Object.keys(METODE_BAYAR) as MetodeBayar[]).map((m) => ({ id: m, label: METODE_BAYAR[m].label, sub: tarifBayar(m) }))}
+              />
+            </div>
             <label className="block">
               <span className="label flex justify-between">
                 Kuota yang dihitung terpakai <b className="tabular-nums">{c.pemakaian}%</b>
@@ -471,7 +470,7 @@ export function PembangunCustom({
             <span>
               Acuan simulasi paket biasa: {namaModel(acuan.model)} · margin {acuan.margin}% · terpakai {acuan.pemakaian}% · {METODE_BAYAR[acuan.metode].label} · server {rp(acuan.biayaServerNomor)}
             </span>
-            <button type="button" onClick={samakanAcuan} className="inline-flex items-center gap-1 font-semibold text-accent hover:underline">
+            <button type="button" onClick={samakanAcuan} className="-mx-2 inline-flex min-h-9 items-center gap-1 rounded-lg px-2 font-semibold text-accent hover:bg-accent-soft">
               <RotateCcw className="size-3.5" aria-hidden /> Samakan
             </button>
           </div>

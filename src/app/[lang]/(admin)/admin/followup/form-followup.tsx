@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { adminFollowupAction, adminLepasRemFollowupAction } from "@/app/actions";
+import { PilihOpsi } from "@/components/pilih-opsi";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "@/components/ui";
 import { BATAS_SETELAN, type SetelanFollowup } from "@/lib/followup-def";
 
@@ -36,16 +37,16 @@ export function FormFollowup({ awal, nomor, otomatisId }: { awal: SetelanFollowu
         <label htmlFor="fu-nomor" className="label">
           Nomor CS pengirim
         </label>
-        <select id="fu-nomor" name="nomor_id" defaultValue={awal.nomorId ?? ""} className="field">
-          <option value="">Otomatis{otomatis ? ` (${otomatis.label})` : " (nomor dengan data ChatGerCep otomatis)"}</option>
-          {nomor.map((n) => (
-            <option key={n.id} value={n.id}>
-              {n.label}
-              {n.wa_id ? ` · +${n.wa_id}` : " · belum tertaut"}
-              {n.cg ? " · data ChatGerCep" : ""}
-            </option>
-          ))}
-        </select>
+        <PilihOpsi
+          id="fu-nomor"
+          name="nomor_id"
+          nilai={awal.nomorId ? String(awal.nomorId) : ""}
+          label="Nomor CS pengirim"
+          opsi={[
+            { id: "", label: "Otomatis", sub: otomatis ? otomatis.label : "Nomor dengan data ChatGerCep otomatis" },
+            ...nomor.map((n) => ({ id: String(n.id), label: n.label, sub: n.wa_id ? `+${n.wa_id}` : "Belum tertaut", lencana: n.cg ? "ChatGerCep" : undefined })),
+          ]}
+        />
         <p className="mt-1 text-[12px] text-muted">Follow-up hanya dikirim ke orang yang sudah pernah chat nomor ini.</p>
       </div>
 
@@ -59,7 +60,7 @@ export function FormFollowup({ awal, nomor, otomatisId }: { awal: SetelanFollowu
       <p className="rounded-xl bg-subtle px-3.5 py-2.5 text-[12px] text-muted">
         Antarpesan selalu diberi jeda acak 3–10 menit, dan satu akun paling banyak menerima 2 pesan seumur akunnya.
       </p>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <SubmitButton>Simpan</SubmitButton>
         <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
       </div>

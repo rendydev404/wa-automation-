@@ -189,7 +189,7 @@ export function BerikanPaket({
                   {d.label}
                 </Chip>
               ))}
-              <span className="w-24">
+              <span className="w-28">
                 <InputAngka id="bp-hari" label="Durasi (hari)" nilai={hari} onUbah={setHari} min={1} maks={3660} akhiran="hari" kecil />
               </span>
             </div>

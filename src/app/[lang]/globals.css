@@ -535,3 +535,79 @@ body {
     font-weight: 700;
   }
 }
+
+/*
+ * Kontrol bawaan browser diberi tampilan sendiri (konsisten di semua browser & HP), tetap elemen <input> asli supaya
+ * formulir, keyboard, dan pembaca layar bekerja seperti biasa. Kelasnya dipasang langsung: .centang (checkbox), .bulat (radio).
+ */
+@layer components {
+  .centang,
+  .bulat {
+    appearance: none;
+    -webkit-appearance: none;
+    flex-shrink: 0;
+    width: 1.125rem;
+    height: 1.125rem;
+    margin: 0;
+    border: 1.5px solid var(--c-line-strong);
+    background-color: var(--c-surface);
+    display: inline-grid;
+    place-content: center;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  }
+  .centang {
+    border-radius: 0.35rem;
+  }
+  .bulat {
+    border-radius: 9999px;
+  }
+  .centang::before {
+    content: "";
+    width: 0.6rem;
+    height: 0.6rem;
+    transform: scale(0);
+    transition: transform 0.12s ease-out;
+    background-color: var(--c-on-accent);
+    clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+  }
+  .bulat::before {
+    content: "";
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    transform: scale(0);
+    transition: transform 0.12s ease-out;
+    background-color: var(--c-on-accent);
+  }
+  .centang:checked,
+  .bulat:checked {
+    border-color: var(--c-accent);
+    background-color: var(--c-accent);
+  }
+  .centang:checked::before,
+  .bulat:checked::before {
+    transform: scale(1);
+  }
+  .centang:focus-visible,
+  .bulat:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--c-accent-soft);
+    border-color: var(--c-accent);
+  }
+  .centang:disabled,
+  .bulat:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  /* Kolom angka: tanpa tombol naik-turun bawaan browser (diisi lewat keyboard angka). */
+  .field[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .field[type="number"]::-webkit-outer-spin-button,
+  .field[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}

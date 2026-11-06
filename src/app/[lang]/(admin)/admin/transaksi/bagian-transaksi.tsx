@@ -8,6 +8,8 @@ import { daftarPaket } from "@/lib/langganan";
 import { requireAdmin } from "@/lib/session";
 import { tingkatPaket } from "@/lib/tingkat-paket";
 import { FILTER_STATUS_TRX, cariTransaksi, hitungTransaksi, labelMetode, opsiDariParam, ringkasanTransaksi, satu } from "@/lib/transaksi-admin";
+import { PilihOpsi } from "@/components/pilih-opsi";
+import { PilihTanggal } from "@/components/pilih-tanggal";
 
 export { labelMetode };
 
@@ -70,11 +72,11 @@ export async function RingkasanTransaksi() {
           <h2 className="text-[13px] font-bold">Pendapatan per paket (lunas)</h2>
           <ul className="mt-3 space-y-2.5">
             {r.perPaket.map((p) => (
-              <li key={p.nama_paket} className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_auto] items-center gap-3 text-[12.5px]">
+              <li key={p.nama_paket} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-[12.5px] sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)_auto]">
                 <span className="min-w-0 truncate">
                   <LencanaPaket tingkat={tingkatPaket(p.kode, p.nama_paket)} nama={p.nama_paket} ukuran="sm" />
                 </span>
-                <span className="h-2 overflow-hidden rounded-full bg-subtle">
+                <span className="order-last col-span-2 h-2 overflow-hidden rounded-full bg-subtle sm:order-none sm:col-span-1">
                   <span className="block h-full rounded-full bg-accent" style={{ width: `${Math.max(2, (p.total / maks) * 100)}%` }} />
                 </span>
                 <span className="text-right whitespace-nowrap tabular-nums">
@@ -121,35 +123,23 @@ export async function DaftarTransaksi({ searchParams }: { searchParams: Promise<
             <Download className="size-4" aria-hidden /> Ekspor CSV
           </a>
         </div>
-        <form action="/admin/transaksi" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_auto_auto_auto]">
+        <form action="/admin/transaksi" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_auto]">
           {opsi.status !== "semua" && <input type="hidden" name="s" value={opsi.status} />}
           <label className="relative">
             <span className="sr-only">Cari transaksi</span>
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-faint" aria-hidden />
             <input name="q" defaultValue={opsi.q} placeholder="ID pembelian (WA-… / ADM-…), email, nama, atau ID pengguna" className="field pl-9" />
           </label>
-          <label>
-            <span className="sr-only">Paket</span>
-            <select name="paket" defaultValue={satu(sp.paket)} className="field">
-              <option value="">Semua paket</option>
-              {paket.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nama}
-                  {p.aktif ? "" : " (nonaktif)"}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-[12.5px] text-muted">
-            <span className="shrink-0">Dari</span>
-            <input type="date" name="dari" defaultValue={satu(sp.dari)} className="field" />
-          </label>
-          <label className="flex items-center gap-2 text-[12.5px] text-muted">
-            <span className="shrink-0">s.d.</span>
-            <input type="date" name="sampai" defaultValue={satu(sp.sampai)} className="field" />
-          </label>
-          <div className="flex gap-2">
-            <button type="submit" className="btn btn-primary">
+          <PilihOpsi
+            name="paket"
+            nilai={satu(sp.paket)}
+            label="Paket"
+            opsi={[{ id: "", label: "Semua paket" }, ...paket.map((p) => ({ id: String(p.id), label: p.nama, lencana: p.aktif ? undefined : "nonaktif" }))]}
+          />
+          <PilihTanggal name="dari" nilai={satu(sp.dari)} label="Dari tanggal" placeholder="Dari tanggal" />
+          <PilihTanggal name="sampai" nilai={satu(sp.sampai)} label="Sampai tanggal" placeholder="Sampai tanggal" />
+          <div className="flex gap-2 sm:col-span-2 lg:col-span-1">
+            <button type="submit" className="btn btn-primary min-h-[2.75rem] flex-1 lg:flex-none">
               Terapkan
             </button>
             {adaSaring && (

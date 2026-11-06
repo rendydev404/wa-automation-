@@ -185,14 +185,14 @@ export function FormMetaPixel({ awal }: { awal: PengaturanMetaPixel }) {
           {!inputTerisi ? (
             <span className="text-muted">Belum ada ID Pixel yang diisi.</span>
           ) : idTerdeteksi ? (
-            <span className="inline-flex items-center gap-1.5 font-semibold text-success">
+            <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-semibold text-success">
               <CheckCircle2 className="size-4 shrink-0" aria-hidden />
               ID Pixel terdeteksi: <code className="rounded bg-success-soft px-1.5 py-0.5 font-mono">{idTerdeteksi}</code>
               {apakahPotonganKode && (
                 <button
                   type="button"
                   onClick={() => setInputPixel(idTerdeteksi)}
-                  className="ml-1 underline hover:no-underline"
+                  className="ml-0 underline hover:no-underline sm:ml-1"
                 >
                   Rapikan jadi angka ID saja
                 </button>
@@ -311,13 +311,13 @@ export function FormMetaPixel({ awal }: { awal: PengaturanMetaPixel }) {
                   onChange={(e) => setCapiToken(e.target.value)}
                   placeholder="EAA..."
                   autoComplete="off"
-                  className="field pr-10 font-mono text-[12.5px]"
+                  className="field pr-11 font-mono text-[12.5px]"
                 />
                 <button
                   type="button"
                   onClick={() => setLihatToken((v) => !v)}
                   aria-label={lihatToken ? "Sembunyikan token" : "Tampilkan token"}
-                  className="absolute right-2.5 rounded-lg p-1 text-muted hover:text-fg"
+                  className="absolute right-1 grid size-9 place-items-center rounded-lg text-muted hover:bg-subtle hover:text-fg"
                 >
                   {lihatToken ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
                 </button>

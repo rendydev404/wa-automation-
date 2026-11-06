@@ -389,7 +389,7 @@ export function SimulasiHarga({
 
             {komisiGlobalJenis === "persen" ? (
               <div>
-                <div className="flex items-center justify-between text-[12.5px]">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-[12.5px]">
                   <span className="font-semibold text-fg">Besaran komisi afiliasi (semua paket)</span>
                   <b className="text-[14px] text-accent tabular-nums">{komisiGlobalNilai}% dari harga paket</b>
                 </div>
@@ -408,7 +408,7 @@ export function SimulasiHarga({
                       key={pct}
                       type="button"
                       onClick={() => setKomisiGlobalNilai(pct)}
-                      className={`rounded-full border px-2.5 py-0.5 text-[11.5px] font-semibold tabular-nums transition-colors ${
+                      className={`min-h-9 rounded-full border px-3 text-[11.5px] font-semibold tabular-nums transition-colors sm:min-h-0 sm:py-0.5 ${
                         komisiGlobalNilai === pct ? "border-accent bg-accent text-on-accent" : "border-line bg-surface text-muted hover:text-fg"
                       }`}
                     >
@@ -471,14 +471,14 @@ export function SimulasiHarga({
           {baris.map(({ p, baru, kom, h, mustahil, komisiSimulasi, untungSetelahKomisi, marginSetelahKomisi }) => {
             const persenKomisiEfektif = baru.harga > 0 ? Math.round((komisiSimulasi / baru.harga) * 100) : 0;
             return (
-              <div key={p.id} className={`flex flex-col justify-between rounded-2xl border p-4 ${p.unggulan ? "border-accent/50 bg-accent-soft/20" : "border-line bg-surface"}`}>
+              <div key={p.id} className={`flex flex-col justify-between rounded-2xl border p-3 sm:p-4 ${p.unggulan ? "border-accent/50 bg-accent-soft/20" : "border-line bg-surface"}`}>
                 <div>
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[14px] font-bold">{p.nama}</p>
                     <span className="flex items-center gap-2">
                       {p.unggulan && <span className="rounded-md bg-accent-soft px-1.5 py-0.5 text-[10.5px] font-semibold text-accent">unggulan</span>}
                       <label className="flex cursor-pointer items-center gap-1 text-[11.5px] font-medium text-muted">
-                        <input type="checkbox" checked={ikut.has(p.id)} onChange={(e) => ubahIkut(p.id, e.target.checked)} className="size-3.5 accent-[var(--c-accent)]" />
+                        <input type="checkbox" checked={ikut.has(p.id)} onChange={(e) => ubahIkut(p.id, e.target.checked)} className="centang" />
                         ikut
                       </label>
                     </span>
@@ -519,14 +519,14 @@ export function SimulasiHarga({
                           <button
                             type="button"
                             onClick={() => ubahKomisiSatuPaket(p.id, { jenis: "persen" })}
-                            className={`rounded-md px-2 py-0.5 ${kom.jenis === "persen" ? "bg-accent text-on-accent" : "text-muted"}`}
+                            className={`min-h-9 min-w-9 rounded-md px-2.5 sm:min-h-0 sm:min-w-0 sm:py-0.5 ${kom.jenis === "persen" ? "bg-accent text-on-accent" : "text-muted"}`}
                           >
                             %
                           </button>
                           <button
                             type="button"
                             onClick={() => ubahKomisiSatuPaket(p.id, { jenis: "rupiah" })}
-                            className={`rounded-md px-2 py-0.5 ${kom.jenis === "rupiah" ? "bg-accent text-on-accent" : "text-muted"}`}
+                            className={`min-h-9 min-w-9 rounded-md px-2.5 sm:min-h-0 sm:min-w-0 sm:py-0.5 ${kom.jenis === "rupiah" ? "bg-accent text-on-accent" : "text-muted"}`}
                           >
                             Rp
                           </button>
@@ -552,7 +552,7 @@ export function SimulasiHarga({
 
                 {/* Ringkasan Modal, Komisi, Untung Normal & Untung Bersih Afiliasi */}
                 <div className="mt-3 space-y-2 border-t border-line pt-3 text-[11.5px] tabular-nums">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
                     <div className="rounded-lg bg-subtle/40 px-2.5 py-1.5">
                       <span className="text-muted">Modal + Midtrans</span>
                       <b className="block text-[12.5px] text-fg">{rp(h.modal + h.biayaBayar)}</b>
@@ -571,14 +571,14 @@ export function SimulasiHarga({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 rounded-lg border border-line bg-surface px-2.5 py-2">
+                  <div className="grid grid-cols-1 gap-2 rounded-lg border border-line bg-surface px-2.5 py-2 min-[400px]:grid-cols-2">
                     <div>
                       <span className="text-muted">Untung (Tanpa Afiliasi)</span>
                       <b className={`block text-[12.5px] ${h.untung < 0 ? "text-danger" : "text-success"}`}>
                         {rp(h.untung)} <span className="text-[11px] font-semibold">({persen(h.margin)})</span>
                       </b>
                     </div>
-                    <div className="border-l border-line pl-2">
+                    <div className="border-t border-line pt-2 min-[400px]:border-t-0 min-[400px]:border-l min-[400px]:pt-0 min-[400px]:pl-2">
                       <span className="text-muted">Untung (Via Afiliasi)</span>
                       <b className={`block text-[12.5px] ${untungSetelahKomisi < 0 ? "text-danger" : "text-success"}`}>
                         {rp(untungSetelahKomisi)}{" "}
@@ -597,7 +597,41 @@ export function SimulasiHarga({
         <summary className="cursor-pointer px-3 py-2.5 text-[12.5px] font-semibold text-muted">
           Rincian paket saat ini (harga tersimpan vs modal, komisi afiliasi & untung)
         </summary>
-        <div className="overflow-x-auto border-t border-line">
+        {/* HP: kartu per paket (tabel 7 kolom tidak muat). */}
+        <ul className="divide-y divide-line border-t border-line tabular-nums md:hidden">
+          {baris.map(({ p, kom, sekarang: s, komisiSekarang, untungSekarangSetelahKomisi, marginSekarangSetelahKomisi }) => (
+            <li key={p.id} className="space-y-2 px-3 py-3 text-[12.5px]">
+              <div className="flex items-start justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="block font-semibold">{p.nama}</span>
+                  <span className="block text-[11px] text-faint">
+                    {angka(p.kuota_balasan)} balasan · {p.kuota_nomor} nomor · {p.durasi_hari} hari
+                  </span>
+                </span>
+                <b className="shrink-0 font-semibold">{rp(p.harga)}</b>
+              </div>
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
+                <dt className="text-muted">Modal AI+Srv</dt>
+                <dd className="text-right">{rp(s.modal)}</dd>
+                <dt className="text-muted">Biaya bayar</dt>
+                <dd className="text-right">{rp(s.biayaBayar)}</dd>
+                <dt className="text-muted">Komisi afiliasi</dt>
+                <dd className="text-right text-accent">
+                  {rp(komisiSekarang)} <span className="text-[11px] text-muted">({kom.jenis === "persen" ? `${kom.nilai}%` : "tetap"})</span>
+                </dd>
+                <dt className="text-muted">Untung normal</dt>
+                <dd className={`text-right ${s.untung < 0 ? "font-bold text-danger" : "text-success"}`}>
+                  {rp(s.untung)} <span className="text-[11px] text-muted">({persen(s.margin)})</span>
+                </dd>
+                <dt className="text-muted">Untung via afiliasi</dt>
+                <dd className={`text-right font-semibold ${untungSekarangSetelahKomisi < 0 ? "text-danger" : "text-success"}`}>
+                  {rp(untungSekarangSetelahKomisi)} <span className="text-[11px]">({persen(marginSekarangSetelahKomisi)})</span>
+                </dd>
+              </dl>
+            </li>
+          ))}
+        </ul>
+        <div className="hidden overflow-x-auto border-t border-line md:block">
           <table className="w-full min-w-[760px] text-left text-[12.5px]">
             <thead className="bg-subtle/60 text-[11px] font-semibold tracking-wide text-muted uppercase">
               <tr>
@@ -642,7 +676,7 @@ export function SimulasiHarga({
         </div>
       </details>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <SubmitButton className="btn btn-ghost border border-line">Simpan acuan</SubmitButton>
         <button
           type="submit"

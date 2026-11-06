@@ -72,9 +72,9 @@ async function Isi({ params }: { params: Promise<{ order: string }> }) {
             <p className="flex items-center gap-2 text-[12px] font-semibold tracking-[0.06em] text-muted uppercase">
               <Receipt className="size-4 text-accent" aria-hidden /> ID pembelian
             </p>
-            <p className="mt-1 flex items-center gap-1.5">
-              <span className="truncate font-mono text-xl font-bold sm:text-2xl">{t.order_id}</span>
-              <TombolSalin teks={t.order_id} />
+            <p className="mt-1 flex items-start gap-1.5">
+              <span className="min-w-0 font-mono text-lg font-bold break-all sm:text-2xl">{t.order_id}</span>
+              <TombolSalin teks={t.order_id} className="mt-0.5 max-sm:size-9!" />
             </p>
             <p className="mt-1 text-[12.5px] text-faint">Nomor internal #{t.id}</p>
           </div>

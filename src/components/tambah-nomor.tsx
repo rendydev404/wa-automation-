@@ -95,7 +95,7 @@ function DialogTambah({ tutup }: { tutup: () => void }) {
         </div>
         {/* Persetujuan cukup di browser: syarat ini soal cara pemilik memakai nomornya, bukan hal yang bisa diperiksa server. */}
         <label className="mt-3 flex cursor-pointer items-start gap-2.5 text-[13px]">
-          <input type="checkbox" required className="mt-0.5 size-4 shrink-0 accent-accent" />
+          <input type="checkbox" required className="centang mt-0.5 shrink-0" />
           <span>{t("Saya sudah memastikan nomor ini tidak memakai balasan otomatis lain.", "I've made sure this number isn't using any other auto-reply.")}</span>
         </label>
         <div className="mt-2 min-h-5">

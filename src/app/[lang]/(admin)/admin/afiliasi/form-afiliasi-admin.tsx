@@ -278,15 +278,15 @@ export function FormProsesPenarikan({
               />
             </>
           )}
-          <div className="flex items-center gap-2">
-            <SubmitButton className={mode === "tolak" ? "btn bg-danger text-white hover:opacity-90" : "btn btn-primary"}>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+            <SubmitButton className={mode === "tolak" ? "btn w-full bg-danger text-white hover:opacity-90 sm:w-auto" : "btn btn-primary w-full sm:w-auto"}>
               {mode === "manual"
                 ? "Simpan & Tandai Lunas"
                 : mode === "iris"
                   ? "Kirim Dana via Iris Sekarang"
                   : "Konfirmasi Tolak"}
             </SubmitButton>
-            <button type="button" onClick={() => setMode(null)} className="btn btn-ghost text-[12.5px]">
+            <button type="button" onClick={() => setMode(null)} className="btn btn-ghost w-full text-[12.5px] sm:w-auto">
               Batal
             </button>
           </div>

@@ -110,7 +110,7 @@ export function FormPengaturan({
                 ulang === o.nilai ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong"
               }`}
             >
-              <input type="radio" name="kuota_percobaan_ulang" value={o.nilai} checked={ulang === o.nilai} onChange={() => setUlang(o.nilai)} className="mt-0.5 accent-accent" />
+              <input type="radio" name="kuota_percobaan_ulang" value={o.nilai} checked={ulang === o.nilai} onChange={() => setUlang(o.nilai)} className="bulat mt-0.5" />
               <span>
                 <span className="block text-[13px] font-semibold">{o.judul}</span>
                 <span className="mt-0.5 block text-[12px] leading-snug text-muted">{o.isi}</span>
@@ -156,7 +156,7 @@ export function FormPengaturan({
         </p>
       </fieldset>
       <KursInfo info={kurs} />
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <button type="submit" disabled={menyimpan || !sah} className="btn btn-primary">
           {menyimpan && <Loader2 className="size-4 animate-spin" aria-hidden />}
           Simpan aturan
@@ -216,7 +216,7 @@ export function FormBuatAkun() {
         <PilihOpsi name="peran" nilai="user" opsi={PILIHAN_PERAN} label="Peran" />
         <input name="kuota" aria-label="Kuota nomor" type="number" min={0} max={100} placeholder="Kuota (bawaan)" className="field" />
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <SubmitButton>Buat akun</SubmitButton>
         <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
       </div>
@@ -264,7 +264,7 @@ export function FormBonusKuota({ id }: { id: number }) {
               key={n}
               type="button"
               onClick={() => setJumlah(String(n))}
-              className={`rounded-lg border px-2.5 py-1 text-[12px] font-semibold tabular-nums transition-colors ${jumlah === String(n) ? "border-accent bg-accent-soft text-accent" : "border-line text-muted hover:bg-subtle hover:text-fg"}`}
+              className={`min-h-9 rounded-lg border px-3 text-[12px] font-semibold tabular-nums transition-colors sm:min-h-0 sm:py-1 ${jumlah === String(n) ? "border-accent bg-accent-soft text-accent" : "border-line text-muted hover:bg-subtle hover:text-fg"}`}
             >
               +{n.toLocaleString("id-ID")}
             </button>
@@ -333,7 +333,7 @@ export function FormAiAkun({ id, penyedia, umum, adaKunci }: { id: number; penye
             : "Selalu Hermes, apa pun paketnya."}
       </p>
       {!adaKunci && <p className="text-[12px] text-muted">Claude API bisa dipilih setelah developer memasang ANTHROPIC_API_KEY di server.</p>}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <SubmitButton>Simpan</SubmitButton>
         <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
       </div>
@@ -359,7 +359,7 @@ export function FormBlokir({ id, diblokir, alasan }: { id: number; diblokir: boo
           <input id="alasan" name="alasan" maxLength={200} placeholder="mis. Mengirim spam" className="field" />
         </>
       )}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <SubmitButton className={diblokir ? "btn btn-primary" : "btn bg-danger text-white hover:opacity-90"}>{diblokir ? "Buka blokir" : "Blokir akun"}</SubmitButton>
         <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
       </div>
@@ -694,7 +694,7 @@ export function FormAi({
         </div>
       </div>
       <p className="text-[12px] text-muted">Berlaku langsung untuk balasan berikutnya. Koneksi WhatsApp tidak terganggu. Coba dulu lewat &quot;Uji bot&quot; di halaman nomor.</p>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <SubmitButton>Simpan</SubmitButton>
         <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
       </div>
@@ -815,14 +815,14 @@ export function FormPaket({ paket }: { paket?: PaketForm }) {
       {!p && <input name="kode" aria-label="Kode (opsional)" placeholder="Kode unik (opsional, mis. bisnis-tahunan)" className={kolom} />}
       <div className="flex flex-wrap items-center gap-4 text-[13px]">
         <label className="flex items-center gap-2">
-          <input type="checkbox" name="aktif" defaultChecked={p?.aktif ?? true} className="size-4 accent-[var(--c-accent)]" /> Dijual
+          <input type="checkbox" name="aktif" defaultChecked={p?.aktif ?? true} className="centang" /> Dijual
         </label>
         <label className="flex items-center gap-2">
-          <input type="checkbox" name="unggulan" defaultChecked={p?.unggulan} className="size-4 accent-[var(--c-accent)]" /> Tandai &quot;paling banyak dipilih&quot;
+          <input type="checkbox" name="unggulan" defaultChecked={p?.unggulan} className="centang" /> Tandai &quot;paling banyak dipilih&quot;
         </label>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <SubmitButton>{p ? "Simpan paket" : "Buat paket"}</SubmitButton>
           <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
         </div>

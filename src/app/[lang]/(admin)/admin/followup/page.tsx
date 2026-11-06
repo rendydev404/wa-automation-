@@ -99,91 +99,150 @@ async function Riwayat({ searchParams }: { searchParams: Promise<Record<string, 
   const status = (URUTAN as string[]).includes(mentah) ? (mentah as StatusFollowup) : null;
   const baris: BarisFollowup[] = await daftarFollowup({ status, batas: 100 });
   const kini = sekarang();
+  const kosong = `Belum ada follow-up${status ? ` berstatus "${LABEL_STATUS[status]}"` : ""}.`;
   return (
     <section className="card overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-5">
+      <div className="space-y-3 border-b border-line p-4 sm:p-5">
         <div>
           <h2 className="text-[15px] font-bold">Riwayat follow-up</h2>
-          <p className="text-[13px] text-muted">100 terbaru. Buka &ldquo;Pesan&rdquo; untuk melihat, mengedit, atau menulis ulang pesan sebelum terkirim. Ikon centang: abu = sampai HP, biru = dibaca.</p>
+          <p className="text-[13px] text-muted">100 terbaru. Buka &ldquo;Pesan&rdquo; untuk melihat, mengedit, atau menulis ulang pesan sebelum terkirim. Centang abu = sampai HP, biru = dibaca.</p>
         </div>
-        <nav aria-label="Saring status" className="flex flex-wrap gap-1.5">
+        {/* HP: satu baris yang bisa digeser, tidak menumpuk jadi beberapa baris. */}
+        <nav aria-label="Saring status" className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0 sm:pb-0">
           <Saring href="/admin/followup" aktif={!status} label="Semua" />
           {URUTAN.map((s) => (
             <Saring key={s} href={`/admin/followup?status=${s}`} aktif={status === s} label={LABEL_STATUS[s]} />
           ))}
         </nav>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[820px] text-left text-[12.5px]">
-          <thead className="bg-subtle/60 text-[11.5px] font-semibold tracking-[0.04em] text-muted uppercase">
-            <tr>
-              <th className="px-5 py-2.5">Akun</th>
-              <th className="px-3 py-2.5">Chat CS</th>
-              <th className="px-3 py-2.5">Status</th>
-              <th className="px-3 py-2.5">Sapaan</th>
-              <th className="px-3 py-2.5">Pengingat</th>
-              <th className="px-5 py-2.5">Keterangan</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
+
+      {baris.length === 0 ? (
+        <p className="px-5 py-10 text-center text-[13px] text-muted">{kosong}</p>
+      ) : (
+        <>
+          {/* HP & tablet: kartu per akun. */}
+          <ul className="divide-y divide-line lg:hidden">
             {baris.map((b) => (
-              <Fragment key={b.user_id}>
-              <tr className="align-top">
-                <td className="px-5 py-3">
-                  <Link href={`/admin/pengguna/${b.user_id}`} className="font-semibold hover:text-accent hover:underline">
-                    {b.nama_akun || "(tanpa nama)"}
-                  </Link>
-                  <span className="block truncate text-muted">{b.email}</span>
-                </td>
-                <td className="px-3 py-3">
-                  {b.tujuan || b.nama ? (
+              <li key={b.user_id} className="space-y-2.5 px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link href={`/admin/pengguna/${b.user_id}`} className="block truncate text-[13.5px] font-semibold hover:text-accent hover:underline">
+                      {b.nama_akun || "(tanpa nama)"}
+                    </Link>
+                    <span className="block truncate text-[12.5px] text-muted">{b.email}</span>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold whitespace-nowrap ${NADA[b.status]}`}>{LABEL_STATUS[b.status]}</span>
+                </div>
+                <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-[12.5px]">
+                  <dt className="text-muted">Chat CS</dt>
+                  <dd className="min-w-0 truncate">{b.tujuan || b.nama ? `${b.nama || "-"} · ${b.tujuan ? formatNomor(b.tujuan) : "nomor tersembunyi"}` : <span className="text-faint">belum ada</span>}</dd>
+                  {b.status === "antre" && (
                     <>
-                      <span className="block font-medium">{b.nama || "-"}</span>
-                      <span className="block text-muted tabular-nums">{b.tujuan ? formatNomor(b.tujuan) : "nomor tersembunyi"}</span>
+                      <dt className="text-muted">Jadwal</dt>
+                      <dd>{b.jadwal > kini ? waktuSingkatWib(b.jadwal) : "jatuh tempo"}</dd>
                     </>
-                  ) : (
-                    <span className="text-faint">–</span>
                   )}
-                </td>
-                <td className="px-3 py-3">
-                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold whitespace-nowrap ${NADA[b.status]}`}>{LABEL_STATUS[b.status]}</span>
-                  {b.status === "antre" && <span className="mt-1 block text-[11.5px] text-muted">{b.jadwal > kini ? `mulai ${waktuSingkatWib(b.jadwal)}` : "jatuh tempo"}</span>}
-                  {b.dibalas && <span className="mt-1 block text-[11.5px] text-success">dibalas {waktuSingkatWib(b.dibalas)}</span>}
-                </td>
-                <td className="px-3 py-3">
-                  <Centang ack={b.ack1} pada={b.terkirim1} />
-                </td>
-                <td className="px-3 py-3">
-                  {b.terkirim2 ? <Centang ack={b.ack2} pada={b.terkirim2} /> : b.status === "terkirim" ? <span className="text-muted">{waktuSingkatWib(b.jadwal)}</span> : <span className="text-faint">–</span>}
-                </td>
-                <td className="max-w-[280px] px-5 py-3 text-muted">{b.alasan ?? "–"}</td>
-              </tr>
-              <tr className="!border-t-0">
-                <td colSpan={6} className="px-5 pb-3">
-                  <details className="group rounded-xl border border-line bg-subtle/40 px-3.5 py-2" open={ubahPesan(b) !== null && !!(ubahPesan(b) === 1 ? b.pesan1 : b.pesan2)}>
-                    <summary className="cursor-pointer text-[12.5px] font-semibold text-accent select-none">
-                      Pesan {ubahPesan(b) === 1 ? "sapaan" : ubahPesan(b) === 2 ? "pengingat" : "terkirim"}
-                      {ubahPesan(b) && !(ubahPesan(b) === 1 ? b.pesan1 : b.pesan2) && <span className="font-normal text-muted"> · draf belum disiapkan</span>}
-                    </summary>
-                    <div className="pt-3 pb-1">
-                      <PratinjauPesan userId={b.user_id} pesan1={b.pesan1} pesan2={b.pesan2} ubah={ubahPesan(b)} />
-                    </div>
-                  </details>
-                </td>
-              </tr>
-              </Fragment>
+                  {b.terkirim1 && (
+                    <>
+                      <dt className="text-muted">Sapaan</dt>
+                      <dd><Centang ack={b.ack1} pada={b.terkirim1} /></dd>
+                    </>
+                  )}
+                  {(b.terkirim2 || b.status === "terkirim") && (
+                    <>
+                      <dt className="text-muted">Pengingat</dt>
+                      <dd>{b.terkirim2 ? <Centang ack={b.ack2} pada={b.terkirim2} /> : waktuSingkatWib(b.jadwal)}</dd>
+                    </>
+                  )}
+                  {b.dibalas && (
+                    <>
+                      <dt className="text-muted">Dibalas</dt>
+                      <dd className="text-success">{waktuSingkatWib(b.dibalas)}</dd>
+                    </>
+                  )}
+                </dl>
+                {b.alasan && <p className="text-[12px] text-muted">{b.alasan}</p>}
+                <KotakPesan b={b} />
+              </li>
             ))}
-            {baris.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-muted">
-                  Belum ada follow-up{status ? ` berstatus "${LABEL_STATUS[status]}"` : ""}.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+          </ul>
+
+          {/* Layar lebar: tabel. */}
+          <div className="hidden lg:block">
+            <table className="w-full text-left text-[12.5px]">
+              <thead className="bg-subtle/60 text-[11.5px] font-semibold tracking-[0.04em] text-muted uppercase">
+                <tr>
+                  <th className="px-5 py-2.5">Akun</th>
+                  <th className="px-3 py-2.5">Chat CS</th>
+                  <th className="px-3 py-2.5">Status</th>
+                  <th className="px-3 py-2.5">Sapaan</th>
+                  <th className="px-3 py-2.5">Pengingat</th>
+                  <th className="px-5 py-2.5">Keterangan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {baris.map((b) => (
+                  <Fragment key={b.user_id}>
+                    <tr className="align-top">
+                      <td className="max-w-[240px] px-5 py-3">
+                        <Link href={`/admin/pengguna/${b.user_id}`} className="block truncate font-semibold hover:text-accent hover:underline">
+                          {b.nama_akun || "(tanpa nama)"}
+                        </Link>
+                        <span className="block truncate text-muted">{b.email}</span>
+                      </td>
+                      <td className="px-3 py-3">
+                        {b.tujuan || b.nama ? (
+                          <>
+                            <span className="block font-medium">{b.nama || "-"}</span>
+                            <span className="block text-muted tabular-nums">{b.tujuan ? formatNomor(b.tujuan) : "nomor tersembunyi"}</span>
+                          </>
+                        ) : (
+                          <span className="text-faint">–</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold whitespace-nowrap ${NADA[b.status]}`}>{LABEL_STATUS[b.status]}</span>
+                        {b.status === "antre" && <span className="mt-1 block text-[11.5px] text-muted">{b.jadwal > kini ? `mulai ${waktuSingkatWib(b.jadwal)}` : "jatuh tempo"}</span>}
+                        {b.dibalas && <span className="mt-1 block text-[11.5px] text-success">dibalas {waktuSingkatWib(b.dibalas)}</span>}
+                      </td>
+                      <td className="px-3 py-3">
+                        <Centang ack={b.ack1} pada={b.terkirim1} />
+                      </td>
+                      <td className="px-3 py-3">
+                        {b.terkirim2 ? <Centang ack={b.ack2} pada={b.terkirim2} /> : b.status === "terkirim" ? <span className="text-muted">{waktuSingkatWib(b.jadwal)}</span> : <span className="text-faint">–</span>}
+                      </td>
+                      <td className="max-w-[280px] px-5 py-3 text-muted">{b.alasan ?? "–"}</td>
+                    </tr>
+                    <tr className="!border-t-0">
+                      <td colSpan={6} className="px-5 pb-3">
+                        <KotakPesan b={b} />
+                      </td>
+                    </tr>
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </section>
+  );
+}
+
+/** Lipatan "Pesan": draf / teks terkirim + edit & tulis ulang. Terbuka sendiri bila ada draf yang akan dikirim. */
+function KotakPesan({ b }: { b: BarisFollowup }) {
+  const ubah = ubahPesan(b);
+  const draf = ubah === 1 ? b.pesan1 : ubah === 2 ? b.pesan2 : null;
+  return (
+    <details className="rounded-xl border border-line bg-subtle/40 px-3.5 py-2" open={ubah !== null && !!draf}>
+      <summary className="flex min-h-9 cursor-pointer items-center text-[12.5px] font-semibold text-accent select-none">
+        Pesan {ubah === 1 ? "sapaan" : ubah === 2 ? "pengingat" : "terkirim"}
+        {ubah && !draf && <span className="ml-1 font-normal text-muted">· draf belum disiapkan</span>}
+      </summary>
+      <div className="pt-2 pb-1">
+        <PratinjauPesan userId={b.user_id} pesan1={b.pesan1} pesan2={b.pesan2} ubah={ubah} />
+      </div>
+    </details>
   );
 }
 
@@ -195,7 +254,7 @@ function Saring({ href, aktif, label }: { href: string; aktif: boolean; label: s
     <Link
       href={href}
       aria-current={aktif ? "page" : undefined}
-      className={`rounded-lg border px-2.5 py-1 text-[12px] font-semibold transition-colors ${aktif ? "border-accent bg-accent-soft text-accent" : "border-line text-muted hover:bg-subtle hover:text-fg"}`}
+      className={`shrink-0 rounded-lg border px-3 py-1.5 text-[12px] font-semibold whitespace-nowrap transition-colors ${aktif ? "border-accent bg-accent-soft text-accent" : "border-line text-muted hover:bg-subtle hover:text-fg"}`}
     >
       {label}
     </Link>

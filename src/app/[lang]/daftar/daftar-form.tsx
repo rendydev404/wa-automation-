@@ -77,7 +77,7 @@ export function DaftarForm() {
         <input id="situs" name="situs" tabIndex={-1} autoComplete="off" />
       </div>
       <label className="flex items-start gap-2.5 text-[13px] text-muted">
-        <input type="checkbox" name="setuju" required className="mt-0.5 size-4 accent-[var(--c-accent)]" />
+        <input type="checkbox" name="setuju" required className="centang mt-0.5" />
         <span>
           {t(
             "Saya tidak akan memakai layanan ini untuk spam, penipuan, atau pesan massal yang melanggar aturan WhatsApp.",
