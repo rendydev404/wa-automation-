@@ -150,7 +150,7 @@ export function PembangunCustom({
           : null;
 
   return (
-    <form onSubmit={simpan} className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] lg:gap-6">
+    <form onSubmit={simpan} className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] lg:gap-6">
       <div className="min-w-0 space-y-4">
         {pertama && (
           <p className="flex gap-2 rounded-xl border border-accent/30 bg-accent-soft/40 p-3 text-[12.5px] text-fg">
@@ -173,7 +173,7 @@ export function PembangunCustom({
             <label htmlFor="c-kuota" className="label">
               Kuota balasan AI per masa paket
             </label>
-            <div className="grid gap-3 sm:grid-cols-[210px_minmax(0,1fr)] sm:items-center">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[210px_minmax(0,1fr)] sm:items-center">
               <InputAngka id="c-kuota" nilai={c.kuota_balasan} onUbah={(v) => ubah({ kuota_balasan: v })} min={1} maks={BATAS_CUSTOM.kuotaBalasan} akhiran="balasan" />
               <input
                 type="range"
@@ -263,7 +263,7 @@ export function PembangunCustom({
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="block">
               <span className="label">Pembulatan harga otomatis</span>
               <PilihOpsi
@@ -426,7 +426,7 @@ export function PembangunCustom({
           ket={`${namaModel(c.model)} · terpakai ${c.pemakaian}% · ${METODE_BAYAR[c.metode].label} · server ${rp(c.biaya_server)}/nomor · kurs ${rp(k.info.kurs)}`}
           lipat
         >
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="c-model" className="label">
                 Model AI acuan biaya
@@ -487,7 +487,7 @@ export function PembangunCustom({
               <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden /> Kartu belum bisa tampil: {alasanTakTampil}
             </p>
           )}
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="label">Nama paket</span>
               <input value={c.nama} onChange={(e) => ubah({ nama: e.target.value })} maxLength={BATAS_CUSTOM.nama} required minLength={2} className="field" />
@@ -559,7 +559,7 @@ export function PembangunCustom({
                 onUbah={ubahAksi}
               />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {c.aksi === "wa" && (
                 <label className="block">
                   <span className="label">Nomor WhatsApp admin</span>

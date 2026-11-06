@@ -40,7 +40,7 @@ const waktuLengkap = (d: number) => `${tanggal(d)}, ${jamWib(d)} WIB`;
 
 function Baris({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid gap-1 py-2.5 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4">
+    <div className="grid grid-cols-1 gap-1 py-2.5 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4">
       <dt className="text-[12.5px] text-muted">{label}</dt>
       <dd className="min-w-0 text-[13.5px] font-medium break-words">{children}</dd>
     </div>
@@ -85,7 +85,7 @@ async function Isi({ params }: { params: Promise<{ order: string }> }) {
         </div>
       </header>
 
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-6">
           <section className="card p-5 sm:p-6">
             <h2 className="text-[15px] font-bold">Rincian pembelian</h2>

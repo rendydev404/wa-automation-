@@ -231,7 +231,7 @@ export function FormMetaPixel({ awal }: { awal: PengaturanMetaPixel }) {
           </div>
         </div>
 
-        <div className="mt-3.5 grid gap-2.5 sm:grid-cols-2">
+        <div className="mt-3.5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           {KUNCI_EVENT_META.map((k) => {
             const info = EVENT_META_PIXEL[k];
             const nyala = event[k];

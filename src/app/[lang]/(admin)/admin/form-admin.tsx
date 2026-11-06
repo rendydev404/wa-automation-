@@ -652,7 +652,7 @@ export function FormAi({
   const [pilih, setPilih] = useState(penyedia);
   return (
     <form action={aksi} className="space-y-4">
-      <fieldset className="grid gap-2 sm:grid-cols-3">
+      <fieldset className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <legend className="label">Penyedia untuk semua nomor</legend>
         {(["hermes", "anthropic", "per_paket"] as const).map((p) => (
           <label

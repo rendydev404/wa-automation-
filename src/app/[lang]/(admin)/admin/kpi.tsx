@@ -144,12 +144,12 @@ export async function KpiRingkasan() {
         </Pendukung>
       </section>
 
-      <div className="grid gap-4 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid grid-cols-1 gap-4 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <GrafikAktivitas titik={grafik} judul={`Aktivitas semua nomor · ${HARI_GRAFIK} hari`} penuh />
         <PerluPerhatian k={k} terputus={terputus} kini={kini} />
       </div>
 
-      <div className="grid gap-4 lg:gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:gap-6 xl:grid-cols-2">
         <PerPaket k={k} />
         <section className="card p-5 sm:p-6">
           <div className="flex items-center justify-between gap-3">
@@ -378,7 +378,7 @@ export function KerangkaKpi() {
         <div className="card col-span-2 h-44 animate-denyut xl:col-span-1" />
       </div>
       <div className="card h-32 animate-denyut" />
-      <div className="grid gap-4 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid grid-cols-1 gap-4 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="card h-80 animate-denyut" />
         <div className="card h-80 animate-denyut" />
       </div>

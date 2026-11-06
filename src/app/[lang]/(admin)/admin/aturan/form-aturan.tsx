@@ -29,7 +29,7 @@ export function FormAturan({ nilai }: { nilai: AturanSistem }) {
           <legend className="px-1.5 text-[13.5px] font-bold">{k.judul}</legend>
           <p className="text-[12.5px] text-muted">{k.ket}</p>
           <div className="mt-3 space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {k.angka.map((a) => {
                 const d = ATURAN_ANGKA[a];
                 return (

@@ -32,7 +32,7 @@ async function IsiAdminAfiliasi() {
   return (
     <div className="space-y-6">
       {/* Metrik Ringkasan */}
-      <section aria-label="Ringkasan Afiliasi" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section aria-label="Ringkasan Afiliasi" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="card p-5">
           <div className="flex items-center justify-between text-muted">
             <span className="text-[12px] font-semibold">Penarikan Menunggu</span>
@@ -275,7 +275,7 @@ async function IsiAdminAfiliasi() {
       </section>
 
       {/* Riwayat Komisi & Riwayat Pencairan */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section className="card overflow-hidden">
           <div className="border-b border-line px-5 py-4">
             <h2 className="text-[15px] font-bold">Komisi Afiliasi Terbaru</h2>

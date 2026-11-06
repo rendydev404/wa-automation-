@@ -72,7 +72,7 @@ export function KalkulatorAdmin({
   const persen = biayaAdmin > 0 && cocok ? (harga30 / biayaAdmin) * 100 : 0;
 
   return (
-    <div className="grid gap-px overflow-hidden rounded-3xl border border-line bg-line lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-px overflow-hidden rounded-3xl border border-line bg-line lg:grid-cols-2">
       <div className="space-y-5 bg-surface p-5 sm:p-7">
         <div>
           <label htmlFor="ba-chat" className="flex items-baseline justify-between gap-3">
@@ -176,7 +176,7 @@ export function KartuVs({ termurah, kurs }: { termurah: PaketBanding | undefined
     t("Anda membalas dari HP? AI otomatis mundur", "Reply from your phone? The AI steps back automatically"),
   ];
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <div className="rounded-3xl border border-danger/25 bg-danger-soft/60 p-6">
         <p className="text-[13px] font-bold tracking-wide text-danger uppercase">{t("1 admin CS WhatsApp", "1 WhatsApp CS admin")}</p>
         <p className="mt-2 text-3xl font-extrabold text-danger tabular-nums">± {rp(biaya1)}</p>

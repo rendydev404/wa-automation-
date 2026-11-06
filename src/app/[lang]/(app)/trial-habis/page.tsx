@@ -161,7 +161,7 @@ async function Isi() {
           ))}
         </div>
 
-        <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center">
+        <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center">
           <div>
             <h3 className="text-[15px] font-bold">
               {data.contohMenunggu.length
@@ -215,7 +215,7 @@ async function Isi() {
 
       {/* 5. Rasa aman membayar */}
       <section className="card p-5 sm:p-7">
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {[
             { ikon: Zap, judul: t("AI langsung aktif", "AI back on instantly"), isi: t("begitu pembayaran lunas, tanpa scan ulang", "as soon as payment clears, no rescan") },
             { ikon: BadgeCheck, judul: t("Tanpa kontrak", "No contract"), isi: t("tanpa tagihan otomatis, perpanjang kapan saja", "no auto-billing, renew anytime") },
@@ -254,7 +254,7 @@ async function Isi() {
       {/* 6. Menjawab keraguan */}
       <section className="card p-5 sm:p-7">
         <h2 className="text-xl font-bold tracking-tight sm:text-2xl">{t("Masih ragu?", "Still unsure?")}</h2>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
           {keberatan.map((x) => (
             <details key={x.q} className="group rounded-2xl border border-line px-4 py-3 open:bg-subtle/50">
               <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 text-[14px] font-bold select-none [&::-webkit-details-marker]:hidden">

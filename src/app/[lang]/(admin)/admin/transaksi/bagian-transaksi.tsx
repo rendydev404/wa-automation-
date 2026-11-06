@@ -45,7 +45,7 @@ export async function RingkasanTransaksi() {
   const maks = Math.max(1, ...r.perPaket.map((p) => p.total));
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kartu ikon={Wallet} label="Total pendapatan" nilai={rp(r.pendapatan)} sub={`${angka(r.lunas)} transaksi lunas`} />
         <Kartu
           ikon={Receipt}
@@ -123,7 +123,7 @@ export async function DaftarTransaksi({ searchParams }: { searchParams: Promise<
             <Download className="size-4" aria-hidden /> Ekspor CSV
           </a>
         </div>
-        <form action="/admin/transaksi" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_auto]">
+        <form action="/admin/transaksi" className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_auto]">
           {opsi.status !== "semua" && <input type="hidden" name="s" value={opsi.status} />}
           <label className="relative">
             <span className="sr-only">Cari transaksi</span>

@@ -137,7 +137,8 @@ export function GrafikAktivitas({
           {titik.map((h, i) => (
             // Label dipusatkan di atas kolomnya tanpa ikut melebarkan kolom ("Hari ini" lebih lebar dari kolom rapat).
             <span key={h.tanggal} className="relative h-4 min-w-0 flex-1">
-              <span className={`absolute top-0 left-1/2 -translate-x-1/2 text-[11px] whitespace-nowrap ${i === n - 1 ? "font-semibold text-fg" : "text-faint"}`}>
+              {/* Label terakhir ("Hari ini") rata kanan supaya tidak menjorok keluar tepi kartu (di HP melebarkan halaman 1 px). */}
+              <span className={`absolute top-0 text-[11px] whitespace-nowrap ${i === n - 1 ? "right-0 font-semibold text-fg" : "left-1/2 -translate-x-1/2 text-faint"}`}>
                 {i === n - 1 ? t("Hari ini", "Today") : !rapat ? h.label : (n - 1 - i) % 2 === 0 ? Number(h.tanggal.slice(8)) : ""}
               </span>
             </span>

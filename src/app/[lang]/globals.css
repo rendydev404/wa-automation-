@@ -160,6 +160,9 @@ html {
 }
 
 body {
+  /* Pengaman HP: halaman tidak pernah bisa digeser ke samping walau ada elemen yang meluap 1–2 px. clip (bukan hidden)
+     tidak membuat wadah scroll baru, jadi position: sticky tetap bekerja; tabel/daftar yang memang digeser tetap bisa. */
+  overflow-x: clip;
   background-color: var(--c-canvas);
   color: var(--c-fg);
   font-family: var(--font-sans);

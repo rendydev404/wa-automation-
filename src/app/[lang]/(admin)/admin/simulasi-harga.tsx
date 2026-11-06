@@ -278,7 +278,7 @@ export function SimulasiHarga({
         ))}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="block">
           <span className="label flex justify-between">
             Margin keuntungan target <b className="text-accent tabular-nums">{margin}%</b>
@@ -360,7 +360,7 @@ export function SimulasiHarga({
         </div>
 
         {modeKomisi === "semua" ? (
-          <div className="mt-4 grid gap-4 border-t border-line pt-4 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-center">
+          <div className="mt-4 grid grid-cols-1 gap-4 border-t border-line pt-4 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-center">
             <div>
               <span className="label">Jenis komisi semua paket</span>
               <div className="inline-flex w-full rounded-xl border border-line bg-surface p-1 text-[12px] font-semibold">
@@ -467,7 +467,7 @@ export function SimulasiHarga({
         <p className="mb-3 text-[12px] text-muted">
           Centang paket yang mau ikut diterapkan. Saat klik tombol terapkan di bawah, harga, kuota, sekaligus pengaturan komisi afiliasi pada paket yang dicentang akan disimpan.
         </p>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {baris.map(({ p, baru, kom, h, mustahil, komisiSimulasi, untungSetelahKomisi, marginSetelahKomisi }) => {
             const persenKomisiEfektif = baru.harga > 0 ? Math.round((komisiSimulasi / baru.harga) * 100) : 0;
             return (

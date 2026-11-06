@@ -80,7 +80,7 @@ export default function HalamanAturan() {
         <h1 className="mt-1.5 text-2xl font-bold tracking-tight sm:text-[28px]">Aturan</h1>
         <p className="mt-1 max-w-2xl text-muted">Aturan yang berlaku untuk semua akun dan semua bot: pendaftaran, kuota gratis, pengingat, dan aturan perilaku AI.</p>
       </div>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <Suspense fallback={<div aria-hidden className="card h-[900px] animate-denyut" />}>
           <IsiAturan />
         </Suspense>

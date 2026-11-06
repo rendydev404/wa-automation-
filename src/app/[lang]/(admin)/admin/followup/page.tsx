@@ -55,7 +55,7 @@ async function Mesin() {
           <LepasRem />
         </div>
       )}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kotak judul="Status" isi={jalan ? "Berjalan" : m.rem ? "Direm" : m.setelan.aktif ? "Tertahan" : "Mati"} catatan={m.nomor ? `${m.nomor.label} · ${m.nomor.terhubung ? "terhubung" : "TIDAK terhubung"}` : "Nomor CS belum diatur"} />
         <Kotak judul="Terkirim hari ini" isi={`${m.kirimHariIni} / ${m.setelan.batasHarian}`} catatan={`Jam kirim ${m.setelan.jamMulai}.00–${m.setelan.jamSelesai}.00 WIB`} />
         <Kotak judul="Dalam antrean" isi={String(m.hitung.antre ?? 0)} catatan={`${m.hitung.terkirim ?? 0} menunggu balasan`} />
@@ -271,7 +271,7 @@ export default function HalamanFollowup(props: PageProps<"/[lang]/admin/followup
           Nomor CS {MEREK} menyapa pemilik akun gratis yang kuota balasan AI-nya habis, dengan aturan ketat supaya nomor CS tidak diblokir WhatsApp.
         </p>
       </div>
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <Suspense fallback={<div aria-hidden className="card h-[560px] animate-denyut" />}>
           <Mesin />
         </Suspense>

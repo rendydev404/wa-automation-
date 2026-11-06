@@ -8,6 +8,7 @@ import { jalurLanjut } from "@/lib/lanjut";
 // /api/sinkron dipanggil database (bukan browser); keabsahannya dicek lewat tanda tangan HMAC di handler-nya.
 // "/" = landing page publik; /api/auth/google* = masuk dengan Google (sebelum ada sesi);
 // /api/midtrans/notifikasi = webhook Midtrans (keabsahan dicek lewat tanda tangan SHA-512 + status ulang dari API).
+const BERKAS_STATIS = /\.(?:png|jpe?g|webp|avif|gif|svg|ico|mp4|webm|woff2?)$/i;
 const PUBLIK = new Set(["/", "/program-afiliasi", "/api/health", "/api/pendaftar", "/api/sinkron", "/api/auth/google", "/api/auth/google/callback", "/api/midtrans/notifikasi"]);
 
 function asalSama(req: NextRequest): boolean {
@@ -75,6 +76,9 @@ export async function proxy(request: NextRequest) {
   };
 
   if (PUBLIK.has(pathname)) return pasangRef(lanjut());
+  // Berkas statis dari public/ (logo, logo bank, maskot, ikon) memang publik: tanpa ini pengunjung yang belum login
+  // dialihkan ke /login dan gambarnya rusak di landing page. Hanya ekstensi media/font, dan bukan /api.
+  if (!isApi && BERKAS_STATIS.test(pathname)) return lanjut();
 
   const sesi = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
 

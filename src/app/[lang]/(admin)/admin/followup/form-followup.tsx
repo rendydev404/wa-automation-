@@ -50,7 +50,7 @@ export function FormFollowup({ awal, nomor, otomatisId }: { awal: SetelanFollowu
         <p className="mt-1 text-[12px] text-muted">Follow-up hanya dikirim ke orang yang sudah pernah chat nomor ini.</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Isian id="fu-batas" nama="batas_harian" label="Maksimal pesan per hari" nilai={awal.batasHarian} batas={BATAS_SETELAN.batasHarian} catatan="Sapaan + pengingat. Disarankan ≤ 30." />
         <Isian id="fu-tunda" nama="tunda_jam" label="Tunggu setelah kuota habis (jam)" nilai={awal.tundaJam} batas={BATAS_SETELAN.tundaJam} catatan="Kesempatan pengguna chat CS duluan." />
         <Isian id="fu-mulai" nama="jam_mulai" label="Jam kirim mulai (WIB)" nilai={awal.jamMulai} batas={BATAS_SETELAN.jamMulai} />

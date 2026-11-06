@@ -63,7 +63,7 @@ export function FormAturanAfiliasi({ awal }: { awal: PengaturanAfiliasi }) {
         {aktif && <input type="hidden" name="aktif" value="on" />}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div role="radiogroup" aria-label="Siklus pemberian komisi" className="space-y-2 rounded-2xl border border-line p-4">
           <p className="px-1 text-[13px] font-semibold">Siklus pemberian komisi</p>
           <input type="hidden" name="siklus" value={siklus} />
@@ -235,7 +235,7 @@ export function FormProsesPenarikan({
               <p className="text-[12.5px] font-semibold">
                 Konfirmasi transfer manual Rp{angka(nominal)} ke {bankNama.toUpperCase()} {bankNomor}
               </p>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <input
                   name="referensi"
                   placeholder="No. referensi / bukti transfer (opsional)"

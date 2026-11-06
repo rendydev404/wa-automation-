@@ -212,6 +212,10 @@ try {
   assert.match(enAdmin.lokasi, /^(https?:\/\/[^/]+)?\/admin\/afiliasi$/);
   assert.equal((await minta("GET", "/id/dashboard", { headers: identitas })).status, 404, "segmen internal /id tidak boleh terbuka langsung");
   assert.equal((await minta("GET", "/logo-bayar/bca.svg", { headers: identitas })).status, 200, "berkas public/ tidak boleh ditulis ulang ke /id");
+  // Berkas public/ terbuka tanpa login (landing page memakainya untuk pengunjung yang belum masuk).
+  for (const berkas of ["/logo-bayar/bca.svg", "/maskot/jempol.webp", "/maskot/cek-product-knowledge.webp"]) {
+    assert.equal((await minta("GET", berkas, { headers: { cookie: "" } })).status, 200, `${berkas} tanpa sesi`);
+  }
   baris("GET /eng (landing Inggris, gzip)", await ukur("/eng", 60, { "accept-encoding": "gzip" }));
   baris("GET /eng/dashboard (gzip)", await ukur("/eng/dashboard", 60, { "accept-encoding": "gzip" }));
   console.log("  /eng, /eng/dashboard, /eng/nomor/7, auth, langganan, akun, afiliasi lolos; /eng/admin -> /admin; /id/* tertutup");

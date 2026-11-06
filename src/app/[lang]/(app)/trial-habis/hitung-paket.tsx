@@ -54,7 +54,7 @@ export function HitungPaket({ paket, chatAwal, kurs }: { paket: PaketTawar[]; ch
         <p className="mt-1 text-[14px] text-muted">
           {t("Pilih paket. Kuota balasan langsung bertambah setelah pembayaran lunas, nomor WhatsApp tetap tersambung.", "Pick a plan. Your reply quota is topped up as soon as payment clears, and your WhatsApp number stays connected.")}
         </p>
-        <div className="mt-6 grid gap-5 md:grid-cols-3 md:gap-4">
+        <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-3 md:gap-4">
           {paket.map((p) => {
             const pas = cocok?.id === p.id;
             const perHari = p.harga / p.durasi_hari;
