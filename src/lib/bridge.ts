@@ -2,7 +2,8 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { db, sekarang, setSetting } from "./db";
 import { catatPakai, tanpaIngatan, tanyaAiTerjaga } from "./ai";
-import { aiUntukAkun, catatBalasanLokal, catatKuotaHabis, sisaKuotaAi } from "./langganan";
+import { aiUntukAkun, catatBalasanLokal, catatKuotaHabis, daftarPaket, sisaKuotaAi } from "./langganan";
+import { uang } from "./format";
 import { MEREK } from "./merek";
 import { adaKnowledge, susunSistem } from "./knowledge";
 import { type KirimProduk, bahanKirim, captionProduk, daftarProduk, katalogBoleh, perluDaftar, teksKatalog } from "./katalog";
@@ -353,21 +354,47 @@ function statistik(numberId: number, kolom: "masuk" | "dibalas" | "gagal"): void
 
 /**
  * Pemberitahuan sekali kirim saat kuota balasan AI akun trial/gratis habis (klaimPemberitahuanKuota menjamin sekali per
- * periode kuota). Dikirim sebagai balasan di chat yang sedang masuk, jadi bukan pesan tanpa diminta: pelanggan tahu
- * pesannya tetap akan dibalas pemilik, dan pemilik nomor mendapat tautan untuk berlangganan.
+ * periode kuota). Dikirim sebagai balasan di chat yang sedang masuk, jadi bukan pesan tanpa diminta. Isinya ajakan
+ * berlangganan untuk pemilik nomor; harga "mulai" diambil dari paket aktif termurah (tanpa harga bila belum ada paket).
  */
-export function teksKuotaHabis(): string {
+export function teksKuotaHabis(mulai: { harga: number; hari: number } | null = null): string {
   const asal = (process.env.APP_URL || "https://chatgercep.com").replace(/\/+$/, "");
   return [
-    "Terima kasih telah menghubungi kami.",
+    "🚨 *Asisten AI WhatsApp Kamu Sudah Berhenti Membalas*",
     "",
-    "Saat ini kuota balasan otomatis (AI) gratis untuk nomor WhatsApp ini telah habis, sehingga pesan Anda belum dapat dijawab secara otomatis. Pesan Anda tetap kami terima dan akan dibalas langsung oleh pemilik nomor.",
+    `Halo, masa gratis ${MEREK} untuk akun kamu sudah habis. Mulai sekarang, setiap chat pelanggan yang masuk harus kamu balas sendiri.`,
     "",
-    `Untuk pemilik nomor: aktifkan kembali asisten AI dengan memilih paket berlangganan ${MEREK} di tautan berikut:`,
-    `${asal}/langganan`,
+    "Coba bayangkan:",
     "",
-    `_Pesan otomatis dari ${MEREK}_`,
+    "📱 Calon pembeli chat jam 11 malam, tanya harga dan stok.",
+    "⏰ Kamu baru sempat membalas besok pagi.",
+    "💸 Sementara itu, dia sudah beli di toko sebelah yang balasnya lebih cepat.",
+    "",
+    "Pembeli zaman sekarang tidak suka menunggu. *Setiap chat yang telat dibalas berpotensi jadi penjualan yang hilang.*",
+    "",
+    `Dengan ${MEREK} aktif kembali, kamu mendapatkan:`,
+    "",
+    "✅ Chat pelanggan dibalas otomatis 24 jam, termasuk hari libur",
+    "✅ Pertanyaan produk, harga, dan stok dijawab sesuai data usaha kamu",
+    "✅ Waktu admin jauh lebih hemat, fokus ke closing",
+    "✅ Kendali tetap di tangan kamu: balas sendiri kapan saja, AI otomatis mundur",
+    "",
+    ...(mulai ? [`🔥 *Cukup mulai ${uang(mulai.harga)} untuk ${mulai.hari} hari*, lebih murah dari satu pesanan yang hilang.`, ""] : []),
+    "Aktifkan sekarang supaya tidak ada pembeli yang lepas lagi:",
+    `👉 ${asal}/langganan`,
+    "",
+    `*${MEREK} — Bales WA Pakai AI, Tidak Pernah Segercep Ini!*`,
   ].join("\n");
+}
+
+/** Paket aktif termurah (bukan Custom) untuk baris "mulai Rp..." di pemberitahuan kuota habis; gagal = tanpa harga. */
+async function hargaMulai(): Promise<{ harga: number; hari: number } | null> {
+  try {
+    const p = (await daftarPaket()).filter((x) => x.harga > 0).sort((x, y) => x.harga - y.harga)[0];
+    return p ? { harga: p.harga, hari: p.durasi_hari } : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -384,7 +411,7 @@ function habisBaruDicek(userId: number): boolean {
 }
 
 async function beritahuKuotaHabis(a: Antrean, kunci: string): Promise<void> {
-  const teks = teksKuotaHabis();
+  const teks = teksKuotaHabis(await hargaMulai());
   try {
     await kirimTeks(a.sesi, a.alamat, teks, (id) => ingat(st.terkirim, id, 500));
     tulisLatar(() => catatPesan({ numberId: a.numberId, kunci, peran: 1, teks, waktu: sekarang() }));
