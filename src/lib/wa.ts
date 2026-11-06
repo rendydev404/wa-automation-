@@ -146,6 +146,8 @@ interface Keadaan {
   versiPada: number;
   versiJanji?: Promise<void>;
   penangan: ((ev: EventWa) => void | Promise<void>) | null;
+  /** Status kiriman pesan KELUAR (2 = sampai server, 3 = sampai HP, 4 = dibaca); dipakai follow-up CS (followup.ts). */
+  padaAck?: ((sesi: string, id: string, status: number) => void) | null;
   dimulai: boolean;
   timerJaga?: ReturnType<typeof setInterval> | null;
   timerDiag?: ReturnType<typeof setInterval> | null;
@@ -215,6 +217,11 @@ async function denganBatas<T>(janji: Promise<T>, ms: number, aksi: string, aksiE
 /** Jembatan mendaftarkan diri di sini; dicari saat event tiba supaya tetap benar setelah modul dimuat ulang. */
 export function padaEvent(fn: (ev: EventWa) => void | Promise<void>): void {
   st.penangan = fn;
+}
+
+/** Penerima status kiriman pesan keluar (centang satu/dua/biru). Dipanggil seketika, tanpa I/O di sini. */
+export function padaAck(fn: (sesi: string, id: string, status: number) => void): void {
+  st.padaAck = fn;
 }
 
 /** Selesai setelah penangannya selesai, supaya event satu nomor benar-benar diproses berurutan. */
@@ -867,6 +874,13 @@ async function sambung(s: Sesi): Promise<void> {
     const chat = new Set<string>();
     for (const { key, update } of daftar) {
       if (!key.fromMe && chatPribadi(B, key.remoteJid) && (update.status ?? 0) >= B.proto.WebMessageInfo.Status.READ) chat.add(key.remoteJid);
+      else if (key.fromMe && key.id && typeof update.status === "number" && st.padaAck) {
+        try {
+          st.padaAck(s.nama, key.id, update.status);
+        } catch {
+          // pemantau kiriman tidak boleh mengganggu event lain
+        }
+      }
     }
     for (const jid of chat) antre(s, async () => kabari({ jenis: "dibaca", sesi: s.nama, chat: await kanonik(B, sock, jid) }));
   });

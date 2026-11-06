@@ -50,6 +50,8 @@ import { type EventWa, digitWa, kirimGambar, kirimTeks, mengetik, padaEvent, tan
  * Aturan anti-blokir (panduan WAHA "how to avoid blocking"): hanya membalas chat pribadi yang masuk, tidak pernah
  * memulai chat; ritmenya seperti manusia: baca dulu, "mengetik" selama yang wajar untuk panjang jawabannya, berhenti,
  * baru kirim; waktu tunggu dan lama mengetik diacak (tidak pernah tepat sama).
+ *   Satu-satunya pengecualian: follow-up nomor CS ChatGerCep (followup.ts, lewat kirimSapaan) ke chat yang SUDAH
+ *   pernah ada dengan pemilik akun gratis yang kuotanya habis; paling banyak 2 pesan per akun, pelan, dan berjam kerja.
  *
  * Keadaan tiap chat (jeda, nomor sesi Hermes) dipegang di memori selama chat itu aktif
  * dan ditulis ke tabel chat_state di latar. Dengan begitu keputusan serah-terima tetap seketika
@@ -160,10 +162,30 @@ interface Keadaan {
   /** Khusus pengujian: lama mengetik & masa tunggu yang pasti (tanpa acak). */
   minMengetikMs?: number;
   tungguMs?: number;
+  /** Follow-up CS ChatGerCep (followup.ts) memasang dirinya di sini; null = fitur tidak dimuat. */
+  kaitCs?: KaitCs | null;
+}
+
+/**
+ * Kait nomor CS ChatGerCep (followup.ts). Dipasang lewat pasangKaitCs supaya jembatan tidak mengimpor followup.ts
+ * (followup.ts yang memakai kirimSapaan dari sini).
+ */
+export interface KaitCs {
+  /** Nomor CS (id) & digit WA-nya, dari memori tanpa I/O. */
+  nomorCs: () => { ids: ReadonlySet<number>; wa: ReadonlySet<string> };
+  /**
+   * Pesan masuk di nomor CS. Mengembalikan catatan untuk AI (siapa lawan bicaranya, balasan atas follow-up, permintaan
+   * berhenti) atau null. Chat yang tidak sedang di-follow-up dan tanpa kode akun selesai tanpa I/O.
+   */
+  pesanMasuk: (d: { numberId: number; kunci: string; teks: string; telepon: string | null }) => Promise<string | null>;
 }
 
 const g = globalThis as unknown as { __waBridge?: Keadaan };
 const st: Keadaan = (g.__waBridge ??= { terlihat: new Map(), terkirim: new Set(), antre: new Map(), tulis: Promise.resolve(), hitung: 0 });
+
+export function pasangKaitCs(k: KaitCs): void {
+  st.kaitCs = k;
+}
 
 function ingat<T>(wadah: Map<T, number> | Set<T>, kunci: T, maks: number): void {
   if (wadah instanceof Map) wadah.set(kunci, Date.now());
@@ -249,6 +271,28 @@ export function formatWa(teks: string): string {
 }
 
 const tidur = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Follow-up CS (followup.ts): satu pesan dari bot ke chat yang SUDAH pernah ada, dengan ritme manusia seperti balasan
+ * biasa: jeda sebentar, online + "mengetik" selama yang wajar untuk panjang pesannya, berhenti, kirim, lalu offline.
+ * Id pesan dicatat sebelum berangkat supaya gemanya tidak dikira balasan manusia (yang akan menjeda AI di chat itu).
+ */
+export async function kirimSapaan(d: { numberId: number; sesi: string; alamat: string; kunci: string; teks: string }): Promise<string> {
+  await tidur(skala(800 + Math.round(Math.random() * 2_200)));
+  const lama = st.minMengetikMs ?? lamaMengetik(d.teks);
+  void mengetik(d.sesi, d.alamat, true);
+  await tidur(lama);
+  void mengetik(d.sesi, d.alamat, false);
+  const id = await kirimTeks(d.sesi, d.alamat, d.teks, (x) => ingat(st.terkirim, x, 500));
+  const a = st.antre.get(d.kunci);
+  if (a) {
+    a.balasanAkhir = d.teks;
+    a.kirimAkhirMs = Date.now();
+  }
+  // Tidak dihitung "dibalas" di statistik harian: ini pesan yang kita mulai, bukan jawaban atas pesan masuk.
+  tulisLatar(() => catatPesan({ numberId: d.numberId, kunci: d.kunci, peran: 1, teks: d.teks, waktu: sekarang() }));
+  return id;
+}
 
 function jadwalkan(kunci: string, a: Antrean, ms: number): void {
   if (a.timer) clearTimeout(a.timer);
@@ -851,7 +895,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
     if (!ev.dariSaya) statistik(nomor.id, "masuk");
     if (teksLog)
       tulisLatar(() =>
-        catatPesan({ numberId: nomor.id, kunci, peran: ev.dariSaya ? 2 : 0, teks: teksLog, waktu: ev.waktu, telepon, nama: ev.dariSaya ? null : (ev.namaPengirim ?? null) })
+        catatPesan({ numberId: nomor.id, kunci, peran: ev.dariSaya ? 2 : 0, teks: teksLog, waktu: ev.waktu, telepon, nama: ev.dariSaya ? null : (ev.namaPengirim ?? null), alamat: ev.alamat })
       );
     return;
   }
@@ -897,9 +941,16 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   }
 
   statistik(nomor.id, "masuk");
-  if (teksLog) tulisLatar(() => catatPesan({ numberId: nomor.id, kunci, peran: 0, teks: teksLog, waktu: ev.waktu || sekarang(), telepon, nama: ev.namaPengirim ?? null }));
+  if (teksLog) tulisLatar(() => catatPesan({ numberId: nomor.id, kunci, peran: 0, teks: teksLog, waktu: ev.waktu || sekarang(), telepon, nama: ev.namaPengirim ?? null, alamat: ev.alamat }));
   // Bot dimatikan atau pemilik diblokir admin: pesan tetap tercatat, tapi AI tidak membalas.
   if (!nomor.bot_aktif || !nomor.pemilik_aktif) return;
+  // Pesan dari nomor CS ChatGerCep (follow-up) ke nomor pelanggan: dicatat, tidak dibalas AI nomor ini. Tanpa ini dua
+  // bot bisa saling membalas tanpa henti; pemilik nomor tetap membacanya dan membalas sendiri dari HP.
+  const cs = st.kaitCs?.nomorCs();
+  if (cs && telepon && cs.wa.has(telepon) && !cs.ids.has(nomor.id)) {
+    console.info(`[bridge] pesan dari nomor CS ${MEREK} sesi=${sesi}: dicatat tanpa dibalas AI`);
+    return;
+  }
 
   // Promosi judi yang jelas: tidak diantrekan (tanpa memanggil AI), kecuali chat ini sudah dipercaya pemilik.
   if (nomor.saring_spam && ev.teks) {
@@ -919,6 +970,14 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   if (!teks) return;
 
   const a = await antreanUntuk(kunci, nomor.id, sesi, ev.alamat);
+  // Nomor CS ChatGerCep: balasan atas follow-up / kode akun dari tombol "Chat CS" -> konteks untuk AI.
+  if (cs?.ids.has(nomor.id) && st.kaitCs) {
+    const c = await st.kaitCs.pesanMasuk({ numberId: nomor.id, kunci, teks: ev.teks, telepon }).catch((e) => {
+      console.warn(`[bridge] kait CS gagal sesi=${sesi}: ${e instanceof Error ? e.message : e}`);
+      return null;
+    });
+    if (c) catat(a, c);
+  }
   // Penyaring prospek: chat dibisukan / bot / ucapan penutup yang tidak perlu dijawab berhenti di sini (tanpa AI).
   if (await saringProspek(kunci, a, nomor, ev.teks.trim())) return;
   if (kodeSuara && ev.suara) {

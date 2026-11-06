@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { ArrowRight, BookOpenText, Camera, Check, GraduationCap, Hand, History, Lock, ShieldCheck, Smartphone, TriangleAlert, Zap } from "lucide-react";
+import { ArrowRight, BookOpenText, Camera, Check, GraduationCap, Hand, History, Lock, MessageSquareLock, ShieldCheck, Smartphone, TriangleAlert, Zap } from "lucide-react";
 import { GantiBahasa } from "@/components/ganti-bahasa";
 import { DemoAlur, DemoChat } from "@/components/landing/demo";
 import { HargaLanding } from "@/components/landing/harga";
@@ -91,9 +91,12 @@ const fitur = (t: T) => [
 const keamanan = (t: T) => [
   { ikon: Lock, judul: t("Password di-hash scrypt", "Passwords hashed with scrypt"), teks: t("Password tidak pernah disimpan dalam bentuk asli.", "Passwords are never stored in plain text.") },
   {
-    ikon: ShieldCheck,
-    judul: t("Sesi login bertanda tangan", "Signed login sessions"),
-    teks: t("Cookie HttpOnly; ganti password = semua perangkat lain keluar.", "HttpOnly cookies. Changing your password signs out every other device."),
+    ikon: MessageSquareLock,
+    judul: t("Histori chat hanya untuk Anda", "Chat history only for you"),
+    teks: t(
+      "Percakapan pelanggan hanya tampil di akun Anda, tidak bisa dilihat pengguna lain, dan terhapus otomatis setelah 30 hari.",
+      "Customer conversations only show in your account, can't be seen by other users, and are deleted automatically after 30 days.",
+    ),
   },
   {
     ikon: Zap,

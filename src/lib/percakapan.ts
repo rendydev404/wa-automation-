@@ -79,6 +79,8 @@ export async function catatPesan(d: {
   waktu?: number;
   telepon?: string | null;
   nama?: string | null;
+  /** JID untuk menulis ke chat ini (follow-up CS, lihat followup.ts); null = yang tersimpan dipertahankan. */
+  alamat?: string | null;
 }): Promise<void> {
   const teksBersih = d.teks.replace(/\u0000/g, "").trim().slice(0, MAKS_TEKS_SIMPAN);
   if (!teksBersih) return;
@@ -86,6 +88,7 @@ export async function catatPesan(d: {
   const waktu = d.waktu && d.waktu > 0 ? Math.floor(d.waktu) : sekarang();
   const telepon = d.telepon ? d.telepon.replace(/\D/g, "").slice(0, 24) || null : null;
   const nama = d.nama ? d.nama.replace(/\u0000/g, "").trim().slice(0, MAKS_NAMA) || null : null;
+  const alamat = d.alamat ? d.alamat.slice(0, 80) : null;
   const masuk = d.peran === 0 ? 1 : 0;
   const bot = d.peran === 1 ? 1 : 0;
   const manusia = d.peran === 2 ? 1 : 0;
@@ -93,11 +96,12 @@ export async function catatPesan(d: {
   const sql = await db();
   await sql`
     WITH p AS (
-      INSERT INTO percakapan (number_id, kunci, telepon, nama, cuplikan, pengirim_akhir, masuk_n, bot_n, manusia_n, terakhir_pada)
-      VALUES (${d.numberId}, ${d.kunci}, ${telepon}, ${nama}, ${cuplikan}, ${d.peran}, ${masuk}, ${bot}, ${manusia}, ${waktu})
+      INSERT INTO percakapan (number_id, kunci, telepon, nama, alamat, cuplikan, pengirim_akhir, masuk_n, bot_n, manusia_n, terakhir_pada)
+      VALUES (${d.numberId}, ${d.kunci}, ${telepon}, ${nama}, ${alamat}, ${cuplikan}, ${d.peran}, ${masuk}, ${bot}, ${manusia}, ${waktu})
       ON CONFLICT (kunci) DO UPDATE SET
         telepon        = COALESCE(EXCLUDED.telepon, percakapan.telepon),
         nama           = COALESCE(EXCLUDED.nama, percakapan.nama),
+        alamat         = COALESCE(EXCLUDED.alamat, percakapan.alamat),
         cuplikan       = EXCLUDED.cuplikan,
         pengirim_akhir = EXCLUDED.pengirim_akhir,
         masuk_n        = percakapan.masuk_n   + EXCLUDED.masuk_n,

@@ -28,6 +28,9 @@ export async function register() {
     // Histori percakapan yang lebih lama dari 30 hari dihapus berkala.
     const { mulaiPembersihanHistori } = await import("@/lib/percakapan");
     mulaiPembersihanHistori();
+    // Follow-up WhatsApp nomor CS ke akun gratis yang kuotanya habis (mati sampai admin menyalakannya).
+    const { mulaiFollowup } = await import("@/lib/followup");
+    mulaiFollowup();
     // Notifikasi in-app: pengingat paket akan/sudah berakhir & pembersihan notifikasi lama, tiap jam.
     const { mulaiPengingat } = await import("@/lib/notifikasi");
     mulaiPengingat();

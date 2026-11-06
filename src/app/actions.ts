@@ -1384,3 +1384,74 @@ export async function adminUjiMetaPixelAction(): Promise<Hasil> {
   const ip = await ipKlien();
   return ujiCapiMetaPixel({ ip, email: admin.email });
 }
+
+// ---------- Follow-up WhatsApp nomor CS (followup.ts) ----------
+
+export async function adminFollowupAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const angkaForm = (k: string): number => Number(String(form.get(k) ?? "").trim());
+  const nomorId = idSah(form.get("nomor_id"));
+  const setelan = {
+    aktif: form.get("aktif") === "on",
+    nomorId,
+    batasHarian: angkaForm("batas_harian"),
+    jamMulai: angkaForm("jam_mulai"),
+    jamSelesai: angkaForm("jam_selesai"),
+    tundaJam: angkaForm("tunda_jam"),
+    pengingatHari: angkaForm("pengingat_hari"),
+  };
+  return jalankanAdmin(
+    async () => {
+      const { simpanPengaturanFollowup } = await import("@/lib/followup");
+      const s = await simpanPengaturanFollowup(setelan);
+      await catatLog(admin, "followup_setelan", null, `${s.aktif ? "aktif" : "mati"}, ${s.batasHarian}/hari, jam ${s.jamMulai}-${s.jamSelesai}, tunda ${s.tundaJam} jam, pengingat ${s.pengingatHari} hari`);
+      return s.aktif ? "Tersimpan. Follow-up aktif: akun yang kuotanya habis sedang dipindai." : "Tersimpan. Follow-up mati: tidak ada pesan yang dikirim.";
+    },
+    "/admin/followup",
+  );
+}
+
+export async function adminLepasRemFollowupAction(): Promise<Hasil> {
+  const admin = await requireAdmin();
+  return jalankanAdmin(
+    async () => {
+      const { lepasRemFollowup } = await import("@/lib/followup");
+      await lepasRemFollowup();
+      await catatLog(admin, "followup_lepas_rem", null);
+      return "Rem dilepas. Follow-up berjalan lagi di putaran berikutnya.";
+    },
+    "/admin/followup",
+  );
+}
+
+export async function adminTautChatCsAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const id = idSah(form.get("id"));
+  if (!id) return { ok: false, pesan: "Pengguna tidak valid." };
+  const nomor = String(form.get("nomor") ?? "").slice(0, 40);
+  return jalankanAdmin(
+    async () => {
+      const { tautkanChatCs } = await import("@/lib/followup");
+      const pesan = await tautkanChatCs(id, nomor);
+      await catatLog(admin, "followup_tautkan", String(id), nomor.trim() || "dilepas");
+      return pesan;
+    },
+    `/admin/pengguna/${id}`,
+    "/admin/followup",
+  );
+}
+
+export async function adminAntrekanFollowupAction(id: number): Promise<Hasil> {
+  const admin = await requireAdmin();
+  if (!idSah(id)) return { ok: false, pesan: "Pengguna tidak valid." };
+  return jalankanAdmin(
+    async () => {
+      const { antrekanUlang } = await import("@/lib/followup");
+      await antrekanUlang(id);
+      await catatLog(admin, "followup_antre_ulang", String(id));
+      return "Diantrekan ulang. Semua pemeriksaan (jam kirim, batas harian, chat duluan) tetap berlaku.";
+    },
+    `/admin/pengguna/${id}`,
+    "/admin/followup",
+  );
+}

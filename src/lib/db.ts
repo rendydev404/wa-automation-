@@ -552,6 +552,45 @@ const MIGRASI: string[] = [
   );
   CREATE INDEX push_langganan_user_idx ON push_langganan (user_id);
   `,
+  // v27: follow-up WhatsApp oleh nomor CS ChatGerCep ke akun gratis yang kuotanya habis (followup.ts).
+  //   percakapan.alamat: JID untuk menulis ke chat itu (chat yang hanya dikenal lewat LID tidak punya telepon).
+  //   users.cs_kunci: chat CS yang ditautkan ke akun (diisi admin, atau otomatis lewat kode akun di tombol "Chat CS").
+  //   followup: satu baris per akun seumur hidup (paling banyak 2 pesan: sapaan + pengingat). Indeks parsial hanya
+  //   memuat baris yang masih berjalan, jadi pemeriksaan berkala tidak pernah memindai riwayat yang sudah selesai.
+  //   followup_stop: chat yang meminta tidak dihubungi lagi (permanen, berlaku untuk akun mana pun yang tertaut ke situ).
+  `
+  ALTER TABLE percakapan ADD COLUMN alamat text;
+  ALTER TABLE users ADD COLUMN cs_kunci text;
+  CREATE INDEX percakapan_nomor_telepon_idx ON percakapan (number_id, telepon) WHERE telepon IS NOT NULL;
+
+  CREATE TABLE followup (
+    user_id     integer PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    status      text NOT NULL CHECK (status IN ('antre', 'terkirim', 'dibalas', 'selesai', 'batal', 'stop', 'gagal')),
+    kunci       text,
+    tujuan      text,
+    nama        text,
+    tahap       smallint NOT NULL DEFAULT 0,
+    jadwal      bigint NOT NULL,
+    dibuat      bigint NOT NULL,
+    diperbarui  bigint NOT NULL,
+    pesan1_id   text,
+    pesan2_id   text,
+    terkirim1   bigint,
+    terkirim2   bigint,
+    ack1        smallint NOT NULL DEFAULT 0,
+    ack2        smallint NOT NULL DEFAULT 0,
+    dibalas     bigint,
+    alasan      text
+  );
+  CREATE INDEX followup_jalan_idx ON followup (jadwal) WHERE status IN ('antre', 'terkirim');
+  CREATE INDEX followup_kunci_idx ON followup (kunci) WHERE kunci IS NOT NULL;
+  CREATE INDEX followup_diperbarui_idx ON followup (diperbarui DESC, user_id DESC);
+
+  CREATE TABLE followup_stop (
+    kunci  text PRIMARY KEY,
+    dibuat bigint NOT NULL
+  );
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

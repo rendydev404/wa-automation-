@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, ArrowLeft, Bot, Ellipsis, LayoutDashboard, LogOut, Package, ScrollText, Settings2, Share2, Users, Wallet } from "lucide-react";
+import { Activity, ArrowLeft, Bot, Ellipsis, LayoutDashboard, LogOut, MessageCircleReply, Package, ScrollText, Settings2, Share2, Users, Wallet } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { BilahBawah, TabBawah, TabLembar } from "@/components/bilah-bawah";
 
@@ -14,6 +14,7 @@ const MENU: ItemMenu[] = [
   { href: "/admin/paket", label: "Paket & harga", pendek: "Paket", ikon: Package },
   { href: "/admin/transaksi", label: "Transaksi", ikon: Wallet },
   { href: "/admin/afiliasi", label: "Afiliasi", ikon: Share2 },
+  { href: "/admin/followup", label: "Follow-up WA", ikon: MessageCircleReply },
   { href: "/admin/pixel", label: "Meta Pixel", ikon: Activity },
   { href: "/admin/ai", label: "Mesin AI", ikon: Bot },
   { href: "/admin/aturan", label: "Aturan", ikon: Settings2 },

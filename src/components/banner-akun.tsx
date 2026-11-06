@@ -1,9 +1,10 @@
 import Link from "@/components/link";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, MessageCircle } from "lucide-react";
 import { aturan } from "@/lib/aturan";
 import { db, sekarang } from "@/lib/db";
 import { teksHalaman } from "@/lib/bahasa-halaman";
 import { angka, tanggal } from "@/lib/format";
+import { tautanChatCs } from "@/lib/followup";
 import { hakAkun, sisaKuotaAi } from "@/lib/langganan";
 import { requireUser } from "@/lib/session";
 
@@ -123,6 +124,10 @@ export async function BannerKuota() {
               : t("Perpanjang atau naikkan paket supaya AI tidak berhenti di tengah jalan.", "Renew or upgrade your plan so the AI doesn't stop mid-conversation."),
           ];
 
+  // Akun gratis yang AI-nya sudah berhenti: tombol chat CS di WhatsApp dengan kode akun (pengguna yang chat duluan
+  // adalah jalur paling aman; kodenya menautkan chat itu ke akun ini dari HP mana pun, lihat followup.ts).
+  const chatCs = hak.sampai === null && (hak.percobaanBerakhir || sisa === 0) ? await tautanChatCs(user.id).catch(() => null) : null;
+
   return (
     <div role="alert" className="flex flex-col gap-3 rounded-2xl border border-danger/30 bg-danger-soft px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex gap-3">
@@ -132,9 +137,17 @@ export async function BannerKuota() {
           <p className="text-muted">{isi}</p>
         </div>
       </div>
-      <Link href="/langganan" className="btn btn-primary shrink-0">
-        {t("Lihat paket", "View plans")}
-      </Link>
+      <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+        {chatCs && (
+          <a href={chatCs} target="_blank" rel="noopener noreferrer" className="btn btn-ghost border border-line bg-surface">
+            <MessageCircle className="size-4" aria-hidden />
+            {t("Chat CS di WhatsApp", "Chat support on WhatsApp")}
+          </a>
+        )}
+        <Link href="/langganan" className="btn btn-primary">
+          {t("Lihat paket", "View plans")}
+        </Link>
+      </div>
     </div>
   );
 }

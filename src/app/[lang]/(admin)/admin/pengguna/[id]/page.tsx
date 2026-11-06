@@ -19,6 +19,9 @@ import { angka } from "@/lib/format";
 import { kunciAnthropic, pengaturanAi, perkiraanPerBalasan } from "@/lib/ai";
 import { aiUntukAkun, balasanTerpakai, daftarPaket, hakAkun, langgananAktif, pemakaianNyata, riwayatBonus, riwayatLangganan } from "@/lib/langganan";
 import { MEREK } from "@/lib/merek";
+import { followupAkun } from "@/lib/followup";
+import { LABEL_ACK, LABEL_STATUS } from "@/lib/followup-def";
+import { AntrekanUlang, FormTautChatCs } from "../../followup/followup-akun";
 
 export const metadata: Metadata = { title: `Kelola pengguna · ${MEREK}` };
 
@@ -218,6 +221,11 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             </section>
           )}
           {u.peran !== "admin" && (
+            <Suspense fallback={<div aria-hidden className="card h-56 animate-denyut" />}>
+              <FollowupAkun id={u.id} />
+            </Suspense>
+          )}
+          {u.peran !== "admin" && (
             <section className="card p-4 sm:p-6">
               <h2 className="text-[15px] font-bold">Bonus kuota balasan AI</h2>
               <p className="mt-0.5 text-[13px] text-muted">
@@ -289,5 +297,45 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Follow-up WhatsApp nomor CS untuk akun ini: chat tujuan (otomatis / manual), status, dan isian nomor fallback. */
+async function FollowupAkun({ id }: { id: number }) {
+  const f = await followupAkun(id);
+  const b = f.baris;
+  return (
+    <section className="card p-4 sm:p-6">
+      <h2 className="text-[15px] font-bold">Follow-up WhatsApp</h2>
+      <p className="mt-0.5 text-[13px] text-muted">
+        {f.tanpaNomorCs
+          ? "Nomor CS follow-up belum diatur (Admin › Follow-up WA)."
+          : f.chat
+            ? `Tujuan: ${f.chat.nama || "(tanpa nama)"}${f.chat.telepon ? ` · ${formatNomor(f.chat.telepon)}` : ""}${f.chat.manual ? " · ditautkan manual" : " · cocok otomatis"}`
+            : "Belum ada chat CS yang cocok: akun ini tidak akan dikirimi follow-up sampai nomornya diisi di bawah."}
+      </p>
+      {b && (
+        <div className="mt-3 rounded-xl bg-subtle px-3.5 py-2.5 text-[12.5px]">
+          <p className="font-semibold">
+            {LABEL_STATUS[b.status]}
+            {b.tahap > 0 && <span className="font-normal text-muted"> · {b.tahap} pesan terkirim</span>}
+          </p>
+          {b.terkirim1 && <p className="text-muted">Sapaan {waktuSingkatWib(b.terkirim1)} · {LABEL_ACK[Math.min(4, b.ack1)]}</p>}
+          {b.terkirim2 && <p className="text-muted">Pengingat {waktuSingkatWib(b.terkirim2)} · {LABEL_ACK[Math.min(4, b.ack2)]}</p>}
+          {b.dibalas && <p className="text-success">Dibalas {waktuSingkatWib(b.dibalas)}</p>}
+          {b.alasan && <p className="text-muted">{b.alasan}</p>}
+          {b.tahap === 0 && (b.status === "batal" || b.status === "gagal") && (
+            <div className="mt-2 flex justify-end">
+              <AntrekanUlang id={id} />
+            </div>
+          )}
+        </div>
+      )}
+      {!f.tanpaNomorCs && (
+        <div className="mt-4">
+          <FormTautChatCs id={id} manual={f.chat?.manual ? f.chat.telepon : null} />
+        </div>
+      )}
+    </section>
   );
 }
