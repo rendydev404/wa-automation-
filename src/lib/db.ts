@@ -591,6 +591,11 @@ const MIGRASI: string[] = [
     dibuat bigint NOT NULL
   );
   `,
+  // v28: pratinjau follow-up. pesan1/pesan2 = draf sapaan/pengingat yang disiapkan menjelang jadwal (bisa diedit admin);
+  //   setelah terkirim berisi teks yang benar-benar dikirim. Kolom tanpa default: hanya katalog, tanpa menulis ulang tabel.
+  `
+  ALTER TABLE followup ADD COLUMN pesan1 text, ADD COLUMN pesan2 text;
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

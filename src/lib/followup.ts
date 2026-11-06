@@ -5,6 +5,7 @@ import { catatPakai, tanyaAi } from "./ai";
 import { formatWa, kirimSapaan, pasangKaitCs } from "./bridge";
 import { rapikanNomorWa } from "./format";
 import {
+  BATAS_PESAN,
   BATAS_SETELAN,
   type BarisFollowup,
   JEDA_ANTARPESAN_MENIT,
@@ -78,6 +79,8 @@ interface Keadaan {
   bolehPada: number;
   hari: string;
   kirimHari: number;
+  /** Akun yang drafnya belum bisa disiapkan (belum ada chat CS yang cocok): dilewati sampai waktu ini (ms). */
+  lewatDraf: Map<number, number>;
 }
 
 const g = globalThis as unknown as { __waFollowup?: Keadaan };
@@ -93,7 +96,9 @@ const st: Keadaan = (g.__waFollowup ??= {
   bolehPada: 0,
   hari: "",
   kirimHari: 0,
+  lewatDraf: new Map(),
 });
+st.lewatDraf ??= new Map(); // keadaan dari versi modul sebelumnya (muat ulang saat pengembangan)
 
 const asal = (): string => (process.env.APP_URL || "https://chatgercep.com").replace(/\/+$/, "");
 
@@ -257,32 +262,34 @@ async function pemakaianAkun(userId: number): Promise<{ balasan: number; pelangg
   return { balasan: u ? await balasanTerpakai(userId, u.created_at) : 0, pelanggan: p?.n ?? 0 };
 }
 
-/** "Kak Budi" dari nama profil WA lawan bicara (atau nama akun); hanya kata pertama yang wajar sebagai sapaan. */
+/** "Budi" dari nama profil WA lawan bicara (atau nama akun); hanya kata pertama yang wajar. "" = tanpa nama. */
 function panggilan(...nama: (string | null | undefined)[]): string {
   for (const n of nama) {
     const kata = (n ?? "").normalize("NFKC").replace(/[^\p{L}\s'-]/gu, " ").trim().split(/\s+/)[0] ?? "";
-    if (kata.length >= 2 && kata.length <= 20) return `Kak ${kata.charAt(0).toUpperCase()}${kata.slice(1).toLowerCase()}`;
+    if (kata.length >= 2 && kata.length <= 20) return `${kata.charAt(0).toUpperCase()}${kata.slice(1).toLowerCase()}`;
   }
-  return "Kak";
+  return "";
 }
 
 // ---------- Penyusun pesan ----------
 
 const POLA_TAUTAN = /(https?:\/\/|www\.|wa\.me|\.com\b|\.id\b)/i;
 
+/** Templat cadangan (AI gagal / tidak lolos pemeriksaan), dua variasi per jenis. Sapaan "kamu", bukan "Kak". */
 function templat(jenis: "sapaan" | "pengingat", sapa: string, balasan: number): string {
+  const halo = sapa ? `Halo ${sapa}` : "Halo";
   if (jenis === "pengingat")
     return [
-      `${sapa}, maaf ganggu lagi 🙏 Kalau asisten AI-nya mau diaktifkan lagi supaya pelanggan dibalas otomatis, tinggal balas chat ini ya, nanti saya bantu pilihkan paket yang pas. Kalau belum perlu juga tidak apa-apa.`,
-      `${sapa}, saya cuma mau memastikan pesan kemarin sampai 🙂 Kalau mau AI di WhatsApp-nya membalas pelanggan lagi, balas saja chat ini, saya bantu. Kalau belum, santai saja ya.`,
+      `${halo}, maaf ganggu lagi 🙏 Kalau kamu mau asisten AI-nya aktif lagi supaya pelanggan dibalas otomatis, tinggal balas chat ini ya, nanti aku bantu pilihkan paket yang pas. Kalau belum perlu juga tidak apa-apa.`,
+      `${halo}, aku cuma mau memastikan pesan kemarin sampai 🙂 Kalau kamu mau AI di WhatsApp-mu membalas pelanggan lagi, balas saja chat ini, aku bantu. Kalau belum, santai saja ya.`,
     ][Math.floor(Math.random() * 2)];
   const fakta =
     balasan > 0
-      ? `asisten AI di WhatsApp Kakak sudah membalas ${balasan.toLocaleString("id-ID")} chat pelanggan, tapi kuota gratisnya sudah habis jadi sekarang AI-nya berhenti membalas`
-      : `kuota gratis asisten AI di akun ${MEREK} Kakak sudah habis, jadi AI-nya belum bisa membalas pelanggan`;
+      ? `asisten AI di WhatsApp kamu sudah membalas ${balasan.toLocaleString("id-ID")} chat pelanggan, tapi kuota gratisnya sudah habis jadi sekarang AI-nya berhenti membalas`
+      : `kuota gratis asisten AI di akun ${MEREK} kamu sudah habis, jadi AI-nya belum bisa membalas pelanggan`;
   return [
-    `Halo ${sapa}, ini CS ${MEREK} 👋 Mau kabari, ${fakta}. Mau saya bantu aktifkan lagi?`,
-    `Halo ${sapa} 👋 Saya dari CS ${MEREK}. Sekadar info, ${fakta}. Ada yang bisa saya bantu supaya aktif lagi?`,
+    `${halo}, ini CS ${MEREK} 👋 Mau kabari, ${fakta}. Mau aku bantu aktifkan lagi?`,
+    `${halo} 👋 Aku dari CS ${MEREK}. Sekadar info, ${fakta}. Ada yang bisa aku bantu supaya aktif lagi?`,
   ][Math.floor(Math.random() * 2)];
 }
 
@@ -303,7 +310,7 @@ async function susunPesan(
       `Kamu CS ${MEREK}, layanan asisten AI yang membalas chat WhatsApp pelanggan untuk pemilik usaha.`,
       `Tulis SATU pesan WhatsApp ${jenis === "sapaan" ? "follow-up pertama" : "pengingat terakhir"} untuk pemilik akun ${MEREK} berpaket gratis yang kuota balasan AI-nya sudah habis, sehingga AI di WhatsApp-nya berhenti membalas pelanggan.`,
       "Aturan:",
-      `- Bahasa Indonesia santai tapi sopan, seperti CS manusia. Sapa dengan "${d.sapa}".`,
+      `- Bahasa Indonesia santai tapi sopan, seperti CS manusia. Panggil lawan bicara "kamu" (JANGAN "Kak"/"Kakak"/"Anda")${d.sapa ? ` dan sapa dengan "Halo ${d.sapa}"` : ""}.`,
       jenis === "sapaan"
         ? "- 2 sampai 3 kalimat, paling panjang 320 karakter. Perkenalkan diri singkat sebagai CS. Sebut fakta pemakaiannya bila ada. Akhiri dengan satu pertanyaan ringan apakah ia mau dibantu mengaktifkan lagi."
         : "- 1 sampai 2 kalimat, paling panjang 220 karakter. Jangan mengulang kalimat pesan sebelumnya. Tanpa tekanan: bilang tidak apa-apa bila belum perlu.",
@@ -366,7 +373,13 @@ async function kirimanHariIni(): Promise<number> {
   return st.kirimHari;
 }
 
-type BarisJalan = Pick<BarisFollowup, "user_id" | "status" | "tahap" | "dibuat" | "terkirim1" | "ack1"> & { kunci: string | null };
+type BarisJalan = Pick<BarisFollowup, "user_id" | "status" | "tahap" | "dibuat" | "terkirim1" | "ack1" | "pesan1" | "pesan2"> & { kunci: string | null };
+
+/** Tulis pesan follow-up untuk akun & chat ini (AI per orang, cadangan templat). */
+async function tulisPesan(u: Akun, chat: ChatCs, cs: Nomor, jenis: "sapaan" | "pengingat", sebelumnya: string | null): Promise<string> {
+  const pakai = await pemakaianAkun(u.id);
+  return susunPesan(jenis, cs, { userId: u.id, sapa: panggilan(chat.nama, u.nama), namaAkun: u.nama, balasan: pakai.balasan, pelanggan: pakai.pelanggan, sebelumnya });
+}
 
 async function ubah(userId: number, status: StatusFollowup, alasan: string | null, lain: { jadwal?: number; dibalas?: number } = {}): Promise<void> {
   const sql = await db();
@@ -429,16 +442,9 @@ async function prosesSatu(b: BarisJalan, s: SetelanFollowup, cs: Nomor): Promise
   }
 
   const jenis = b.status === "antre" ? "sapaan" : "pengingat";
-  const pakai = await pemakaianAkun(u.id);
-  const info = st.aktif.get(chat.kunci);
-  const teks = await susunPesan(jenis, cs, {
-    userId: u.id,
-    sapa: panggilan(chat.nama, u.nama),
-    namaAkun: u.nama,
-    balasan: pakai.balasan,
-    pelanggan: pakai.pelanggan,
-    sebelumnya: jenis === "pengingat" ? (info?.teks ?? null) : null,
-  });
+  // Draf yang sudah disiapkan (dan mungkin diedit admin) di halaman pratinjau: itulah yang dikirim, persis.
+  const sebelumnya = b.pesan1 ?? st.aktif.get(chat.kunci)?.teks ?? null;
+  const teks = (jenis === "sapaan" ? b.pesan1 : b.pesan2) ?? (await tulisPesan(u, chat, cs, jenis, jenis === "pengingat" ? sebelumnya : null));
 
   // Pemeriksaan terakhir: selagi AI menulis, pengguna bisa saja membalas / chat duluan.
   if (await masukSejak(chat.id, jenis === "sapaan" ? b.dibuat - 6 * 3600 : (b.terkirim1 ?? t))) {
@@ -465,14 +471,14 @@ async function prosesSatu(b: BarisJalan, s: SetelanFollowup, cs: Nomor): Promise
     const lanjut = s.pengingatHari > 0;
     await sql`
       UPDATE followup SET status = ${lanjut ? "terkirim" : "selesai"}, tahap = 1, kunci = ${chat.kunci}, tujuan = ${chat.telepon},
-             nama = ${chat.nama}, pesan1_id = ${id}, terkirim1 = ${kini}, ack1 = 1, alasan = null, diperbarui = ${kini},
+             nama = ${chat.nama}, pesan1_id = ${id}, pesan1 = ${teks}, terkirim1 = ${kini}, ack1 = 1, alasan = null, diperbarui = ${kini},
              jadwal = ${kini + s.pengingatHari * 86400}
        WHERE user_id = ${u.id}`;
     st.ack.set(id, { userId: u.id, slot: 1, ack: 1 });
     st.aktif.set(chat.kunci, { userId: u.id, status: lanjut ? "terkirim" : "selesai", teks, dicatat: false });
   } else {
     await sql`
-      UPDATE followup SET status = 'selesai', tahap = 2, pesan2_id = ${id}, terkirim2 = ${kini}, ack2 = 1, alasan = null, diperbarui = ${kini}
+      UPDATE followup SET status = 'selesai', tahap = 2, pesan2_id = ${id}, pesan2 = ${teks}, terkirim2 = ${kini}, ack2 = 1, alasan = null, diperbarui = ${kini}
        WHERE user_id = ${u.id}`;
     st.ack.set(id, { userId: u.id, slot: 2, ack: 1 });
     st.aktif.set(chat.kunci, { userId: u.id, status: "selesai", teks, dicatat: false });
@@ -518,13 +524,49 @@ async function periksaRem(): Promise<boolean> {
   return true;
 }
 
+/**
+ * Pratinjau: draf pesan disiapkan menjelang jadwal (paling banyak DRAF_PER_PUTARAN per menit, jatuh tempo <= 24 jam),
+ * supaya admin bisa membaca / mengedit sebelum terkirim. Draf yang sudah ada (termasuk suntingan admin) tidak ditimpa.
+ * Akun tanpa chat CS yang cocok dilewati 6 jam (di memori) supaya tidak dicoba tiap menit.
+ */
+const DRAF_PER_PUTARAN = 3;
+async function siapkanDraf(cs: Nomor): Promise<void> {
+  const sql = await db();
+  const t = sekarang();
+  const baris = await sql<{ user_id: number; status: StatusFollowup; kunci: string | null; pesan1: string | null }[]>`
+    SELECT user_id, status, kunci, pesan1 FROM followup
+     WHERE status IN ('antre', 'terkirim') AND jadwal <= ${t + 86400}
+       AND ((status = 'antre' AND pesan1 IS NULL) OR (status = 'terkirim' AND pesan2 IS NULL))
+     ORDER BY jadwal, user_id LIMIT 20`;
+  let dibuat = 0;
+  for (const b of baris) {
+    if (dibuat >= DRAF_PER_PUTARAN) break;
+    if ((st.lewatDraf.get(b.user_id) ?? 0) > Date.now()) continue;
+    const u = await akun(b.user_id);
+    const chat = !u ? undefined : b.status === "antre" ? await chatAkun(u.id, cs.id) : b.kunci ? await chatByKunci(b.kunci) : undefined;
+    if (!u || !chat) {
+      st.lewatDraf.set(b.user_id, Date.now() + 6 * 3600_000);
+      continue;
+    }
+    const jenis = b.status === "antre" ? "sapaan" : "pengingat";
+    const teks = await tulisPesan(u, chat, cs, jenis, jenis === "pengingat" ? b.pesan1 : null);
+    if (jenis === "sapaan") await sql`UPDATE followup SET pesan1 = ${teks}, tujuan = ${chat.telepon}, nama = ${chat.nama} WHERE user_id = ${u.id} AND pesan1 IS NULL AND tahap = 0`;
+    else await sql`UPDATE followup SET pesan2 = ${teks} WHERE user_id = ${u.id} AND pesan2 IS NULL AND tahap = 1`;
+    dibuat += 1;
+  }
+  if (st.lewatDraf.size > 2000) st.lewatDraf.clear();
+}
+
 async function putaran(): Promise<void> {
   if (st.jalan) return;
   st.jalan = true;
   try {
     await segarkanCs();
     const s = await pengaturanFollowup();
-    if (!s.aktif || Date.now() < st.bolehPada) return;
+    if (!s.aktif) return;
+    const csDraf = await nomorCsDipakai(s);
+    if (csDraf) await siapkanDraf(csDraf).catch((e) => console.warn("[followup] draf gagal disiapkan:", e instanceof Error ? e.message : e));
+    if (Date.now() < st.bolehPada) return;
     const jam = jamWibSekarang();
     if (jam < s.jamMulai || jam >= s.jamSelesai) return;
     const cs = await nomorCsDipakai(s);
@@ -532,7 +574,7 @@ async function putaran(): Promise<void> {
     if ((await remAktif()) || (await kirimanHariIni()) >= s.batasHarian) return;
     const sql = await db();
     const baris = await sql<BarisJalan[]>`
-      SELECT user_id, status, tahap, dibuat, terkirim1, ack1, kunci FROM followup
+      SELECT user_id, status, tahap, dibuat, terkirim1, ack1, kunci, pesan1, pesan2 FROM followup
        WHERE status IN ('antre', 'terkirim') AND jadwal <= ${sekarang()}
        ORDER BY jadwal, user_id LIMIT 10`;
     if (!baris.length || (await periksaRem())) return;
@@ -750,7 +792,7 @@ export async function daftarFollowup(opsi: { status?: StatusFollowup | null; bat
   return [
     ...(await sql<BarisFollowup[]>`
       SELECT f.user_id, u.email, u.nama AS nama_akun, f.status, f.tujuan, f.nama, f.tahap, f.jadwal, f.dibuat, f.diperbarui,
-             f.terkirim1, f.terkirim2, f.ack1, f.ack2, f.dibalas, f.alasan
+             f.terkirim1, f.terkirim2, f.ack1, f.ack2, f.dibalas, f.alasan, f.pesan1, f.pesan2
         FROM followup f JOIN users u ON u.id = f.user_id
        WHERE ${status}::text IS NULL OR f.status = ${status}
        ORDER BY f.diperbarui DESC, f.user_id DESC LIMIT ${batas}`),
@@ -771,7 +813,7 @@ export async function followupAkun(userId: number): Promise<FollowupAkun> {
   const [[baris], chat] = await Promise.all([
     sql<BarisFollowup[]>`
       SELECT f.user_id, u.email, u.nama AS nama_akun, f.status, f.tujuan, f.nama, f.tahap, f.jadwal, f.dibuat, f.diperbarui,
-             f.terkirim1, f.terkirim2, f.ack1, f.ack2, f.dibalas, f.alasan
+             f.terkirim1, f.terkirim2, f.ack1, f.ack2, f.dibalas, f.alasan, f.pesan1, f.pesan2
         FROM followup f JOIN users u ON u.id = f.user_id WHERE f.user_id = ${userId}`,
     cs ? chatAkun(userId, cs.id) : Promise.resolve(undefined),
   ]);
@@ -811,4 +853,43 @@ export async function antrekanUlang(userId: number): Promise<void> {
     UPDATE followup SET status = 'antre', alasan = 'Diantrekan ulang oleh admin', jadwal = ${t}, dibuat = ${t}, diperbarui = ${t}
      WHERE user_id = ${userId} AND tahap = 0 AND status IN ('batal', 'gagal')`;
   if (!r.count) throw new PenggunaError("Hanya follow-up yang dibatalkan sebelum ada pesan terkirim yang bisa diantrekan ulang.");
+}
+
+/** Pesan mana yang masih bisa diubah: sapaan (belum terkirim) atau pengingat (sapaan sudah terkirim). null = sudah final. */
+async function slotUbah(userId: number): Promise<{ slot: 1 | 2; kunci: string | null; pesan1: string | null } | null> {
+  const sql = await db();
+  const [b] = await sql<{ status: StatusFollowup; tahap: number; kunci: string | null; pesan1: string | null }[]>`
+    SELECT status, tahap, kunci, pesan1 FROM followup WHERE user_id = ${userId}`;
+  if (!b) return null;
+  if (b.status === "antre" && b.tahap === 0) return { slot: 1, kunci: b.kunci, pesan1: b.pesan1 };
+  if (b.status === "terkirim" && b.tahap === 1) return { slot: 2, kunci: b.kunci, pesan1: b.pesan1 };
+  return null;
+}
+
+/** Admin: tulis ulang draf pesan berikutnya dengan AI (menimpa draf / suntingan sebelumnya). */
+export async function tulisUlangPesan(userId: number): Promise<string> {
+  const x = await slotUbah(userId);
+  if (!x) throw new PenggunaError("Tidak ada pesan yang menunggu dikirim untuk akun ini.");
+  const [cs, u] = await Promise.all([nomorCsDipakai(), akun(userId)]);
+  if (!cs) throw new PenggunaError("Nomor CS follow-up belum diatur.");
+  if (!u) throw new PenggunaError("Akun tidak ditemukan.");
+  const chat = x.slot === 1 ? await chatAkun(u.id, cs.id) : x.kunci ? await chatByKunci(x.kunci) : undefined;
+  if (!chat) throw new PenggunaError("Belum ada chat CS yang cocok untuk akun ini, jadi pesannya belum bisa disusun. Isi nomor follow-up di halaman pengguna.");
+  const teks = await tulisPesan(u, chat, cs, x.slot === 1 ? "sapaan" : "pengingat", x.slot === 2 ? x.pesan1 : null);
+  const sql = await db();
+  if (x.slot === 1) await sql`UPDATE followup SET pesan1 = ${teks}, tujuan = ${chat.telepon}, nama = ${chat.nama} WHERE user_id = ${userId} AND tahap = 0`;
+  else await sql`UPDATE followup SET pesan2 = ${teks} WHERE user_id = ${userId} AND tahap = 1`;
+  st.lewatDraf.delete(userId);
+  return teks;
+}
+
+/** Admin: simpan suntingan draf pesan berikutnya. Teks inilah yang dikirim, persis. */
+export async function simpanPesan(userId: number, teks: string): Promise<void> {
+  const bersih = teks.replace(/\u0000/g, "").replace(/\r\n/g, "\n").trim();
+  if (bersih.length < BATAS_PESAN[0] || bersih.length > BATAS_PESAN[1]) throw new PenggunaError(`Pesan harus ${BATAS_PESAN[0]}–${BATAS_PESAN[1]} karakter.`);
+  const x = await slotUbah(userId);
+  if (!x) throw new PenggunaError("Pesan ini sudah terkirim atau follow-up-nya sudah selesai, jadi tidak bisa diubah lagi.");
+  const sql = await db();
+  if (x.slot === 1) await sql`UPDATE followup SET pesan1 = ${bersih} WHERE user_id = ${userId} AND tahap = 0`;
+  else await sql`UPDATE followup SET pesan2 = ${bersih} WHERE user_id = ${userId} AND tahap = 1`;
 }

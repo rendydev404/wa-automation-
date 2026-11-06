@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Fragment, Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CheckCheck, MessageCircleWarning, ShieldCheck } from "lucide-react";
@@ -11,6 +11,7 @@ import { requireAdmin } from "@/lib/session";
 import { nomorSinkronCg } from "@/lib/sinkron-cg";
 import { sekarang } from "@/lib/db";
 import { FormFollowup, LepasRem } from "./form-followup";
+import { PratinjauPesan } from "./pratinjau";
 
 export const metadata: Metadata = { title: `Follow-up WA · Admin · ${MEREK}` };
 
@@ -103,7 +104,7 @@ async function Riwayat({ searchParams }: { searchParams: Promise<Record<string, 
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-5">
         <div>
           <h2 className="text-[15px] font-bold">Riwayat follow-up</h2>
-          <p className="text-[13px] text-muted">100 terbaru. Ikon centang: abu = sampai HP, biru = dibaca.</p>
+          <p className="text-[13px] text-muted">100 terbaru. Buka &ldquo;Pesan&rdquo; untuk melihat, mengedit, atau menulis ulang pesan sebelum terkirim. Ikon centang: abu = sampai HP, biru = dibaca.</p>
         </div>
         <nav aria-label="Saring status" className="flex flex-wrap gap-1.5">
           <Saring href="/admin/followup" aktif={!status} label="Semua" />
@@ -126,7 +127,8 @@ async function Riwayat({ searchParams }: { searchParams: Promise<Record<string, 
           </thead>
           <tbody className="divide-y divide-line">
             {baris.map((b) => (
-              <tr key={b.user_id} className="align-top">
+              <Fragment key={b.user_id}>
+              <tr className="align-top">
                 <td className="px-5 py-3">
                   <Link href={`/admin/pengguna/${b.user_id}`} className="font-semibold hover:text-accent hover:underline">
                     {b.nama_akun || "(tanpa nama)"}
@@ -156,6 +158,20 @@ async function Riwayat({ searchParams }: { searchParams: Promise<Record<string, 
                 </td>
                 <td className="max-w-[280px] px-5 py-3 text-muted">{b.alasan ?? "–"}</td>
               </tr>
+              <tr className="!border-t-0">
+                <td colSpan={6} className="px-5 pb-3">
+                  <details className="group rounded-xl border border-line bg-subtle/40 px-3.5 py-2" open={ubahPesan(b) !== null && !!(ubahPesan(b) === 1 ? b.pesan1 : b.pesan2)}>
+                    <summary className="cursor-pointer text-[12.5px] font-semibold text-accent select-none">
+                      Pesan {ubahPesan(b) === 1 ? "sapaan" : ubahPesan(b) === 2 ? "pengingat" : "terkirim"}
+                      {ubahPesan(b) && !(ubahPesan(b) === 1 ? b.pesan1 : b.pesan2) && <span className="font-normal text-muted"> · draf belum disiapkan</span>}
+                    </summary>
+                    <div className="pt-3 pb-1">
+                      <PratinjauPesan userId={b.user_id} pesan1={b.pesan1} pesan2={b.pesan2} ubah={ubahPesan(b)} />
+                    </div>
+                  </details>
+                </td>
+              </tr>
+              </Fragment>
             ))}
             {baris.length === 0 && (
               <tr>
@@ -170,6 +186,9 @@ async function Riwayat({ searchParams }: { searchParams: Promise<Record<string, 
     </section>
   );
 }
+
+/** Pesan yang masih bisa diubah admin: 1 = sapaan belum terkirim, 2 = pengingat menunggu, null = sudah final. */
+const ubahPesan = (b: BarisFollowup): 1 | 2 | null => (b.status === "antre" && b.tahap === 0 ? 1 : b.status === "terkirim" && b.tahap === 1 ? 2 : null);
 
 function Saring({ href, aktif, label }: { href: string; aktif: boolean; label: string }) {
   return (

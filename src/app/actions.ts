@@ -1455,3 +1455,30 @@ export async function adminAntrekanFollowupAction(id: number): Promise<Hasil> {
     "/admin/followup",
   );
 }
+
+export async function adminTulisUlangPesanFollowupAction(id: number): Promise<Hasil & { teks?: string }> {
+  await requireAdmin();
+  if (!idSah(id)) return { ok: false, pesan: "Pengguna tidak valid." };
+  try {
+    const { tulisUlangPesan } = await import("@/lib/followup");
+    const teks = await tulisUlangPesan(id);
+    revalidatePath("/admin/followup");
+    return { ok: true, pesan: "Pesan ditulis ulang.", teks };
+  } catch (e) {
+    return { ok: false, pesan: pesanGalat(e) };
+  }
+}
+
+export async function adminSimpanPesanFollowupAction(id: number, teks: string): Promise<Hasil> {
+  const admin = await requireAdmin();
+  if (!idSah(id)) return { ok: false, pesan: "Pengguna tidak valid." };
+  return jalankanAdmin(
+    async () => {
+      const { simpanPesan } = await import("@/lib/followup");
+      await simpanPesan(id, String(teks ?? "").slice(0, 3000));
+      await catatLog(admin, "followup_ubah_pesan", String(id));
+      return "Pesan disimpan. Teks inilah yang akan dikirim.";
+    },
+    "/admin/followup",
+  );
+}

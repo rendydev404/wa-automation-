@@ -69,7 +69,13 @@ export interface BarisFollowup {
   ack2: number;
   dibalas: number | null;
   alasan: string | null;
+  /** Draf / teks terkirim: sapaan & pengingat (lihat followup.ts). */
+  pesan1: string | null;
+  pesan2: string | null;
 }
+
+/** Panjang pesan follow-up yang boleh disimpan admin. */
+export const BATAS_PESAN = [10, 1500] as const;
 
 export interface StatusMesinFollowup {
   setelan: SetelanFollowup;

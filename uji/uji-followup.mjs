@@ -238,6 +238,22 @@ await cek("belum jatuh tempo: putaran tidak mengirim apa pun", async () => {
   assert.equal(sCS.terkirim.length, awal);
 });
 
+await cek("pratinjau: draf sapaan disiapkan otomatis menjelang jadwal (maks 3 per putaran), tanpa mengirim apa pun", async () => {
+  const awal = sCS.terkirim.length;
+  const hitungDraf = async () => (await sql`SELECT COUNT(*)::int AS n FROM followup WHERE pesan1 IS NOT NULL`)[0].n;
+  const d0 = await hitungDraf();
+  fst().bolehPada = 0;
+  await fu.putaranFollowup();
+  assert.equal(sCS.terkirim.length, awal, "draf saja, tidak ada pesan terkirim");
+  const d1 = await hitungDraf();
+  assert.ok(d1 >= 1 && d1 - d0 <= 3, `draf ${d0} -> ${d1}`);
+  const [rb] = await sql`SELECT pesan1, tujuan FROM followup WHERE user_id = ${akun.budi.id}`;
+  assert.equal(rb.pesan1, SAPAAN_AI);
+  assert.equal(rb.tujuan, akun.budi.wa, "chat tujuan sudah tampil sebelum terkirim");
+  const f = (await fu.daftarFollowup({ batas: 100 })).find((x) => x.user_id === akun.budi.id);
+  assert.equal(f.pesan1, SAPAAN_AI, "riwayat admin membawa draf");
+});
+
 let idSapaan;
 await cek("sapaan: ditulis AI, dikirim ke chat lama dengan ritme manusia (online, mengetik, berhenti, kirim), tercatat di histori", async () => {
   const awal = sCS.terkirim.length;
@@ -261,8 +277,10 @@ await cek("sapaan: ditulis AI, dikirim ke chat lama dengan ritme manusia (online
   const ai = hermes.panggilan.find((p) => p.sesi.startsWith(`followup-${akun.budi.id}-sapaan`));
   assert.ok(ai, "AI menulis sapaannya");
   assert.match(ai.sistem, /JANGAN menulis tautan/);
+  assert.match(ai.sistem, /Panggil lawan bicara "kamu"/);
+  assert.equal(r.pesan1, SAPAAN_AI, "teks yang terkirim tersimpan untuk riwayat");
   const [pakai] = await sql`SELECT COUNT(*)::int AS n FROM ai_pakai WHERE number_id = ${CS.id} AND abaikan`;
-  assert.equal(pakai.n, 1, "biaya AI tercatat tanpa memotong kuota nomor CS");
+  assert.ok(pakai.n >= 1, "biaya AI tercatat tanpa memotong kuota nomor CS");
 });
 
 await cek("jeda acak antarpesan: putaran berikutnya tidak langsung mengirim walau ada yang jatuh tempo", async () => {
@@ -308,7 +326,11 @@ await cek("balasan berikutnya di chat itu tidak dinilai ulang (kata \"berhenti\"
 });
 
 await cek("minta berhenti: dicatat permanen, AI diminta meminta maaf tanpa menawarkan", async () => {
+  // Admin mengedit draf: teks editan itulah yang terkirim, persis.
+  const EDIT = "Halo Sari, ini pesan editan admin untuk uji pratinjau.";
+  await fu.simpanPesan(akun.sari.id, EDIT);
   await putaranUntuk(akun.sari.id);
+  assert.equal(sCS.terkirim.at(-1).teks, EDIT);
   assert.equal((await baris(akun.sari.id)).status, "terkirim");
   const awal = sCS.terkirim.length;
   tiba(sCS, pesan(jid(akun.sari.wa), "stop, jangan hubungi saya lagi"));
@@ -352,6 +374,7 @@ await cek("tanpa chat CS yang cocok: tidak dikirimi apa pun, menunggu nomor dari
 
 await cek("admin: nomor yang belum pernah chat CS ditolak; nomor lain yang pernah chat ditautkan dan dipakai", async () => {
   await assert.rejects(fu.tautkanChatCs(akun.dodi.id, "0812 9999 0000"), /belum pernah chat nomor CS/);
+  await assert.rejects(fu.tulisUlangPesan(akun.dodi.id), /Belum ada chat CS yang cocok/);
   tiba(sCS, pesan(jid("6289900001111"), "halo cs, ini dodi dari hp lain", { waktu: kini() - 2 * 86400, nama: "Dodi HP2" }));
   await tunggu(async () => (await bridge.tulisTuntas(), (await sql`SELECT 1 FROM percakapan WHERE telepon = '6289900001111'`).length), 4000, "chat HP lain");
   assert.match(await fu.tautkanChatCs(akun.dodi.id, "+62 899-0000-1111"), /Tertaut/);
@@ -361,6 +384,12 @@ await cek("admin: nomor yang belum pernah chat CS ditolak; nomor lain yang perna
   await putaranUntuk(akun.dodi.id);
   assert.equal(sCS.terkirim.at(-1).jid, jid("6289900001111"));
   assert.equal((await baris(akun.dodi.id)).status, "terkirim");
+  // Pengingat berikutnya bisa ditulis ulang; sapaan yang sudah terkirim tidak bisa diubah lagi.
+  const ulang = await fu.tulisUlangPesan(akun.dodi.id);
+  assert.match(ulang, /maaf ganggu lagi/);
+  assert.equal((await baris(akun.dodi.id)).pesan2, ulang);
+  await assert.rejects(fu.simpanPesan(akun.budi.id, "ubah pesan yang sudah terkirim"), /sudah terkirim/);
+  await assert.rejects(fu.simpanPesan(akun.dodi.id, "pendek"), /10–1500 karakter/);
 });
 
 await cek("tombol Chat CS: tautan wa.me berkode akun; pesan berkode menautkan chat & membatalkan follow-up (pengguna chat duluan)", async () => {
