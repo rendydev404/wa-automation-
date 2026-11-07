@@ -205,8 +205,8 @@ function teksJaminan(mode: ModeRefund): string[] {
     `- Pembayaran PERTAMA akun bisa diminta kembali penuh dalam ${JAMINAN_HARI} hari sejak dibayar, selama balasan AI yang terpakai paling banyak ${JAMINAN_MAKS_PAKAI_PERSEN}% dari kuota paket.`,
     "- Hanya untuk pembayaran lewat GoPay, ShopeePay, atau QRIS. Pembayaran lewat virtual account (VA) bank tidak termasuk jaminan.",
     mode === "otomatis"
-      ? "- Cara: login, buka menu Langganan, tekan \"Minta uang kembali\". Diproses otomatis tanpa menunggu admin: dana kembali ke metode bayar asal (GoPay biasanya 1×24 jam; QRIS dari aplikasi lain bisa sampai 15–20 hari kerja) dan paketnya langsung dihentikan."
-      : "- Cara: login, buka menu Langganan, tekan \"Minta uang kembali\", lalu isi rekening bank atau e-wallet tujuan. Admin mentransfer dananya ke tujuan itu dan pemilik akun dapat notifikasi; begitu dana ditransfer, paketnya dihentikan. Jangan menjanjikan jam pasti transfernya.",
+      ? "- Cara: login, buka menu Langganan, tekan \"Minta uang kembali\" dan tulis alasannya (wajib). Diproses otomatis tanpa menunggu admin: dana kembali ke metode bayar asal (GoPay biasanya 1×24 jam; QRIS dari aplikasi lain bisa sampai 15–20 hari kerja) dan paketnya langsung dihentikan."
+      : "- Cara: login, buka menu Langganan, tekan \"Minta uang kembali\", lalu isi alasannya (wajib) dan rekening bank atau e-wallet tujuan. Admin mentransfer dananya ke tujuan itu dan pemilik akun dapat notifikasi; begitu dana ditransfer, paketnya dihentikan. Jangan menjanjikan jam pasti transfernya.",
     "- Berlaku sekali per orang: nomor WhatsApp atau email yang sudah pernah memakai jaminan tidak bisa memakainya lagi lewat akun baru. Perpanjangan dan pembelian kedua tidak termasuk.",
   ];
 }

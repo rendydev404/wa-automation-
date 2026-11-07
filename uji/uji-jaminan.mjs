@@ -95,12 +95,13 @@ const akun = async (email, wa) => {
 const mitra = await akun("mitra@uji.test");
 const af = await A.daftarAfiliator(mitra.id, { bankNama: "bca", bankNomor: "1234567890", bankPemilik: "Mitra" });
 
-await cek("tanpa free trial: akun baru 0 balasan AI, bukan masa percobaan; kuota habis = tanpa pesan di chat pelanggan", async () => {
+await cek("tanpa free trial: akun baru 0 balasan AI, bukan masa percobaan; chat pelanggan masuk = pesan templat sekali + notifikasi", async () => {
   const u = await akun("baru@uji.test", "6281100000001");
   const h = await L.hakAkun(u);
   assert.deepEqual([h.balasan, h.percobaan, h.percobaanBerakhir, h.sampai], [0, false, false, null]);
   assert.equal(await L.sisaKuotaAi(u.id), 0);
-  assert.equal(await L.catatKuotaHabis(u.id), false, "tidak mengirim pesan 'masa gratis habis' ke chat");
+  assert.equal(await L.catatKuotaHabis(u.id), true, "pesan templat berlangganan dikirim ke chat yang masuk");
+  assert.equal(await L.catatKuotaHabis(u.id), false, "hanya SEKALI per periode");
   const [n] = await sql`SELECT judul FROM notifikasi WHERE user_id = ${u.id} ORDER BY id DESC LIMIT 1`;
   assert.equal(n.judul, "AI belum membalas pelanggan");
   assert.equal(await J.cekJaminan(u.id), null, "belum pernah membayar");
@@ -111,6 +112,7 @@ const ani = await akun("ani@uji.test", "6281200000002");
 await A.terapkanReferral(ani.id, af.kode);
 let orderAni;
 const tujuanAni = { bank: "gopay", nomor: "0812-0000-0002", nama: "Ani Lestari" };
+const ALASAN = "Balasan AI belum sesuai produk saya";
 
 await cek("bayar QRIS pertama: paket aktif + komisi afiliasi masuk saldo tapi TERTAHAN masa jaminan (belum bisa ditarik)", async () => {
   orderAni = await bayar(ani, "qris");
@@ -153,12 +155,16 @@ console.log("== mode manual (bawaan) ==");
 
 await cek("mode bawaan = manual; tujuan transfer wajib & divalidasi", async () => {
   assert.equal(await J.modeRefund(), "manual");
-  let h = await J.ajukanJaminan(k, ani.id, { alasan: "" });
+  let h = await J.ajukanJaminan(k, ani.id, { alasan: "", tujuan: tujuanAni });
   assert.equal(h.ok, false);
+  assert.match(h.pesan.id, /Tulis alasan.*minimal 10 huruf/, "alasan wajib");
+  h = await J.ajukanJaminan(k, ani.id, { alasan: "  jelek   ", tujuan: tujuanAni });
+  assert.match(h.pesan.id, /minimal 10 huruf/, "alasan terlalu pendek");
+  h = await J.ajukanJaminan(k, ani.id, { alasan: ALASAN });
   assert.match(h.pesan.id, /Pilih bank atau e-wallet/);
-  h = await J.ajukanJaminan(k, ani.id, { alasan: "", tujuan: { bank: "gopay", nomor: "0812", nama: "Ani" } });
+  h = await J.ajukanJaminan(k, ani.id, { alasan: ALASAN, tujuan: { bank: "gopay", nomor: "0812", nama: "Ani" } });
   assert.match(h.pesan.id, /minimal 6 digit/);
-  h = await J.ajukanJaminan(k, ani.id, { alasan: "", tujuan: { bank: "bank-palsu", nomor: "081200000002", nama: "Ani" } });
+  h = await J.ajukanJaminan(k, ani.id, { alasan: ALASAN, tujuan: { bank: "bank-palsu", nomor: "081200000002", nama: "Ani" } });
   assert.match(h.pesan.id, /Pilih bank/);
   assert.equal((await sql`SELECT count(*)::int AS n FROM pengembalian_dana`)[0].n, 0);
 });
@@ -177,7 +183,7 @@ await cek("manual: ajukan = 'menunggu' + tujuan tersimpan, TANPA panggilan Midtr
   assert.ok(await L.langgananAktif(ani.id), "paket tetap aktif sampai admin mentransfer");
   const j = await J.cekJaminan(ani.id);
   assert.deepEqual([j.boleh, j.pengajuan.status, j.pengajuan.tujuan.nomor], [false, "menunggu", "081200000002"]);
-  assert.match((await J.ajukanJaminan(k, ani.id, { alasan: "", tujuan: tujuanAni })).pesan.id, /sedang diproses/);
+  assert.match((await J.ajukanJaminan(k, ani.id, { alasan: ALASAN, tujuan: tujuanAni })).pesan.id, /sedang diproses/);
   // Masa jaminan (3 hari) lewat tapi pengajuan belum selesai: komisinya tetap tidak boleh ditarik.
   await sql`UPDATE komisi_afiliasi SET created_at = created_at - 5 * 86400 WHERE afiliator_id = ${mitra.id}`;
   assert.equal((await A.ringkasanAfiliasiUser(mitra.id)).tertahan, 19_800);
@@ -210,7 +216,7 @@ await cek("manual: status Midtrans tetap 'settlement' -> webhook berikutnya tida
 await cek("admin tolak: alasan wajib, status ditolak, paket tetap aktif, pemilik diberi tahu dan tidak bisa mengajukan lagi", async () => {
   const lina = await akun("lina@uji.test", "6282000000010");
   const order = await bayar(lina, "gopay");
-  assert.equal((await J.ajukanJaminan(k, lina.id, { alasan: "", tujuan: { bank: "dana", nomor: "082000000010", nama: "Lina" } })).ok, true);
+  assert.equal((await J.ajukanJaminan(k, lina.id, { alasan: ALASAN, tujuan: { bank: "dana", nomor: "082000000010", nama: "Lina" } })).ok, true);
   const [pd] = await sql`SELECT id FROM pengembalian_dana WHERE order_id = ${order}`;
   assert.equal((await J.tolakPengembalian(pd.id, "x")).ok, false);
   assert.deepEqual(await J.tolakPengembalian(pd.id, "Pemakaian sudah melewati batas saat dicek"), { ok: true, cara: "manual" });
@@ -240,7 +246,7 @@ await cek("VA bank tidak termasuk; pembayaran kedua & lewat 3 hari juga tidak", 
   let j = await J.cekJaminan(budi.id);
   assert.equal(j.boleh, false);
   assert.match(j.alasan.id, /GoPay, ShopeePay, atau QRIS/);
-  assert.equal((await J.ajukanJaminan(k, budi.id, { alasan: "", tujuan: tujuanAni })).ok, false);
+  assert.equal((await J.ajukanJaminan(k, budi.id, { alasan: ALASAN, tujuan: tujuanAni })).ok, false);
 
   const citra = await akun("citra@uji.test", "6281400000004");
   await bayar(citra, "gopay");
@@ -282,7 +288,7 @@ await cek("otomatis ditolak Midtrans (refund belum diaktifkan / saldo kurang): '
   const eka = await akun("eka@uji.test", "6281600000006");
   const order = await bayar(eka, "gopay");
   tiruan.tolakRefund = "412";
-  const h = await J.ajukanJaminan(k, eka.id, { alasan: "" });
+  const h = await J.ajukanJaminan(k, eka.id, { alasan: ALASAN });
   assert.equal(h.ok, false);
   assert.match(h.pesan.id, /Admin sudah diberi tahu/);
   const [pd] = await sql`SELECT id, status, galat, refund_key FROM pengembalian_dana WHERE order_id = ${order}`;
@@ -301,7 +307,7 @@ await cek("otomatis gagal lalu admin transfer sendiri: 'sudah ditransfer' menunt
   const fia = await akun("fia@uji.test", "6282200000012");
   const order = await bayar(fia, "shopeepay");
   tiruan.tolakRefund = "412";
-  await J.ajukanJaminan(k, fia.id, { alasan: "" });
+  await J.ajukanJaminan(k, fia.id, { alasan: ALASAN });
   tiruan.tolakRefund = null;
   const [pd] = await sql`SELECT id FROM pengembalian_dana WHERE order_id = ${order}`;
   const n = refundDipanggil().length;

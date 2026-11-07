@@ -343,7 +343,8 @@ export async function catatKuotaHabis(userId: number): Promise<boolean> {
   const gratis = hak.sampai === null;
   const { kirimNotif } = await import("./notifikasi");
   if (gratis && hak.balasan === 0) {
-    // Tanpa trial: akun yang belum (atau tidak lagi) berlangganan. Tanpa pesan di chat pelanggan; cukup notifikasi in-app.
+    // Tanpa trial: akun yang belum (atau tidak lagi) berlangganan. Notifikasi in-app + pesan templat berlangganan SEKALI
+    // per periode, sebagai balasan di chat pelanggan yang sedang masuk (klaimPemberitahuanKuota; bukan pesan tanpa diminta).
     await kirimNotif(userId, {
       jenis: "kuota",
       judul: { id: "AI belum membalas pelanggan", en: "The AI isn't replying to customers yet" },
@@ -354,7 +355,7 @@ export async function catatKuotaHabis(userId: number): Promise<boolean> {
       tautan: "/langganan",
       kunci: `kuota100:${hak.periodeMulai}:0`,
     });
-    return false;
+    return klaimPemberitahuanKuota(userId);
   }
   await kirimNotif(userId, {
     jenis: "kuota",

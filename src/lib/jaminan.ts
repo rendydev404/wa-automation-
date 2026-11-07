@@ -197,6 +197,9 @@ export function tujuanSah(m: { bank: string; nomor: string; nama: string }): Tuj
   return { bank: m.bank, nomor, nama };
 }
 
+/** Alasan pengajuan wajib diisi (masukan untuk perbaikan layanan & pertimbangan admin). */
+export const MIN_ALASAN = 10;
+
 /** Kunci advisory (berpasangan dengan id pengguna): satu pengajuan pada satu waktu per akun. */
 const KUNCI_JAMINAN = 72727403;
 
@@ -223,6 +226,9 @@ export async function ajukanJaminan(
   userId: number,
   isi: { alasan: string; tujuan?: { bank: string; nomor: string; nama: string } },
 ): Promise<HasilJaminan> {
+  const catatan = isi.alasan.trim().replace(/\s+/g, " ").slice(0, 300);
+  if (catatan.length < MIN_ALASAN)
+    return { ok: false, pesan: { id: `Tulis alasan kamu minta uang kembali (minimal ${MIN_ALASAN} huruf).`, en: `Tell us why you want a refund (at least ${MIN_ALASAN} characters).` } };
   const mode = await modeRefund();
   if (mode === "otomatis" && !k) return { ok: false, pesan: { id: "Pembayaran online belum diaktifkan admin.", en: "Online payment has not been enabled by the admin yet." } };
   let tujuan: Tujuan | null = null;
@@ -231,7 +237,6 @@ export async function ajukanJaminan(
     if (!("bank" in v)) return { ok: false, pesan: v };
     tujuan = v;
   }
-  const catatan = isi.alasan.trim().slice(0, 300) || null;
   const kini = sekarang();
   const klaim = await transaksiDb(async (tx): Promise<{ galat: Teks } | { orderId: string; jumlah: number; refundKey: string }> => {
     await tx`SELECT pg_advisory_xact_lock(${KUNCI_JAMINAN}, ${userId})`;
@@ -247,7 +252,7 @@ export async function ajukanJaminan(
       ON CONFLICT (transaksi_id) DO UPDATE
          SET status = EXCLUDED.status, cara = EXCLUDED.cara, galat = NULL, terpakai = EXCLUDED.terpakai,
              tujuan_bank = EXCLUDED.tujuan_bank, tujuan_nomor = EXCLUDED.tujuan_nomor, tujuan_nama = EXCLUDED.tujuan_nama,
-             alasan = COALESCE(EXCLUDED.alasan, pengembalian_dana.alasan)
+             alasan = EXCLUDED.alasan
        WHERE pengembalian_dana.status = 'gagal'
       RETURNING refund_key`;
     if (!r) return { galat: { id: "Pengembalian dana sedang diproses.", en: "The refund is being processed." } };

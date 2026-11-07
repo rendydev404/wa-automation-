@@ -62,9 +62,18 @@ export function FormJaminan({ jumlah, mode, kanal }: { jumlah: string; mode: Mod
       )}
       <div>
         <label htmlFor="jaminan-alasan" className="label">
-          {t("Apa yang kurang sesuai? (opsional)", "What didn't work for you? (optional)")}
+          {t("Kenapa minta uang kembali?", "Why do you want a refund?")}
         </label>
-        <textarea id="jaminan-alasan" name="alasan" rows={2} maxLength={300} className="field" placeholder={t("Masukanmu membantu kami memperbaiki layanan.", "Your feedback helps us improve.")} />
+        <textarea
+          id="jaminan-alasan"
+          name="alasan"
+          rows={2}
+          required
+          minLength={10}
+          maxLength={300}
+          className="field"
+          placeholder={t("Contoh: balasan AI belum sesuai produk saya.", "e.g. the AI's replies don't match my products yet.")}
+        />
       </div>
       <p className="rounded-xl bg-warning-soft px-3 py-2 text-[12.5px] text-warning">
         {manual
