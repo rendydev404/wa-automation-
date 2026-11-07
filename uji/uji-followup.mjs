@@ -221,11 +221,16 @@ await cek("mati (bawaan): pemindaian tidak mengantrekan siapa pun", async () => 
   assert.equal((await sql`SELECT COUNT(*)::int AS n FROM followup`)[0].n, 0);
 });
 
-await cek("menyala: akun gratis yang kuotanya habis diantrekan sekali, disapa setelah tundaJam; akun berbayar & admin tidak", async () => {
+await cek("menyala: hanya akun gratis yang kuotanya habis DAN sudah pernah chat CS diantrekan (sekali, disapa setelah tundaJam)", async () => {
   await fu.simpanPengaturanFollowup({ aktif: true, nomorId: CS.id, batasHarian: 20, jamMulai: 0, jamSelesai: 24, tundaJam: 24, pengingatHari: 3 });
-  await tunggu(async () => (await sql`SELECT COUNT(*)::int AS n FROM followup`)[0].n === 7, 5000, "7 akun diantrekan");
+  await tunggu(async () => (await sql`SELECT COUNT(*)::int AS n FROM followup`)[0].n === 5, 5000, "5 akun diantrekan");
+  await tidur(300);
+  const ids = (await sql`SELECT user_id FROM followup ORDER BY user_id`).map((r) => r.user_id);
+  assert.deepEqual(ids, ["budi", "sari", "rina", "fajar", "gita"].map((k) => akun[k].id).sort((a, b) => a - b), "dodi & eka belum pernah chat CS");
   const r = await baris(akun.budi.id);
   assert.equal(r.status, "antre");
+  assert.equal(r.tujuan, akun.budi.wa, "chat CS-nya langsung tampil di daftar");
+  assert.equal(r.nama, "Budi");
   assert.ok(Math.abs(r.jadwal - (kini() + 24 * 3600)) < 30, "disapa 24 jam kemudian");
   assert.equal((await sql`SELECT COUNT(*)::int AS n FROM followup WHERE user_id IN (${admin}, ${pemilikCs})`)[0].n, 0);
   assert.equal(await fu.pindai(), 0, "tidak diantrekan dua kali");
@@ -361,26 +366,40 @@ await cek("pengingat: sekali bila sapaan sampai tapi tidak dibalas, lalu selesai
   assert.equal(sCS.terkirim.length, awal + 1);
 });
 
-await cek("tanpa chat CS yang cocok: tidak dikirimi apa pun, menunggu nomor dari admin", async () => {
+await cek("tanpa chat CS yang cocok: tidak masuk antrean / daftar admin, tidak dikirimi apa pun; baris antre lama dikeluarkan", async () => {
   const awal = sCS.terkirim.length;
+  assert.equal(await baris(akun.dodi.id), undefined, "tidak diantrekan");
+  assert.ok(!(await fu.daftarFollowup({ batas: 100 })).some((x) => x.user_id === akun.dodi.id), "tidak tampil di daftar");
+  const f = await fu.followupAkun(akun.dodi.id);
+  assert.equal(f.chat, null);
+  assert.equal(f.baris, null);
+  // Baris dari versi lama (semua akun diantrekan): dikeluarkan saat jatuh tempo...
+  const lama = () => sql`INSERT INTO followup(user_id, status, jadwal, dibuat, diperbarui) VALUES (${akun.dodi.id}, 'antre', ${kini() - 1}, ${kini() - 86400}, ${kini() - 86400})`;
+  await lama();
   await putaranUntuk(akun.dodi.id);
   assert.equal(sCS.terkirim.length, awal);
-  const r = await baris(akun.dodi.id);
-  assert.equal(r.status, "antre");
-  assert.match(r.alasan, /Menunggu nomor/);
-  assert.ok(r.jadwal > kini() + 5 * 3600);
-  assert.equal((await fu.followupAkun(akun.dodi.id)).chat, null);
+  assert.equal(await baris(akun.dodi.id), undefined, "dikeluarkan putaran");
+  // ...dan oleh pemindaian (berjalan 90 detik setelah server mulai / tiap 30 menit), tanpa menunggu jadwal.
+  await lama();
+  await sql`UPDATE followup SET jadwal = ${kini() + 86400} WHERE user_id = ${akun.dodi.id}`;
+  await fu.pindai();
+  assert.equal(await baris(akun.dodi.id), undefined, "dikeluarkan pemindaian");
+  assert.equal(sCS.terkirim.length, awal);
 });
 
-await cek("admin: nomor yang belum pernah chat CS ditolak; nomor lain yang pernah chat ditautkan dan dipakai", async () => {
+await cek("admin: nomor yang belum pernah chat CS ditolak; nomor lain yang pernah chat ditautkan, langsung masuk antrean dan dipakai", async () => {
   await assert.rejects(fu.tautkanChatCs(akun.dodi.id, "0812 9999 0000"), /belum pernah chat nomor CS/);
-  await assert.rejects(fu.tulisUlangPesan(akun.dodi.id), /Belum ada chat CS yang cocok/);
+  await assert.rejects(fu.tulisUlangPesan(akun.dodi.id), /Tidak ada pesan yang menunggu dikirim/);
   tiba(sCS, pesan(jid("6289900001111"), "halo cs, ini dodi dari hp lain", { waktu: kini() - 2 * 86400, nama: "Dodi HP2" }));
   await tunggu(async () => (await bridge.tulisTuntas(), (await sql`SELECT 1 FROM percakapan WHERE telepon = '6289900001111'`).length), 4000, "chat HP lain");
   assert.match(await fu.tautkanChatCs(akun.dodi.id, "+62 899-0000-1111"), /Tertaut/);
   const f = await fu.followupAkun(akun.dodi.id);
   assert.equal(f.chat.telepon, "6289900001111");
   assert.equal(f.chat.manual, true);
+  assert.equal(f.baris?.status, "antre", "langsung diantrekan setelah ditautkan");
+  assert.equal(f.baris.tujuan, "6289900001111");
+  // Pratinjau sekarang bisa dibuat.
+  assert.equal(await fu.tulisUlangPesan(akun.dodi.id), SAPAAN_AI);
   await putaranUntuk(akun.dodi.id);
   assert.equal(sCS.terkirim.at(-1).jid, jid("6289900001111"));
   assert.equal((await baris(akun.dodi.id)).status, "terkirim");
@@ -491,7 +510,7 @@ await cek("batas harian & jam kirim dihormati", async () => {
   assert.equal(sCS.terkirim.length, awal, "di luar jam kirim");
 });
 
-await cek("efisiensi (3.000 akun gratis, 2.000 baris ai_pakai): pemindaian & putaran cepat, antrean lewat indeks", async () => {
+await cek("efisiensi (3.000 akun gratis, 2.000 baris ai_pakai, 1.500 chat CS): pemindaian & putaran cepat, antrean lewat indeks", async () => {
   const s = await fu.pengaturanFollowup();
   await fu.simpanPengaturanFollowup({ ...s, jamMulai: 0, jamSelesai: 24 });
   await tunggu(() => !fst().pindaiJalan, 5000, "pemindaian latar selesai");
@@ -502,20 +521,42 @@ await cek("efisiensi (3.000 akun gratis, 2.000 baris ai_pakai): pemindaian & put
             SELECT u.id, 'massal' || u.id, 'Toko', '6285' || lpad(u.id::text, 9, '0'), ${t} FROM users u WHERE u.email LIKE 'massal%'`;
   await sql`INSERT INTO ai_pakai(number_id, waktu, penyedia, ms)
             SELECT n.id, ${t - 3600} - g, 'hermes', 10 FROM numbers n CROSS JOIN generate_series(1, 2) g WHERE n.sesi LIKE 'massal%' AND n.user_id % 3 = 0`;
+  // Separuh akun pernah chat nomor CS (chat masih ramai sejam lalu: sapaan ditunda, putaran tidak mengirim).
+  await sql`INSERT INTO percakapan(number_id, kunci, telepon, nama, terakhir_pada)
+            SELECT ${CS.id}, 'massal-' || n.id, n.wa_id, 'Massal', ${t - 3600} FROM numbers n WHERE n.sesi LIKE 'massal%' AND n.user_id % 2 = 0`;
   await sql`ANALYZE`;
   cacheNomorBasi();
   const t0 = performance.now();
   const masuk = await fu.pindai();
   const tPindai = performance.now() - t0;
   assert.equal(masuk, 100, "paling banyak 100 akun per pemindaian (LIMIT); sisanya di pemindaian berikutnya");
+  const [tanpaChat] = await sql`
+    SELECT COUNT(*)::int AS n FROM followup f JOIN numbers n ON n.user_id = f.user_id
+     WHERE n.sesi LIKE 'massal%' AND NOT EXISTS (SELECT 1 FROM percakapan p WHERE p.number_id = ${CS.id} AND p.telepon = n.wa_id)`;
+  assert.equal(tanpaChat.n, 0, "akun yang belum pernah chat CS tidak ikut diantrekan");
+  const t2 = performance.now();
+  assert.equal(await fu.pindai(), 100, "pemindaian berikutnya mengantrekan 100 berikutnya, bukan yang tanpa chat");
+  const tPindai2 = performance.now() - t2;
   await sql`UPDATE followup SET jadwal = ${kini() - 1} WHERE status = 'antre'`;
   fst().bolehPada = 0;
   const t1 = performance.now();
   await fu.putaranFollowup();
   const tPutaran = performance.now() - t1;
   const rencana = (await sql`EXPLAIN (ANALYZE, BUFFERS) SELECT user_id, status, tahap, dibuat, terkirim1, ack1, kunci FROM followup WHERE status IN ('antre', 'terkirim') AND jadwal <= ${kini()} ORDER BY jadwal, user_id LIMIT 10`).map((r) => r["QUERY PLAN"]);
-  console.log(`        (pindai 3.000 akun: ${tPindai.toFixed(0)} ms, ${masuk} diantrekan; satu putaran: ${tPutaran.toFixed(0)} ms)`);
+  const csId = CS.id;
+  const satu = (await sql`SELECT n.user_id FROM numbers n JOIN percakapan p ON p.number_id = ${csId} AND p.telepon = n.wa_id WHERE n.sesi LIKE 'massal%' LIMIT 1`)[0].user_id;
+  const rencanaChat = (await sql`
+    EXPLAIN (ANALYZE, BUFFERS) SELECT c.* FROM users u CROSS JOIN LATERAL (
+      SELECT p.id, p.terakhir_pada, true AS manual FROM percakapan p WHERE p.kunci = u.cs_kunci AND p.number_id = ${csId}
+      UNION ALL
+      SELECT p.id, p.terakhir_pada, false FROM percakapan p WHERE p.number_id = ${csId} AND p.telepon IN (
+        SELECT n.wa_id FROM numbers n WHERE n.user_id = u.id AND n.wa_id IS NOT NULL
+        UNION ALL SELECT n.teruskan_ke FROM numbers n WHERE n.user_id = u.id AND n.teruskan_ke IS NOT NULL)
+      ORDER BY manual DESC, terakhir_pada DESC LIMIT 1) c WHERE u.id = ${satu}`).map((r) => r["QUERY PLAN"]);
+  console.log(`        (pindai 3.000 akun: ${tPindai.toFixed(0)} ms, ${masuk} diantrekan; pindai berikutnya ${tPindai2.toFixed(0)} ms; satu putaran: ${tPutaran.toFixed(0)} ms)`);
   console.log(`        (query antrean: ${rencana.find((r) => /Execution Time/.test(r))?.trim()} · ${rencana.find((r) => /Scan/.test(r))?.trim()})`);
+  console.log(`        (chat CS satu akun: ${rencanaChat.find((r) => /Execution Time/.test(r))?.trim()} · ${rencanaChat.filter((r) => /percakapan/.test(r)).map((r) => r.trim().replace(/\s+\(cost.*$/, "")).join(" | ")})`);
+  assert.ok(!rencanaChat.some((r) => /Seq Scan on percakapan/.test(r)), "chat CS dicari lewat indeks, bukan memindai semua chat");
   assert.ok(tPindai < 2000, `pindai ${tPindai} ms`);
 });
 

@@ -1,6 +1,6 @@
 import "server-only";
 import { createHmac } from "node:crypto";
-import { db, getSetting, sekarang, setSetting } from "./db";
+import { type Sql, db, getSetting, sekarang, setSetting } from "./db";
 import { catatPakai, tanyaAi } from "./ai";
 import { formatWa, kirimSapaan, pasangKaitCs } from "./bridge";
 import { rapikanNomorWa } from "./format";
@@ -29,7 +29,8 @@ import { WaError, infoSesi, padaAck } from "./wa";
  * Aturan anti-blokir (pesan yang kita mulai sendiri adalah pemicu blokir utama WhatsApp, jadi dibuat sekecil mungkin):
  *   - Hanya ke chat yang SUDAH pernah ada di nomor CS: nomor yang di-scan / "teruskan ke" milik akun cocok dengan
  *     lawan bicara chat CS, atau chat yang ditautkan admin (users.cs_kunci), atau yang menghubungi lewat tombol
- *     "Chat CS" berkode akun. Tanpa chat yang cocok = tidak pernah dikirimi apa pun.
+ *     "Chat CS" berkode akun. Tanpa chat yang cocok = tidak masuk antrean dan tidak pernah dikirimi apa pun; begitu
+ *     ada chat yang cocok, pemindaian berikutnya mengantrekannya.
  *   - Paling banyak 2 pesan seumur akun (sapaan, lalu satu pengingat bila tidak dibalas), lalu berhenti selamanya.
  *   - Disapa baru setelah `tundaJam` (kesempatan pengguna chat duluan; bila ia chat duluan, follow-up batal).
  *   - Jam kerja WIB, batas per hari, satu pesan per putaran dengan jeda acak 3–10 menit, teks ditulis AI per orang
@@ -52,8 +53,10 @@ const PINDAI_MS = 30 * 60_000;
 const PINDAI_AWAL_MS = 90_000;
 /** Chat yang masih ramai (pesan apa pun) dalam rentang ini: sapaan ditunda, jangan menyela percakapan. */
 const SEPI_DTK = 12 * 3600;
-/** Akun tanpa chat CS yang cocok ditunggu sekian lama (admin bisa mengisi nomor), lalu dibatalkan. */
-const TUNGGU_NOMOR_DTK = 7 * 86400;
+/** Kiriman yang terus gagal (bukan karena nomor CS terputus) dicoba ulang paling lama sekian sejak diantrekan. */
+const COBA_KIRIM_DTK = 7 * 86400;
+/** Pengguna yang chat CS sendiri sejak sekian sebelum diantrekan dianggap sudah dilayani: follow-up tidak perlu. */
+const CHAT_DULUAN_DTK = 6 * 3600;
 /** Baris follow-up yang dipantau di memori (balasan, permintaan berhenti, status kiriman). */
 const PANTAU_DTK = 14 * 86400;
 const UMUR_AKUN_PINDAI_DTK = 120 * 86400;
@@ -220,22 +223,28 @@ interface ChatCs {
 }
 
 /**
- * Chat di nomor CS milik akun ini: yang ditautkan (admin / kode akun) didahulukan, lalu lawan bicara yang nomornya sama
- * dengan nomor yang di-scan atau "teruskan ke" milik akun. Lewat percakapan_nomor_telepon_idx & indeks unik kunci.
+ * Fragmen: satu chat di nomor CS milik akun `u` (alias users di query luar). Yang ditautkan (admin / kode akun)
+ * didahulukan, lalu lawan bicara yang nomornya sama dengan nomor yang di-scan atau "teruskan ke" milik akun, terbaru
+ * dulu. Dua cabang UNION ALL supaya masing-masing lewat indeks (kunci unik; percakapan_nomor_telepon_idx). Dipakai
+ * chatAkun (satu akun) dan pindai (banyak akun) sebagai LATERAL, jadi "cocok" berarti hal yang sama di keduanya.
  */
+const chatCsCocok = (sql: Sql, csId: number) => sql`
+  SELECT p.id, p.kunci, p.alamat, p.telepon, p.nama, p.prospek, p.spam, p.terakhir_pada, true AS manual
+    FROM percakapan p WHERE p.kunci = u.cs_kunci AND p.number_id = ${csId}
+  UNION ALL
+  SELECT p.id, p.kunci, p.alamat, p.telepon, p.nama, p.prospek, p.spam, p.terakhir_pada, false
+    FROM percakapan p
+   WHERE p.number_id = ${csId} AND p.telepon IN (
+         SELECT n.wa_id FROM numbers n WHERE n.user_id = u.id AND n.wa_id IS NOT NULL
+         UNION ALL
+         SELECT n.teruskan_ke FROM numbers n WHERE n.user_id = u.id AND n.teruskan_ke IS NOT NULL)
+  ORDER BY manual DESC, terakhir_pada DESC
+  LIMIT 1`;
+
+/** Chat di nomor CS milik akun ini (lihat chatCsCocok). */
 async function chatAkun(userId: number, csId: number): Promise<ChatCs | undefined> {
   const sql = await db();
-  const [c] = await sql<ChatCs[]>`
-    SELECT p.id, p.kunci, p.alamat, p.telepon, p.nama, p.prospek, p.spam, p.terakhir_pada, COALESCE(p.kunci = u.cs_kunci, false) AS manual
-      FROM users u
-      JOIN percakapan p ON p.number_id = ${csId}
-       AND (p.kunci = u.cs_kunci OR p.telepon IN (
-             SELECT n.wa_id FROM numbers n WHERE n.user_id = u.id AND n.wa_id IS NOT NULL
-             UNION ALL
-             SELECT n.teruskan_ke FROM numbers n WHERE n.user_id = u.id AND n.teruskan_ke IS NOT NULL))
-     WHERE u.id = ${userId}
-     ORDER BY COALESCE(p.kunci = u.cs_kunci, false) DESC, p.terakhir_pada DESC
-     LIMIT 1`;
+  const [c] = await sql<ChatCs[]>`SELECT c.* FROM users u CROSS JOIN LATERAL (${chatCsCocok(sql, csId)}) c WHERE u.id = ${userId}`;
   return c;
 }
 
@@ -397,6 +406,13 @@ async function henti(userId: number, status: StatusFollowup, alasan: string | nu
   return false;
 }
 
+/** Sapaan yang belum terkirim untuk akun tanpa chat CS yang cocok tidak disimpan di antrean (belum ada pesan apa pun). */
+async function keluarkanTanpaChat(userId: number): Promise<void> {
+  const sql = await db();
+  await sql`DELETE FROM followup WHERE user_id = ${userId} AND status = 'antre' AND tahap = 0`;
+  st.lewatDraf.delete(userId);
+}
+
 async function tunda(userId: number, detik: number, alasan: string): Promise<void> {
   const sql = await db();
   const t = sekarang();
@@ -419,8 +435,9 @@ async function prosesSatu(b: BarisJalan, s: SetelanFollowup, cs: Nomor): Promise
   const chat = b.status === "antre" ? await chatAkun(u.id, cs.id) : b.kunci ? await chatByKunci(b.kunci) : undefined;
   if (!chat) {
     if (b.status !== "antre") return henti(b.user_id, "selesai", "Chat CS sudah terhapus");
-    if (t - b.dibuat > TUNGGU_NOMOR_DTK) return henti(b.user_id, "batal", "Tidak ada chat CS yang cocok selama 7 hari");
-    await tunda(b.user_id, 6 * 3600, "Menunggu nomor: akun ini belum pernah chat nomor CS (isi nomor follow-up di halaman pengguna)");
+    // Chat yang cocok hilang (nomor diganti, tautan dilepas, chat terhapus): keluar dari antrean, masuk lagi lewat
+    // pemindaian bila nanti cocok lagi.
+    await keluarkanTanpaChat(b.user_id);
     return false;
   }
   if (await diStop(chat.kunci)) return henti(b.user_id, "stop", "Chat ini pernah meminta tidak dihubungi lagi");
@@ -430,7 +447,7 @@ async function prosesSatu(b: BarisJalan, s: SetelanFollowup, cs: Nomor): Promise
 
   if (b.status === "antre") {
     // Pengguna chat CS duluan (sekitar kuota habis atau sesudahnya): sudah dilayani, follow-up tidak perlu.
-    if (await masukSejak(chat.id, b.dibuat - 6 * 3600)) return henti(b.user_id, "batal", "Pengguna sudah chat CS duluan");
+    if (await masukSejak(chat.id, b.dibuat - CHAT_DULUAN_DTK)) return henti(b.user_id, "batal", "Pengguna sudah chat CS duluan");
     if (chat.terakhir_pada > t - SEPI_DTK) {
       await tunda(b.user_id, chat.terakhir_pada + SEPI_DTK - t + 600, "Chat CS ini baru saja aktif: sapaan ditunda");
       return false;
@@ -447,7 +464,7 @@ async function prosesSatu(b: BarisJalan, s: SetelanFollowup, cs: Nomor): Promise
   const teks = (jenis === "sapaan" ? b.pesan1 : b.pesan2) ?? (await tulisPesan(u, chat, cs, jenis, jenis === "pengingat" ? sebelumnya : null));
 
   // Pemeriksaan terakhir: selagi AI menulis, pengguna bisa saja membalas / chat duluan.
-  if (await masukSejak(chat.id, jenis === "sapaan" ? b.dibuat - 6 * 3600 : (b.terkirim1 ?? t))) {
+  if (await masukSejak(chat.id, jenis === "sapaan" ? b.dibuat - CHAT_DULUAN_DTK : (b.terkirim1 ?? t))) {
     await ubah(b.user_id, jenis === "sapaan" ? "batal" : "dibalas", jenis === "sapaan" ? "Pengguna sudah chat CS duluan" : null, jenis === "pengingat" ? { dibalas: sekarang() } : {});
     return false;
   }
@@ -460,7 +477,7 @@ async function prosesSatu(b: BarisJalan, s: SetelanFollowup, cs: Nomor): Promise
     const pesan = e instanceof Error ? e.message : String(e);
     console.warn(`[followup] gagal mengirim ke akun ${u.id}: ${pesan}`);
     if (e instanceof WaError) await tunda(b.user_id, 1800, `Nomor CS tidak terhubung: ${pesan}`);
-    else if (t - b.dibuat > TUNGGU_NOMOR_DTK) await ubah(b.user_id, "gagal", pesan.slice(0, 200));
+    else if (t - b.dibuat > COBA_KIRIM_DTK) await ubah(b.user_id, "gagal", pesan.slice(0, 200));
     else await tunda(b.user_id, 3600, `Gagal mengirim, dicoba lagi: ${pesan.slice(0, 160)}`);
     return false;
   }
@@ -595,10 +612,11 @@ async function putaran(): Promise<void> {
 // ---------- Pemindaian akun yang kuotanya habis ----------
 
 /**
- * Akun gratis (tanpa langganan aktif) 120 hari terakhir yang belum pernah di-follow-up dan kuota AI-nya sudah habis.
- * Pemakaian dihitung di database dengan LIMIT sebesar kuota (berhenti begitu mencapai batas), lalu dipastikan lewat
- * sisaKuotaAi (bonus admin ikut dihitung). Akun tanpa chat CS yang cocok tetap diantrekan supaya admin melihatnya dan
- * bisa mengisi nomor; ia tidak pernah dikirimi apa pun sampai ada chat yang cocok.
+ * Akun gratis (tanpa langganan aktif) 120 hari terakhir yang belum pernah di-follow-up, kuota AI-nya sudah habis, dan
+ * SUDAH pernah chat nomor CS (chat yang tidak dibisukan / spam / minta berhenti). Antrean hanya berisi akun yang siap
+ * disapa: akun yang belum pernah chat CS tidak diantrekan (dipindai lagi tiap putaran pemindaian), dan baris antre
+ * yang chat-nya tidak cocok lagi dikeluarkan. Pemakaian dihitung di database dengan LIMIT sebesar kuota (berhenti
+ * begitu mencapai batas), lalu dipastikan lewat sisaKuotaAi (bonus admin ikut dihitung).
  */
 export async function pindai(): Promise<number> {
   if (st.pindaiJalan) return 0;
@@ -606,16 +624,26 @@ export async function pindai(): Promise<number> {
   try {
     const s = await pengaturanFollowup();
     if (!s.aktif) return 0;
-    const [p, sql] = await Promise.all([aturanPercobaan(), db()]);
+    const [p, sql, cs] = await Promise.all([aturanPercobaan(), db(), nomorCsDipakai(s)]);
+    if (!cs) return 0;
     const t = sekarang();
     const sekali = p.ulang === "sekali";
     const batas = Math.max(1, p.balasan);
-    const kandidat = await sql<{ id: number }[]>`
-      SELECT u.id FROM users u
+    // Sapaan yang belum terkirim untuk akun yang chat CS-nya tidak (lagi) cocok: nomor diganti, tautan dilepas, chat
+    // terhapus, nomor CS diganti, atau baris dari versi lama yang mengantrekan semua akun.
+    await sql`
+      DELETE FROM followup f USING users u
+       WHERE u.id = f.user_id AND f.status = 'antre' AND f.tahap = 0
+         AND NOT EXISTS (${chatCsCocok(sql, cs.id)})`;
+    const kandidat = await sql<{ id: number; chat_id: number; telepon: string | null; nama: string | null }[]>`
+      SELECT u.id, c.id AS chat_id, c.telepon, c.nama FROM users u
+       CROSS JOIN LATERAL (${chatCsCocok(sql, cs.id)}) c
        WHERE u.peran = 'user' AND u.status = 'aktif' AND u.created_at >= ${t - UMUR_AKUN_PINDAI_DTK}
          AND EXISTS (SELECT 1 FROM numbers n WHERE n.user_id = u.id)
          AND NOT EXISTS (SELECT 1 FROM followup f WHERE f.user_id = u.id)
          AND NOT EXISTS (SELECT 1 FROM langganan l WHERE l.user_id = u.id AND l.sampai > ${t})
+         AND c.prospek NOT IN (2, 3) AND c.spam <> 1
+         AND NOT EXISTS (SELECT 1 FROM followup_stop fs WHERE fs.kunci = c.kunci)
          AND (
            (${sekali && p.hari > 0} AND u.created_at + ${p.hari * 86400} <= ${t})
            OR (SELECT COUNT(*) FROM (
@@ -625,13 +653,18 @@ export async function pindai(): Promise<number> {
          )
        ORDER BY u.id DESC LIMIT 100`;
     let masuk = 0;
-    for (const { id } of kandidat) {
-      const hak = await hakAkun({ id, peran: "user" });
-      if (hak.sampai !== null || (await sisaKuotaAi(id)) !== 0) continue;
+    for (const k of kandidat) {
+      const hak = await hakAkun({ id: k.id, peran: "user" });
+      if (hak.sampai !== null || (await sisaKuotaAi(k.id)) !== 0) continue;
+      // Sudah chat CS sendiri sekitar kuota habis = sudah dilayani: dicatat batal (tidak diantrekan lagi), sama seperti
+      // pemeriksaan sebelum menyapa, hanya lebih awal supaya "Dalam antrean" berisi yang benar-benar akan disapa.
+      const duluan = await masukSejak(k.chat_id, t - CHAT_DULUAN_DTK);
       const r = await sql`
-        INSERT INTO followup (user_id, status, jadwal, dibuat, diperbarui)
-        VALUES (${id}, 'antre', ${t + s.tundaJam * 3600}, ${t}, ${t}) ON CONFLICT (user_id) DO NOTHING`;
-      masuk += r.count;
+        INSERT INTO followup (user_id, status, alasan, tujuan, nama, jadwal, dibuat, diperbarui)
+        VALUES (${k.id}, ${duluan ? "batal" : "antre"}, ${duluan ? "Pengguna sudah chat CS duluan" : null}, ${k.telepon}, ${k.nama},
+                ${t + s.tundaJam * 3600}, ${t}, ${t})
+        ON CONFLICT (user_id) DO NOTHING`;
+      if (!duluan) masuk += r.count;
     }
     if (masuk) console.info(`[followup] ${masuk} akun gratis yang kuotanya habis masuk antrean`);
     return masuk;
@@ -667,8 +700,19 @@ async function pesanMasuk(d: { numberId: number; kunci: string; teks: string; te
     const userId = Number(m[1]);
     const sql = await db();
     const t = sekarang();
+    const alasan = "Pengguna chat CS duluan lewat tombol Chat CS";
     await sql`UPDATE users SET cs_kunci = ${d.kunci} WHERE id = ${userId}`;
-    await sql`UPDATE followup SET status = 'batal', alasan = 'Pengguna chat CS duluan lewat tombol Chat CS', diperbarui = ${t} WHERE user_id = ${userId} AND status = 'antre'`;
+    // Akun yang belum pernah chat CS belum punya baris antrean. Bila kuota gratisnya habis, pembatalan dicatat sekarang
+    // supaya pemindaian tidak mengantrekannya lewat chat yang baru tertaut ini (ia sudah dilayani CS).
+    const u = await akun(userId);
+    const habis = u?.peran === "user" && (await hakAkun(u)).sampai === null && (await sisaKuotaAi(u.id)) === 0;
+    if (habis)
+      await sql`
+        INSERT INTO followup (user_id, status, alasan, tujuan, jadwal, dibuat, diperbarui)
+        VALUES (${userId}, 'batal', ${alasan}, ${d.telepon}, ${t}, ${t}, ${t})
+        ON CONFLICT (user_id) DO UPDATE SET status = 'batal', alasan = EXCLUDED.alasan, diperbarui = EXCLUDED.diperbarui
+         WHERE followup.status = 'antre'`;
+    else await sql`UPDATE followup SET status = 'batal', alasan = ${alasan}, diperbarui = ${t} WHERE user_id = ${userId} AND status = 'antre'`;
     const k = await konteksAkun(userId);
     if (k) catatan.push(`${k} Ia menghubungi lewat tombol "Chat CS" di dashboard-nya.`);
   }
@@ -828,6 +872,7 @@ export async function tautkanChatCs(userId: number, masukan: string): Promise<st
   const sql = await db();
   if (!masukan.trim()) {
     await sql`UPDATE users SET cs_kunci = NULL WHERE id = ${userId}`;
+    await pindai(); // tanpa chat yang cocok lagi = keluar dari antrean
     return "Tautan manual dilepas. Follow-up memakai nomor yang cocok otomatis (bila ada).";
   }
   const digit = rapikanNomorWa(masukan);
@@ -837,11 +882,10 @@ export async function tautkanChatCs(userId: number, masukan: string): Promise<st
   const [c] = await sql<{ kunci: string; nama: string | null }[]>`
     SELECT kunci, nama FROM percakapan WHERE number_id = ${cs.id} AND telepon = ${digit} ORDER BY terakhir_pada DESC LIMIT 1`;
   if (!c) throw new PenggunaError(`Nomor ini belum pernah chat nomor CS (${cs.label}). Follow-up hanya dikirim ke nomor yang sudah pernah chat.`);
-  const t = sekarang();
   await sql`UPDATE users SET cs_kunci = ${c.kunci} WHERE id = ${userId}`;
-  // Sedang menunggu nomor: langsung boleh diproses (tetap tidak lebih cepat dari jeda setelah kuota habis).
-  const s = await pengaturanFollowup();
-  await sql`UPDATE followup SET jadwal = GREATEST(${t}, dibuat + ${s.tundaJam * 3600}), alasan = null, diperbarui = ${t} WHERE user_id = ${userId} AND status = 'antre'`;
+  // Sudah di antrean: tujuan yang tampil ikut chat ini. Belum: pemindaian langsung mengantrekannya bila kuotanya habis.
+  await sql`UPDATE followup SET tujuan = ${digit}, nama = ${c.nama}, diperbarui = ${sekarang()} WHERE user_id = ${userId} AND status = 'antre'`;
+  await pindai();
   return `Tertaut ke chat CS${c.nama ? ` "${c.nama}"` : ""}.`;
 }
 
