@@ -171,7 +171,7 @@ export function KartuVs({ termurah, kurs }: { termurah: PaketBanding | undefined
     t("Perlu dilatih ulang tiap ganti orang", "Needs retraining with every new hire"),
   ];
   const lebih = [
-    t("Membalas 24 jam, 7 hari, rata-rata < 10 detik", "Replies 24/7, in under 10 seconds on average"),
+    t("Membalas 24 jam, 7 hari, rata-rata < 5 detik", "Replies 24/7, in under 5 seconds on average"),
     t("Menjawab dari menu, harga & FAQ Anda, tidak mengarang", "Answers from your menu, prices & FAQ, never makes things up"),
     t("Melayani banyak chat sekaligus, tidak pernah antre", "Handles many chats at once, no queues"),
     t("Anda membalas dari HP? AI otomatis mundur", "Reply from your phone? The AI steps back automatically"),

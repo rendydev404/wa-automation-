@@ -18,7 +18,7 @@ const PROMO = (t: T): { judul: string; isi: string }[] => [
   { judul: t("Telat balas = pembeli kabur.", "Slow reply = lost buyer."), isi: t("Biar AI balas tiap chat dalam hitungan detik.", "Let AI answer every chat in seconds.") },
   { judul: t("Masih balas chat satu-satu?", "Still replying one by one?"), isi: t("AI ChatGerCep layani semua chat sekaligus.", "ChatGerCep's AI handles them all at once.") },
   { judul: t("Pesaingmu sudah pakai AI.", "Your competitors already use AI."), isi: t("Jangan sampai pembelimu pindah ke sebelah.", "Don't let your buyers walk next door.") },
-  { judul: t("Uji bot dulu, bayar saat siap.", "Test the bot first, pay when ready."), isi: t(`Ada jaminan uang kembali ${MASA_ID}.`, `Backed by a ${MASA_EN_ADJ} money-back guarantee.`) },
+  { judul: t("Nggak gercep? Duit balik 100%.", "Not fast? 100% money back."), isi: t(`Garansi uang kembali ${MASA_ID}.`, `Backed by a ${MASA_EN_ADJ} money-back guarantee.`) },
   { judul: t("Admin libur? Toko tetap jalan.", "Admin off? Store keeps running."), isi: t("AI jawab harga, stok, dan pertanyaan pelanggan.", "AI answers prices, stock, and customer questions.") },
   { judul: t("Closing lebih banyak, capek lebih sedikit.", "More closings, less fatigue."), isi: t("Pertanyaan yang itu-itu lagi? Biar AI yang jawab.", "Same questions again? Let AI answer.") },
   { judul: t("Pelanggan nanya, AI langsung jawab.", "Customers ask, AI answers instantly."), isi: t("Kamu tinggal fokus kirim pesanan.", "You just focus on shipping orders.") },

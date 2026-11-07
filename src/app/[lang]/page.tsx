@@ -18,7 +18,7 @@ import { UMUR_HISTORI_HARI } from "@/lib/format";
 import { IkonWhatsApp } from "@/components/ikon-whatsapp";
 import { DataOrganisasi, KakiPerusahaan } from "@/components/kaki-perusahaan";
 import { MEREK, NOMOR_WA_DEMO, URL_WA_DEMO } from "@/lib/merek";
-import { MASA_ID, MASA_EN_ADJ } from "@/lib/jaminan-def";
+import { MASA_ID, MASA_EN, MASA_EN_ADJ } from "@/lib/jaminan-def";
 
 /** Landing page publik: seluruhnya statis (prerender, kedua bahasa), animasi Remotion dimuat terpisah di sisi klien. */
 
@@ -271,7 +271,7 @@ export default async function Landing() {
       <section aria-label={t("Sekilas", "At a glance")} className="border-b border-line bg-surface">
         <dl className="mx-auto grid max-w-[1200px] grid-cols-2 gap-6 px-4 py-10 sm:px-6 md:grid-cols-4">
           {[
-            [t("< 10 dtk", "< 10 sec"), t("rata-rata waktu balas", "average reply time")],
+            [t("< 5 dtk", "< 5 sec"), t("rata-rata waktu balas", "average reply time")],
             ["24/7", t("tanpa jam kerja", "no business hours")],
             [t("2 menit", "2 min"), t("dari daftar sampai tersambung", "from sign-up to connected")],
             ["0", t("aplikasi tambahan di HP", "extra apps on your phone")],
@@ -458,7 +458,7 @@ export default async function Landing() {
           <div aria-hidden className="absolute -bottom-40 left-1/2 size-[520px] -translate-x-1/2 rounded-full bg-ink-signal/20 blur-3xl" />
           <h2 className="relative text-3xl font-extrabold tracking-tight text-white sm:text-[44px]">{t("Biarkan AI menjawab. Anda fokus berjualan.", "Let the AI answer. You focus on selling.")}</h2>
           <p className="relative mx-auto mt-4 max-w-xl text-[16px] text-ink-muted">
-            {t(`Daftar dalam satu menit, sambungkan nomor, uji bot sepuasnya, lalu berlangganan saat siap. Ada jaminan uang kembali ${MASA_ID}.`, `Sign up in a minute, connect your number, test the bot as much as you like, then subscribe when you are ready. ${MASA_EN_ADJ} money-back guarantee.`)}
+            {t(`Daftar dalam satu menit, sambungkan nomor, aktifkan paket, dan AI langsung membalas pelanggan. Nggak gercep? Uang kembali 100% dalam ${MASA_ID}.`, `Sign up in a minute, connect your number, activate a plan, and the AI starts replying to customers right away. Not fast? 100% money back within ${MASA_EN}.`)}
           </p>
           <Link href="/daftar" className="group relative mt-8 inline-flex items-center gap-2 rounded-2xl bg-ink-signal px-7 py-4 text-[15px] font-bold text-ink transition-transform hover:-translate-y-0.5">
             {t("Buat akun", "Create an account")} <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />

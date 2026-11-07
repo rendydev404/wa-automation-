@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { Moon, Sun } from "lucide-react";
 import { useBahasa } from "@/components/bahasa";
 
@@ -26,6 +26,16 @@ export function TombolTema() {
     () => !!document.querySelector("[data-tema-landing].tema-gelap"),
     () => true,
   );
+
+  // Latar <body> ikut gelap hanya selama landing tampil; dilepas saat pindah ke halaman lain (cleanup efek).
+  useEffect(() => {
+    const html = document.documentElement;
+    if (gelap) html.dataset.temaLanding = "gelap";
+    else delete html.dataset.temaLanding;
+    return () => {
+      delete html.dataset.temaLanding;
+    };
+  }, [gelap]);
 
   const ganti = () => {
     const el = document.querySelector("[data-tema-landing]");
