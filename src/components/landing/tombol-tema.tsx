@@ -46,7 +46,7 @@ export function TombolTema() {
       aria-label={gelap ? t("Ganti ke tema terang", "Switch to light theme") : t("Ganti ke tema gelap", "Switch to dark theme")}
       title={gelap ? t("Tema terang", "Light theme") : t("Tema gelap", "Dark theme")}
       data-analitik="Landing: ganti tema"
-      className="grid size-9 shrink-0 place-items-center rounded-xl text-ink-fg transition-colors hover:bg-white/[0.06]"
+      className="grid size-8 shrink-0 place-items-center rounded-xl min-[420px]:size-9 text-ink-fg transition-colors hover:bg-white/[0.06]"
     >
       {gelap ? <Sun className="size-[18px]" aria-hidden /> : <Moon className="size-[18px]" aria-hidden />}
     </button>

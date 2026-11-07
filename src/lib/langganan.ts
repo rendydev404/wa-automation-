@@ -9,7 +9,7 @@ import { KODE_CUSTOM } from "./paket-custom-def";
 import { namaBankTampil } from "./afiliasi-def";
 import { type JenisKomisi, prosesKomisiTransaksi } from "./afiliasi";
 import { type KonteksMeta, kirimCapiEvent } from "./meta-pixel";
-import { JAMINAN_HARI } from "./jaminan-def";
+import { MASA_ID, MASA_EN_ADJ } from "./jaminan-def";
 
 /**
  * Paket langganan, masa aktif, transaksi Midtrans, dan kuota.
@@ -349,8 +349,8 @@ export async function catatKuotaHabis(userId: number): Promise<boolean> {
       jenis: "kuota",
       judul: { id: "AI belum membalas pelanggan", en: "The AI isn't replying to customers yet" },
       isi: {
-        id: `Ada chat pelanggan masuk, tapi AI baru membalas setelah kamu berlangganan. Pembayaran pertama lewat GoPay, ShopeePay, atau QRIS dilindungi jaminan uang kembali ${JAMINAN_HARI} hari.`,
-        en: `A customer chat came in, but the AI only replies once you subscribe. A first payment with GoPay, ShopeePay, or QRIS is covered by a ${JAMINAN_HARI}-day money-back guarantee.`,
+        id: `Ada chat pelanggan masuk, tapi AI baru membalas setelah kamu berlangganan. Pembayaran pertama lewat GoPay, ShopeePay, atau QRIS dilindungi jaminan uang kembali ${MASA_ID}.`,
+        en: `A customer chat came in, but the AI only replies once you subscribe. A first payment with GoPay, ShopeePay, or QRIS is covered by a ${MASA_EN_ADJ} money-back guarantee.`,
       },
       tautan: "/langganan",
       kunci: `kuota100:${hak.periodeMulai}:0`,

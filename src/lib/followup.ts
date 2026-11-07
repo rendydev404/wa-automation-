@@ -16,7 +16,7 @@ import {
 } from "./followup-def";
 import { aiUntukAkun, aturanPercobaan, awalBulanWib, balasanTerpakai, hakAkun, sisaKuotaAi } from "./langganan";
 import { MEREK } from "./merek";
-import { JAMINAN_HARI } from "./jaminan-def";
+import { MASA_ID } from "./jaminan-def";
 import { kirimNotifAdmin } from "./notifikasi";
 import { type Nomor, nomorById, semuaNomor } from "./numbers";
 import { PenggunaError } from "./pengguna";
@@ -688,7 +688,7 @@ async function konteksAkun(userId: number): Promise<string | null> {
   if (!u) return null;
   const [hak, sisa, pakai] = await Promise.all([hakAkun(u), sisaKuotaAi(u.id), pemakaianAkun(u.id)]);
   const paket = hak.sampai === null ? `tanpa paket aktif${sisa === 0 ? " (kuota balasan AI HABIS atau belum berlangganan, jadi AI di WhatsApp-nya TIDAK membalas pelanggan)" : ` (sisa ${sisa ?? "∞"} balasan AI gratis)`}` : `paket ${hak.paket} yang masih aktif`;
-  return `Lawan bicara ini pemilik akun ${MEREK} "${u.nama || "-"}" (email login ${u.email}), ${paket}. Bot-nya sudah mengirim ${pakai.balasan} balasan AI ke ${pakai.pelanggan} pelanggan. Bila ia mau mengaktifkan lagi, bantu memilih paket yang pas lalu arahkan ke ${asal()}/langganan (login dengan email tadi). Ada jaminan uang kembali ${JAMINAN_HARI} hari untuk pembayaran pertama lewat GoPay, ShopeePay, atau QRIS. Jangan memaksa.`;
+  return `Lawan bicara ini pemilik akun ${MEREK} "${u.nama || "-"}" (email login ${u.email}), ${paket}. Bot-nya sudah mengirim ${pakai.balasan} balasan AI ke ${pakai.pelanggan} pelanggan. Bila ia mau mengaktifkan lagi, bantu memilih paket yang pas lalu arahkan ke ${asal()}/langganan (login dengan email tadi). Ada jaminan uang kembali ${MASA_ID} untuk pembayaran pertama lewat GoPay, ShopeePay, atau QRIS. Jangan memaksa.`;
 }
 
 async function pesanMasuk(d: { numberId: number; kunci: string; teks: string; telepon: string | null }): Promise<string | null> {

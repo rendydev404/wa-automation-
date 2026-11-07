@@ -18,7 +18,7 @@ import { KartuCustom, TombolWaCustom } from "@/components/kartu-custom";
 import { requireUser } from "@/lib/session";
 import { cekJaminan, modeRefund } from "@/lib/jaminan";
 import { namaBankTampil } from "@/lib/afiliasi-def";
-import { JAMINAN_HARI, JAMINAN_MAKS_PAKAI_PERSEN, syaratJaminan, teksProsesRefund } from "@/lib/jaminan-def";
+import { JAMINAN_MAKS_PAKAI_PERSEN, syaratJaminan, teksProsesRefund, MASA_ID, MASA_EN_ADJ } from "@/lib/jaminan-def";
 import { sekarang } from "@/lib/db";
 import { FormJaminan } from "./jaminan";
 import { MEREK } from "@/lib/merek";
@@ -87,7 +87,7 @@ async function Jaminan() {
     <section aria-labelledby="judul-jaminan" className={`card p-5 sm:p-6 ${j.boleh ? "ring-1 ring-accent/40" : ""}`}>
       <h2 id="judul-jaminan" className="flex items-center gap-2 text-[15px] font-bold">
         <ShieldCheck className={`size-4 ${selesai ? "text-success" : "text-accent"}`} aria-hidden />
-        {selesai ? t("Dana sudah dikembalikan", "Money refunded") : t(`Jaminan uang kembali ${JAMINAN_HARI} hari`, `${JAMINAN_HARI}-day money-back guarantee`)}
+        {selesai ? t("Dana sudah dikembalikan", "Money refunded") : t(`Jaminan uang kembali ${MASA_ID}`, `${MASA_EN_ADJ} money-back guarantee`)}
       </h2>
       {selesai ? (
         <p className="mt-1.5 text-[13px] text-muted">

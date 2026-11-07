@@ -7,7 +7,7 @@ import { angka, tanggal } from "@/lib/format";
 import { tautanChatCs } from "@/lib/followup";
 import { hakAkun, sisaKuotaAi } from "@/lib/langganan";
 import { requireUser } from "@/lib/session";
-import { JAMINAN_HARI } from "@/lib/jaminan-def";
+import { MASA_ID, MASA_EN_ADJ } from "@/lib/jaminan-def";
 
 /** Nomor milik pengguna yang belum punya base knowledge berisi (satu query, lewat documents_number_idx). */
 async function nomorTanpaKnowledge(userId: number): Promise<{ id: number; label: string }[]> {
@@ -79,8 +79,8 @@ export async function BannerKuota() {
             <p className="font-bold text-fg">{t("AI belum membalas pelanggan", "The AI isn't replying to customers yet")}</p>
             <p className="text-muted">
               {t(
-                `Coba dulu di Uji bot, lalu pilih paket supaya AI mulai membalas. Pembayaran pertama lewat GoPay, ShopeePay, atau QRIS dilindungi jaminan uang kembali ${JAMINAN_HARI} hari.`,
-                `Try it in the bot test first, then pick a plan so the AI starts replying. A first payment with GoPay, ShopeePay, or QRIS is covered by a ${JAMINAN_HARI}-day money-back guarantee.`,
+                `Coba dulu di Uji bot, lalu pilih paket supaya AI mulai membalas. Pembayaran pertama lewat GoPay, ShopeePay, atau QRIS dilindungi jaminan uang kembali ${MASA_ID}.`,
+                `Try it in the bot test first, then pick a plan so the AI starts replying. A first payment with GoPay, ShopeePay, or QRIS is covered by a ${MASA_EN_ADJ} money-back guarantee.`,
               )}
             </p>
           </div>

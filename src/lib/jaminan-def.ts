@@ -4,7 +4,11 @@
  */
 
 /** Batas pengajuan sejak dibayar (hari). Juga masa tahan komisi afiliasi sebelum bisa ditarik. */
-export const JAMINAN_HARI = 3;
+export const JAMINAN_HARI = 1;
+/** Masa jaminan dalam teks: "1×24 jam" (id), "24 hours" (en, kata benda), "24-hour" (en, sifat). */
+export const MASA_ID = JAMINAN_HARI === 1 ? "1×24 jam" : `${JAMINAN_HARI} hari`;
+export const MASA_EN = JAMINAN_HARI === 1 ? "24 hours" : `${JAMINAN_HARI} days`;
+export const MASA_EN_ADJ = JAMINAN_HARI === 1 ? "24-hour" : `${JAMINAN_HARI}-day`;
 /** Pemakaian balasan AI paling banyak sekian persen dari kuota paket supaya masih bisa diajukan. */
 export const JAMINAN_MAKS_PAKAI_PERSEN = 20;
 /** Lama proses pengembalian dana setelah pengajuan diterima (hari kerja), yang dijanjikan ke pelanggan. */
@@ -16,7 +20,7 @@ export const teksProsesRefund = (t: (id: string, en: string) => string): string 
 /**
  * Kanal yang bisa dikembalikan lewat Refund API Midtrans. Dokumentasi Midtrans: refund hanya untuk kartu, GoPay,
  * ShopeePay, QRIS, DANA, OVO, Kredivo, Akulaku; VA bank (BCA, BNI, BRI, Mandiri, Permata) TIDAK bisa di-refund. Batas
- * waktu refund terpendek di antara kanal ini 7 hari (QRIS off-us), jadi jaminan JAMINAN_HARI hari selalu masih bisa diproses.
+ * waktu refund terpendek di antara kanal ini 7 hari (QRIS off-us), jadi jaminan 1×24 jam selalu masih bisa diproses.
  */
 export const KANAL_REFUND = ["gopay", "shopeepay", "qris"] as const;
 export const kanalBisaRefund = (k: string | null | undefined): boolean => !!k && (KANAL_REFUND as readonly string[]).includes(k);
@@ -36,7 +40,7 @@ export const MODE_REFUND_BAWAAN: ModeRefund = "manual";
 export function syaratJaminan(t: (id: string, en: string) => string): string[] {
   return [
     t("Hanya untuk pembayaran pertama akun (bukan perpanjangan atau pembelian berikutnya).", "Only for the account's first payment (not renewals or later purchases)."),
-    t(`Diajukan paling lambat ${JAMINAN_HARI} hari sejak pembayaran; lewat dari itu tombolnya hilang.`, `Request it within ${JAMINAN_HARI} days of paying; after that the button disappears.`),
+    t(`Diajukan paling lambat ${MASA_ID} sejak pembayaran; lewat dari itu tombolnya hilang.`, `Request it within ${MASA_EN} of paying; after that the button disappears.`),
     t("Dibayar lewat GoPay, ShopeePay, atau QRIS. Pembayaran lewat virtual account (VA) bank tidak termasuk.", "Paid with GoPay, ShopeePay, or QRIS. Bank virtual account (VA) payments aren't covered."),
     t(`Balasan AI yang terpakai paling banyak ${JAMINAN_MAKS_PAKAI_PERSEN}% dari kuota paket.`, `At most ${JAMINAN_MAKS_PAKAI_PERSEN}% of the plan's AI reply quota has been used.`),
     t("Satu kali per orang: nomor WhatsApp atau email yang sama tidak bisa memakainya lagi lewat akun baru.", "Once per person: the same WhatsApp number or email can't use it again through a new account."),

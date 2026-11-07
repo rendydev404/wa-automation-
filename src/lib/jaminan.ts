@@ -1,7 +1,7 @@
 import "server-only";
 import { type Sql, type Tx, db, getSetting, sekarang, setSetting, transaksi as transaksiDb } from "./db";
 import { DAFTAR_BANK, namaBankTampil } from "./afiliasi-def";
-import { JAMINAN_HARI, JAMINAN_MAKS_PAKAI_PERSEN, MODE_REFUND_BAWAAN, type ModeRefund } from "./jaminan-def";
+import { JAMINAN_HARI, JAMINAN_MAKS_PAKAI_PERSEN, MODE_REFUND_BAWAAN, type ModeRefund, MASA_ID, MASA_EN_ADJ } from "./jaminan-def";
 import { ORDER_SAH, balasanTerpakai, catatRefundBerhasil } from "./langganan";
 import { MEREK } from "./merek";
 import { type KonfigMidtrans, MidtransError, kanalBisaRefund, refundMidtrans, statusMidtrans } from "./midtrans";
@@ -144,7 +144,7 @@ async function hitung(q: Sql | Tx, userId: number): Promise<(InfoJaminan & { tra
     });
   if (rows.length > 1)
     return tolak({ id: "Jaminan hanya untuk pembayaran pertama, dan akun ini sudah punya pembayaran berikutnya.", en: "The guarantee only covers your first payment, and this account already has a later one." });
-  if (kini > sampai) return tolak({ id: `Masa jaminan ${JAMINAN_HARI} hari sudah lewat.`, en: `The ${JAMINAN_HARI}-day guarantee period has ended.` });
+  if (kini > sampai) return tolak({ id: `Masa jaminan ${MASA_ID} sudah lewat.`, en: `The ${MASA_EN_ADJ} guarantee period has ended.` });
   if (t.l_sampai === null || t.l_mulai === null || t.l_sampai <= kini)
     return tolak({ id: "Paket dari pembayaran ini sudah tidak aktif.", en: "The plan from this payment is no longer active." });
   const [terpakai, [dipakai]] = await Promise.all([

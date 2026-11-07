@@ -3,7 +3,7 @@ import { ShieldCheck } from "lucide-react";
 import { namaBankTampil } from "@/lib/afiliasi-def";
 import { tanggal } from "@/lib/format";
 import { type BarisPengembalian, type StatusPengembalian, daftarPengembalian, modeRefund } from "@/lib/jaminan";
-import { JAMINAN_HARI, JAMINAN_MAKS_PAKAI_PERSEN } from "@/lib/jaminan-def";
+import { JAMINAN_MAKS_PAKAI_PERSEN, MASA_ID } from "@/lib/jaminan-def";
 import { requireAdmin } from "@/lib/session";
 import { rp } from "./bagian-transaksi";
 import { AksiPengembalian, FormModeRefund } from "./tombol-pengembalian";
@@ -71,7 +71,7 @@ export async function PengembalianDana() {
             {berjalan.length > 0 && <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[11.5px] font-semibold text-warning">{berjalan.length} perlu ditangani</span>}
           </h2>
           <p className="mt-0.5 text-[12.5px] text-muted">
-            Jaminan {JAMINAN_HARI} hari untuk pembayaran pertama lewat GoPay, ShopeePay, atau QRIS (pemakaian maks. {JAMINAN_MAKS_PAKAI_PERSEN}% kuota). Begitu selesai, paket
+            Jaminan {MASA_ID} untuk pembayaran pertama lewat GoPay, ShopeePay, atau QRIS (pemakaian maks. {JAMINAN_MAKS_PAKAI_PERSEN}% kuota). Begitu selesai, paket
             pembeli dicabut dan komisi afiliasinya batal (komisi baru bisa ditarik setelah masa jaminan lewat).
           </p>
         </div>

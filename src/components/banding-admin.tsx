@@ -6,7 +6,7 @@ import { ArrowRight, Check, Clock, Users, Wallet, X } from "lucide-react";
 import Link from "@/components/link";
 import { useBahasa } from "@/components/bahasa";
 import { angka, uang } from "@/lib/format";
-import { JAMINAN_HARI } from "@/lib/jaminan-def";
+import { MASA_ID, MASA_EN_ADJ } from "@/lib/jaminan-def";
 
 /**
  * Perbandingan biaya admin CS WhatsApp vs langganan ChatGerCep. Dipakai di landing (setelah Fitur) dan di /trial-habis,
@@ -197,7 +197,7 @@ export function KartuVs({ termurah, kurs }: { termurah: PaketBanding | undefined
         <p className="text-[13px] text-muted">
           {termurah
             ? t(`per ${termurah.durasi_hari} hari, ± ${rp(termurah.harga / termurah.durasi_hari)} per hari`, `per ${termurah.durasi_hari} days, ± ${rp(termurah.harga / termurah.durasi_hari)} a day`)
-            : t(`jaminan uang kembali ${JAMINAN_HARI} hari`, `${JAMINAN_HARI}-day money-back guarantee`)}
+            : t(`jaminan uang kembali ${MASA_ID}`, `${MASA_EN_ADJ} money-back guarantee`)}
         </p>
         <ul className="mt-4 space-y-2 text-[14px]">
           {lebih.map((x) => (

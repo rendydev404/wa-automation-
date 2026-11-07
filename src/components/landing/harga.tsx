@@ -12,7 +12,7 @@ import { kanalAktif, konfigMidtrans } from "@/lib/midtrans";
 import { customTampil, paketCustom, tautanCustom } from "@/lib/paket-custom";
 import { KartuCustom } from "../kartu-custom";
 import { BandingAdminLanding } from "../banding-admin";
-import { JAMINAN_HARI, syaratJaminan } from "@/lib/jaminan-def";
+import { syaratJaminan, MASA_ID, MASA_EN } from "@/lib/jaminan-def";
 
 const hari = (n: number, b: Bahasa) => (b === "en" ? `${n} ${n === 1 ? "day" : "days"}` : `${n} hari`);
 
@@ -132,7 +132,7 @@ export async function HargaLanding() {
               <ShieldCheck className="size-20 shrink-0 text-[#a3ff47] drop-shadow-[0_0_18px_rgba(163,255,71,0.65)] sm:size-24" strokeWidth={1.6} aria-hidden />
               <p className="leading-none font-extrabold text-white uppercase italic">
                 <span className="block text-[22px] tracking-tight sm:text-[30px]">{t("Garansi uang kembali", "Money-back guarantee")}</span>
-                <span className="mt-1 block text-[44px] tracking-tight text-[#a3ff47] sm:text-[60px]">{t(`${JAMINAN_HARI} hari`, `${JAMINAN_HARI} days`)}</span>
+                <span className="mt-1 block text-[44px] tracking-tight text-[#a3ff47] sm:text-[60px]">{t(`${MASA_ID}`, `${MASA_EN}`)}</span>
               </p>
             </div>
             <div aria-hidden className="hidden h-24 w-px bg-white/25 lg:block" />
@@ -140,8 +140,8 @@ export async function HargaLanding() {
               <p className="font-semibold text-white">{t("Coba langsung, tanpa trial.", "Try it right away, no trial needed.")}</p>
               <p>
                 {t(
-                  `Jika dalam ${JAMINAN_HARI} hari pertama ChatGerCep tidak gercep atau tidak sesuai yang kami janjikan, `,
-                  `If within the first ${JAMINAN_HARI} days ChatGerCep isn't fast or isn't what we promised, `,
+                  `Jika dalam ${MASA_ID} pertama ChatGerCep tidak gercep atau tidak sesuai yang kami janjikan, `,
+                  `If within the first ${MASA_EN} ChatGerCep isn't fast or isn't what we promised, `,
                 )}
                 <mark className="rounded-md bg-[#a3ff47] px-1.5 font-bold text-ink [box-decoration-break:clone]">{t("uang kamu kami kembalikan 100%.", "you get 100% of your money back.")}</mark>
               </p>
@@ -192,4 +192,27 @@ export async function BandingLanding() {
     .map(({ id, nama, harga, durasi_hari, kuota_balasan }) => ({ id, nama, harga, durasi_hari, kuota_balasan }));
   if (!dijual.length) return null;
   return <BandingAdminLanding paket={dijual} kurs={kurs} />;
+}
+
+/** "Rp67 ribu" dari harga Rupiah (ribuan bulat), selain itu format uang biasa. */
+function ringkasRp(harga: number, b: Bahasa, kurs?: number): string {
+  if (b === "en") return uang(harga, b, kurs);
+  return harga % 1000 === 0 ? `Rp${angka(harga / 1000)} ribu` : uang(harga, b);
+}
+
+/**
+ * Harga paket termurah untuk kalimat hero ("mulai Rp67 ribu/30 hari"). Dialirkan di dalam Suspense dengan teks
+ * cadangan, jadi hero tetap statis dan tidak menunggu database; gagal = teks cadangan tetap tampil.
+ */
+export async function HargaMulai({ cadangan }: { cadangan: string }) {
+  await connection();
+  const { b } = await teksHalaman();
+  try {
+    const [paket, kurs] = await Promise.all([daftarPaket(), b === "en" ? kursUsd() : Promise.resolve(undefined)]);
+    const p = paket.filter((x) => x.harga > 0).sort((x, y) => x.harga - y.harga)[0];
+    if (!p) return cadangan;
+    return `${ringkasRp(p.harga, b, kurs)}/${hari(p.durasi_hari, b)}`;
+  } catch {
+    return cadangan;
+  }
 }

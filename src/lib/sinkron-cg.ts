@@ -6,7 +6,7 @@ import { KANAL_BAYAR, type KanalBayar } from "./harga";
 import { BATAS_DOKUMEN_KARAKTER, BATAS_NOMOR_KARAKTER, DOKUMEN_CHATGERCEP, rapikanTeks } from "./knowledge";
 import { BATAS_KATALOG } from "./katalog-def";
 import { type AturanPercobaan, type Paket, aturanPercobaan, daftarPaket, kuotaNomorGratis } from "./langganan";
-import { JAMINAN_HARI, JAMINAN_MAKS_PAKAI_PERSEN, type ModeRefund } from "./jaminan-def";
+import { JAMINAN_MAKS_PAKAI_PERSEN, type ModeRefund, MASA_ID } from "./jaminan-def";
 import { modeRefund } from "./jaminan";
 import { kanalAktif, konfigMidtrans } from "./midtrans";
 import { MEREK } from "./merek";
@@ -194,7 +194,7 @@ function teksKomisi(jenis: Paket["komisi_jenis"], nilai: number, harga: number |
 function teksPercobaan(d: DataCg): string {
   const p = d.percobaan;
   if (p.balasan === 0)
-    return `- *Tanpa free trial*: daftar akun gratis, bisa menyambungkan ${angka(d.nomorGratis)} nomor WhatsApp, mengisi product knowledge, dan mencoba bot di menu Uji bot, tetapi AI baru membalas pelanggan sungguhan setelah berlangganan paket berbayar. Sebagai gantinya ada jaminan uang kembali ${JAMINAN_HARI} hari.`;
+    return `- *Tanpa free trial*: daftar akun gratis, bisa menyambungkan ${angka(d.nomorGratis)} nomor WhatsApp, mengisi product knowledge, dan mencoba bot di menu Uji bot, tetapi AI baru membalas pelanggan sungguhan setelah berlangganan paket berbayar. Sebagai gantinya ada jaminan uang kembali ${MASA_ID}.`;
   const masa = p.ulang === "bulanan" ? "per bulan, diperbarui tiap awal bulan" : p.hari > 0 ? `sekali pakai, berlaku ${p.hari} hari sejak akun dibuat` : "sekali pakai, tanpa batas waktu";
   return `- *Gratis (percobaan)*: Rp0, ${angka(d.nomorGratis)} nomor WhatsApp, ${angka(p.balasan)} balasan AI (${masa}). Tanpa kartu kredit; cukup daftar akun.`;
 }
@@ -202,7 +202,7 @@ function teksPercobaan(d: DataCg): string {
 /** Kartu jaminan uang kembali (aturannya di jaminan-def.ts; VA bank tidak bisa di-refund Midtrans). */
 function teksJaminan(mode: ModeRefund): string[] {
   return [
-    `- Pembayaran PERTAMA akun bisa diminta kembali penuh dalam ${JAMINAN_HARI} hari sejak dibayar, selama balasan AI yang terpakai paling banyak ${JAMINAN_MAKS_PAKAI_PERSEN}% dari kuota paket.`,
+    `- Pembayaran PERTAMA akun bisa diminta kembali penuh dalam ${MASA_ID} sejak dibayar, selama balasan AI yang terpakai paling banyak ${JAMINAN_MAKS_PAKAI_PERSEN}% dari kuota paket.`,
     "- Hanya untuk pembayaran lewat GoPay, ShopeePay, atau QRIS. Pembayaran lewat virtual account (VA) bank tidak termasuk jaminan.",
     mode === "otomatis"
       ? "- Cara: login, buka menu Langganan, tekan \"Minta uang kembali\" dan tulis alasannya (wajib). Diproses otomatis tanpa menunggu admin: dana kembali ke metode bayar asal (GoPay biasanya 1×24 jam; QRIS dari aplikasi lain bisa sampai 15–20 hari kerja) dan paketnya langsung dihentikan."
@@ -317,7 +317,7 @@ export function susunTeksCg(d: DataCg, per: string): string {
         [
           `- Siapa saja yang punya akun ${MEREK} bisa bergabung gratis dari menu Afiliasi di dashboard, tanpa harus membeli paket. ${a.persetujuan === "otomatis" ? "Akun afiliasi langsung aktif." : "Pendaftaran afiliasi ditinjau dan diaktifkan admin dulu."}`,
           `- Afiliator membagikan link referral (berakhiran ?ref=kode-afiliator). Orang yang membuka link itu lalu mendaftar akun (email atau Google) dalam ${Math.round(UMUR_COOKIE_REF / 86400)} hari tercatat sebagai referralnya.`,
-          `- Komisi masuk ke saldo otomatis begitu pembayaran paket pelanggan referral lunas, dan bisa ditarik ${JAMINAN_HARI} hari kemudian (masa jaminan uang kembali; bila pembelinya minta uang kembali, komisinya batal). ${a.siklus === "berulang" ? "Komisi didapat dari setiap pembayaran pelanggan referral, termasuk perpanjangan." : "Komisi hanya dari pembelian pertama tiap pelanggan referral; perpanjangan berikutnya tidak memberi komisi lagi."}`,
+          `- Komisi masuk ke saldo otomatis begitu pembayaran paket pelanggan referral lunas, dan bisa ditarik ${MASA_ID} kemudian (masa jaminan uang kembali; bila pembelinya minta uang kembali, komisinya batal). ${a.siklus === "berulang" ? "Komisi didapat dari setiap pembayaran pelanggan referral, termasuk perpanjangan." : "Komisi hanya dari pembelian pertama tiap pelanggan referral; perpanjangan berikutnya tidak memberi komisi lagi."}`,
           `- Pencairan: minimal saldo ${rp(a.minTarik)}, ajukan dari menu Afiliasi ke rekening bank atau e-wallet (${DAFTAR_BANK.map((b) => b.nama.replace(/ \(.*\)$/, "")).join(", ")}). Satu pengajuan diproses admin sebelum bisa mengajukan lagi; bila ditolak, saldonya kembali.`,
           "- Statistik klik link, pendaftar, komisi, dan status pencairan bisa dipantau langsung di menu Afiliasi.",
         ],

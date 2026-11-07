@@ -9,7 +9,7 @@ import { Pesan } from "@/components/ui";
 import { useBahasa, useRouterBahasa } from "@/components/bahasa";
 import { angka, uang } from "@/lib/format";
 import { KANAL_BAYAR, type KanalBayar, grupKanal, infoKanal, labelKanal } from "@/lib/harga";
-import { JAMINAN_HARI, kanalBisaRefund } from "@/lib/jaminan-def";
+import { kanalBisaRefund, MASA_ID, MASA_EN_ADJ } from "@/lib/jaminan-def";
 
 const IKON_GRUP = { QRIS: QrCode, "E-wallet": Wallet, "Virtual account": Building2 } as const;
 
@@ -89,7 +89,7 @@ export function PilihMetode({
                         <span className="block truncate text-[12px] text-muted">{infoKanal(x, b)}</span>
                         {jaminan && kanalBisaRefund(x) && (
                           <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[11px] font-semibold text-success">
-                            <ShieldCheck className="size-3" aria-hidden /> {t(`Jaminan uang kembali ${JAMINAN_HARI} hari`, `${JAMINAN_HARI}-day money-back guarantee`)}
+                            <ShieldCheck className="size-3" aria-hidden /> {t(`Jaminan uang kembali ${MASA_ID}`, `${MASA_EN_ADJ} money-back guarantee`)}
                           </span>
                         )}
                       </span>

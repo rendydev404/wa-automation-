@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/session";
 import { tingkatPaket } from "@/lib/tingkat-paket";
 import { LencanaPaket } from "./lencana-paket";
 import { Meter } from "./stat";
-import { JAMINAN_HARI } from "@/lib/jaminan-def";
+import { MASA_ID, MASA_EN_ADJ } from "@/lib/jaminan-def";
 
 /**
  * Paket aktif, pemakaian kuota balasan AI (dengan bilah kemajuan), dan kuota nomor. Dipakai di Langganan, Ringkasan,
@@ -31,8 +31,8 @@ export async function KartuLangganan({ tautan = false }: { tautan?: boolean }) {
           <p className="mt-1 text-2xl font-bold">{t("Belum berlangganan", "No plan yet")}</p>
           <p className="mt-1 text-[13px] text-muted">
             {t(
-              `AI belum membalas pelanggan. Sambungkan nomor, isi product knowledge, dan coba di Uji bot dulu, lalu pilih paket saat siap. Pembayaran pertama lewat GoPay, ShopeePay, atau QRIS dilindungi jaminan uang kembali ${JAMINAN_HARI} hari.`,
-              `The AI isn't replying to customers yet. Connect your number, add product knowledge, and try it in the bot test first, then pick a plan when you're ready. A first payment with GoPay, ShopeePay, or QRIS is covered by a ${JAMINAN_HARI}-day money-back guarantee.`,
+              `AI belum membalas pelanggan. Sambungkan nomor, isi product knowledge, dan coba di Uji bot dulu, lalu pilih paket saat siap. Pembayaran pertama lewat GoPay, ShopeePay, atau QRIS dilindungi jaminan uang kembali ${MASA_ID}.`,
+              `The AI isn't replying to customers yet. Connect your number, add product knowledge, and try it in the bot test first, then pick a plan when you're ready. A first payment with GoPay, ShopeePay, or QRIS is covered by a ${MASA_EN_ADJ} money-back guarantee.`,
             )}
           </p>
         </div>

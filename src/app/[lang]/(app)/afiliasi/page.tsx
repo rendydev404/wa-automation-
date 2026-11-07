@@ -12,7 +12,7 @@ import { daftarPaket } from "@/lib/langganan";
 import { MEREK } from "@/lib/merek";
 import { customTampil, paketCustom } from "@/lib/paket-custom";
 import { requireUser } from "@/lib/session";
-import { JAMINAN_HARI } from "@/lib/jaminan-def";
+import { MASA_ID, MASA_EN } from "@/lib/jaminan-def";
 import { FormGabungAfiliasi, FormTarikKomisi, KartuTautanReferral } from "./form-afiliasi";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -266,8 +266,8 @@ async function IsiAfiliasi() {
           {data.tertahan > 0 && (
             <p className="mt-1 text-[12px] text-warning tabular-nums">
               {t(
-                `+ Rp${angka(data.tertahan)} tertahan ${JAMINAN_HARI} hari (masa jaminan uang kembali pembeli)`,
-                `+ ${u(data.tertahan)} on hold for ${JAMINAN_HARI} days (buyer's money-back guarantee period)`,
+                `+ Rp${angka(data.tertahan)} tertahan ${MASA_ID} (masa jaminan uang kembali pembeli)`,
+                `+ ${u(data.tertahan)} on hold for ${MASA_EN} (buyer's money-back guarantee period)`,
               )}
             </p>
           )}

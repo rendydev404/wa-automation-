@@ -5,7 +5,7 @@ import { GantiBahasa } from "@/components/ganti-bahasa";
 import { DemoAlur, DemoChat } from "@/components/landing/demo";
 import { RobotLari } from "@/components/landing/robot-lari";
 import { SKRIP_TEMA, TombolTema } from "@/components/landing/tombol-tema";
-import { BandingLanding, HargaLanding } from "@/components/landing/harga";
+import { BandingLanding, HargaLanding, HargaMulai } from "@/components/landing/harga";
 import Link from "@/components/link";
 import { Logo } from "@/components/logo";
 import { alasanSyarat, judulSyarat, syaratNomor } from "@/components/syarat-nomor";
@@ -18,7 +18,7 @@ import { UMUR_HISTORI_HARI } from "@/lib/format";
 import { IkonWhatsApp } from "@/components/ikon-whatsapp";
 import { DataOrganisasi, KakiPerusahaan } from "@/components/kaki-perusahaan";
 import { MEREK, NOMOR_WA_DEMO, URL_WA_DEMO } from "@/lib/merek";
-import { JAMINAN_HARI } from "@/lib/jaminan-def";
+import { MASA_ID, MASA_EN_ADJ } from "@/lib/jaminan-def";
 
 /** Landing page publik: seluruhnya statis (prerender, kedua bahasa), animasi Remotion dimuat terpisah di sisi klien. */
 
@@ -170,7 +170,7 @@ export default async function Landing() {
       <div className="relative overflow-hidden bg-ink text-ink-fg">
         <div aria-hidden className="kisi-tinta absolute inset-0 opacity-60" />
         <div aria-hidden className="absolute -top-40 left-1/2 size-[720px] -translate-x-1/2 rounded-full bg-ink-signal/15 blur-3xl" />
-        <header className="relative mx-auto flex max-w-[1200px] items-center justify-between gap-4 px-4 py-5 sm:px-6">
+        <header className="relative mx-auto flex max-w-[1200px] items-center justify-between gap-2 px-4 py-5 min-[420px]:gap-4 sm:px-6">
           <Link href="/" className="rounded-lg" aria-label={t(`${MEREK}, ke beranda`, `${MEREK}, home`)}>
             <Logo ukuran="md" gelap />
           </Link>
@@ -191,14 +191,15 @@ export default async function Landing() {
               FAQ
             </a>
           </nav>
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <div className="flex shrink-0 items-center gap-0.5 min-[420px]:gap-1 sm:gap-2">
             <TombolTema />
-            <GantiBahasa gelap />
-            <Link href="/login" className="rounded-xl px-2.5 py-2 text-[13.5px] font-semibold whitespace-nowrap text-ink-fg transition-colors hover:bg-white/[0.06] sm:px-3.5">
+            {/* HP sempit: tanpa ikon bahasa & padding lebih rapat supaya Daftar tetap muat satu baris. */}
+            <GantiBahasa gelap className="max-[419px]:px-1.5 max-[419px]:[&>svg]:hidden" />
+            <Link href="/login" className="rounded-xl px-1.5 py-2 text-[13.5px] font-semibold whitespace-nowrap text-ink-fg transition-colors hover:bg-white/[0.06] min-[420px]:px-2.5 sm:px-3.5">
               {t("Masuk", "Sign in")}
             </Link>
             {/* HP sempit: "Daftar" saja supaya logo, Masuk, dan tombol tetap satu baris. */}
-            <Link href="/daftar" className="rounded-xl bg-ink-signal px-3 py-2 text-[13.5px] font-bold whitespace-nowrap text-ink transition-transform hover:-translate-y-0.5 sm:px-4">
+            <Link href="/daftar" className="rounded-xl bg-ink-signal px-2.5 py-2 text-[13.5px] font-bold whitespace-nowrap text-ink transition-transform hover:-translate-y-0.5 min-[420px]:px-3 sm:px-4">
               {t("Daftar", "Sign up")}
               <span className="max-[419px]:hidden">{t(" sekarang", " now")}</span>
             </Link>
@@ -214,15 +215,24 @@ export default async function Landing() {
               </span>
               {t("AI membalas 24 jam, termasuk saat Anda tidur", "AI replies around the clock, even while you sleep")}
             </p>
-            <h1 className="mt-6 text-[40px] leading-[1.05] font-extrabold tracking-tight text-white sm:text-[56px] lg:text-[64px]">
-              {t("Pelanggan dibalas", "Answer every customer")}
+            <h1 className="mt-6 text-[38px] leading-[1.06] font-extrabold tracking-tight text-white sm:text-[52px] lg:text-[56px]">
+              {t("WhatsApp Dibales AI 24 Jam.", "WhatsApp Answered by AI 24/7.")}
               <br />
-              <span className="bg-gradient-to-r from-ink-signal to-[#a7f3d0] bg-clip-text text-transparent">{t("dalam hitungan detik.", "in seconds.")}</span>
+              <span className="bg-gradient-to-r from-ink-signal to-[#a3ff47] bg-clip-text text-transparent">{t("Nggak Gercep? Duit Balik 100%!", "Not Fast? 100% Money Back!")}</span>
             </h1>
             <p className="mt-6 max-w-xl text-[17px] leading-relaxed text-ink-muted">
               {t(
-                "Sambungkan WhatsApp usaha Anda dengan scan QR, isi pengetahuan tentang produk dan layanan, lalu biarkan AI menjawab pertanyaan pelanggan secara sopan dan akurat.",
-                "Connect your business WhatsApp with a quick QR scan, tell the AI about your products and services, and let it answer customer questions politely and accurately.",
+                `Kenalin ${MEREK}, asisten WhatsApp AI yang bantu melayani pelanggan otomatis tanpa harus standby terus. Pakai nomor WhatsApp yang sudah ada, mulai `,
+                `Meet ${MEREK}, an AI WhatsApp assistant that serves your customers automatically, so you don't have to stay on standby. Use the WhatsApp number you already have, from `,
+              )}
+              <b className="font-bold text-ink-fg">
+                <Suspense fallback={t("Rp67 ribu/30 hari", "Rp67,000/30 days")}>
+                  <HargaMulai cadangan={t("Rp67 ribu/30 hari", "Rp67,000/30 days")} />
+                </Suspense>
+              </b>
+              {t(
+                `. Langsung aktif, dengan garansi uang kembali ${MASA_ID} jika layanan tidak sesuai janji!`,
+                `. Live right away, with a ${MASA_EN_ADJ} money-back guarantee if the service doesn't deliver as promised!`,
               )}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
@@ -242,7 +252,7 @@ export default async function Landing() {
               </a>
             </div>
             <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-ink-muted">
-              {[t(`Jaminan uang kembali ${JAMINAN_HARI} hari`, `${JAMINAN_HARI}-day money-back guarantee`), t("Setup & Uji bot gratis", "Free setup & bot test"), t("Putuskan kapan saja", "Disconnect anytime")].map((x) => (
+              {[t(`Jaminan uang kembali ${MASA_ID}`, `${MASA_EN_ADJ} money-back guarantee`), t("Setup & Uji bot gratis", "Free setup & bot test"), t("Putuskan kapan saja", "Disconnect anytime")].map((x) => (
                 <li key={x} className="flex items-center gap-1.5">
                   <Check className="size-4 text-ink-signal" aria-hidden /> {x}
                 </li>
@@ -448,7 +458,7 @@ export default async function Landing() {
           <div aria-hidden className="absolute -bottom-40 left-1/2 size-[520px] -translate-x-1/2 rounded-full bg-ink-signal/20 blur-3xl" />
           <h2 className="relative text-3xl font-extrabold tracking-tight text-white sm:text-[44px]">{t("Biarkan AI menjawab. Anda fokus berjualan.", "Let the AI answer. You focus on selling.")}</h2>
           <p className="relative mx-auto mt-4 max-w-xl text-[16px] text-ink-muted">
-            {t(`Daftar dalam satu menit, sambungkan nomor, uji bot sepuasnya, lalu berlangganan saat siap. Ada jaminan uang kembali ${JAMINAN_HARI} hari.`, `Sign up in a minute, connect your number, test the bot as much as you like, then subscribe when you are ready. ${JAMINAN_HARI}-day money-back guarantee.`)}
+            {t(`Daftar dalam satu menit, sambungkan nomor, uji bot sepuasnya, lalu berlangganan saat siap. Ada jaminan uang kembali ${MASA_ID}.`, `Sign up in a minute, connect your number, test the bot as much as you like, then subscribe when you are ready. ${MASA_EN_ADJ} money-back guarantee.`)}
           </p>
           <Link href="/daftar" className="group relative mt-8 inline-flex items-center gap-2 rounded-2xl bg-ink-signal px-7 py-4 text-[15px] font-bold text-ink transition-transform hover:-translate-y-0.5">
             {t("Buat akun", "Create an account")} <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />

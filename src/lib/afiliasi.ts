@@ -13,7 +13,7 @@ import {
   kodeIrisBank,
   normalkanKodeRef,
 } from "./afiliasi-def";
-import { JAMINAN_HARI } from "./jaminan-def";
+import { JAMINAN_HARI, MASA_ID, MASA_EN } from "./jaminan-def";
 import { MidtransError, kirimPayoutIris, konfigIris } from "./midtrans";
 import { catatLog } from "./pengguna";
 import { kirimNotif, kirimNotifAdmin } from "./notifikasi";
@@ -381,8 +381,8 @@ export async function ajukanPenarikan(userId: number, nominalMentah: number): Pr
     const bisa = af.saldo - (await komisiTertahan(tx, userId));
     if (bisa < nominal) {
       throw new AfiliasiError(
-        `Saldo komisi yang bisa ditarik tidak mencukupi (tersedia Rp${Math.max(0, bisa).toLocaleString("id-ID")}; komisi baru bisa ditarik ${JAMINAN_HARI} hari setelah pembeli membayar).`,
-        `Insufficient withdrawable commission balance ({rp} available; new commissions can be withdrawn ${JAMINAN_HARI} days after the buyer pays).`,
+        `Saldo komisi yang bisa ditarik tidak mencukupi (tersedia Rp${Math.max(0, bisa).toLocaleString("id-ID")}; komisi baru bisa ditarik ${MASA_ID} setelah pembeli membayar).`,
+        `Insufficient withdrawable commission balance ({rp} available; new commissions can be withdrawn ${MASA_EN} after the buyer pays).`,
         Math.max(0, bisa),
       );
     }
