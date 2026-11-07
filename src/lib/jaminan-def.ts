@@ -4,7 +4,7 @@
  */
 
 /** Batas pengajuan sejak dibayar (hari). Juga masa tahan komisi afiliasi sebelum bisa ditarik. */
-export const JAMINAN_HARI: number = 3;
+export const JAMINAN_HARI: number = 1;
 /** Masa jaminan dalam teks: "1×24 jam" (id), "24 hours" (en, kata benda), "24-hour" (en, sifat). */
 export const MASA_ID = JAMINAN_HARI === 1 ? "1×24 jam" : `${JAMINAN_HARI} hari`;
 export const MASA_EN = JAMINAN_HARI === 1 ? "24 hours" : `${JAMINAN_HARI} days`;
@@ -20,7 +20,7 @@ export const teksProsesRefund = (t: (id: string, en: string) => string): string 
 /**
  * Kanal yang bisa dikembalikan lewat Refund API Midtrans. Dokumentasi Midtrans: refund hanya untuk kartu, GoPay,
  * ShopeePay, QRIS, DANA, OVO, Kredivo, Akulaku; VA bank (BCA, BNI, BRI, Mandiri, Permata) TIDAK bisa di-refund. Batas
- * waktu refund terpendek di antara kanal ini 7 hari (QRIS off-us), jadi jaminan 3 hari selalu masih bisa diproses.
+ * waktu refund terpendek di antara kanal ini 7 hari (QRIS off-us), jadi jaminan 1×24 jam selalu masih bisa diproses.
  */
 export const KANAL_REFUND = ["gopay", "shopeepay", "qris"] as const;
 export const kanalBisaRefund = (k: string | null | undefined): boolean => !!k && (KANAL_REFUND as readonly string[]).includes(k);
