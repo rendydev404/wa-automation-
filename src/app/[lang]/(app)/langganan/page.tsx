@@ -18,7 +18,7 @@ import { KartuCustom, TombolWaCustom } from "@/components/kartu-custom";
 import { requireUser } from "@/lib/session";
 import { cekJaminan, modeRefund } from "@/lib/jaminan";
 import { namaBankTampil } from "@/lib/afiliasi-def";
-import { JAMINAN_HARI, JAMINAN_MAKS_PAKAI_PERSEN, syaratJaminan } from "@/lib/jaminan-def";
+import { JAMINAN_HARI, JAMINAN_MAKS_PAKAI_PERSEN, syaratJaminan, teksProsesRefund } from "@/lib/jaminan-def";
 import { sekarang } from "@/lib/db";
 import { FormJaminan } from "./jaminan";
 import { MEREK } from "@/lib/merek";
@@ -105,8 +105,8 @@ async function Jaminan() {
         <p className="mt-1.5 text-[13px] text-muted">
           {p.cara === "manual"
             ? t(
-                `Pengajuan diterima pada ${tanggal(p.dibuat, b)}. Admin akan mentransfer ${rp}${tujuan ? ` ke ${tujuan}` : ""}, lalu kamu dapat notifikasi. Paket tetap aktif sampai dana ditransfer.`,
-                `Request received on ${tanggal(p.dibuat, b)}. The admin will transfer ${rp}${tujuan ? ` to ${tujuan}` : ""} and you'll be notified. Your plan stays active until then.`,
+                `Pengajuan diterima pada ${tanggal(p.dibuat, b)}. Admin akan mentransfer ${rp}${tujuan ? ` ke ${tujuan}` : ""} dalam ${teksProsesRefund(t)}, lalu kamu dapat notifikasi. Paket tetap aktif sampai dana ditransfer.`,
+                `Request received on ${tanggal(p.dibuat, b)}. The admin will transfer ${rp}${tujuan ? ` to ${tujuan}` : ""} within ${teksProsesRefund(t)} and you'll be notified. Your plan stays active until then.`,
               )
             : t("Pengembalian dana sedang diproses Midtrans. Halaman ini diperbarui begitu selesai.", "Midtrans is processing your refund. This page updates once it's done.")}
         </p>

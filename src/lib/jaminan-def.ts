@@ -7,6 +7,11 @@
 export const JAMINAN_HARI = 3;
 /** Pemakaian balasan AI paling banyak sekian persen dari kuota paket supaya masih bisa diajukan. */
 export const JAMINAN_MAKS_PAKAI_PERSEN = 20;
+/** Lama proses pengembalian dana setelah pengajuan diterima (hari kerja), yang dijanjikan ke pelanggan. */
+export const PROSES_REFUND_HARI_KERJA = [3, 7] as const;
+const PROSES = `${PROSES_REFUND_HARI_KERJA[0]}–${PROSES_REFUND_HARI_KERJA[1]}`;
+/** "3–7 hari kerja" / "3–7 business days". */
+export const teksProsesRefund = (t: (id: string, en: string) => string): string => t(`${PROSES} hari kerja`, `${PROSES} business days`);
 
 /**
  * Kanal yang bisa dikembalikan lewat Refund API Midtrans. Dokumentasi Midtrans: refund hanya untuk kartu, GoPay,
@@ -36,6 +41,7 @@ export function syaratJaminan(t: (id: string, en: string) => string): string[] {
     t(`Balasan AI yang terpakai paling banyak ${JAMINAN_MAKS_PAKAI_PERSEN}% dari kuota paket.`, `At most ${JAMINAN_MAKS_PAKAI_PERSEN}% of the plan's AI reply quota has been used.`),
     t("Satu kali per orang: nomor WhatsApp atau email yang sama tidak bisa memakainya lagi lewat akun baru.", "Once per person: the same WhatsApp number or email can't use it again through a new account."),
     t("Wajib menuliskan alasan saat mengajukan dari halaman Langganan.", "You must give a reason when requesting it from the Subscription page."),
+    t(`Pengembalian dana diproses ${PROSES} hari kerja setelah pengajuan diterima.`, `Refunds are processed within ${PROSES} business days after the request is received.`),
     t("Dana dikembalikan 100% dan paket langsung dihentikan begitu dana dikembalikan.", "You get 100% back, and the plan stops as soon as the refund is made."),
   ];
 }

@@ -44,6 +44,7 @@ import { ATURAN_ANGKA, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
 import { type IsiKhusus, METODE_MANUAL, type MetodeManual, batalkanBayar, berikanPaketManual, hapusPaket, hentikanLangganan, mulaiBayar, ORDER_SAH, paketById, segarkanKuota, simpanPaket, terapkanSimulasi } from "@/lib/langganan";
 import { MidtransError, kanalAktif, kanalBelumAktif, konfigMidtrans, setKanalMati } from "@/lib/midtrans";
 import { ajukanJaminan, selesaikanManual, setModeRefund, tolakPengembalian, ulangiPengembalian } from "@/lib/jaminan";
+import { teksProsesRefund } from "@/lib/jaminan-def";
 import { tanggal, uang } from "@/lib/format";
 import { GalatCustom, customTampil, periksaCustom, ringkasCustom, simpanPaketCustom } from "@/lib/paket-custom";
 import { KnowledgeError, adaKnowledge, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
@@ -1024,7 +1025,7 @@ export async function ajukanJaminanAction(_lalu: Hasil | null, form: FormData): 
     ok: true,
     pesan:
       h.cara === "manual"
-        ? t("Pengajuan terkirim. Admin akan mentransfer dananya ke rekening/e-wallet yang kamu isi; kamu dapat notifikasi saat selesai.", "Request sent. The admin will transfer the money to the account/e-wallet you entered; you'll be notified when it's done.")
+        ? t(`Pengajuan terkirim. Dana ditransfer ke rekening/e-wallet yang kamu isi dalam ${teksProsesRefund(t)}; kamu dapat notifikasi saat selesai.`, `Request sent. The money will be transferred to the account/e-wallet you entered within ${teksProsesRefund(t)}; you'll be notified when it's done.`)
         : t("Dana sudah dikembalikan ke metode bayar asal dan paketnya dihentikan.", "The money has been refunded to the original payment method and the plan was stopped."),
   };
 }
