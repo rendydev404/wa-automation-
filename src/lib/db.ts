@@ -651,7 +651,7 @@ const MIGRASI: string[] = [
   CREATE INDEX pengembalian_dana_berjalan_idx ON pengembalian_dana (transaksi_id) WHERE status IN ('menunggu', 'diproses', 'gagal');
   CREATE INDEX pengembalian_dana_dibuat_idx ON pengembalian_dana (dibuat DESC, id DESC);
   CREATE INDEX pengembalian_dana_wa_idx ON pengembalian_dana USING gin (wa_ids);
-  INSERT INTO settings(kunci, nilai) VALUES ('kuota_percobaan', '0') ON CONFLICT (kunci) DO UPDATE SET nilai = EXCLUDED.nilai;
+  UPDATE settings SET nilai = '0' WHERE kunci = 'kuota_percobaan'; -- database baru: bawaan KUOTA_PERCOBAAN_AWAL = 0
   `,
 ];
 
