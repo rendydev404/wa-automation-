@@ -247,7 +247,7 @@ export default async function Landing() {
           </div>
           <div className="relative">
             <DemoChat />
-            <RobotLari className="absolute -bottom-14 left-0 z-10 w-[136px] sm:-bottom-12 sm:left-[2%] sm:w-[170px] lg:bottom-0 lg:-left-8 lg:w-[190px] xl:-left-10 xl:w-[200px]" />
+            <RobotLari className="absolute -bottom-[69px] -left-[63px] z-10 w-[317px] sm:-bottom-[65px] sm:-left-[81px] sm:w-[396px] lg:-bottom-[19px] lg:-left-[131px] lg:w-[443px] xl:-left-[144px] xl:w-[466px]" />
           </div>
           <PendaftarLoop />
         </section>

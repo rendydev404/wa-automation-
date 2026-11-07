@@ -5,6 +5,7 @@ import { Player, type PlayerRef } from "@remotion/player";
 import { useBahasa } from "@/components/bahasa";
 import { ALUR_DURASI, ALUR_FPS, AlurDemo, PANJANG_BABAK } from "@/remotion/alur-demo";
 import { CHAT_FPS, CHAT_LEBAR, CHAT_TINGGI, ChatDemo, type PropsChatDemo, durasiChat } from "@/remotion/chat-demo";
+import { LESAT, ROBOT_DURASI, ROBOT_FPS, ROBOT_LEBAR, ROBOT_TINGGI, RobotLari, TURBO } from "@/remotion/robot-lari";
 
 /**
  * Pemutar Remotion untuk landing page. Modul ini (beserta remotion & @remotion/player) dimuat terpisah
@@ -113,6 +114,59 @@ export function PemutarAlur({ minta, onBabak }: { minta: { babak: number; n: num
         loop
         autoPlay={!kurangi}
         initialFrame={kurangi ? PANJANG_BABAK - 5 : 0}
+        controls={false}
+        clickToPlay={false}
+        doubleClickToFullscreen={false}
+        spaceKeyToPlayOrPause={false}
+        acknowledgeRemotionLicense
+      />
+    </div>
+  );
+}
+
+/**
+ * Maskot robot lari di hero (latar transparan). Klik/ketuk = lompat ke LESAT ("Dibalas < 5 detik!"), kursor masuk =
+ * TURBO (bila belum sedang turbo). Diputar hanya selagi terlihat; gerak dikurangi = tidak dimuat (lihat robot-lari.tsx).
+ */
+export function PemutarRobot({ label }: { label: string }) {
+  const ref = useRef<PlayerRef>(null);
+  const wadah = useRef<HTMLDivElement>(null);
+  const { b } = useBahasa();
+  const props = useMemo(() => ({ bahasa: b }), [b]);
+  usePutarSaatTerlihat(ref, wadah, true);
+  const ke = (f: number) => {
+    ref.current?.seekTo(f);
+    ref.current?.play();
+  };
+  const turbo = () => {
+    const f = ref.current?.getCurrentFrame() ?? 0;
+    if (f < TURBO || f > TURBO + 45) ke(TURBO);
+  };
+
+  return (
+    <div
+      ref={wadah}
+      role="button"
+      tabIndex={0}
+      aria-label={label}
+      data-analitik="Hero: robot lari"
+      onClick={() => ke(LESAT)}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), ke(LESAT))}
+      onPointerEnter={(e) => e.pointerType === "mouse" && turbo()}
+      className="h-full w-full cursor-pointer rounded-3xl outline-none select-none focus-visible:ring-2 focus-visible:ring-[#a3ff47]"
+      style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
+    >
+      <Player
+        ref={ref}
+        component={RobotLari}
+        inputProps={props}
+        durationInFrames={ROBOT_DURASI}
+        fps={ROBOT_FPS}
+        compositionWidth={ROBOT_LEBAR}
+        compositionHeight={ROBOT_TINGGI}
+        style={{ width: "100%", height: "100%", background: "transparent" }}
+        loop
+        autoPlay
         controls={false}
         clickToPlay={false}
         doubleClickToFullscreen={false}
