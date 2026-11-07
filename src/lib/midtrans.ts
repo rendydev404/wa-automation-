@@ -247,6 +247,32 @@ export interface StatusMidtrans {
   fraud_status?: string;
   payment_type?: string;
   signature_key?: string;
+  /** Riwayat refund transaksi ini (ada setelah refund). bank_confirmed_at = dana sudah diproses bank/e-wallet. */
+  refunds?: { refund_key?: string; refund_amount?: string; bank_confirmed_at?: string }[];
+}
+
+// ---------- Refund (jaminan uang kembali, src/lib/jaminan.ts) ----------
+
+// Kanal yang bisa di-refund (VA bank tidak bisa): KANAL_REFUND / kanalBisaRefund di jaminan-def.ts.
+export { KANAL_REFUND, kanalBisaRefund } from "./jaminan-def";
+
+/**
+ * Kembalikan dana PENUH satu transaksi settlement (POST /v2/{order}/refund). `refundKey` = kunci idempoten: dikirim
+ * ulang dengan kunci yang sama (mis. setelah timeout) tidak menjadi refund kedua. Galat Midtrans sering datang sebagai
+ * HTTP 200 dengan status_code 4xx di badannya (412 tidak bisa diubah, 414 nominal salah, 406 kunci refund ganda);
+ * yang umum: saldo Midtrans (payable amount) kurang dari nominal refund.
+ */
+export async function refundMidtrans(k: KonfigMidtrans, orderId: string, r: { refundKey: string; jumlah: number; alasan: string }): Promise<void> {
+  const res = await fetch(`${alamatApi(k)}/${encodeURIComponent(orderId)}/refund`, {
+    method: "POST",
+    headers: { Authorization: otorisasi(k), "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ refund_key: r.refundKey, amount: r.jumlah, reason: r.alasan.slice(0, 255) }),
+    signal: AbortSignal.timeout(20_000),
+    cache: "no-store",
+  });
+  const d = (await res.json().catch(() => null)) as { status_code?: string; status_message?: string; transaction_status?: string } | null;
+  const kode = d?.status_code ?? String(res.status);
+  if (!res.ok || kode !== "200") throw new MidtransError(`Midtrans menolak pengembalian dana (kode ${kode})${d?.status_message ? `: ${d.status_message}` : ""}`, kode);
 }
 
 /** Status transaksi langsung dari API Midtrans (bukan dari isi webhook yang bisa dipalsukan). */

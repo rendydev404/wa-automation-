@@ -5,6 +5,7 @@ import { ArrowRight, Check, Zap } from "lucide-react";
 import Link from "@/components/link";
 import { useBahasa } from "@/components/bahasa";
 import type { T } from "@/lib/bahasa";
+import { JAMINAN_HARI } from "@/lib/jaminan-def";
 
 type Pendaftar = { nama: string; detik: number };
 
@@ -17,7 +18,7 @@ const PROMO = (t: T): { judul: string; isi: string }[] => [
   { judul: t("Telat balas = pembeli kabur.", "Slow reply = lost buyer."), isi: t("Biar AI balas tiap chat dalam hitungan detik.", "Let AI answer every chat in seconds.") },
   { judul: t("Masih balas chat satu-satu?", "Still replying one by one?"), isi: t("AI ChatGerCep layani semua chat sekaligus.", "ChatGerCep's AI handles them all at once.") },
   { judul: t("Pesaingmu sudah pakai AI.", "Your competitors already use AI."), isi: t("Jangan sampai pembelimu pindah ke sebelah.", "Don't let your buyers walk next door.") },
-  { judul: t("Coba gratis, tanpa bayar dulu.", "Try it free, no payment upfront."), isi: t("WhatsApp kamu tersambung dalam 2 menit.", "Your WhatsApp connects in 2 minutes.") },
+  { judul: t("Uji bot dulu, bayar saat siap.", "Test the bot first, pay when ready."), isi: t(`Ada jaminan uang kembali ${JAMINAN_HARI} hari.`, `Backed by a ${JAMINAN_HARI}-day money-back guarantee.`) },
   { judul: t("Admin libur? Toko tetap jalan.", "Admin off? Store keeps running."), isi: t("AI jawab harga, stok, dan pertanyaan pelanggan.", "AI answers prices, stock, and customer questions.") },
   { judul: t("Closing lebih banyak, capek lebih sedikit.", "More closings, less fatigue."), isi: t("Pertanyaan yang itu-itu lagi? Biar AI yang jawab.", "Same questions again? Let AI answer.") },
   { judul: t("Pelanggan nanya, AI langsung jawab.", "Customers ask, AI answers instantly."), isi: t("Kamu tinggal fokus kirim pesanan.", "You just focus on shipping orders.") },
@@ -135,17 +136,17 @@ export function PendaftarLoop() {
             }}
           >
             {giliranPromo ? (
-              <Link href="/daftar" data-analitik="Kartu ajakan: coba gratis" className="relative flex items-center gap-2 rounded-[15px] bg-ink-raised py-1.5 pr-3 pl-1.5 transition-colors hover:bg-ink sm:gap-3 sm:py-2.5 sm:pr-4 sm:pl-2.5">
+              <Link href="/daftar" data-analitik="Kartu ajakan: daftar" className="relative flex items-center gap-2 rounded-[15px] bg-ink-raised py-1.5 pr-3 pl-1.5 transition-colors hover:bg-ink sm:gap-3 sm:py-2.5 sm:pr-4 sm:pl-2.5">
                 <span className="pendaftar-avatar relative grid size-8 shrink-0 place-items-center rounded-full bg-ink-signal text-ink sm:size-10">
                   <Zap className="size-4 sm:size-5" strokeWidth={2.5} aria-hidden />
                 </span>
                 <div className="min-w-0">
-                  {/* HP: judul satu baris + "Coba gratis" saja, supaya kartu yang menempel tidak menutupi isi halaman. */}
+                  {/* HP: judul satu baris + "Daftar sekarang" saja, supaya kartu yang menempel tidak menutupi isi halaman. */}
                   <p className="pendaftar-baris truncate text-[12.5px] leading-snug font-bold text-white sm:overflow-visible sm:text-[13.5px] sm:whitespace-normal">{ajakan.judul}</p>
                   <p className="pendaftar-baris pendaftar-baris-2 text-[11px] leading-snug text-ink-muted sm:mt-0.5 sm:text-[11.5px]">
                     <span className="hidden sm:inline">{ajakan.isi} </span>
                     <span className="inline-flex items-center gap-0.5 font-bold whitespace-nowrap text-ink-signal">
-                      {t("Coba gratis", "Try free")} <ArrowRight className="size-3" aria-hidden />
+                      {t("Daftar sekarang", "Sign up now")} <ArrowRight className="size-3" aria-hidden />
                     </span>
                   </p>
                 </div>

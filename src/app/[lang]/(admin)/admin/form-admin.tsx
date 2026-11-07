@@ -28,6 +28,7 @@ import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "@/components/ui";
 import { type JenisKomisi, hitungKomisiPaket } from "@/lib/afiliasi-def";
 import type { InfoKurs } from "@/lib/kurs-def";
 import { KANAL_BAYAR, type KanalBayar } from "@/lib/harga";
+import { JAMINAN_HARI } from "@/lib/jaminan-def";
 
 const ULANG_PERCOBAAN = [
   { nilai: "sekali", judul: "Sekali per akun", isi: "Free trial: dihitung sejak akun dibuat. Kuota habis atau masa percobaan lewat = AI berhenti sampai pengguna memilih paket." },
@@ -101,6 +102,7 @@ export function FormPengaturan({
             />
             <span className="text-[13px] text-muted">balasan AI</span>
           </div>
+          <p className="mt-1 text-[12px] text-muted">0 = tanpa free trial (bawaan): AI baru membalas pelanggan setelah berlangganan; sebagai gantinya ada jaminan uang kembali {JAMINAN_HARI} hari.</p>
         </div>
         <div role="radiogroup" aria-label="Kuota gratis berlaku" className="grid gap-2">
           {ULANG_PERCOBAAN.map((o) => (

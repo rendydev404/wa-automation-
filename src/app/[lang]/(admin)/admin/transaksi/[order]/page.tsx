@@ -10,6 +10,8 @@ import { requireAdmin } from "@/lib/session";
 import { tingkatPaket } from "@/lib/tingkat-paket";
 import { detailTransaksi } from "@/lib/transaksi-admin";
 import { STATUS_TRX, labelMetode, rp } from "../bagian-transaksi";
+import { BarisRefund } from "../pengembalian";
+import { pengembalianTransaksi } from "@/lib/jaminan";
 
 export default function HalamanDetailTransaksi(props: PageProps<"/[lang]/admin/transaksi/[order]">) {
   return (
@@ -52,6 +54,7 @@ async function Isi({ params }: { params: Promise<{ order: string }> }) {
   const order = decodeURIComponent((await params).order).slice(0, 80);
   const t = await detailTransaksi(order);
   if (!t) notFound();
+  const refund = await pengembalianTransaksi(t.id);
   const st = STATUS_TRX[t.status];
   const tingkat = tingkatPaket(t.kode_paket, t.nama_paket);
   const kini = sekarang();
@@ -59,6 +62,7 @@ async function Isi({ params }: { params: Promise<{ order: string }> }) {
   // Jejak waktu: dibuat -> dibayar / kedaluwarsa -> masa aktif paket.
   const jejak: { label: string; waktu: number; nada: "netral" | "baik" | "buruk" }[] = [{ label: "Tagihan dibuat", waktu: t.dibuat, nada: "netral" }];
   if (t.dibayar) jejak.push({ label: t.status === "dikembalikan" ? "Dibayar (kemudian dikembalikan)" : "Pembayaran diterima", waktu: t.dibayar, nada: "baik" });
+  if (refund?.selesai) jejak.push({ label: "Dana dikembalikan", waktu: refund.selesai, nada: "buruk" });
   if (!t.dibayar && t.kedaluwarsa) jejak.push({ label: t.status === "menunggu" ? "Batas pembayaran" : "Kedaluwarsa", waktu: t.kedaluwarsa, nada: t.status === "menunggu" ? "netral" : "buruk" });
   if (t.langganan_mulai) jejak.push({ label: "Paket aktif mulai", waktu: t.langganan_mulai, nada: "baik" });
   if (t.langganan_sampai) jejak.push({ label: t.langganan_sampai > kini ? "Paket aktif sampai" : "Paket berakhir", waktu: t.langganan_sampai, nada: t.langganan_sampai > kini ? "baik" : "netral" });
@@ -135,6 +139,15 @@ async function Isi({ params }: { params: Promise<{ order: string }> }) {
               </Baris>
             </dl>
           </section>
+
+          {refund && (
+            <section className="card p-5 sm:p-6" aria-labelledby="judul-refund">
+              <h2 id="judul-refund" className="mb-3 text-[15px] font-bold">
+                Pengembalian dana
+              </h2>
+              <BarisRefund r={refund} tautan={false} />
+            </section>
+          )}
 
           <section className="card p-5 sm:p-6">
             <h2 className="text-[15px] font-bold">Jejak waktu</h2>

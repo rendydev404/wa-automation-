@@ -10,6 +10,7 @@ import { hakAkun, paketById, tagihanMenunggu } from "@/lib/langganan";
 import { kanalAktif, konfigMidtrans } from "@/lib/midtrans";
 import { MEREK } from "@/lib/merek";
 import { requireUser } from "@/lib/session";
+import { sudahPernahBayar } from "@/lib/jaminan";
 import { PilihMetode } from "./pilih-metode";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -63,7 +64,7 @@ async function Isi({ params }: { params: Promise<{ paket: string }> }) {
       </section>
     );
   }
-  const [hak, lama, kanal] = await Promise.all([hakAkun(user), tagihanMenunggu(user.id, p.id), k ? kanalAktif() : Promise.resolve([])]);
+  const [hak, lama, kanal, pernahBayar] = await Promise.all([hakAkun(user), tagihanMenunggu(user.id, p.id), k ? kanalAktif() : Promise.resolve([]), sudahPernahBayar(user.id)]);
   const perpanjang = hak.paket === p.nama;
   return (
     <div className="grid items-start gap-5 lg:grid-cols-[1fr_20rem]">
@@ -130,7 +131,7 @@ async function Isi({ params }: { params: Promise<{ paket: string }> }) {
           </Link>
         )}
         {k ? (
-          <PilihMetode paketId={p.id} harga={p.harga} kanal={kanal} kurs={kurs} />
+          <PilihMetode paketId={p.id} harga={p.harga} kanal={kanal} kurs={kurs} jaminan={!pernahBayar && user.peran !== "admin"} />
         ) : (
           <p className="text-[13.5px] text-warning">{t("Pembayaran online belum diaktifkan admin.", "Online payment has not been enabled by the admin yet.")}</p>
         )}

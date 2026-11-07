@@ -4,10 +4,12 @@ import { type Tx, db, getSetting, sekarang, transaksi as transaksiDb } from "./d
 import { MODEL_BAWAAN, type Penyedia, kunciAnthropic, kursUsd, pengaturanAi, perkiraanPerBalasan } from "./ai";
 import { type KanalBayar, METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hargaMinimal, hitungHarga, kuotaDariHarga, nomorDariKuota, sisaBersih } from "./harga";
 import { hermesTerkonfigurasi } from "./hermes";
-import { type InstruksiBayar, type KonfigMidtrans, MidtransError, type StatusBayar, batalkanCharge, buatCharge, petaStatus, statusMidtrans } from "./midtrans";
+import { type InstruksiBayar, type KonfigMidtrans, MidtransError, type StatusBayar, type StatusMidtrans, batalkanCharge, buatCharge, petaStatus, statusMidtrans, waktuMidtrans } from "./midtrans";
 import { KODE_CUSTOM } from "./paket-custom-def";
+import { namaBankTampil } from "./afiliasi-def";
 import { type JenisKomisi, prosesKomisiTransaksi } from "./afiliasi";
 import { type KonteksMeta, kirimCapiEvent } from "./meta-pixel";
+import { JAMINAN_HARI } from "./jaminan-def";
 
 /**
  * Paket langganan, masa aktif, transaksi Midtrans, dan kuota.
@@ -117,7 +119,7 @@ const angkaSetting = (nilai: string | null, bawaan: number): number => {
 
 export const KUOTA_NOMOR_GRATIS_AWAL = 1;
 /** Kuota percobaan akun tanpa paket (free trial) bila admin belum mengaturnya. */
-export const KUOTA_PERCOBAAN_AWAL = 5;
+export const KUOTA_PERCOBAAN_AWAL = 0;
 /** Masa berlaku free trial (hari sejak akun dibuat) bila admin belum mengaturnya. */
 export const HARI_PERCOBAAN_AWAL = 7;
 
@@ -186,7 +188,9 @@ export async function hakAkun(user: { id: number; peran: string }): Promise<HakA
   // Free trial: semua balasan AI sejak akun dibuat ikut dihitung, jadi akun yang langganannya berakhir tidak
   // mendapat percobaan baru.
   // Masa berlaku dihitung dari akun dibuat; setelah lewat AI berhenti walau balasannya belum habis.
-  const sekali = p.ulang === "sekali";
+  // Trial dimatikan (balasan 0, bawaan sejak jaminan uang kembali): bukan "masa percobaan" yang bisa berakhir, cukup
+  // akun tanpa paket (AI tidak membalas pelanggan; bonus admin per bulan tetap bisa dipakai).
+  const sekali = p.ulang === "sekali" && p.balasan > 0;
   const dibuat = u?.created_at ?? 0;
   const percobaanSampai = sekali && p.hari > 0 ? dibuat + p.hari * 86400 : null;
   const periodeMulai = sekali ? dibuat : awalBulanWib();
@@ -338,6 +342,20 @@ export async function catatKuotaHabis(userId: number): Promise<boolean> {
   const hak = await hakAkun({ id: userId, peran: u.peran });
   const gratis = hak.sampai === null;
   const { kirimNotif } = await import("./notifikasi");
+  if (gratis && hak.balasan === 0) {
+    // Tanpa trial: akun yang belum (atau tidak lagi) berlangganan. Tanpa pesan di chat pelanggan; cukup notifikasi in-app.
+    await kirimNotif(userId, {
+      jenis: "kuota",
+      judul: { id: "AI belum membalas pelanggan", en: "The AI isn't replying to customers yet" },
+      isi: {
+        id: `Ada chat pelanggan masuk, tapi AI baru membalas setelah kamu berlangganan. Pembayaran pertama lewat GoPay, ShopeePay, atau QRIS dilindungi jaminan uang kembali ${JAMINAN_HARI} hari.`,
+        en: `A customer chat came in, but the AI only replies once you subscribe. A first payment with GoPay, ShopeePay, or QRIS is covered by a ${JAMINAN_HARI}-day money-back guarantee.`,
+      },
+      tautan: "/langganan",
+      kunci: `kuota100:${hak.periodeMulai}:0`,
+    });
+    return false;
+  }
   await kirimNotif(userId, {
     jenis: "kuota",
     judul: gratis
@@ -592,6 +610,7 @@ export async function terapkanStatus(k: KonfigMidtrans, orderId: string): Promis
   const s = await statusMidtrans(k, orderId);
   const status = petaStatus(s);
   let infoCapi: InfoCapiBeli | null = null;
+  let infoRefund: InfoRefund | null = null;
   const hasil = await transaksiDb(async (tx) => {
     const [t] = await tx<(Transaksi & { aktif_id: number | null; meta_konteks: KonteksMeta | null })[]>`
       SELECT ${tx.unsafe(KOLOM_TRX)}, langganan_id AS aktif_id, meta_konteks FROM transaksi WHERE order_id = ${orderId} FOR UPDATE`;
@@ -600,10 +619,16 @@ export async function terapkanStatus(k: KonfigMidtrans, orderId: string): Promis
       console.error(`[bayar] nominal tidak cocok order=${orderId}: midtrans ${s.gross_amount}, tagihan ${t.jumlah}`);
       return { status: t.status, baruAktif: false };
     }
+    // Sudah kita tandai dikembalikan (Refund API menjawab 200) tapi status Midtrans belum ikut berubah: jangan mundur ke lunas.
+    if (t.status === "dikembalikan" && status === "lunas") return { status: t.status, baruAktif: false };
     const kini = sekarang();
     await tx`
       UPDATE transaksi SET status = ${status}, metode = ${s.payment_type ?? null}, dibayar = ${status === "lunas" ? (t.dibayar ?? kini) : t.dibayar}
        WHERE id = ${t.id}`;
+    if (status === "dikembalikan") {
+      infoRefund = await selesaikanRefund(tx, t, s);
+      return { status, baruAktif: false };
+    }
     if (status !== "lunas" || t.aktif_id) return { status, baruAktif: false };
     const { id } = await aktifkan(tx, { userId: t.user_id, paketId: t.paket_id, sumber: "midtrans" });
     await tx`UPDATE transaksi SET langganan_id = ${id}, meta_konteks = NULL WHERE id = ${t.id}`;
@@ -613,6 +638,7 @@ export async function terapkanStatus(k: KonfigMidtrans, orderId: string): Promis
     infoCapi = { jumlah: t.jumlah, namaPaket: t.nama_paket, userId: t.user_id, email: u?.email, konteks: t.meta_konteks };
     return { status, baruAktif: true };
   });
+  if (infoRefund) notifRefund(infoRefund);
   if (hasil?.baruAktif) void notifPaketAktif(orderId, "midtrans");
   if (hasil?.baruAktif && infoCapi) {
     const c = infoCapi as InfoCapiBeli;
@@ -626,6 +652,137 @@ export async function terapkanStatus(k: KonfigMidtrans, orderId: string): Promis
     });
   }
   return hasil;
+}
+
+// ---------- Pengembalian dana (refund) ----------
+
+/** Hasil satu refund yang baru tuntas, untuk notifikasi sesudah transaksi database selesai. */
+interface InfoRefund {
+  orderId: string;
+  userId: number;
+  jumlah: number;
+  namaPaket: string;
+  /** Paket dicabut saat ini (false = sudah berakhir, atau langganan ikut dibayar transaksi lain sehingga admin yang menyesuaikan). */
+  dicabut: boolean;
+  /** manual = ditransfer admin ke `tujuan`; otomatis/midtrans = ke metode bayar asal lewat Midtrans. */
+  cara: "manual" | "otomatis" | "midtrans";
+  tujuan: string | null;
+  komisi: { afiliator: number; nominal: number } | null;
+}
+
+/**
+ * Transaksi lunas yang dananya dikembalikan PENUH (refund/chargeback, dari jaminan uang kembali ATAU dari dashboard
+ * Midtrans): paket dari transaksi ini dicabut dan komisi afiliasinya dibatalkan, di transaksi database pemanggil yang
+ * sudah mengunci baris transaksi (FOR UPDATE). Idempoten: dipanggil ulang (webhook berulang, jawaban API + webhook)
+ * tidak mencabut/mengurangi dua kali; baris pengembalian_dana ditandai selesai. Refund sebagian tidak mencabut paket.
+ * null = tidak ada yang baru (sudah dikembalikan sebelumnya / refund sebagian).
+ */
+async function selesaikanRefund(
+  tx: Tx,
+  t: Pick<Transaksi, "id" | "order_id" | "user_id" | "jumlah" | "nama_paket" | "status"> & { aktif_id: number | null },
+  s: Pick<StatusMidtrans, "transaction_status" | "refunds">,
+): Promise<InfoRefund | null> {
+  if (s.transaction_status !== "refund" && s.transaction_status !== "chargeback") {
+    console.warn(`[refund] ${s.transaction_status} order=${t.order_id}: paket tidak dicabut otomatis`);
+    return null;
+  }
+  const kini = sekarang();
+  const konfirmasi = waktuMidtrans(s.refunds?.find((r) => r.bank_confirmed_at)?.bank_confirmed_at);
+  // Pengajuan jaminan (bila ada) jadi selesai; refund dari dashboard Midtrans juga dicatat supaya tampil di admin.
+  const [r] = await tx<{ cara: InfoRefund["cara"]; tujuan_bank: string | null; tujuan_nomor: string | null; tujuan_nama: string | null }[]>`
+    INSERT INTO pengembalian_dana(transaksi_id, user_id, email, order_id, jumlah, status, cara, alasan, wa_ids, dibuat, selesai, dikonfirmasi)
+    SELECT ${t.id}, u.id, u.email, ${t.order_id}, ${t.jumlah}, 'selesai', 'midtrans', 'Dikembalikan lewat dashboard Midtrans',
+           ARRAY(SELECT wa_id FROM numbers WHERE user_id = u.id AND wa_id IS NOT NULL), ${kini}, ${kini}, ${konfirmasi}
+      FROM users u WHERE u.id = ${t.user_id}
+    ON CONFLICT (transaksi_id) DO UPDATE
+       SET status = 'selesai', galat = NULL,
+           selesai = COALESCE(pengembalian_dana.selesai, EXCLUDED.selesai),
+           dikonfirmasi = COALESCE(pengembalian_dana.dikonfirmasi, EXCLUDED.dikonfirmasi)
+    RETURNING cara, tujuan_bank, tujuan_nomor, tujuan_nama`;
+  if (t.status === "dikembalikan") return null;
+  let dicabut = false;
+  if (t.aktif_id) {
+    // Langganan yang juga diperpanjang transaksi lunas lain tidak dicabut otomatis (admin yang menyesuaikan).
+    const [lain] = await tx<{ id: number }[]>`
+      SELECT id FROM transaksi WHERE user_id = ${t.user_id} AND langganan_id = ${t.aktif_id} AND id <> ${t.id} AND status = 'lunas' LIMIT 1`;
+    if (!lain) dicabut = (await tx`UPDATE langganan SET sampai = ${kini} WHERE id = ${t.aktif_id} AND sampai > ${kini} RETURNING id`).length > 0;
+  }
+  const [k] = await tx<{ afiliator_id: number; nominal: number }[]>`
+    DELETE FROM komisi_afiliasi WHERE transaksi_id = ${t.id} RETURNING afiliator_id, nominal`;
+  // Komisi baru bisa ditarik setelah masa jaminan (ajukanPenarikan), jadi saldo masih memuatnya; GREATEST hanya pengaman.
+  if (k) await tx`UPDATE afiliator SET saldo = GREATEST(saldo - ${k.nominal}, 0), total_komisi = GREATEST(total_komisi - ${k.nominal}, 0) WHERE user_id = ${k.afiliator_id}`;
+  const tujuan = r?.tujuan_bank && r.tujuan_nomor ? `${namaBankTampil(r.tujuan_bank)} ${r.tujuan_nomor}${r.tujuan_nama ? ` a.n. ${r.tujuan_nama}` : ""}` : null;
+  return {
+    orderId: t.order_id,
+    userId: t.user_id,
+    jumlah: t.jumlah,
+    namaPaket: t.nama_paket,
+    dicabut,
+    cara: r?.cara ?? "midtrans",
+    tujuan,
+    komisi: k ? { afiliator: k.afiliator_id, nominal: k.nominal } : null,
+  };
+}
+
+/**
+ * Refund API Midtrans menjawab 200 (src/lib/jaminan.ts): transaksi langsung ditandai dikembalikan dan paketnya dicabut,
+ * tanpa menunggu webhook (yang nanti tiba dan tidak mengubah apa pun lagi).
+ */
+export async function catatRefundBerhasil(orderId: string): Promise<void> {
+  const info = await transaksiDb(async (tx) => {
+    const [t] = await tx<(Transaksi & { aktif_id: number | null })[]>`
+      SELECT ${tx.unsafe(KOLOM_TRX)}, langganan_id AS aktif_id FROM transaksi WHERE order_id = ${orderId} FOR UPDATE`;
+    if (!t) return null;
+    if (t.status !== "dikembalikan") await tx`UPDATE transaksi SET status = 'dikembalikan' WHERE id = ${t.id}`;
+    return selesaikanRefund(tx, t, { transaction_status: "refund" });
+  });
+  if (info) notifRefund(info);
+}
+
+/** Notifikasi refund (pembeli, afiliator bila komisinya batal, admin), sesudah transaksi database tuntas. */
+function notifRefund(r: InfoRefund): void {
+  segarkanKuota(r.userId);
+  const rp = (n: number) => `Rp${n.toLocaleString("id-ID")}`;
+  void import("./notifikasi")
+    .then(async ({ kirimNotif, kirimNotifAdmin }) => {
+      await kirimNotif(r.userId, {
+        jenis: "pembayaran",
+        judul: { id: `Dana ${rp(r.jumlah)} dikembalikan`, en: `${rp(r.jumlah)} has been refunded` },
+        isi:
+          r.cara === "manual"
+            ? {
+                id: `Pembayaran paket ${r.namaPaket} (${r.orderId}) sudah ditransfer kembali${r.tujuan ? ` ke ${r.tujuan}` : ""}${r.dicabut ? " dan paketnya dihentikan" : ""}.`,
+                en: `Your ${r.namaPaket} plan payment (${r.orderId}) was transferred back${r.tujuan ? ` to ${r.tujuan}` : ""}${r.dicabut ? " and the plan was stopped" : ""}.`,
+              }
+            : {
+                id: `Pembayaran paket ${r.namaPaket} (${r.orderId}) dikembalikan ke metode bayar asal${r.dicabut ? " dan paketnya dihentikan" : ""}. GoPay biasanya masuk dalam 1×24 jam; QRIS dari aplikasi lain bisa sampai 15–20 hari kerja.`,
+                en: `Your ${r.namaPaket} plan payment (${r.orderId}) was refunded to the original payment method${r.dicabut ? " and the plan was stopped" : ""}. GoPay usually arrives within 24 hours; QRIS from other apps can take up to 15–20 business days.`,
+              },
+        tautan: "/langganan",
+        kunci: `refund:${r.orderId}`,
+      });
+      if (r.komisi)
+        await kirimNotif(r.komisi.afiliator, {
+          jenis: "afiliasi",
+          judul: { id: `Komisi ${rp(r.komisi.nominal)} dibatalkan`, en: `Commission of ${rp(r.komisi.nominal)} was canceled` },
+          isi: {
+            id: `Pembeli paket ${r.namaPaket} memakai jaminan uang kembali, jadi komisinya tidak jadi masuk saldo.`,
+            en: `The ${r.namaPaket} buyer used the money-back guarantee, so the commission was removed from your balance.`,
+          },
+          tautan: "/afiliasi",
+          kunci: `refund-komisi:${r.orderId}`,
+        });
+      await kirimNotifAdmin({
+        jenis: "admin_bayar",
+        judul: { id: `Dana dikembalikan ${rp(r.jumlah)} · ${r.namaPaket}`, en: `Refunded ${rp(r.jumlah)} · ${r.namaPaket}` },
+        isi: {
+          id: `${r.orderId}${r.dicabut ? " · paket dicabut" : " · paket TIDAK dicabut otomatis, cek akunnya"}`,
+          en: `${r.orderId}${r.dicabut ? " · plan stopped" : " · plan NOT stopped automatically, check the account"}`,
+        },
+        tautan: `/admin/transaksi/${encodeURIComponent(r.orderId)}`,
+      });
+    })
+    .catch((e) => console.warn("[notifikasi] refund:", e instanceof Error ? e.message : e));
 }
 
 interface InfoCapiBeli {

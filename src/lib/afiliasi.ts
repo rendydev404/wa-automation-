@@ -1,6 +1,6 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import { type Tx, db, getSetting, sekarang, setSetting, transaksi as transaksiDb } from "./db";
+import { type Sql, type Tx, db, getSetting, sekarang, setSetting, transaksi as transaksiDb } from "./db";
 import {
   DAFTAR_BANK,
   type JenisKomisi,
@@ -13,6 +13,7 @@ import {
   kodeIrisBank,
   normalkanKodeRef,
 } from "./afiliasi-def";
+import { JAMINAN_HARI } from "./jaminan-def";
 import { MidtransError, kirimPayoutIris, konfigIris } from "./midtrans";
 import { catatLog } from "./pengguna";
 import { kirimNotif, kirimNotifAdmin } from "./notifikasi";
@@ -350,6 +351,20 @@ export interface BarisPenarikan {
   diproses: number | null;
 }
 
+/**
+ * Komisi yang belum boleh ditarik: masih dalam masa jaminan uang kembali (JAMINAN_HARI sejak dicatat), atau pembelinya
+ * sedang mengajukan uang kembali yang belum selesai (refund manual bisa diproses admin setelah masa jaminan lewat).
+ * Lewat komisi_afiliasi_afiliator_idx (baris afiliator ini saja) + indeks parsial pengembalian_dana_berjalan_idx.
+ */
+async function komisiTertahan(q: Tx | Sql, afiliatorId: number): Promise<number> {
+  const [r] = await q<{ n: number }[]>`
+    SELECT COALESCE(SUM(k.nominal), 0)::int AS n FROM komisi_afiliasi k
+     WHERE k.afiliator_id = ${afiliatorId}
+       AND (k.created_at > ${sekarang() - JAMINAN_HARI * 86400}
+            OR EXISTS (SELECT 1 FROM pengembalian_dana r WHERE r.transaksi_id = k.transaksi_id AND r.status IN ('menunggu', 'diproses', 'gagal')))`;
+  return r.n;
+}
+
 export async function ajukanPenarikan(userId: number, nominalMentah: number): Promise<BarisPenarikan> {
   const atur = await pengaturanAfiliasi();
   const nominal = Math.round(nominalMentah);
@@ -362,8 +377,14 @@ export async function ajukanPenarikan(userId: number, nominalMentah: number): Pr
       SELECT ${tx.unsafe(KOLOM_AFILIATOR)} FROM afiliator WHERE user_id = ${userId} FOR UPDATE`;
     if (!af) throw new AfiliasiError("Anda belum terdaftar sebagai afiliator.", "You are not registered as an affiliate yet.");
     if (af.status !== "aktif") throw new AfiliasiError("Akun afiliasi Anda belum aktif untuk melakukan penarikan.", "Your affiliate account is not active yet, so you can't request a payout.");
-    if (af.saldo < nominal) {
-      throw new AfiliasiError(`Saldo komisi tidak mencukupi (tersedia Rp${af.saldo.toLocaleString("id-ID")}).`, "Insufficient commission balance ({rp} available).", af.saldo);
+    // Komisi yang belum melewati masa jaminan uang kembali tertahan: bila pembelinya minta uang kembali, komisinya batal.
+    const bisa = af.saldo - (await komisiTertahan(tx, userId));
+    if (bisa < nominal) {
+      throw new AfiliasiError(
+        `Saldo komisi yang bisa ditarik tidak mencukupi (tersedia Rp${Math.max(0, bisa).toLocaleString("id-ID")}; komisi baru bisa ditarik ${JAMINAN_HARI} hari setelah pembeli membayar).`,
+        `Insufficient withdrawable commission balance ({rp} available; new commissions can be withdrawn ${JAMINAN_HARI} days after the buyer pays).`,
+        Math.max(0, bisa),
+      );
     }
 
     const [masihMenunggu] = await tx<{ id: number }[]>`
@@ -406,6 +427,8 @@ export interface RingkasanAfiliasiUser {
   totalPendaftar: number;
   totalPembeli: number;
   sedangMenungguCair: number;
+  /** Komisi di saldo yang masih dalam masa jaminan uang kembali (belum bisa ditarik). */
+  tertahan: number;
   riwayatKomisi: BarisKomisi[];
   riwayatPenarikan: BarisPenarikan[];
 }
@@ -420,12 +443,13 @@ export async function ringkasanAfiliasiUser(userId: number): Promise<RingkasanAf
       totalPendaftar: 0,
       totalPembeli: 0,
       sedangMenungguCair: 0,
+      tertahan: 0,
       riwayatKomisi: [],
       riwayatPenarikan: [],
     };
   }
 
-  const [[statRef], [statMenunggu], komisiRows, penarikanRows] = await Promise.all([
+  const [[statRef], [statMenunggu], komisiRows, penarikanRows, tertahan] = await Promise.all([
     sql<{ pendaftar: number; pembeli: number }[]>`
       SELECT COUNT(*)::int AS pendaftar,
              COUNT(*) FILTER (
@@ -451,6 +475,7 @@ export async function ringkasanAfiliasiUser(userId: number): Promise<RingkasanAf
        WHERE afiliator_id = ${userId}
        ORDER BY id DESC
        LIMIT 20`,
+    komisiTertahan(sql, userId),
   ]);
 
   return {
@@ -459,6 +484,7 @@ export async function ringkasanAfiliasiUser(userId: number): Promise<RingkasanAf
     totalPendaftar: statRef?.pendaftar ?? 0,
     totalPembeli: statRef?.pembeli ?? 0,
     sedangMenungguCair: statMenunggu?.menunggu ?? 0,
+    tertahan: Math.min(tertahan, profil.saldo),
     riwayatKomisi: komisiRows.map((k) => ({ ...k, referred_email: samarkanEmail(k.referred_email) })),
     riwayatPenarikan: [...penarikanRows],
   };

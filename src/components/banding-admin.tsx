@@ -6,6 +6,7 @@ import { ArrowRight, Check, Clock, Users, Wallet, X } from "lucide-react";
 import Link from "@/components/link";
 import { useBahasa } from "@/components/bahasa";
 import { angka, uang } from "@/lib/format";
+import { JAMINAN_HARI } from "@/lib/jaminan-def";
 
 /**
  * Perbandingan biaya admin CS WhatsApp vs langganan ChatGerCep. Dipakai di landing (setelah Fitur) dan di /trial-habis,
@@ -57,7 +58,7 @@ export function KalkulatorAdmin({
   /** Sapaan "Anda" (landing) atau "kamu" (halaman akun). */
   anda?: boolean;
   catatanChat?: ReactNode;
-  /** Tombol ajakan di bawah hasil (mis. "Coba gratis"). */
+  /** Tombol ajakan di bawah hasil (mis. "Daftar sekarang"). */
   aksi?: ReactNode;
 }) {
   const { b, t } = useBahasa();
@@ -192,11 +193,11 @@ export function KartuVs({ termurah, kurs }: { termurah: PaketBanding | undefined
       </div>
       <div className="rounded-3xl border-2 border-accent bg-accent-soft/50 p-6">
         <p className="text-[13px] font-bold tracking-wide text-accent uppercase">ChatGerCep</p>
-        <p className="mt-2 text-3xl font-extrabold text-accent tabular-nums">{termurah ? `${t("mulai", "from")} ${rp(termurah.harga)}` : t("Gratis dicoba", "Free to try")}</p>
+        <p className="mt-2 text-3xl font-extrabold text-accent tabular-nums">{termurah ? `${t("mulai", "from")} ${rp(termurah.harga)}` : t("Uji bot gratis", "Free bot test")}</p>
         <p className="text-[13px] text-muted">
           {termurah
             ? t(`per ${termurah.durasi_hari} hari, ± ${rp(termurah.harga / termurah.durasi_hari)} per hari`, `per ${termurah.durasi_hari} days, ± ${rp(termurah.harga / termurah.durasi_hari)} a day`)
-            : t("tanpa kartu kredit", "no credit card")}
+            : t(`jaminan uang kembali ${JAMINAN_HARI} hari`, `${JAMINAN_HARI}-day money-back guarantee`)}
         </p>
         <ul className="mt-4 space-y-2 text-[14px]">
           {lebih.map((x) => (
@@ -211,7 +212,7 @@ export function KartuVs({ termurah, kurs }: { termurah: PaketBanding | undefined
   );
 }
 
-/** Versi landing: kartu VS + kalkulator dengan tombol daftar gratis. */
+/** Versi landing: kartu VS + kalkulator dengan tombol daftar. */
 export function BandingAdminLanding({ paket, kurs }: { paket: PaketBanding[]; kurs?: number }) {
   const { t } = useBahasa();
   const [nilai, setNilai] = useState<NilaiKalkulator>({ chat: 30, shift: 1, gaji: 4_000_000 });
@@ -226,7 +227,7 @@ export function BandingAdminLanding({ paket, kurs }: { paket: PaketBanding[]; ku
         anda
         aksi={
           <Link href="/daftar" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-ink-signal px-5 text-[14px] font-bold text-ink transition-transform hover:-translate-y-0.5">
-            {t("Coba gratis sekarang", "Try it free now")} <ArrowRight className="size-4" aria-hidden />
+            {t("Daftar sekarang", "Sign up now")} <ArrowRight className="size-4" aria-hidden />
           </Link>
         }
       />

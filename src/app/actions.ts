@@ -43,6 +43,7 @@ import { notifPendaftarBaru } from "@/lib/notifikasi";
 import { ATURAN_ANGKA, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
 import { type IsiKhusus, METODE_MANUAL, type MetodeManual, batalkanBayar, berikanPaketManual, hapusPaket, hentikanLangganan, mulaiBayar, ORDER_SAH, paketById, segarkanKuota, simpanPaket, terapkanSimulasi } from "@/lib/langganan";
 import { MidtransError, kanalAktif, kanalBelumAktif, konfigMidtrans, setKanalMati } from "@/lib/midtrans";
+import { ajukanJaminan, selesaikanManual, setModeRefund, tolakPengembalian, ulangiPengembalian } from "@/lib/jaminan";
 import { tanggal, uang } from "@/lib/format";
 import { GalatCustom, customTampil, periksaCustom, ringkasCustom, simpanPaketCustom } from "@/lib/paket-custom";
 import { KnowledgeError, adaKnowledge, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
@@ -1003,6 +1004,80 @@ export async function batalBayarAction(orderId: string): Promise<Hasil & { statu
   } catch {
     return { ok: false, pesan: t("Tagihan belum bisa dibatalkan. Coba lagi sebentar lagi.", "The invoice can't be canceled yet. Please try again shortly.") };
   }
+}
+
+// ---------- Jaminan uang kembali (src/lib/jaminan.ts) ----------
+
+export async function ajukanJaminanAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const user = await requireUser();
+  const { b, t } = await teksPermintaan();
+  if (terlaluSering(`jaminan:${user.id}`, 3, 10 * 60_000)) return terlaluBanyak(t);
+  const teks = (n: string) => String(form.get(n) ?? "");
+  const h = await ajukanJaminan(await konfigMidtrans(), user.id, {
+    alasan: teks("alasan"),
+    tujuan: { bank: teks("tujuan_bank"), nomor: teks("tujuan_nomor"), nama: teks("tujuan_nama") },
+  });
+  revalidatePath("/langganan");
+  if (!h.ok) return { ok: false, pesan: b === "en" ? h.pesan.en : h.pesan.id };
+  catatFitur(user.id, "langganan.jaminan");
+  return {
+    ok: true,
+    pesan:
+      h.cara === "manual"
+        ? t("Pengajuan terkirim. Admin akan mentransfer dananya ke rekening/e-wallet yang kamu isi; kamu dapat notifikasi saat selesai.", "Request sent. The admin will transfer the money to the account/e-wallet you entered; you'll be notified when it's done.")
+        : t("Dana sudah dikembalikan ke metode bayar asal dan paketnya dihentikan.", "The money has been refunded to the original payment method and the plan was stopped."),
+  };
+}
+
+/** Admin: dana sudah ditransfer manual -> pengajuan selesai, paket dicabut, komisi batal. */
+export async function adminSelesaikanPengembalianAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const id = idSah(form.get("id"));
+  if (!id) return { ok: false, pesan: "Pengajuan tidak ditemukan." };
+  const referensi = String(form.get("referensi") ?? "");
+  const h = await selesaikanManual(id, referensi);
+  await catatLog(admin, "selesaikan uang kembali (manual)", `#${id}`, h.ok ? referensi.trim() || "tanpa referensi" : h.pesan.id);
+  revalidatePath("/admin/transaksi", "layout");
+  if (!h.ok) return { ok: false, pesan: h.pesan.id };
+  catatFitur(admin.id, "admin.selesai_pengembalian");
+  return { ok: true, pesan: "Tercatat selesai; paket pembeli dicabut dan komisi afiliasinya batal." };
+}
+
+export async function adminTolakPengembalianAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const id = idSah(form.get("id"));
+  if (!id) return { ok: false, pesan: "Pengajuan tidak ditemukan." };
+  const catatan = String(form.get("catatan") ?? "");
+  const h = await tolakPengembalian(id, catatan);
+  if (!h.ok) return { ok: false, pesan: h.pesan.id };
+  await catatLog(admin, "tolak uang kembali", `#${id}`, catatan.trim());
+  revalidatePath("/admin/transaksi", "layout");
+  catatFitur(admin.id, "admin.tolak_pengembalian");
+  return { ok: true, pesan: "Pengajuan ditolak; pemilik akun diberi tahu dan paketnya tetap aktif." };
+}
+
+export async function adminUlangiPengembalianAction(id: number): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const k = await konfigMidtrans();
+  if (!k || !idSah(id)) return { ok: false, pesan: "Pengajuan tidak ditemukan." };
+  const h = await ulangiPengembalian(k, id);
+  await catatLog(admin, "ulangi pengembalian dana (otomatis)", `#${id}`, h.ok ? "berhasil" : h.pesan.id);
+  revalidatePath("/admin/transaksi", "layout");
+  if (h.ok) catatFitur(admin.id, "admin.ulangi_pengembalian");
+  return h.ok ? { ok: true, pesan: "Dana berhasil dikembalikan lewat Midtrans; paket pembeli dicabut." } : { ok: false, pesan: h.pesan.id };
+}
+
+/** Admin memilih cara pengembalian dana: manual (transfer sendiri) atau otomatis (Refund API Midtrans). */
+export async function adminModeRefundAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const mode = form.get("mode");
+  if (mode !== "manual" && mode !== "otomatis") return { ok: false, pesan: "Pilih manual atau otomatis." };
+  await setModeRefund(mode);
+  await catatLog(admin, "ubah cara pengembalian dana", mode);
+  mintaSinkronCg(); // bot ChatGerCep menjelaskan cara pengembalian dana yang berlaku
+  revalidatePath("/admin/transaksi", "layout");
+  catatFitur(admin.id, "admin.mode_refund");
+  return { ok: true, pesan: mode === "otomatis" ? "Pengembalian dana sekarang otomatis lewat Refund API Midtrans." : "Pengembalian dana sekarang manual: admin mentransfer lalu menandai selesai." };
 }
 
 // ---------- Admin: paket, langganan, Midtrans ----------

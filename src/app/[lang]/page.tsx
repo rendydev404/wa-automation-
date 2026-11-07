@@ -16,6 +16,7 @@ import { UMUR_HISTORI_HARI } from "@/lib/format";
 import { IkonWhatsApp } from "@/components/ikon-whatsapp";
 import { DataOrganisasi, KakiPerusahaan } from "@/components/kaki-perusahaan";
 import { MEREK, NOMOR_WA_DEMO, URL_WA_DEMO } from "@/lib/merek";
+import { JAMINAN_HARI } from "@/lib/jaminan-def";
 
 /** Landing page publik: seluruhnya statis (prerender, kedua bahasa), animasi Remotion dimuat terpisah di sisi klien. */
 
@@ -135,8 +136,8 @@ const faq = (t: T) => [
   {
     t: t("Berapa nomor yang bisa saya sambungkan?", "How many numbers can I connect?"),
     j: t(
-      "Akun gratis mendapat 1 nomor. Butuh lebih banyak nomor untuk tim atau beberapa lini layanan? Pilih paket Bisnis atau Pro di bagian Harga.",
-      "Free accounts get 1 number. Need more for your team or several service lines? Choose a larger plan in the Pricing section.",
+      "Setiap akun bisa menyambungkan 1 nomor untuk setup dan Uji bot, bahkan sebelum berlangganan. Butuh lebih banyak nomor untuk tim atau beberapa lini layanan? Pilih paket Bisnis atau Pro di bagian Harga.",
+      "Every account can connect 1 number to set up and test the bot, even before subscribing. Need more for your team or several service lines? Choose a larger plan in the Pricing section.",
     ),
   },
   {
@@ -194,7 +195,7 @@ export default async function Landing() {
             {/* HP sempit: "Daftar" saja supaya logo, Masuk, dan tombol tetap satu baris. */}
             <Link href="/daftar" className="rounded-xl bg-ink-signal px-3 py-2 text-[13.5px] font-bold whitespace-nowrap text-ink transition-transform hover:-translate-y-0.5 sm:px-4">
               {t("Daftar", "Sign up")}
-              <span className="max-[399px]:hidden">{t(" gratis", " free")}</span>
+              <span className="max-[419px]:hidden">{t(" sekarang", " now")}</span>
             </Link>
           </div>
         </header>
@@ -221,7 +222,7 @@ export default async function Landing() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/daftar" className="group inline-flex items-center gap-2 rounded-2xl bg-ink-signal px-6 py-3.5 text-[15px] font-bold text-ink shadow-[0_12px_40px_-12px_rgba(61,220,151,0.7)] transition-transform hover:-translate-y-0.5">
-                {t("Mulai gratis", "Start free")} <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
+                {t("Mulai sekarang", "Get started")} <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
               </Link>
               <a
                 href={urlWaDemo}
@@ -236,7 +237,7 @@ export default async function Landing() {
               </a>
             </div>
             <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-ink-muted">
-              {[t("Tanpa kartu kredit", "No credit card"), t("1 nomor gratis", "1 free number"), t("Putuskan kapan saja", "Disconnect anytime")].map((x) => (
+              {[t(`Jaminan uang kembali ${JAMINAN_HARI} hari`, `${JAMINAN_HARI}-day money-back guarantee`), t("Setup & Uji bot gratis", "Free setup & bot test"), t("Putuskan kapan saja", "Disconnect anytime")].map((x) => (
                 <li key={x} className="flex items-center gap-1.5">
                   <Check className="size-4 text-ink-signal" aria-hidden /> {x}
                 </li>
@@ -369,15 +370,22 @@ export default async function Landing() {
       </section>
 
       {/* ---------- Harga (dari paket yang dikelola admin) ---------- */}
-      <section id="harga" className="mx-auto max-w-[1200px] scroll-mt-8 px-4 pb-20 sm:px-6 lg:pb-28">
-        <div className="max-w-2xl">
-          <p className="text-[12px] font-bold tracking-[0.1em] text-accent uppercase">{t("Harga", "Pricing")}</p>
-          <h2 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-[40px]">{t("Pilih paket sesuai kebutuhan.", "Pick the plan that fits.")}</h2>
-          <p className="mt-3 text-[16px] text-muted">{t("Tanpa kontrak. Perpanjang kapan saja, kuota balasan AI langsung bertambah.", "No contracts. Renew anytime and your AI replies top up instantly.")}</p>
+      <section id="harga" className="relative scroll-mt-8 overflow-hidden bg-ink text-ink-fg">
+        {/* Latar gelap bercahaya hijau (tanpa gambar): dua gradasi radial di sudut. */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_85%_0%,rgba(61,220,151,0.22),transparent_70%),radial-gradient(50%_45%_at_0%_100%,rgba(163,255,71,0.14),transparent_70%)]" />
+        <div className="relative mx-auto max-w-[1200px] px-4 py-20 sm:px-6 lg:py-28">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="text-[12px] font-bold tracking-[0.1em] text-ink-signal uppercase">{t("Harga", "Pricing")}</p>
+            <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-white sm:text-[44px]">
+              {t("Pilih paket, ", "Pick a plan, ")}
+              <span className="text-[#a3ff47] italic">{t("langsung aktif.", "go live now.")}</span>
+            </h2>
+            <p className="mt-3 text-[16px] text-ink-muted">{t("Tanpa kontrak. Perpanjang kapan saja, kuota balasan AI langsung bertambah.", "No contracts. Renew anytime and your AI replies top up instantly.")}</p>
+          </div>
+          <Suspense fallback={<div aria-hidden className="mt-12 grid gap-5 md:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-96 animate-denyut rounded-3xl bg-ink-raised" />)}</div>}>
+            <HargaLanding />
+          </Suspense>
         </div>
-        <Suspense fallback={<div aria-hidden className="mt-12 grid gap-4 md:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-96 animate-denyut rounded-3xl bg-subtle" />)}</div>}>
-          <HargaLanding />
-        </Suspense>
       </section>
 
       {/* ---------- Keamanan ---------- */}
@@ -432,10 +440,10 @@ export default async function Landing() {
           <div aria-hidden className="absolute -bottom-40 left-1/2 size-[520px] -translate-x-1/2 rounded-full bg-ink-signal/20 blur-3xl" />
           <h2 className="relative text-3xl font-extrabold tracking-tight text-white sm:text-[44px]">{t("Biarkan AI menjawab. Anda fokus berjualan.", "Let the AI answer. You focus on selling.")}</h2>
           <p className="relative mx-auto mt-4 max-w-xl text-[16px] text-ink-muted">
-            {t("Daftar dalam satu menit, sambungkan nomor, dan lihat pelanggan pertama dibalas otomatis.", "Sign up in a minute, connect your number, and watch your first customer get an instant reply.")}
+            {t(`Daftar dalam satu menit, sambungkan nomor, uji bot sepuasnya, lalu berlangganan saat siap. Ada jaminan uang kembali ${JAMINAN_HARI} hari.`, `Sign up in a minute, connect your number, test the bot as much as you like, then subscribe when you are ready. ${JAMINAN_HARI}-day money-back guarantee.`)}
           </p>
           <Link href="/daftar" className="group relative mt-8 inline-flex items-center gap-2 rounded-2xl bg-ink-signal px-7 py-4 text-[15px] font-bold text-ink transition-transform hover:-translate-y-0.5">
-            {t("Buat akun gratis", "Create a free account")} <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
+            {t("Buat akun", "Create an account")} <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
           </Link>
         </div>
       </section>

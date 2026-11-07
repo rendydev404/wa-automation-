@@ -9,6 +9,7 @@ import { Pesan } from "@/components/ui";
 import { useBahasa, useRouterBahasa } from "@/components/bahasa";
 import { angka, uang } from "@/lib/format";
 import { KANAL_BAYAR, type KanalBayar, grupKanal, infoKanal, labelKanal } from "@/lib/harga";
+import { JAMINAN_HARI, kanalBisaRefund } from "@/lib/jaminan-def";
 
 const IKON_GRUP = { QRIS: QrCode, "E-wallet": Wallet, "Virtual account": Building2 } as const;
 
@@ -16,7 +17,20 @@ const IKON_GRUP = { QRIS: QrCode, "E-wallet": Wallet, "Virtual account": Buildin
  * Pilih kanal pembayaran lalu buat tagihannya di server (Core API); browser dibawa ke halaman instruksi bayar. Kanal yang
  * ternyata belum aktif di Midtrans langsung hilang dari pilihan (server juga menyembunyikannya untuk pembeli lain).
  */
-export function PilihMetode({ paketId, harga, kanal: awal, kurs }: { paketId: number; harga: number; kanal: KanalBayar[]; kurs?: number }) {
+export function PilihMetode({
+  paketId,
+  harga,
+  kanal: awal,
+  kurs,
+  jaminan = false,
+}: {
+  paketId: number;
+  harga: number;
+  kanal: KanalBayar[];
+  kurs?: number;
+  /** Pembayaran pertama akun ini: kanal yang bisa di-refund diberi tanda jaminan uang kembali. */
+  jaminan?: boolean;
+}) {
   const router = useRouterBahasa();
   const { b, t } = useBahasa();
   const [kanal, setKanal] = useState(awal);
@@ -73,6 +87,11 @@ export function PilihMetode({ paketId, harga, kanal: awal, kurs }: { paketId: nu
                       <span className="min-w-0 flex-1">
                         <span className="block text-[13.5px] font-semibold">{labelKanal(x, b)}</span>
                         <span className="block truncate text-[12px] text-muted">{infoKanal(x, b)}</span>
+                        {jaminan && kanalBisaRefund(x) && (
+                          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[11px] font-semibold text-success">
+                            <ShieldCheck className="size-3" aria-hidden /> {t(`Jaminan uang kembali ${JAMINAN_HARI} hari`, `${JAMINAN_HARI}-day money-back guarantee`)}
+                          </span>
+                        )}
                       </span>
                       <span aria-hidden className={`grid size-5 shrink-0 place-items-center rounded-full border ${aktif ? "border-accent bg-accent text-on-accent" : "border-line-strong"}`}>
                         {aktif && <Check className="size-3" />}
@@ -94,6 +113,14 @@ export function PilihMetode({ paketId, harga, kanal: awal, kurs }: { paketId: nu
         </button>
         {b === "en" && <p className="text-center text-[12px] text-muted tabular-nums">Billed in Indonesian rupiah: Rp{angka(harga, b)}</p>}
         <Pesan ok={false}>{galat}</Pesan>
+        {jaminan && pilih && !kanalBisaRefund(pilih) && kanal.some(kanalBisaRefund) && (
+          <p className="text-center text-[12px] text-warning">
+            {t(
+              `Pembayaran lewat ${labelKanal(pilih)} tidak termasuk jaminan uang kembali. Pilih GoPay, ShopeePay, atau QRIS bila ingin dijamin.`,
+              `Paying with ${labelKanal(pilih, b)} isn't covered by the money-back guarantee. Choose GoPay, ShopeePay, or QRIS to be covered.`,
+            )}
+          </p>
+        )}
         <p className="flex items-center justify-center gap-1.5 text-[12px] text-muted">
           <ShieldCheck className="size-3.5 text-success" aria-hidden /> {t("Diproses aman oleh Midtrans. Tanpa biaya tambahan.", "Securely processed by Midtrans. No extra fees.")}
         </p>

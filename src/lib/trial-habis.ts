@@ -62,6 +62,8 @@ export async function dataTrialHabis(user: { id: number; peran: string; nama: st
   ]);
   if (hak.sampai !== null || riwayat.ada) return null;
   if (!hak.percobaanBerakhir && sisa !== 0) return null;
+  // Free trial dimatikan (jaminan uang kembali): tidak ada "hasil trial" untuk ditampilkan, langsung ke Langganan.
+  if (aturan.balasan === 0 && hak.bonus === 0) return null;
 
   const mulai = hak.periodeMulai;
   const kini = sekarang();

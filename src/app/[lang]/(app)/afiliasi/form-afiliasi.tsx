@@ -8,6 +8,7 @@ import { Pesan, SubmitButton } from "@/components/ui";
 import { useBahasa } from "@/components/bahasa";
 import { DAFTAR_BANK, namaBankTampil } from "@/lib/afiliasi-def";
 import { angka, uang } from "@/lib/format";
+import { JAMINAN_HARI } from "@/lib/jaminan-def";
 
 const OPSI_BANK = DAFTAR_BANK.map((b) => ({
   id: b.id,
@@ -125,8 +126,8 @@ export function KartuTautanReferral({
           <h2 className="mt-1 text-lg font-bold">{t("Bagikan & dapatkan komisi otomatis", "Share & earn commission automatically")}</h2>
           <p className="mt-0.5 text-[13px] text-muted">
             {t(
-              "Setiap pengguna baru yang mendaftar melalui tautan Anda dan membeli paket, komisinya langsung masuk ke saldo Anda sesuai ketentuan pihak aplikasi.",
-              "Whenever a new user signs up through your link and buys a plan, the commission goes straight to your balance under the program terms.",
+              `Setiap pengguna baru yang mendaftar melalui tautan Anda dan membeli paket, komisinya langsung masuk ke saldo Anda dan bisa ditarik ${JAMINAN_HARI} hari setelah pembeli membayar (masa jaminan uang kembali).`,
+              `Whenever a new user signs up through your link and buys a plan, the commission goes straight to your balance and can be withdrawn ${JAMINAN_HARI} days after the buyer pays (the money-back guarantee period).`,
             )}
           </p>
         </div>

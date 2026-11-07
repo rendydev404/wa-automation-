@@ -16,6 +16,7 @@ import {
 } from "./followup-def";
 import { aiUntukAkun, aturanPercobaan, awalBulanWib, balasanTerpakai, hakAkun, sisaKuotaAi } from "./langganan";
 import { MEREK } from "./merek";
+import { JAMINAN_HARI } from "./jaminan-def";
 import { kirimNotifAdmin } from "./notifikasi";
 import { type Nomor, nomorById, semuaNomor } from "./numbers";
 import { PenggunaError } from "./pengguna";
@@ -179,7 +180,7 @@ const POLA_KODE = /kode\s*akun\s*:?\s*(\d{1,9})-([0-9a-f]{4})/i;
 export async function tautanChatCs(userId: number): Promise<string | null> {
   const n = await nomorCsDipakai();
   if (!n?.wa_id) return null;
-  const teks = `Halo CS ${MEREK}, kuota AI gratis saya sudah habis. Saya mau tanya soal paket. (Kode akun: ${kodeAkun(userId)})`;
+  const teks = `Halo CS ${MEREK}, saya mau tanya soal paket supaya AI saya bisa membalas pelanggan. (Kode akun: ${kodeAkun(userId)})`;
   return `https://wa.me/${n.wa_id}?text=${encodeURIComponent(teks)}`;
 }
 
@@ -294,8 +295,8 @@ function templat(jenis: "sapaan" | "pengingat", sapa: string, balasan: number): 
     ][Math.floor(Math.random() * 2)];
   const fakta =
     balasan > 0
-      ? `asisten AI di WhatsApp kamu sudah membalas ${balasan.toLocaleString("id-ID")} chat pelanggan, tapi kuota gratisnya sudah habis jadi sekarang AI-nya berhenti membalas`
-      : `kuota gratis asisten AI di akun ${MEREK} kamu sudah habis, jadi AI-nya belum bisa membalas pelanggan`;
+      ? `asisten AI di WhatsApp kamu sudah membalas ${balasan.toLocaleString("id-ID")} chat pelanggan, tapi kuotanya sudah habis jadi sekarang AI-nya berhenti membalas`
+      : `akun ${MEREK} kamu belum punya paket aktif, jadi AI-nya belum membalas pelanggan`;
   return [
     `${halo}, ini CS ${MEREK} 👋 Mau kabari, ${fakta}. Mau aku bantu aktifkan lagi?`,
     `${halo} 👋 Aku dari CS ${MEREK}. Sekadar info, ${fakta}. Ada yang bisa aku bantu supaya aktif lagi?`,
@@ -317,11 +318,11 @@ async function susunPesan(
     const ai = await aiUntukAkun(cs.user_id);
     const sistem = [
       `Kamu CS ${MEREK}, layanan asisten AI yang membalas chat WhatsApp pelanggan untuk pemilik usaha.`,
-      `Tulis SATU pesan WhatsApp ${jenis === "sapaan" ? "follow-up pertama" : "pengingat terakhir"} untuk pemilik akun ${MEREK} berpaket gratis yang kuota balasan AI-nya sudah habis, sehingga AI di WhatsApp-nya berhenti membalas pelanggan.`,
+      `Tulis SATU pesan WhatsApp ${jenis === "sapaan" ? "follow-up pertama" : "pengingat terakhir"} untuk pemilik akun ${MEREK} yang belum punya paket aktif (belum berlangganan, atau kuota balasan AI-nya sudah habis), sehingga AI di WhatsApp-nya tidak membalas pelanggan.`,
       "Aturan:",
       `- Bahasa Indonesia santai tapi sopan, seperti CS manusia. Panggil lawan bicara "kamu" (JANGAN "Kak"/"Kakak"/"Anda")${d.sapa ? ` dan sapa dengan "Halo ${d.sapa}"` : ""}.`,
       jenis === "sapaan"
-        ? "- 2 sampai 3 kalimat, paling panjang 320 karakter. Perkenalkan diri singkat sebagai CS. Sebut fakta pemakaiannya bila ada. Akhiri dengan satu pertanyaan ringan apakah ia mau dibantu mengaktifkan lagi."
+        ? "- 2 sampai 3 kalimat, paling panjang 320 karakter. Perkenalkan diri singkat sebagai CS. Sebut fakta pemakaiannya bila ada (bila balasan AI-nya 0, jangan bilang kuotanya habis: ia memang belum berlangganan). Akhiri dengan satu pertanyaan ringan apakah ia mau dibantu mengaktifkannya."
         : "- 1 sampai 2 kalimat, paling panjang 220 karakter. Jangan mengulang kalimat pesan sebelumnya. Tanpa tekanan: bilang tidak apa-apa bila belum perlu.",
       "- Paling banyak 1 emoji. JANGAN menulis tautan/URL, harga, diskon, angka paket, atau janji apa pun.",
       "- Tulis isi pesannya saja, tanpa tanda kutip, judul, atau penjelasan.",
@@ -686,8 +687,8 @@ async function konteksAkun(userId: number): Promise<string | null> {
   const u = await akun(userId);
   if (!u) return null;
   const [hak, sisa, pakai] = await Promise.all([hakAkun(u), sisaKuotaAi(u.id), pemakaianAkun(u.id)]);
-  const paket = hak.sampai === null ? `paket gratis${sisa === 0 ? " yang kuota balasan AI-nya sudah HABIS (AI di WhatsApp-nya berhenti membalas pelanggan)" : ` (sisa ${sisa ?? "∞"} balasan AI)`}` : `paket ${hak.paket} yang masih aktif`;
-  return `Lawan bicara ini pemilik akun ${MEREK} "${u.nama || "-"}" (email login ${u.email}), ${paket}. Bot-nya sudah mengirim ${pakai.balasan} balasan AI ke ${pakai.pelanggan} pelanggan. Bila ia mau mengaktifkan lagi, bantu memilih paket yang pas lalu arahkan ke ${asal()}/${hak.sampai === null && sisa === 0 ? "trial-habis" : "langganan"} (login dengan email tadi). Jangan memaksa.`;
+  const paket = hak.sampai === null ? `tanpa paket aktif${sisa === 0 ? " (belum berlangganan atau kuotanya habis, jadi AI di WhatsApp-nya TIDAK membalas pelanggan)" : ` (sisa ${sisa ?? "∞"} balasan AI gratis)`}` : `paket ${hak.paket} yang masih aktif`;
+  return `Lawan bicara ini pemilik akun ${MEREK} "${u.nama || "-"}" (email login ${u.email}), ${paket}. Bot-nya sudah mengirim ${pakai.balasan} balasan AI ke ${pakai.pelanggan} pelanggan. Bila ia mau mengaktifkan lagi, bantu memilih paket yang pas lalu arahkan ke ${asal()}/langganan (login dengan email tadi). Ada jaminan uang kembali ${JAMINAN_HARI} hari untuk pembayaran pertama lewat GoPay, ShopeePay, atau QRIS. Jangan memaksa.`;
 }
 
 async function pesanMasuk(d: { numberId: number; kunci: string; teks: string; telepon: string | null }): Promise<string | null> {

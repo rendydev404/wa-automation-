@@ -614,3 +614,33 @@ body {
     margin: 0;
   }
 }
+
+/*
+ * Kartu harga landing (components/landing/harga.tsx): tombol paket unggulan berkilau. Murni CSS, animasi hanya
+ * transform; berhenti lewat aturan prefers-reduced-motion global di atas.
+ */
+@keyframes harga-kilau {
+  0%,
+  55% {
+    transform: translateX(-140%) skewX(-20deg);
+  }
+  100% {
+    transform: translateX(380%) skewX(-20deg);
+  }
+}
+@layer components {
+  .harga-kilau {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .harga-kilau::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 32%;
+    z-index: -1;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+    animation: harga-kilau 3.4s ease-in-out infinite;
+  }
+}

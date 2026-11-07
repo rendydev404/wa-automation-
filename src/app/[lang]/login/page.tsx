@@ -36,7 +36,7 @@ export default async function LoginPage(props: PageProps<"/[lang]/login">) {
         <>
           {t("Belum punya akun?", "Don't have an account?")}{" "}
           <Link href="/daftar" className="font-semibold text-accent hover:underline">
-            {t("Daftar gratis", "Sign up free")}
+            {t("Daftar sekarang", "Sign up now")}
           </Link>
         </>
       }

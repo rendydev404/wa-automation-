@@ -8,6 +8,7 @@ import { alihkanHalaman, teksHalaman } from "@/lib/bahasa-halaman";
 import { getUser, halamanAwal, pendaftaranDibuka } from "@/lib/session";
 import { DaftarForm } from "./daftar-form";
 import { MEREK } from "@/lib/merek";
+import { JAMINAN_HARI } from "@/lib/jaminan-def";
 
 export async function generateMetadata({ params }: PageProps<"/[lang]/daftar">): Promise<Metadata> {
   const { lang } = await params;
@@ -42,7 +43,10 @@ export default async function DaftarPage() {
   return (
     <KartuAuth
       judul={t("Buat akun baru", "Create a new account")}
-      sub={t("Gratis. Sambungkan WhatsApp Anda dalam dua menit.", "Free. Connect your WhatsApp in two minutes.")}
+      sub={t(
+        `Sambungkan WhatsApp Anda dalam dua menit. Uji bot dulu, bayar saat siap — ada jaminan uang kembali ${JAMINAN_HARI} hari.`,
+        `Connect your WhatsApp in two minutes. Test the bot first, pay when you're ready — backed by a ${JAMINAN_HARI}-day money-back guarantee.`,
+      )}
       kaki={
         <>
           {t("Sudah punya akun?", "Already have an account?")}{" "}

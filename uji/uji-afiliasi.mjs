@@ -228,6 +228,11 @@ await cek("pengajuan penarikan (withdraw), validasi batas, tolak (refund saldo a
   await assert.rejects(() => A.ajukanPenarikan(mitra1.id, 20_000), /Minimal penarikan/);
   // Melebihi saldo ditolak
   await assert.rejects(() => A.ajukanPenarikan(mitra1.id, 999_000), /tidak mencukupi/);
+  // Komisi yang belum lewat masa jaminan uang kembali (7 hari) tertahan: saldo ada, tapi belum bisa ditarik.
+  assert.equal((await A.ringkasanAfiliasiUser(mitra1.id)).tertahan, 224_850);
+  await assert.rejects(() => A.ajukanPenarikan(mitra1.id, 60_000), /komisi baru bisa ditarik \d+ hari/);
+  await sql`UPDATE komisi_afiliasi SET created_at = created_at - 8 * 86400 WHERE afiliator_id = ${mitra1.id}`;
+  assert.equal((await A.ringkasanAfiliasiUser(mitra1.id)).tertahan, 0);
 
   // Tarik Rp60.000
   const w1 = await A.ajukanPenarikan(mitra1.id, 60_000);

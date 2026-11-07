@@ -73,6 +73,7 @@ const DAFTAR_FITUR = {
   // ---------- Langganan & afiliasi ----------
   "langganan.buat_tagihan": "Buat tagihan langganan",
   "langganan.batal_tagihan": "Batalkan tagihan langganan",
+  "langganan.jaminan": "Minta uang kembali (jaminan)",
   "afiliasi.daftar": "Daftar program afiliasi",
   "afiliasi.ubah_profil": "Ubah profil & rekening afiliasi",
   "afiliasi.tarik_komisi": "Ajukan penarikan komisi",
@@ -113,6 +114,10 @@ const DAFTAR_FITUR = {
   "admin.paket_custom": "Simpan Paket Custom",
   "admin.berikan_paket": "Berikan paket manual",
   "admin.hentikan_langganan": "Hentikan langganan pengguna",
+  "admin.ulangi_pengembalian": "Coba ulang pengembalian dana",
+  "admin.selesai_pengembalian": "Tandai uang kembali sudah ditransfer",
+  "admin.tolak_pengembalian": "Tolak pengajuan uang kembali",
+  "admin.mode_refund": "Ubah cara pengembalian dana",
   "admin.acuan_harga": "Simpan acuan harga",
   "admin.terapkan_harga": "Terapkan simulasi harga paket",
   "admin.terapkan_komisi": "Terapkan komisi paket",

@@ -12,6 +12,7 @@ import { daftarPaket } from "@/lib/langganan";
 import { MEREK } from "@/lib/merek";
 import { customTampil, paketCustom } from "@/lib/paket-custom";
 import { requireUser } from "@/lib/session";
+import { JAMINAN_HARI } from "@/lib/jaminan-def";
 import { FormGabungAfiliasi, FormTarikKomisi, KartuTautanReferral } from "./form-afiliasi";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -256,12 +257,20 @@ async function IsiAfiliasi() {
             <span className="text-[12px] font-semibold">{t("Saldo Bisa Ditarik", "Available Balance")}</span>
             <Wallet className="size-4 text-accent" aria-hidden />
           </div>
-          <p className="mt-2 text-xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-2xl tabular-nums">{u(profil.saldo)}</p>
+          <p className="mt-2 text-xl font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-2xl tabular-nums">{u(profil.saldo - data.tertahan)}</p>
           <p className="mt-1 text-[12px] text-muted tabular-nums">
             {data.sedangMenungguCair > 0
               ? t(`Rp${angka(data.sedangMenungguCair)} sedang diproses cair`, `${u(data.sedangMenungguCair)} payout in progress`)
               : t(`Sudah dicairkan Rp${angka(profil.total_ditarik)}`, `${u(profil.total_ditarik)} paid out so far`)}
           </p>
+          {data.tertahan > 0 && (
+            <p className="mt-1 text-[12px] text-warning tabular-nums">
+              {t(
+                `+ Rp${angka(data.tertahan)} tertahan ${JAMINAN_HARI} hari (masa jaminan uang kembali pembeli)`,
+                `+ ${u(data.tertahan)} on hold for ${JAMINAN_HARI} days (buyer's money-back guarantee period)`,
+              )}
+            </p>
+          )}
         </div>
 
         <div className="card min-w-0 p-4 sm:p-5">
@@ -309,7 +318,7 @@ async function IsiAfiliasi() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
         <FormTarikKomisi
-          saldo={profil.saldo}
+          saldo={profil.saldo - data.tertahan}
           minTarik={pengaturan.minTarik}
           sedangMenunggu={data.sedangMenungguCair}
           bankNama={profil.bank_nama}

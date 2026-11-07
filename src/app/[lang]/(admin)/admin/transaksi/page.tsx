@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { MetodeBayar } from "../bagian";
 import { DaftarTransaksi, RingkasanTransaksi } from "./bagian-transaksi";
+import { PengembalianDana } from "./pengembalian";
 
 export default function HalamanTransaksi(props: PageProps<"/[lang]/admin/transaksi">) {
   return (
@@ -17,6 +18,9 @@ export default function HalamanTransaksi(props: PageProps<"/[lang]/admin/transak
       </Suspense>
       <Suspense fallback={<div aria-hidden className="card h-[520px] animate-denyut" />}>
         <DaftarTransaksi searchParams={props.searchParams} />
+      </Suspense>
+      <Suspense fallback={<div aria-hidden className="card h-40 animate-denyut" />}>
+        <PengembalianDana />
       </Suspense>
       <Suspense fallback={<div aria-hidden className="card h-72 animate-denyut" />}>
         <MetodeBayar />

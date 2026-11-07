@@ -1,5 +1,5 @@
 import Link from "@/components/link";
-import { AlertTriangle, MessageCircle } from "lucide-react";
+import { AlertTriangle, MessageCircle, ShieldCheck } from "lucide-react";
 import { aturan } from "@/lib/aturan";
 import { db, sekarang } from "@/lib/db";
 import { teksHalaman } from "@/lib/bahasa-halaman";
@@ -7,6 +7,7 @@ import { angka, tanggal } from "@/lib/format";
 import { tautanChatCs } from "@/lib/followup";
 import { hakAkun, sisaKuotaAi } from "@/lib/langganan";
 import { requireUser } from "@/lib/session";
+import { JAMINAN_HARI } from "@/lib/jaminan-def";
 
 /** Nomor milik pengguna yang belum punya base knowledge berisi (satu query, lewat documents_number_idx). */
 async function nomorTanpaKnowledge(userId: number): Promise<{ id: number; label: string }[]> {
@@ -67,6 +68,29 @@ export async function BannerKuota() {
   if (user.peran === "admin") return null;
   const ambang = await aturan("peringatan_kuota_persen");
   const [hak, sisa] = await Promise.all([hakAkun(user), sisaKuotaAi(user.id)]);
+  if (hak.sampai === null && hak.balasan === 0) {
+    // Tanpa free trial: belum (atau tidak lagi) berlangganan. Ajakan tenang, bukan peringatan merah.
+    const { t } = await teksHalaman();
+    return (
+      <div role="status" className="flex flex-col gap-3 rounded-2xl border border-accent/30 bg-accent-soft px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-3">
+          <ShieldCheck className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden />
+          <div className="text-[13px]">
+            <p className="font-bold text-fg">{t("AI belum membalas pelanggan", "The AI isn't replying to customers yet")}</p>
+            <p className="text-muted">
+              {t(
+                `Coba dulu di Uji bot, lalu pilih paket supaya AI mulai membalas. Pembayaran pertama lewat GoPay, ShopeePay, atau QRIS dilindungi jaminan uang kembali ${JAMINAN_HARI} hari.`,
+                `Try it in the bot test first, then pick a plan so the AI starts replying. A first payment with GoPay, ShopeePay, or QRIS is covered by a ${JAMINAN_HARI}-day money-back guarantee.`,
+              )}
+            </p>
+          </div>
+        </div>
+        <Link href="/langganan" data-analitik="Banner: pilih paket" className="btn btn-primary shrink-0">
+          {t("Pilih paket", "Choose a plan")}
+        </Link>
+      </div>
+    );
+  }
   if (!hak.balasan || sisa === null) return null;
   // Free trial: diingatkan juga menjelang masa berlakunya habis (<= 2 hari) dan setelah lewat.
   const sisaHari = hak.percobaanSampai === null ? null : Math.ceil((hak.percobaanSampai - sekarang()) / 86400);

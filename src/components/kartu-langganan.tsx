@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/session";
 import { tingkatPaket } from "@/lib/tingkat-paket";
 import { LencanaPaket } from "./lencana-paket";
 import { Meter } from "./stat";
+import { JAMINAN_HARI } from "@/lib/jaminan-def";
 
 /**
  * Paket aktif, pemakaian kuota balasan AI (dengan bilah kemajuan), dan kuota nomor. Dipakai di Langganan, Ringkasan,
@@ -18,8 +19,39 @@ export async function KartuLangganan({ tautan = false }: { tautan?: boolean }) {
   const [terpakai, nomor] = await Promise.all([hak.balasan === null ? Promise.resolve(0) : balasanTerpakai(user.id, hak.periodeMulai), nomorMilik(user.id)]);
   const persenBalasan = hak.balasan ? Math.min(100, Math.round((terpakai / hak.balasan) * 100)) : 0;
   const berakhir = hak.percobaanBerakhir;
-  const habis = berakhir || (hak.balasan !== null && terpakai >= hak.balasan);
-  const tipis = !habis && hak.balasan !== null && persenBalasan >= 80;
+  // Tanpa free trial: akun yang belum (atau tidak lagi) berlangganan, AI tidak membalas pelanggan.
+  const tanpaPaket = hak.sampai === null && hak.balasan === 0 && hak.paket !== "Admin";
+  const habis = !tanpaPaket && (berakhir || (hak.balasan !== null && terpakai >= hak.balasan));
+  const tipis = !habis && !tanpaPaket && hak.balasan !== null && persenBalasan >= 80;
+  if (tanpaPaket)
+    return (
+      <section aria-label={t("Langganan dan kuota", "Subscription and quota")} className="card grid gap-5 p-5 sm:gap-6 sm:p-6 md:grid-cols-3">
+        <div className="md:col-span-2">
+          <p className="text-[12.5px] font-semibold text-muted">{t("Paket sekarang", "Current plan")}</p>
+          <p className="mt-1 text-2xl font-bold">{t("Belum berlangganan", "No plan yet")}</p>
+          <p className="mt-1 text-[13px] text-muted">
+            {t(
+              `AI belum membalas pelanggan. Sambungkan nomor, isi product knowledge, dan coba di Uji bot dulu, lalu pilih paket saat siap. Pembayaran pertama lewat GoPay, ShopeePay, atau QRIS dilindungi jaminan uang kembali ${JAMINAN_HARI} hari.`,
+              `The AI isn't replying to customers yet. Connect your number, add product knowledge, and try it in the bot test first, then pick a plan when you're ready. A first payment with GoPay, ShopeePay, or QRIS is covered by a ${JAMINAN_HARI}-day money-back guarantee.`,
+            )}
+          </p>
+        </div>
+        <div className="flex flex-col justify-between gap-4">
+          <div>
+            <p className="text-[12.5px] font-semibold text-muted">{t("Nomor WhatsApp", "WhatsApp numbers")}</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums">
+              {nomor.length}
+              <span className="text-base text-muted"> / {hak.nomor === null ? "∞" : hak.nomor}</span>
+            </p>
+          </div>
+          {tautan && (
+            <Link href="/langganan" className="btn btn-primary self-start">
+              {t("Pilih paket", "Choose a plan")}
+            </Link>
+          )}
+        </div>
+      </section>
+    );
   return (
     <section aria-label={t("Langganan dan kuota", "Subscription and quota")} className="card grid gap-5 p-5 sm:gap-6 sm:p-6 md:grid-cols-3">
       <div>

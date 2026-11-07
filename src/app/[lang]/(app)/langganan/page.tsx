@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "@/components/link";
-import { ArrowRight, Check, CreditCard, Sparkles } from "lucide-react";
+import { ArrowRight, Check, CreditCard, ShieldCheck, Sparkles } from "lucide-react";
 import { KartuLangganan } from "@/components/kartu-langganan";
 import { angka, tanggal, uang, UMUR_HISTORI_HARI } from "@/lib/format";
 import { labelKanal, ringkasKanal } from "@/lib/harga";
@@ -16,6 +16,11 @@ import { kanalAktif, konfigMidtrans } from "@/lib/midtrans";
 import { customTampil, idPaketCustom, paketCustom, tautanCustom } from "@/lib/paket-custom";
 import { KartuCustom, TombolWaCustom } from "@/components/kartu-custom";
 import { requireUser } from "@/lib/session";
+import { cekJaminan, modeRefund } from "@/lib/jaminan";
+import { namaBankTampil } from "@/lib/afiliasi-def";
+import { JAMINAN_HARI, JAMINAN_MAKS_PAKAI_PERSEN } from "@/lib/jaminan-def";
+import { sekarang } from "@/lib/db";
+import { FormJaminan } from "./jaminan";
 import { MEREK } from "@/lib/merek";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -52,6 +57,9 @@ export default async function HalamanLangganan() {
       <Suspense fallback={<div aria-hidden className="card h-40 animate-denyut" />}>
         <KartuLangganan />
       </Suspense>
+      <Suspense fallback={null}>
+        <Jaminan />
+      </Suspense>
       <Suspense fallback={<div aria-hidden className="grid gap-4 md:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="card h-80 animate-denyut" />)}</div>}>
         <Paket />
       </Suspense>
@@ -59,6 +67,76 @@ export default async function HalamanLangganan() {
         <Riwayat />
       </Suspense>
     </div>
+  );
+}
+
+/**
+ * Kartu jaminan uang kembali untuk pembayaran pertama: tampil selama masa jaminan (atau bila sudah pernah diajukan).
+ * Syarat dihitung di server (jaminan.ts); di luar masa jaminan dan tanpa pengajuan, kartu tidak tampil sama sekali.
+ */
+async function Jaminan() {
+  const [user, { b, t }] = await Promise.all([requireUser(), teksHalaman()]);
+  if (user.peran === "admin") return null;
+  const [j, mode] = await Promise.all([cekJaminan(user.id), modeRefund()]);
+  if (!j || (!j.pengajuan && sekarang() > j.sampai)) return null;
+  const rp = uang(j.jumlah, b);
+  const p = j.pengajuan;
+  const selesai = p?.status === "selesai";
+  const tujuan = p?.tujuan ? `${namaBankTampil(p.tujuan.bank)} ${p.tujuan.nomor} a.n. ${p.tujuan.nama}` : null;
+  return (
+    <section aria-labelledby="judul-jaminan" className={`card p-5 sm:p-6 ${j.boleh ? "ring-1 ring-accent/40" : ""}`}>
+      <h2 id="judul-jaminan" className="flex items-center gap-2 text-[15px] font-bold">
+        <ShieldCheck className={`size-4 ${selesai ? "text-success" : "text-accent"}`} aria-hidden />
+        {selesai ? t("Dana sudah dikembalikan", "Money refunded") : t(`Jaminan uang kembali ${JAMINAN_HARI} hari`, `${JAMINAN_HARI}-day money-back guarantee`)}
+      </h2>
+      {selesai ? (
+        <p className="mt-1.5 text-[13px] text-muted">
+          {p.cara === "manual"
+            ? t(
+                `${rp} dari pembelian ${j.orderId} sudah ditransfer kembali${tujuan ? ` ke ${tujuan}` : ""} pada ${tanggal(p.selesai ?? p.dibuat, b)}.`,
+                `${rp} from purchase ${j.orderId} was transferred back${tujuan ? ` to ${tujuan}` : ""} on ${tanggal(p.selesai ?? p.dibuat, b)}.`,
+              )
+            : t(
+                `${rp} dari pembelian ${j.orderId} dikembalikan ke metode bayar asal pada ${tanggal(p.selesai ?? p.dibuat, b)}. GoPay biasanya masuk dalam 1×24 jam; QRIS dari aplikasi lain bisa sampai 15–20 hari kerja.`,
+                `${rp} from purchase ${j.orderId} was refunded to the original payment method on ${tanggal(p.selesai ?? p.dibuat, b)}. GoPay usually arrives within 24 hours; QRIS from other apps can take up to 15–20 business days.`,
+              )}
+        </p>
+      ) : p?.status === "menunggu" || p?.status === "diproses" ? (
+        <p className="mt-1.5 text-[13px] text-muted">
+          {p.cara === "manual"
+            ? t(
+                `Pengajuan diterima pada ${tanggal(p.dibuat, b)}. Admin akan mentransfer ${rp}${tujuan ? ` ke ${tujuan}` : ""}, lalu kamu dapat notifikasi. Paket tetap aktif sampai dana ditransfer.`,
+                `Request received on ${tanggal(p.dibuat, b)}. The admin will transfer ${rp}${tujuan ? ` to ${tujuan}` : ""} and you'll be notified. Your plan stays active until then.`,
+              )
+            : t("Pengembalian dana sedang diproses Midtrans. Halaman ini diperbarui begitu selesai.", "Midtrans is processing your refund. This page updates once it's done.")}
+        </p>
+      ) : p?.status === "ditolak" ? (
+        <p className="mt-1.5 text-[13px] text-muted">
+          {t(`Pengajuan uang kembali ditolak admin${p.catatan ? `: ${p.catatan}` : "."} Paket kamu tetap aktif.`, `The refund request was declined by the admin${p.catatan ? `: ${p.catatan}` : "."} Your plan stays active.`)}
+        </p>
+      ) : (
+        <>
+          <p className="mt-1.5 text-[13px] text-muted">
+            {t(
+              `Kurang cocok? Pembayaran pertama ${rp} bisa diminta kembali penuh sampai ${tanggal(j.sampai, b)}, selama balasan AI yang terpakai paling banyak ${angka(j.batasPakai)} (${JAMINAN_MAKS_PAKAI_PERSEN}% kuota). Terpakai sekarang: ${angka(j.terpakai)}.`,
+              `Not a fit? Your first payment of ${rp} can be fully refunded until ${tanggal(j.sampai, b)}, as long as you've used at most ${angka(j.batasPakai, b)} AI replies (${JAMINAN_MAKS_PAKAI_PERSEN}% of the quota). Used so far: ${angka(j.terpakai, b)}.`,
+            )}
+          </p>
+          {p?.status === "gagal" && (
+            <p className="mt-2 text-[12.5px] text-warning">
+              {t("Percobaan sebelumnya belum diproses Midtrans. Admin sudah diberi tahu; kamu juga bisa mencoba lagi.", "The previous attempt wasn't processed by Midtrans. The admin has been notified; you can also try again.")}
+            </p>
+          )}
+          {j.boleh ? (
+            <div className="mt-4">
+              <FormJaminan jumlah={rp} mode={mode} kanal={j.kanal} />
+            </div>
+          ) : (
+            j.alasan && <p className="mt-2 text-[12.5px] font-medium text-fg">{b === "en" ? j.alasan.en : j.alasan.id}</p>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 

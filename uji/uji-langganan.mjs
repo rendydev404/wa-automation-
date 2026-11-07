@@ -53,16 +53,18 @@ await cek("migrasi membuat 3 paket awal (Starter, Bisnis unggulan, Pro) urut har
   );
 });
 
-await cek("hak akun: admin tanpa batas; tanpa paket = free trial 5 balasan sekali pakai (jumlah & 'tiap bulan' bisa diatur admin); kuota nomor per akun mengalahkan paket", async () => {
+await cek("hak akun: admin tanpa batas; tanpa paket = TANPA free trial (0 balasan, bukan masa percobaan); admin masih bisa menyalakan trial (jumlah & 'tiap bulan'); kuota nomor per akun mengalahkan paket", async () => {
   assert.deepEqual(await L.hakAkun({ id: admin.id, peran: "admin" }), { nomor: null, balasan: null, periodeMulai: L.awalBulanWib(), sampai: null, paket: "Admin", kodePaket: null, bonus: 0, percobaan: false, percobaanSampai: null, percobaanBerakhir: false });
   let h = await L.hakAkun(B);
   const [{ created_at: dibuat }] = await sql`SELECT created_at FROM users WHERE id = ${budi.id}`;
-  assert.deepEqual([h.nomor, h.balasan, h.paket, h.sampai, h.percobaan, h.periodeMulai], [1, 5, "Gratis", null, true, dibuat]);
-  // Masa percobaan bawaan 7 hari sejak akun dibuat.
-  assert.deepEqual([h.percobaanSampai, h.percobaanBerakhir], [dibuat + 7 * 86400, false]);
+  // Migrasi v30 (jaminan uang kembali) mematikan trial: tidak ada masa percobaan yang bisa "berakhir".
+  assert.deepEqual([h.nomor, h.balasan, h.paket, h.sampai, h.percobaan, h.periodeMulai], [1, 0, "Gratis", null, false, L.awalBulanWib()]);
+  assert.deepEqual([h.percobaanSampai, h.percobaanBerakhir], [null, false]);
   await setSetting("kuota_percobaan", "50");
   h = await L.hakAkun(B);
-  assert.equal(h.balasan, 50);
+  assert.deepEqual([h.balasan, h.percobaan, h.periodeMulai], [50, true, dibuat]);
+  // Masa percobaan bawaan 7 hari sejak akun dibuat (bila admin menyalakan trial lagi).
+  assert.deepEqual([h.percobaanSampai, h.percobaanBerakhir], [dibuat + 7 * 86400, false]);
   await setSetting("kuota_percobaan_ulang", "bulanan");
   h = await L.hakAkun(B);
   assert.deepEqual([h.balasan, h.percobaan, h.periodeMulai, h.percobaanSampai], [50, false, L.awalBulanWib(), null]);
