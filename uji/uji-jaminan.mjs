@@ -119,13 +119,13 @@ await cek("bayar QRIS pertama: paket aktif + komisi afiliasi masuk saldo tapi TE
   assert.equal(await J.sudahPernahBayar(ani.id), true);
   assert.equal((await A.profilAfiliator(mitra.id)).saldo, 19_800);
   assert.equal((await A.ringkasanAfiliasiUser(mitra.id)).tertahan, 19_800);
-  await assert.rejects(() => A.ajukanPenarikan(mitra.id, 50_000), /komisi baru bisa ditarik 1×24 jam/);
+  await assert.rejects(() => A.ajukanPenarikan(mitra.id, 50_000), /komisi baru bisa ditarik 3 hari/);
 });
 
-await cek("syarat jaminan: 1×24 jam, boleh selama pemakaian <= 20% kuota (200 dari 1.000); lewat itu ditolak dengan angka", async () => {
+await cek("syarat jaminan: 3 hari, boleh selama pemakaian <= 20% kuota (200 dari 1.000); lewat itu ditolak dengan angka", async () => {
   let j = await J.cekJaminan(ani.id);
   assert.deepEqual([j.boleh, j.terpakai, j.batasPakai, j.jumlah, j.kanal], [true, 0, 200, 99_000, "qris"]);
-  assert.ok(Math.abs(j.sampai - (sekarang() + 1 * 86400)) <= 2);
+  assert.ok(Math.abs(j.sampai - (sekarang() + 3 * 86400)) <= 2);
   await pakaiAi(ani.nomor.id, 201);
   j = await J.cekJaminan(ani.id);
   assert.equal(j.boleh, false);
@@ -240,7 +240,7 @@ await cek("sekali per orang: nomor WhatsApp yang sudah memakai jaminan tidak bis
   assert.match(j.alasan.id, /sudah pernah memakai jaminan/);
 });
 
-await cek("VA bank tidak termasuk; pembayaran kedua & lewat 1×24 jam juga tidak", async () => {
+await cek("VA bank tidak termasuk; pembayaran kedua & lewat 3 hari juga tidak", async () => {
   const budi = await akun("budi@uji.test", "6281300000003");
   await bayar(budi, "bni");
   let j = await J.cekJaminan(budi.id);
@@ -336,14 +336,14 @@ await cek("refund dari dashboard Midtrans (webhook): paket dicabut, komisi batal
   await J.setModeRefund("manual");
 });
 
-await cek("masa tahan komisi lewat 1×24 jam (tanpa pengajuan berjalan) = bisa ditarik", async () => {
+await cek("masa tahan komisi lewat 3 hari (tanpa pengajuan berjalan) = bisa ditarik", async () => {
   for (const x of ["hana", "ika", "joko"]) {
     const u = await akun(`${x}@uji.test`);
     await A.terapkanReferral(u.id, af.kode);
     await bayar(u, "gopay");
   }
   assert.equal((await A.profilAfiliator(mitra.id)).saldo, 59_400);
-  await assert.rejects(() => A.ajukanPenarikan(mitra.id, 50_000), /ditarik 1×24 jam/);
+  await assert.rejects(() => A.ajukanPenarikan(mitra.id, 50_000), /ditarik 3 hari/);
   await sql`UPDATE komisi_afiliasi SET created_at = created_at - 4 * 86400 WHERE afiliator_id = ${mitra.id}`;
   assert.equal((await A.ringkasanAfiliasiUser(mitra.id)).tertahan, 0);
   assert.equal((await A.ajukanPenarikan(mitra.id, 50_000)).status, "menunggu");
