@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { ArrowRight, BookOpenText, Camera, Check, GraduationCap, Hand, History, Lock, MessageSquareLock, ShieldCheck, Smartphone, TriangleAlert, Zap } from "lucide-react";
 import { GantiBahasa } from "@/components/ganti-bahasa";
 import { DemoAlur, DemoChat } from "@/components/landing/demo";
+import { RobotLari } from "@/components/landing/robot-lari";
 import { BandingLanding, HargaLanding } from "@/components/landing/harga";
 import Link from "@/components/link";
 import { Logo } from "@/components/logo";
@@ -244,7 +245,10 @@ export default async function Landing() {
               ))}
             </ul>
           </div>
-          <DemoChat />
+          <div className="relative">
+            <DemoChat />
+            <RobotLari className="absolute -bottom-14 left-0 z-10 w-[136px] sm:-bottom-12 sm:left-[2%] sm:w-[170px] lg:bottom-0 lg:-left-8 lg:w-[190px] xl:-left-10 xl:w-[200px]" />
+          </div>
           <PendaftarLoop />
         </section>
       </div>

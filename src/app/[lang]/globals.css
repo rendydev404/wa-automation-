@@ -644,3 +644,204 @@ body {
     animation: harga-kilau 3.4s ease-in-out infinite;
   }
 }
+
+/*
+ * Maskot robot lari di hero (components/landing/robot-lari.tsx). Sprite 4 pose digeser lewat transform + steps(4):
+ * hanya transform/opacity/filter (GPU). .robot-turbo = hover/sentuh, .robot-melesat = klik, .robot-jeda = di luar layar.
+ */
+@keyframes robot-langkah {
+  to {
+    transform: translateX(-100%);
+  }
+}
+@keyframes robot-ayun {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-5%);
+  }
+}
+@keyframes robot-bayang {
+  from {
+    transform: scaleX(1);
+    opacity: 0.7;
+  }
+  to {
+    transform: scaleX(0.82);
+    opacity: 0.45;
+  }
+}
+@keyframes robot-garis {
+  0% {
+    transform: translateX(40%) scaleX(0.6);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-140%) scaleX(1);
+    opacity: 0;
+  }
+}
+@keyframes robot-melesat {
+  0% {
+    transform: translateX(0) scale(1);
+  }
+  30% {
+    transform: translateX(55%) scale(1.1) skewX(-8deg);
+  }
+  55% {
+    transform: translateX(62%) scale(1.06);
+  }
+  100% {
+    transform: translateX(0) scale(1);
+  }
+}
+@keyframes robot-gelembung {
+  0% {
+    transform: translateY(6px) scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(-2px) scale(1.06);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+@layer components {
+  .robot-lari {
+    position: relative;
+    display: block;
+    aspect-ratio: 315 / 280;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transform: translate(calc(var(--condong-x, 0) * 10px), calc(var(--condong-y, 0) * 6px)) rotate(calc(var(--condong-x, 0) * 5deg));
+    transition:
+      opacity 0.6s ease,
+      transform 0.3s ease-out;
+  }
+  .robot-lari:focus-visible {
+    outline: 2px solid #a3ff47;
+    outline-offset: 4px;
+    border-radius: 24px;
+  }
+  .robot-tubuh {
+    position: absolute;
+    inset: 0;
+    animation: robot-ayun 0.18s ease-in-out infinite alternate;
+  }
+  .robot-tubuh.robot-melesat {
+    animation:
+      robot-melesat 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 1,
+      robot-ayun 0.18s ease-in-out 0.9s infinite alternate;
+  }
+  .robot-bingkai {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+  }
+  .robot-sprite {
+    display: block;
+    width: 400%;
+    max-width: none;
+    height: 100%;
+    animation: robot-langkah 0.48s steps(4) infinite;
+    filter: drop-shadow(0 0 10px rgba(163, 255, 71, 0.35));
+    transition: filter 0.25s ease;
+  }
+  .robot-bayangan {
+    position: absolute;
+    left: 20%;
+    bottom: 1%;
+    width: 58%;
+    height: 9%;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(163, 255, 71, 0.45), rgba(0, 0, 0, 0.35) 55%, transparent);
+    animation: robot-bayang 0.18s ease-in-out infinite alternate;
+  }
+  .robot-garis {
+    position: absolute;
+    inset: 18% 45% 14% -40%;
+    pointer-events: none;
+  }
+  .robot-garis i {
+    position: absolute;
+    right: 0;
+    height: 3px;
+    border-radius: 9999px;
+    background: linear-gradient(to left, rgba(163, 255, 71, 0.95), rgba(61, 220, 151, 0));
+    animation: robot-garis 0.55s linear infinite;
+  }
+  .robot-garis i:nth-child(1) {
+    top: 12%;
+    width: 70%;
+  }
+  .robot-garis i:nth-child(2) {
+    top: 38%;
+    width: 95%;
+    animation-delay: 0.18s;
+  }
+  .robot-garis i:nth-child(3) {
+    top: 62%;
+    width: 60%;
+    animation-delay: 0.32s;
+  }
+  .robot-garis i:nth-child(4) {
+    top: 84%;
+    width: 80%;
+    animation-delay: 0.1s;
+  }
+  .robot-turbo .robot-sprite {
+    animation-duration: 0.24s;
+    filter: drop-shadow(0 0 18px rgba(163, 255, 71, 0.8)) brightness(1.12) saturate(1.2);
+  }
+  .robot-turbo .robot-tubuh,
+  .robot-turbo .robot-bayangan {
+    animation-duration: 0.1s;
+  }
+  .robot-turbo .robot-garis i {
+    animation-duration: 0.28s;
+    height: 4px;
+  }
+  .robot-gelembung {
+    position: absolute;
+    z-index: 2;
+    top: -4%;
+    right: -6%;
+    padding: 4px 11px;
+    border-radius: 9999px;
+    background: #a3ff47;
+    color: var(--c-ink);
+    font-size: 12.5px;
+    font-weight: 800;
+    white-space: nowrap;
+    box-shadow: 0 0 18px rgba(163, 255, 71, 0.65);
+    animation: robot-gelembung 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .robot-jeda,
+  .robot-jeda * {
+    animation-play-state: paused !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .robot-sprite,
+  .robot-tubuh,
+  .robot-tubuh.robot-melesat,
+  .robot-bayangan,
+  .robot-garis i,
+  .robot-gelembung {
+    animation: none !important;
+  }
+  .robot-garis {
+    display: none;
+  }
+}
