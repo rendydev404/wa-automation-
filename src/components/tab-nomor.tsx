@@ -97,6 +97,7 @@ export function TabNomor({ tab }: { tab: TabNomorDef[] }) {
                 id={`tab-${x.id}`}
                 data-id={x.id}
                 data-tur-tab={x.tur?.join(" ") || undefined}
+                data-analitik={`Tab ${x.label.id}`}
                 aria-selected={ya}
                 aria-controls={`panel-${x.id}`}
                 tabIndex={ya ? 0 : -1}

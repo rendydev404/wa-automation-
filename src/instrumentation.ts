@@ -34,6 +34,9 @@ export async function register() {
     // Notifikasi in-app: pengingat paket akan/sudah berakhir & pembersihan notifikasi lama, tiap jam.
     const { mulaiPengingat } = await import("@/lib/notifikasi");
     mulaiPengingat();
+    // Analitik perilaku pengguna: event di memori ditulis berkelompok tiap ~10 dtk & baris lama dihapus tiap 6 jam.
+    const { mulaiAnalitik } = await import("@/lib/analitik");
+    mulaiAnalitik();
   } catch (e) {
     console.error("[wa] gagal memulai gerbang WhatsApp:", e);
   }

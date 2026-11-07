@@ -451,7 +451,7 @@ export function HistoriPercakapan({
                 </p>
               </div>
             ) : (
-              <ul className="divide-y divide-line">
+              <ul data-analitik-privat className="divide-y divide-line">
                 {daftar.map((item) => {
                   const terpilih = item.id === aktifId;
                   const dijeda = item.jeda_sampai > kini;
@@ -459,6 +459,7 @@ export function HistoriPercakapan({
                     <li key={item.id}>
                       <button
                         type="button"
+                        data-analitik="Buka percakapan"
                         onClick={() => pilihPercakapan(item.id)}
                         className={`flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors ${
                           terpilih ? "bg-accent-soft/55" : "hover:bg-subtle/60"
@@ -564,7 +565,7 @@ export function HistoriPercakapan({
                   >
                     <ArrowLeft className="size-4" aria-hidden />
                   </button>
-                  <div className="min-w-0">
+                  <div data-analitik-privat className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate text-[14px] font-bold text-fg">{namaTampil(percakapanAktif, t)}</p>
                       {percakapanAktif.jeda_sampai > kini && <Pill nada="kuning">{t("AI sedang jeda (ditangani manusia)", "AI paused (handled by you)")}</Pill>}
@@ -575,6 +576,7 @@ export function HistoriPercakapan({
                       {percakapanAktif.telepon && (
                         <button
                           type="button"
+                          data-analitik="Salin nomor WhatsApp"
                           onClick={() => void salinNomor(percakapanAktif.telepon!)}
                           title={t("Salin nomor WhatsApp", "Copy WhatsApp number")}
                           className="inline-flex items-center gap-1 font-medium text-muted tabular-nums hover:text-fg"
@@ -643,6 +645,7 @@ export function HistoriPercakapan({
               {/* Ruang Gelembung Pesan */}
               <div
                 ref={wadahPesanRef}
+                data-analitik-privat
                 className="flex h-[62svh] min-h-80 flex-col gap-2.5 overflow-y-auto px-3 py-4 sm:px-5 md:h-auto md:min-h-0 md:flex-1"
               >
                 {!adaSebelumnya && !memuatPesan && pesan.length > 0 && (
@@ -657,6 +660,7 @@ export function HistoriPercakapan({
                   <div className="mb-1 flex justify-center">
                     <button
                       type="button"
+                      data-analitik="Muat pesan sebelumnya"
                       onClick={() => void muatPesanSebelumnya()}
                       disabled={memuatSebelumnya}
                       className="btn btn-ghost h-7 px-3 text-xs"

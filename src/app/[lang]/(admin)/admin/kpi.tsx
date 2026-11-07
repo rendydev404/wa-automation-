@@ -161,7 +161,7 @@ export async function KpiRingkasan() {
           {log.length === 0 ? (
             <p className="mt-4 text-[13px] text-muted">Belum ada tindakan.</p>
           ) : (
-            <ol className="mt-3 divide-y divide-line">
+            <ol data-analitik-privat className="mt-3 divide-y divide-line">
               {log.map((l) => (
                 <li key={l.id} className="flex items-baseline justify-between gap-3 py-2.5 text-[12.5px]">
                   <p className="min-w-0">
@@ -200,7 +200,7 @@ function Pendukung({ href, ikon, label, nilai, children }: { href?: string; ikon
   );
   const kelas = "min-w-0 bg-surface p-4 sm:p-5";
   return href ? (
-    <Link href={href} className={`group ${kelas} transition-colors hover:bg-subtle`}>
+    <Link href={href} data-analitik={label} className={`group ${kelas} transition-colors hover:bg-subtle`}>
       {isi}
     </Link>
   ) : (
@@ -215,7 +215,7 @@ const LABEL_NADA: Record<Nada, string> = { bahaya: "Penting", waspada: "Perhatia
 function Butir({ nada, ikon, judul, isi, href, children }: { nada: Nada; ikon: ReactNode; judul: ReactNode; isi: ReactNode; href: string; children?: ReactNode }) {
   return (
     <li>
-      <Link href={href} className="group -mx-2 flex items-start gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-subtle">
+      <Link href={href} data-analitik="Buka butir perhatian" className="group -mx-2 flex items-start gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-subtle">
         <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${WARNA_NADA[nada]}`}>
           {ikon}
           <span className="sr-only">{LABEL_NADA[nada]}:</span>
@@ -256,7 +256,7 @@ function PerluPerhatian({ k, terputus, kini }: { k: KpiAdmin; terputus: KpiAdmin
           <p className="mt-0.5 max-w-64 text-[12.5px] text-muted">Tidak ada nomor terputus, tagihan tertunda, langganan hampir habis, atau kuota menipis.</p>
         </div>
       ) : (
-        <ul className="mt-2 space-y-0.5">
+        <ul data-analitik-privat className="mt-2 space-y-0.5">
           {terputus.length > 0 && (
             <Butir
               nada="bahaya"

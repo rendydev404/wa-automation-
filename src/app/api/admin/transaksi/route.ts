@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { catatFitur } from "@/lib/analitik";
 import { getUser } from "@/lib/session";
 import { cariTransaksi, labelMetode, opsiDariParam } from "@/lib/transaksi-admin";
 
@@ -25,6 +26,7 @@ export async function GET(req: Request) {
       .join(","),
   );
   const tgl = iso(Math.floor(Date.now() / 1000)).slice(0, 10);
+  catatFitur(user.id, "admin.ekspor_transaksi");
   return new NextResponse(`﻿${[kepala.join(","), ...baris].join("\r\n")}\r\n`, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

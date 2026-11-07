@@ -97,12 +97,13 @@ export function PratinjauPesan({
           <div className="flex flex-wrap items-center gap-2">
             {sunting ? (
               <>
-                <button type="button" className="btn btn-primary" disabled={tunggu} onClick={simpan}>
+                <button type="button" data-analitik="Follow-up: simpan pesan" className="btn btn-primary" disabled={tunggu} onClick={simpan}>
                   {tunggu && <Loader2 className="size-4 animate-spin" aria-hidden />}
                   Simpan
                 </button>
                 <button
                   type="button"
+                  data-analitik="Follow-up: batal edit"
                   className="btn btn-ghost"
                   disabled={tunggu}
                   onClick={() => {
@@ -115,12 +116,12 @@ export function PratinjauPesan({
               </>
             ) : (
               <>
-                <button type="button" className="btn btn-ghost border border-line" disabled={tunggu} onClick={tulisUlang}>
+                <button type="button" data-analitik="Follow-up: tulis ulang (AI)" className="btn btn-ghost border border-line" disabled={tunggu} onClick={tulisUlang}>
                   {tunggu ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <RefreshCw className="size-4" aria-hidden />}
                   {tersimpan ? "Tulis ulang (AI)" : "Buat pratinjau"}
                 </button>
                 {tersimpan && (
-                  <button type="button" className="btn btn-ghost border border-line" disabled={tunggu} onClick={() => setSunting(true)}>
+                  <button type="button" data-analitik="Follow-up: edit pesan" className="btn btn-ghost border border-line" disabled={tunggu} onClick={() => setSunting(true)}>
                     <Pencil className="size-4" aria-hidden /> Edit
                   </button>
                 )}

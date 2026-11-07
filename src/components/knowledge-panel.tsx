@@ -97,7 +97,7 @@ export function KnowledgePanel({ numberId, dokumen, total, batasUtuh }: { number
             )}
           </p>
         ) : (
-          <ul className="divide-y divide-line rounded-xl border border-line">
+          <ul data-analitik-privat className="divide-y divide-line rounded-xl border border-line">
             {dokumen.map((d) => (
               <Baris key={d.id} d={d} numberId={numberId} sempurnakan={() => sempurnakan(d)} sedangDiedit={edit?.id === d.id} />
             ))}
@@ -148,6 +148,7 @@ function Unggah({ numberId }: { numberId: number }) {
     <div>
       <button
         type="button"
+        data-analitik="Pilih berkas knowledge"
         onClick={() => input.current?.click()}
         onDragOver={(e) => (e.preventDefault(), setSeret(true))}
         onDragLeave={() => setSeret(false)}
@@ -182,7 +183,7 @@ function Unggah({ numberId }: { numberId: number }) {
         }}
       />
       {daftar.length > 0 && (
-        <ul className="mt-3 space-y-1.5">
+        <ul data-analitik-privat className="mt-3 space-y-1.5">
           {daftar.map((u, i) => (
             <li key={`${u.nama}-${i}`} className="flex items-center gap-2 text-[13px]">
               {u.status === "proses" ? (
@@ -222,7 +223,7 @@ function Baris({ d, numberId, sempurnakan, sedangDiedit }: { d: ItemDokumen; num
         <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-subtle text-muted max-sm:hidden">
           <Ikon className="size-4" aria-hidden />
         </span>
-        <button type="button" onClick={togglePratinjau} className="min-w-0 flex-1 text-left" aria-expanded={buka}>
+        <button type="button" data-analitik="Buka pratinjau dokumen" onClick={togglePratinjau} className="min-w-0 flex-1 text-left" aria-expanded={buka}>
           <p className="truncate text-[13.5px] font-semibold">{d.judul}</p>
           <p className="hint">
             {d.sumber === "pdf" ? "PDF" : d.sumber === "berkas" ? t("Berkas teks", "Text file") : t("Teks", "Text")}
@@ -231,11 +232,11 @@ function Baris({ d, numberId, sempurnakan, sedangDiedit }: { d: ItemDokumen; num
         </button>
         {tanya ? (
           <div className="flex animate-masuk items-center gap-1.5">
-            <button type="button" disabled={tunggu} className="btn h-8 bg-danger px-3 text-white" onClick={() => mulai(async () => void (await hapusDokumenAction(d.id, numberId)))}>
+            <button type="button" data-analitik="Hapus dokumen: ya" disabled={tunggu} className="btn h-8 bg-danger px-3 text-white" onClick={() => mulai(async () => void (await hapusDokumenAction(d.id, numberId)))}>
               {tunggu && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
               {t("Hapus", "Delete")}
             </button>
-            <button type="button" disabled={tunggu} className="btn btn-ghost h-8 px-3" onClick={() => setTanya(false)}>
+            <button type="button" data-analitik="Hapus dokumen: batal" disabled={tunggu} className="btn btn-ghost h-8 px-3" onClick={() => setTanya(false)}>
               {t("Batal", "Cancel")}
             </button>
           </div>
@@ -243,6 +244,7 @@ function Baris({ d, numberId, sempurnakan, sedangDiedit }: { d: ItemDokumen; num
           <>
             <button
               type="button"
+              data-analitik="Sempurnakan dokumen"
               onClick={sempurnakan}
               disabled={sedangDiedit}
               title={t("Rapikan & lengkapi dokumen ini dengan AI", "Tidy up & complete this document with AI")}
@@ -250,22 +252,23 @@ function Baris({ d, numberId, sempurnakan, sedangDiedit }: { d: ItemDokumen; num
             >
               <Sparkles className="size-4" aria-hidden /> {sedangDiedit ? t("Sedang dirapikan", "Being refined") : t("Sempurnakan", "Refine")}
             </button>
-            <button type="button" onClick={sempurnakan} disabled={sedangDiedit} aria-label={t(`Sempurnakan ${d.judul} dengan AI`, `Refine ${d.judul} with AI`)} className="grid size-9 shrink-0 place-items-center rounded-lg text-accent hover:bg-accent-soft sm:hidden">
+            <button type="button" data-analitik="Sempurnakan dokumen" onClick={sempurnakan} disabled={sedangDiedit} aria-label={t(`Sempurnakan ${d.judul} dengan AI`, `Refine ${d.judul} with AI`)} className="grid size-9 shrink-0 place-items-center rounded-lg text-accent hover:bg-accent-soft sm:hidden">
               <PencilLine className="size-4" aria-hidden />
             </button>
-            <button type="button" onClick={togglePratinjau} aria-label={t("Lihat isi", "View content")} className="grid size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-subtle hover:text-fg">
+            <button type="button" data-analitik="Lihat isi dokumen" onClick={togglePratinjau} aria-label={t("Lihat isi", "View content")} className="grid size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-subtle hover:text-fg">
               <ChevronDown className={`size-4 transition-transform ${buka ? "rotate-180" : ""}`} aria-hidden />
             </button>
             <a
               href={`/api/knowledge/unduh?id=${d.id}&nomor=${numberId}`}
               download
+              data-analitik="Unduh dokumen"
               aria-label={t(`Unduh ${d.judul}`, `Download ${d.judul}`)}
               title={t("Unduh sebagai .txt", "Download as .txt")}
               className="hidden size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-subtle hover:text-fg sm:grid"
             >
               <Download className="size-4" aria-hidden />
             </a>
-            <button type="button" onClick={() => setTanya(true)} aria-label={t(`Hapus ${d.judul}`, `Delete ${d.judul}`)} className="grid size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-danger-soft hover:text-danger">
+            <button type="button" data-analitik="Hapus dokumen" onClick={() => setTanya(true)} aria-label={t(`Hapus ${d.judul}`, `Delete ${d.judul}`)} className="grid size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-danger-soft hover:text-danger">
               <Trash2 className="size-4" aria-hidden />
             </button>
           </>

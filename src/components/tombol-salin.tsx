@@ -11,6 +11,7 @@ export function TombolSalin({ teks, label, className = "" }: { teks: string; lab
   return (
     <button
       type="button"
+      data-analitik="Salin"
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(teks);

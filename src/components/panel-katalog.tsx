@@ -128,7 +128,7 @@ export function PanelKatalog({ numberId, produk, boleh }: { numberId: number; pr
           </p>
         </div>
       ) : (
-        <ul className="mt-4 divide-y divide-line rounded-xl border border-line">
+        <ul data-analitik-privat className="mt-4 divide-y divide-line rounded-xl border border-line">
           {tampil.map((p) => (
             <BarisProduk key={p.id} numberId={numberId} p={p} pertama={p.id === produk[0]?.id} terakhir={p.id === produk[produk.length - 1]?.id} bisaGeser={!q} ubah={() => setEdit(p)} />
           ))}
@@ -169,30 +169,30 @@ function BarisProduk({ numberId, p, pertama, terakhir, bisaGeser, ubah }: { numb
       </span>
       {tanyaHapus ? (
         <span className="flex shrink-0 items-center gap-1.5">
-          <button type="button" disabled={sedang} onClick={() => jalankan(() => hapusProdukAction(numberId, p.id))} className="btn bg-danger px-2.5 text-white hover:opacity-90">
+          <button type="button" data-analitik="Katalog: hapus produk (ya)" disabled={sedang} onClick={() => jalankan(() => hapusProdukAction(numberId, p.id))} className="btn bg-danger px-2.5 text-white hover:opacity-90">
             {t("Hapus", "Delete")}
           </button>
-          <button type="button" onClick={() => setTanyaHapus(false)} className="btn btn-ghost px-2.5">
+          <button type="button" data-analitik="Katalog: hapus produk (batal)" onClick={() => setTanyaHapus(false)} className="btn btn-ghost px-2.5">
             {t("Batal", "Cancel")}
           </button>
         </span>
       ) : (
         <span className="flex shrink-0 items-center gap-1">
-          <Saklar aktif={p.tersedia} onUbah={(v) => jalankan(() => tersediaProdukAction(numberId, p.id, v))} label={t(`${p.nama} tersedia`, `${p.nama} available`)} disabled={sedang} />
+          <Saklar aktif={p.tersedia} onUbah={(v) => jalankan(() => tersediaProdukAction(numberId, p.id, v))} label={t(`${p.nama} tersedia`, `${p.nama} available`)} analitik="Katalog: saklar tersedia" disabled={sedang} />
           {bisaGeser && (
             <span className="ml-1 flex flex-col">
-              <button type="button" aria-label={t(`Naikkan ${p.nama}`, `Move ${p.nama} up`)} disabled={pertama || sedang} onClick={() => jalankan(() => geserProdukAction(numberId, p.id, -1))} className="grid size-7 place-items-center rounded text-faint hover:bg-subtle hover:text-fg disabled:opacity-30 sm:size-5">
+              <button type="button" data-analitik="Katalog: naikkan produk" aria-label={t(`Naikkan ${p.nama}`, `Move ${p.nama} up`)} disabled={pertama || sedang} onClick={() => jalankan(() => geserProdukAction(numberId, p.id, -1))} className="grid size-7 place-items-center rounded text-faint hover:bg-subtle hover:text-fg disabled:opacity-30 sm:size-5">
                 <ArrowUp className="size-3.5" aria-hidden />
               </button>
-              <button type="button" aria-label={t(`Turunkan ${p.nama}`, `Move ${p.nama} down`)} disabled={terakhir || sedang} onClick={() => jalankan(() => geserProdukAction(numberId, p.id, 1))} className="grid size-7 place-items-center rounded text-faint hover:bg-subtle hover:text-fg disabled:opacity-30 sm:size-5">
+              <button type="button" data-analitik="Katalog: turunkan produk" aria-label={t(`Turunkan ${p.nama}`, `Move ${p.nama} down`)} disabled={terakhir || sedang} onClick={() => jalankan(() => geserProdukAction(numberId, p.id, 1))} className="grid size-7 place-items-center rounded text-faint hover:bg-subtle hover:text-fg disabled:opacity-30 sm:size-5">
                 <ArrowDown className="size-3.5" aria-hidden />
               </button>
             </span>
           )}
-          <button type="button" aria-label={t(`Ubah ${p.nama}`, `Edit ${p.nama}`)} onClick={ubah} className="grid size-9 place-items-center rounded-lg text-muted hover:bg-subtle hover:text-fg sm:size-8">
+          <button type="button" data-analitik="Katalog: ubah produk" aria-label={t(`Ubah ${p.nama}`, `Edit ${p.nama}`)} onClick={ubah} className="grid size-9 place-items-center rounded-lg text-muted hover:bg-subtle hover:text-fg sm:size-8">
             <Pencil className="size-4" aria-hidden />
           </button>
-          <button type="button" aria-label={t(`Hapus ${p.nama}`, `Delete ${p.nama}`)} onClick={() => setTanyaHapus(true)} className="grid size-9 place-items-center rounded-lg text-muted hover:bg-danger-soft hover:text-danger sm:size-8">
+          <button type="button" data-analitik="Katalog: hapus produk" aria-label={t(`Hapus ${p.nama}`, `Delete ${p.nama}`)} onClick={() => setTanyaHapus(true)} className="grid size-9 place-items-center rounded-lg text-muted hover:bg-danger-soft hover:text-danger sm:size-8">
             <Trash2 className="size-4" aria-hidden />
           </button>
         </span>

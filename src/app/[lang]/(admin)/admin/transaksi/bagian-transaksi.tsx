@@ -153,6 +153,7 @@ export async function DaftarTransaksi({ searchParams }: { searchParams: Promise<
           {FILTER_STATUS_TRX.map((f) => (
             <Link
               key={f.nilai}
+              data-analitik={`Saring status: ${f.label}`}
               href={tautan({ s: f.nilai === "semua" ? undefined : f.nilai, sebelum: undefined })}
               aria-current={opsi.status === f.nilai ? "page" : undefined}
               className={`inline-flex min-h-9 shrink-0 items-center rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${opsi.status === f.nilai ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
@@ -169,15 +170,15 @@ export async function DaftarTransaksi({ searchParams }: { searchParams: Promise<
       ) : (
         <>
           {/* HP: kartu per transaksi. */}
-          <ul className="divide-y divide-line lg:hidden">
+          <ul data-analitik-privat className="divide-y divide-line lg:hidden">
             {daftar.map((t) => (
               <li key={t.id} className="px-4 py-3.5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <Link href={`/admin/transaksi/${encodeURIComponent(t.order_id)}`} className="block truncate font-mono text-[12.5px] font-semibold hover:underline">
+                    <Link href={`/admin/transaksi/${encodeURIComponent(t.order_id)}`} data-analitik="Buka transaksi" className="block truncate font-mono text-[12.5px] font-semibold hover:underline">
                       {t.order_id}
                     </Link>
-                    <Link href={`/admin/pengguna/${t.user_id}`} className="block truncate text-[13px] text-muted hover:underline">
+                    <Link href={`/admin/pengguna/${t.user_id}`} data-analitik="Buka pengguna" className="block truncate text-[13px] text-muted hover:underline">
                       {t.nama_user || t.email} · {t.email}
                     </Link>
                   </div>
@@ -208,12 +209,12 @@ export async function DaftarTransaksi({ searchParams }: { searchParams: Promise<
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-line">
+              <tbody data-analitik-privat className="divide-y divide-line">
                 {daftar.map((t) => (
                   <tr key={t.id} className="align-top transition-colors hover:bg-subtle/50">
                     <td className="px-5 py-3">
                       <span className="flex items-center gap-1">
-                        <Link href={`/admin/transaksi/${encodeURIComponent(t.order_id)}`} className="font-mono text-[12.5px] font-semibold hover:underline">
+                        <Link href={`/admin/transaksi/${encodeURIComponent(t.order_id)}`} data-analitik="Buka transaksi" className="font-mono text-[12.5px] font-semibold hover:underline">
                           {t.order_id}
                         </Link>
                         <TombolSalin teks={t.order_id} />
@@ -221,7 +222,7 @@ export async function DaftarTransaksi({ searchParams }: { searchParams: Promise<
                       <span className="text-[11.5px] text-faint">#{t.id}</span>
                     </td>
                     <td className="max-w-[220px] px-3 py-3">
-                      <Link href={`/admin/pengguna/${t.user_id}`} className="block truncate font-semibold hover:underline">
+                      <Link href={`/admin/pengguna/${t.user_id}`} data-analitik="Buka pengguna" className="block truncate font-semibold hover:underline">
                         {t.nama_user || "(tanpa nama)"}
                       </Link>
                       <span className="block truncate text-muted">{t.email}</span>
@@ -249,6 +250,7 @@ export async function DaftarTransaksi({ searchParams }: { searchParams: Promise<
                     <td className="px-5 py-3 text-right">
                       <Link
                         href={`/admin/transaksi/${encodeURIComponent(t.order_id)}`}
+                        data-analitik="Detail transaksi"
                         aria-label={`Detail ${t.order_id}`}
                         className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-2.5 text-[12px] font-semibold text-muted transition-colors hover:border-line-strong hover:bg-surface hover:text-fg"
                       >

@@ -596,6 +596,27 @@ const MIGRASI: string[] = [
   `
   ALTER TABLE followup ADD COLUMN pesan1 text, ADD COLUMN pesan2 text;
   `,
+  // v29: analitik perilaku pengguna (analitik.ts). Satu baris per (jenis, tanggal WIB, kunci, label, akun) dengan
+  //   penghitung n: event dijumlahkan di memori server lalu di-upsert berkelompok tiap ~10 dtk, jadi tabel tumbuh
+  //   mengikuti jumlah hal BERBEDA yang dipakai tiap akun per hari, bukan jumlah klik. user_id 0 = pengunjung belum
+  //   login; tanpa FK (seperti admin_log): angka tetap ada walau akunnya dihapus. Upsert hanya mengubah n/terakhir
+  //   (tidak berindeks) dan fillfactor 90 menyisakan ruang di halaman yang sama, jadi sebagian besar pembaruan berupa HOT
+  //   update (indeks tidak ikut ditulis). Indeks (user_id, tanggal) untuk mode per pengguna; (tanggal) untuk ringkasan
+  //   semua akun & pembersihan retensi (diukur: tanpa indeks tanggal, ringkasan 30 hari 2-3x lebih lambat lewat PK).
+  `
+  CREATE TABLE analitik_harian (
+    tanggal  date     NOT NULL,                            -- tanggal WIB
+    jenis    smallint NOT NULL CHECK (jenis IN (0, 1, 2)),  -- 0 halaman, 1 klik, 2 fitur
+    kunci    text     NOT NULL,                            -- jenis 0/1: pola halaman (POLA_HALAMAN); jenis 2: kode fitur
+    label    text     NOT NULL DEFAULT '',                 -- jenis 1: label elemen yang diklik; selain itu ''
+    user_id  integer  NOT NULL,                            -- 0 = pengunjung belum login
+    n        integer  NOT NULL,
+    terakhir bigint   NOT NULL,                            -- detik epoch event terakhir
+    PRIMARY KEY (jenis, tanggal, kunci, label, user_id)
+  ) WITH (fillfactor = 90);
+  CREATE INDEX analitik_harian_user_idx ON analitik_harian (user_id, tanggal);
+  CREATE INDEX analitik_harian_tanggal_idx ON analitik_harian (tanggal);
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

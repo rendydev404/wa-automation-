@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, ArrowLeft, Bot, Ellipsis, LayoutDashboard, LogOut, MessageCircleReply, Package, ScrollText, Settings2, Share2, Users, Wallet } from "lucide-react";
+import { Activity, ArrowLeft, Bot, ChartColumnIncreasing, Ellipsis, LayoutDashboard, LogOut, MessageCircleReply, Package, ScrollText, Settings2, Share2, Users, Wallet } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { BilahBawah, TabBawah, TabLembar } from "@/components/bilah-bawah";
 
@@ -13,6 +13,8 @@ const MENU: ItemMenu[] = [
   { href: "/admin/pengguna", label: "Pengguna", ikon: Users },
   { href: "/admin/paket", label: "Paket & harga", pendek: "Paket", ikon: Package },
   { href: "/admin/transaksi", label: "Transaksi", ikon: Wallet },
+  // Setelah Transaksi (indeks 4): empat tab bilah bawah HP tetap sama, Analitik masuk lembar "Lainnya".
+  { href: "/admin/analitik", label: "Analitik", ikon: ChartColumnIncreasing },
   { href: "/admin/afiliasi", label: "Afiliasi", ikon: Share2 },
   { href: "/admin/followup", label: "Follow-up WA", ikon: MessageCircleReply },
   { href: "/admin/pixel", label: "Meta Pixel", ikon: Activity },
@@ -23,7 +25,7 @@ const MENU: ItemMenu[] = [
 
 /** Menu panel admin (terpisah dari menu workspace pengguna). */
 export function NavAdmin() {
-  const jalur = usePathname();
+  const jalur = useJalurAdmin();
   return (
     <nav aria-label="Menu admin" className="flex flex-1 flex-col px-3 pt-3">
       <p className="px-3 pb-2 text-[11px] font-semibold tracking-[0.08em] text-ink-muted/80 uppercase">Panel admin</p>
@@ -56,6 +58,15 @@ export function NavAdmin() {
   );
 }
 
+/**
+ * usePathname() tanpa segmen bahasa internal. Saat static shell diprerender, jalurnya berupa jalur hasil rewrite
+ * ("/id/admin/log"), sedangkan di peramban jalur URL-nya ("/admin/log"). Tanpa dinormalkan, menu aktif di HTML server
+ * berbeda dari klien (penanda aktif hanya ada di klien) -> galat hidrasi React #418 di setiap halaman admin statis.
+ */
+function useJalurAdmin(): string {
+  return (usePathname() ?? "/").replace(/^\/(?:id|en)(?=\/|$)/, "") || "/";
+}
+
 const aktifDi = (m: ItemMenu, jalur: string) => (m.tepat ? jalur === m.href : jalur === m.href || jalur.startsWith(`${m.href}/`));
 
 /** Empat menu utama di bilah; sisanya (dan keluar) di lembar "Lainnya". */
@@ -63,7 +74,7 @@ const MENU_BILAH = 4;
 
 /** Menu bawah HP untuk panel admin. */
 export function NavAdminBawah() {
-  const jalur = usePathname();
+  const jalur = useJalurAdmin();
   const lain = MENU.slice(MENU_BILAH);
   return (
     <BilahBawah label="Menu admin">

@@ -53,7 +53,7 @@ async function Isi() {
           {/* Kartu identitas: avatar, nama, dan lencana paket aktif (sama dengan yang dilihat admin). */}
           <div className="mb-5 flex flex-wrap items-center gap-4 border-b border-line pb-5">
             <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-ink text-xl font-bold text-ink-signal uppercase">{(user.nama || user.email).charAt(0)}</span>
-            <div className="min-w-0 flex-1">
+            <div data-analitik-privat className="min-w-0 flex-1">
               <p className="truncate text-lg font-bold">{user.nama || user.email.split("@")[0]}</p>
               <p className="truncate text-[13px] text-muted">{user.email}</p>
             </div>

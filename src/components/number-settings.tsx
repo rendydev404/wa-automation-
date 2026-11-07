@@ -26,7 +26,7 @@ export function SaklarBot({ id, aktif: awal, label, adaKnowledge = true }: { id:
   const { t } = useBahasa();
   return (
     <div className="w-full">
-      <label className="flex w-full items-center justify-between gap-4">
+      <label data-analitik-privat className="flex w-full items-center justify-between gap-4">
         <span className="text-[13px] leading-tight">
           <span className="block font-semibold text-fg">{t("Balasan otomatis", "Auto-reply")}</span>
           <span className={`block text-xs ${adaKnowledge ? "text-muted" : "text-warning"}`}>
@@ -41,6 +41,7 @@ export function SaklarBot({ id, aktif: awal, label, adaKnowledge = true }: { id:
           aktif={aktif && adaKnowledge}
           disabled={!adaKnowledge}
           label={t(`Balasan otomatis ${label}`, `Auto-reply for ${label}`)}
+          analitik="Saklar balasan otomatis"
           onUbah={(v) =>
             mulai(async () => {
               setGalat(null);

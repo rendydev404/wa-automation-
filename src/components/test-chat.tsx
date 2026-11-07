@@ -144,6 +144,7 @@ export function TestChat({ numberId }: { numberId: number }) {
         </div>
         <button
           type="button"
+          data-analitik="Uji bot: mulai baru"
           aria-label={t("Mulai percakapan baru", "Start a new conversation")}
           title={t("Mulai percakapan baru", "Start a new conversation")}
           className="grid size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-subtle hover:text-fg"
@@ -157,7 +158,7 @@ export function TestChat({ numberId }: { numberId: number }) {
         </button>
       </div>
 
-      <div className="flex h-[26rem] flex-col gap-2 overflow-y-auto bg-subtle/40 px-4 py-4 lg:h-[30rem]" aria-live="polite">
+      <div data-analitik-privat className="flex h-[26rem] flex-col gap-2 overflow-y-auto bg-subtle/40 px-4 py-4 lg:h-[30rem]" aria-live="polite">
         {pesan.length === 0 && !tunggu && <p className="m-auto max-w-56 text-center text-[13px] text-faint">
             {t("Coba tanyakan sesuatu yang ada di base knowledge, lalu yang tidak ada.", "Ask something that's in your product knowledge, then something that isn't.")}
           </p>}
@@ -190,7 +191,7 @@ export function TestChat({ numberId }: { numberId: number }) {
           <div className="mb-2 flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element -- pratinjau data URL lokal */}
             <img src={foto} alt={t("Foto yang akan dikirim", "Photo to send")} className="size-14 rounded-lg object-cover" />
-            <button type="button" onClick={() => setFoto(null)} aria-label={t("Batalkan foto", "Remove photo")} className="grid size-8 place-items-center rounded-lg text-faint hover:bg-subtle hover:text-fg">
+            <button type="button" data-analitik="Uji bot: batalkan foto" onClick={() => setFoto(null)} aria-label={t("Batalkan foto", "Remove photo")} className="grid size-8 place-items-center rounded-lg text-faint hover:bg-subtle hover:text-fg">
               <X className="size-4" aria-hidden />
             </button>
           </div>
@@ -198,6 +199,7 @@ export function TestChat({ numberId }: { numberId: number }) {
         <div className="flex gap-2">
           <button
             type="button"
+            data-analitik="Uji bot: lampirkan foto"
             onClick={() => inputFoto.current?.click()}
             disabled={tunggu}
             aria-label={t("Lampirkan foto", "Attach photo")}
@@ -230,7 +232,7 @@ export function TestChat({ numberId }: { numberId: number }) {
                 : t("Tulis pesan seperti orang yang chat ke nomor ini…", "Write a message as if you were a customer chatting this number…")
             }
             aria-label={t("Pesan uji", "Test message")} className="field" />
-          <button type="submit" disabled={tunggu || (!teks.trim() && !foto)} aria-label={t("Kirim", "Send")} className="btn btn-primary h-auto w-11 shrink-0 px-0">
+          <button type="submit" data-analitik="Uji bot: kirim" disabled={tunggu || (!teks.trim() && !foto)} aria-label={t("Kirim", "Send")} className="btn btn-primary h-auto w-11 shrink-0 px-0">
             <Send className="size-4" aria-hidden />
           </button>
         </div>

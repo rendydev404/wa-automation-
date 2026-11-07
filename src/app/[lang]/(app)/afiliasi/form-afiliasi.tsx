@@ -148,6 +148,7 @@ export function KartuTautanReferral({
             </code>
             <button
               type="button"
+              data-analitik="Salin tautan afiliasi (landing)"
               onClick={() => salin(tautanUtama, "utama")}
               className="btn btn-primary shrink-0 px-3 py-2 text-[12.5px]"
             >
@@ -165,6 +166,7 @@ export function KartuTautanReferral({
             </code>
             <button
               type="button"
+              data-analitik="Salin tautan afiliasi (daftar)"
               onClick={() => salin(tautanDaftar, "daftar")}
               className="btn btn-ghost shrink-0 border border-line bg-surface px-3 py-2 text-[12.5px]"
             >
@@ -176,7 +178,7 @@ export function KartuTautanReferral({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line px-3.5 py-2.5 text-[12.5px]">
-        <span className="flex min-w-0 items-start gap-2 text-muted">
+        <span data-analitik-privat className="flex min-w-0 items-start gap-2 text-muted">
           <Landmark className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
           <span className="min-w-0 [overflow-wrap:anywhere]">
             {t("Rekening tujuan pencairan:", "Payout account:")}{" "}
@@ -332,6 +334,7 @@ export function FormTarikKomisi({
             {saldo >= minTarik && (
               <button
                 type="button"
+                data-analitik="Tarik semua saldo"
                 onClick={() => setNominal(String(saldo))}
                 className="btn btn-ghost shrink-0 border border-line text-[12.5px]"
               >

@@ -16,7 +16,7 @@ const JALUR = {
   tolok: { berkas: ["uji/uji-data.mjs", "uji/uji-pengguna.mjs"], sekaligus: 1 },
   // Kebenaran fitur tanpa tolok ukur waktu: boleh berjalan bersamaan.
   fitur: {
-    berkas: ["uji/uji-auth.mjs", "uji/uji-langganan.mjs", "uji/uji-sinkron.mjs", "uji/uji-ai.mjs", "uji/uji-afiliasi.mjs", "uji/uji-pixel.mjs", "uji/uji-pendaftar.mjs", "uji/uji-log.mjs", "uji/uji-push.mjs"],
+    berkas: ["uji/uji-auth.mjs", "uji/uji-langganan.mjs", "uji/uji-sinkron.mjs", "uji/uji-ai.mjs", "uji/uji-afiliasi.mjs", "uji/uji-analitik.mjs", "uji/uji-pixel.mjs", "uji/uji-pendaftar.mjs", "uji/uji-log.mjs", "uji/uji-push.mjs"],
     sekaligus: 3,
   },
 };

@@ -361,7 +361,7 @@ async function IsiAfiliasi() {
               {t("Belum ada komisi masuk. Bagikan tautan afiliasi Anda untuk mulai menghasilkan komisi.", "No commission yet. Share your affiliate link to start earning.")}
             </p>
           ) : (
-            <ul className="divide-y divide-line">
+            <ul data-analitik-privat className="divide-y divide-line">
               {data.riwayatKomisi.map((k) => (
                 <li key={k.id} className="flex items-center justify-between gap-3 px-5 py-3.5 text-[13px]">
                   <div className="min-w-0">
@@ -387,7 +387,7 @@ async function IsiAfiliasi() {
           {data.riwayatPenarikan.length === 0 ? (
             <p className="px-5 py-8 text-center text-[13px] text-muted">{t("Belum ada riwayat penarikan komisi.", "No payouts yet.")}</p>
           ) : (
-            <ul className="divide-y divide-line">
+            <ul data-analitik-privat className="divide-y divide-line">
               {data.riwayatPenarikan.map((p) => {
                 const infoStatus = badge[p.status] ?? badge.menunggu;
                 return (

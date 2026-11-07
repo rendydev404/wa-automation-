@@ -48,9 +48,10 @@ function kelasTautan(aktif: boolean): string {
 /** Garis sinyal di tepi kiri item yang sedang dibuka. */
 const Penanda = () => <span aria-hidden className="absolute inset-y-2.5 left-0 w-[3px] rounded-r-full bg-ink-signal" />;
 
-function TautanNav({ href, aktif, ikon, children, tur }: { href: string; aktif: boolean; ikon: ReactNode; children: ReactNode; tur?: string }) {
+/** `analitik`: label klik analitik bila isi tautan memuat data pribadi (mis. nama pengguna). */
+function TautanNav({ href, aktif, ikon, children, tur, analitik }: { href: string; aktif: boolean; ikon: ReactNode; children: ReactNode; tur?: string; analitik?: string }) {
   return (
-    <Link href={href} aria-current={aktif ? "page" : undefined} className={kelasTautan(aktif)} data-tur={tur}>
+    <Link href={href} aria-current={aktif ? "page" : undefined} className={kelasTautan(aktif)} data-tur={tur} data-analitik={analitik}>
       {aktif && <Penanda />}
       <span className={`grid size-8 place-items-center rounded-lg ${aktif ? "bg-ink-signal/15 text-ink-signal" : "bg-white/[0.05] text-ink-muted group-hover:text-ink-fg"}`}>
         {ikon}
@@ -93,7 +94,7 @@ export function NavUtama({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
         <TautanNav href="/dashboard" aktif={jalur === "/dashboard"} ikon={<LayoutDashboard className="size-4" aria-hidden />}>
           {t("Ringkasan", "Overview")}
         </TautanNav>
-        <TautanNav href="/akun" aktif={jalur === "/akun"} ikon={<UserRound className="size-4" aria-hidden />}>
+        <TautanNav href="/akun" aktif={jalur === "/akun"} ikon={<UserRound className="size-4" aria-hidden />} analitik="Akun saya">
           <span className="block leading-tight">{t("Akun saya", "My account")}</span>
           <span className="block max-w-40 truncate text-[11.5px] leading-tight font-medium text-ink-muted">{pengguna.nama}</span>
         </TautanNav>
@@ -215,7 +216,7 @@ export function NavBawah({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
       />
       <TabBawah href="/afiliasi" label={t("Afiliasi", "Affiliate")} aktif={jalur === "/afiliasi"} ikon={<Share2 className="size-5" aria-hidden />} />
       <TabLembar label={t("Akun", "Account")} judul={t("Akun", "Account")} aktif={jalur === "/akun"} ikon={<UserRound className="size-5" aria-hidden />}>
-        <div className="mb-2 flex items-center gap-3 rounded-2xl bg-white/[0.04] px-3 py-3">
+        <div data-analitik-privat className="mb-2 flex items-center gap-3 rounded-2xl bg-white/[0.04] px-3 py-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-ink-signal/15 text-[15px] font-bold text-ink-signal uppercase">{pengguna.nama.trim().charAt(0) || "#"}</span>
           <span className="min-w-0">
             <span className="block truncate text-[14px] font-semibold text-white">{pengguna.nama}</span>
@@ -223,7 +224,7 @@ export function NavBawah({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
           </span>
         </div>
         <div className="space-y-0.5">
-          <TautanNav href="/akun" aktif={jalur === "/akun"} ikon={<UserRound className="size-4" aria-hidden />}>
+          <TautanNav href="/akun" aktif={jalur === "/akun"} ikon={<UserRound className="size-4" aria-hidden />} analitik="Akun saya">
             {t("Akun saya", "My account")}
           </TautanNav>
           {admin && (

@@ -92,13 +92,15 @@ export function TombolKonfirmasi({
   );
 }
 
-export function Saklar({ aktif, onUbah, label, disabled }: { aktif: boolean; onUbah: (v: boolean) => void; label: string; disabled?: boolean }) {
+/** `analitik`: label klik analitik bila `label` memuat data pribadi (nama nomor/produk); lihat instrumentation-client.ts. */
+export function Saklar({ aktif, onUbah, label, disabled, analitik }: { aktif: boolean; onUbah: (v: boolean) => void; label: string; disabled?: boolean; analitik?: string }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={aktif}
       aria-label={label}
+      data-analitik={analitik}
       disabled={disabled}
       onClick={() => onUbah(!aktif)}
       className={`relative h-6 w-11 shrink-0 rounded-full transition-colors before:absolute before:-inset-2 before:content-[''] disabled:opacity-60 ${aktif ? "bg-accent" : "bg-line-strong"}`}

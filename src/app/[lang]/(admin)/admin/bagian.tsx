@@ -354,6 +354,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
           {FILTER.map((f) => (
             <Link
               key={f.nilai}
+              data-analitik={`Saring pengguna: ${f.label}`}
               href={tautan({ f: f.nilai === "semua" ? undefined : f.nilai })}
               aria-current={filter === f.nilai ? "page" : undefined}
               className={`inline-flex min-h-9 shrink-0 items-center rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${filter === f.nilai ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
@@ -365,10 +366,10 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
         </nav>
       </div>
       {/* HP: daftar kartu (tabel lebar memaksa geser ke samping & tombol aksi tersembunyi di kanan). */}
-      <ul className="divide-y divide-line sm:hidden">
+      <ul data-analitik-privat className="divide-y divide-line sm:hidden">
         {daftar.map((u) => (
           <li key={u.id} className="flex items-center gap-2 px-4 py-3">
-            <Link href={`/admin/pengguna/${u.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+            <Link href={`/admin/pengguna/${u.id}`} data-analitik="Buka pengguna" className="flex min-w-0 flex-1 items-center gap-3">
               <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-ink text-[13px] font-bold text-ink-signal uppercase">{(u.nama || u.email).charAt(0)}</span>
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 items-center gap-1.5">
@@ -406,11 +407,11 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
               <th className="px-5 py-3 text-right">Aksi</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-line">
+          <tbody data-analitik-privat className="divide-y divide-line">
             {daftar.map((u) => (
               <tr key={u.id} className="group transition-colors hover:bg-subtle/50">
                 <td className="px-5 py-3">
-                  <Link href={`/admin/pengguna/${u.id}`} className="flex items-center gap-3">
+                  <Link href={`/admin/pengguna/${u.id}`} data-analitik="Buka pengguna" className="flex items-center gap-3">
                     <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-ink text-[12px] font-bold text-ink-signal uppercase">{(u.nama || u.email).charAt(0)}</span>
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">
@@ -451,6 +452,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
                     {u.id !== admin.id && <TombolHapusPengguna id={u.id} nama={u.nama} email={u.email} jumlahNomor={u.jumlah_nomor} mode="baris" />}
                     <Link
                       href={`/admin/pengguna/${u.id}`}
+                      data-analitik="Kelola pengguna"
                       aria-label={`Kelola ${u.email}`}
                       className="inline-flex h-9 items-center gap-1 rounded-lg border border-line px-2.5 text-[12px] font-semibold text-muted transition-colors hover:border-line-strong hover:bg-surface hover:text-fg"
                     >
@@ -501,7 +503,7 @@ export async function Log({ batas = 25 }: { batas?: number } = {}) {
   return (
     <section className="card p-4 sm:p-6">
       <h2 className="text-[15px] font-bold">Jejak tindakan admin</h2>
-      <ol className="mt-4 space-y-3">
+      <ol data-analitik-privat className="mt-4 space-y-3">
         {log.map((l) => (
           <li key={l.id} className="text-[12.5px]">
             <p>

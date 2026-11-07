@@ -109,7 +109,7 @@ export function PanelPelajaran({
             )}
           </div>
         ) : (
-          <ul className="max-h-[480px] divide-y divide-line overflow-y-auto rounded-xl border border-line">
+          <ul data-analitik-privat className="max-h-[480px] divide-y divide-line overflow-y-auto rounded-xl border border-line">
             {daftar.map((p) => (
               <Baris key={p.id} p={p} numberId={numberId} kini={kini} onHapus={() => buang(p.id)} />
             ))}
@@ -158,6 +158,7 @@ function Baris({ p, numberId, kini, onHapus }: { p: ItemPelajaran; numberId: num
         <div className="flex shrink-0 animate-masuk flex-col items-end gap-1.5 sm:flex-row sm:items-start">
           <button
             type="button"
+            data-analitik="Hapus pelajaran: ya"
             disabled={tunggu}
             className="btn h-8 bg-danger px-3 text-white"
             onClick={() =>
@@ -171,13 +172,14 @@ function Baris({ p, numberId, kini, onHapus }: { p: ItemPelajaran; numberId: num
             {tunggu && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
             {t("Hapus", "Delete")}
           </button>
-          <button type="button" disabled={tunggu} className="btn btn-ghost h-8 px-3" onClick={() => setTanya(false)}>
+          <button type="button" data-analitik="Hapus pelajaran: batal" disabled={tunggu} className="btn btn-ghost h-8 px-3" onClick={() => setTanya(false)}>
             {t("Batal", "Cancel")}
           </button>
         </div>
       ) : (
         <button
           type="button"
+          data-analitik="Hapus pelajaran"
           onClick={() => setTanya(true)}
           aria-label={t("Hapus pelajaran ini", "Delete this learned reply")}
           className="grid size-9 shrink-0 place-items-center rounded-lg text-faint hover:bg-danger-soft hover:text-danger"

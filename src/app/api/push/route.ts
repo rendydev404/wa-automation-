@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { catatFitur } from "@/lib/analitik";
 import { lewatHttps, terlaluSering } from "@/lib/batas";
 import { COOKIE_PUSH, catatTerima, hapusLangganan, kirimPush, kunciPublikPush, simpanLangganan, statusPerangkat, uraiLangganan } from "@/lib/push";
 import { getUser } from "@/lib/session";
@@ -54,12 +55,14 @@ export async function POST(req: Request) {
   if (badan.uji === true) {
     if (terlaluSering(`push-uji:${user.id}`, 5, 60_000)) return NextResponse.json({ error: "Terlalu sering. Coba lagi sebentar." }, { status: 429, headers: tanpaCache });
     const hasil = await kirimPush([user.id], { judul: "Notifikasi uji", isi: "Push notification di perangkat ini sudah aktif.", tautan: "/admin" });
+    catatFitur(user.id, "push.uji");
     return NextResponse.json(hasil, { headers: tanpaCache });
   }
   const s = uraiLangganan(badan.langganan);
   if (!s) return NextResponse.json({ error: "Data perangkat tidak valid." }, { status: 400, headers: tanpaCache });
   const id = await simpanLangganan(user.id, s, req.headers.get("user-agent"));
   (await cookies()).set(COOKIE_PUSH, String(id), { httpOnly: true, secure: await lewatHttps(), sameSite: "lax", path: "/", maxAge: 365 * 86400 });
+  catatFitur(user.id, "push.daftarkan_perangkat");
   return NextResponse.json({ ok: true }, { headers: tanpaCache });
 }
 
@@ -70,5 +73,6 @@ export async function DELETE(req: Request) {
   const badan = (await req.json().catch(() => ({}))) as { endpoint?: unknown };
   if (typeof badan.endpoint === "string" && badan.endpoint.length <= 1000) await hapusLangganan(user.id, { endpoint: badan.endpoint });
   (await cookies()).delete(COOKIE_PUSH);
+  catatFitur(user.id, "push.matikan");
   return NextResponse.json({ ok: true }, { headers: tanpaCache });
 }

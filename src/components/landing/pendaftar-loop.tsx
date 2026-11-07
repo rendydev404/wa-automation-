@@ -135,7 +135,7 @@ export function PendaftarLoop() {
             }}
           >
             {giliranPromo ? (
-              <Link href="/daftar" className="relative flex items-center gap-2 rounded-[15px] bg-ink-raised py-1.5 pr-3 pl-1.5 transition-colors hover:bg-ink sm:gap-3 sm:py-2.5 sm:pr-4 sm:pl-2.5">
+              <Link href="/daftar" data-analitik="Kartu ajakan: coba gratis" className="relative flex items-center gap-2 rounded-[15px] bg-ink-raised py-1.5 pr-3 pl-1.5 transition-colors hover:bg-ink sm:gap-3 sm:py-2.5 sm:pr-4 sm:pl-2.5">
                 <span className="pendaftar-avatar relative grid size-8 shrink-0 place-items-center rounded-full bg-ink-signal text-ink sm:size-10">
                   <Zap className="size-4 sm:size-5" strokeWidth={2.5} aria-hidden />
                 </span>
@@ -154,7 +154,7 @@ export function PendaftarLoop() {
               </Link>
             ) : (
               p && (
-                <div className="relative flex items-center gap-2 rounded-[15px] bg-ink-raised py-1.5 pr-3.5 pl-1.5 sm:gap-3 sm:py-2.5 sm:pr-5 sm:pl-2.5">
+                <div data-analitik-privat className="relative flex items-center gap-2 rounded-[15px] bg-ink-raised py-1.5 pr-3.5 pl-1.5 sm:gap-3 sm:py-2.5 sm:pr-5 sm:pl-2.5">
                   <span className={`pendaftar-avatar relative grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br text-[13px] font-extrabold text-ink sm:size-10 sm:text-[15px] ${WARNA_AVATAR[Math.floor(ke / 2) % WARNA_AVATAR.length]}`}>
                     {p.nama.charAt(0)}
                     <span className="absolute -right-0.5 -bottom-0.5 grid size-4 place-items-center rounded-full border-2 border-ink-raised bg-ink-signal">

@@ -189,6 +189,7 @@ export function PilihOpsi({
                   key={o.id}
                   data-i={i}
                   role="option"
+                  data-analitik={`${label}: pilih opsi`}
                   aria-selected={dipilih}
                   onMouseEnter={() => setSorot(i)}
                   onMouseDown={(e) => e.preventDefault()}

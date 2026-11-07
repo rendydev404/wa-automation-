@@ -181,7 +181,7 @@ async function Riwayat() {
           )}
         </p>
       </div>
-      <ul className="divide-y divide-line">
+      <ul data-analitik-privat className="divide-y divide-line">
         {daftar.map((x) => {
           const st = status[x.status];
           const bisaDibuka = ORDER_TAMPIL.test(x.order_id);
@@ -218,11 +218,11 @@ async function Riwayat() {
               {bisaDibuka && (
                 <div className="mt-3">
                   {x.status === "menunggu" && (x.kanal || x.redirect_url) ? (
-                    <Link href={`/langganan/tagihan/${encodeURIComponent(x.order_id)}`} className="btn btn-primary">
+                    <Link href={`/langganan/tagihan/${encodeURIComponent(x.order_id)}`} data-analitik="Riwayat: lanjutkan bayar" className="btn btn-primary">
                       {t("Lanjutkan bayar", "Continue payment")}
                     </Link>
                   ) : (
-                    <Link href={`/langganan/tagihan/${encodeURIComponent(x.order_id)}`} className="text-[12.5px] font-semibold text-accent hover:underline">
+                    <Link href={`/langganan/tagihan/${encodeURIComponent(x.order_id)}`} data-analitik="Riwayat: lihat detail pembayaran" className="text-[12.5px] font-semibold text-accent hover:underline">
                       {t("Lihat detail pembayaran", "View payment details")} →
                     </Link>
                   )}

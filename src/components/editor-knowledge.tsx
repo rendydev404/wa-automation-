@@ -175,7 +175,7 @@ export function EditorKnowledge({ numberId, edit, tutup }: { numberId: number; e
         {galat && <p className="rounded-xl bg-danger-soft px-3.5 py-2.5 text-[13px] text-danger">{galat}</p>}
 
         {hasil && hasil.peringatan.length > 0 && (
-          <div className="flex gap-2.5 rounded-xl border border-danger/30 bg-danger-soft px-3.5 py-3 text-[13px]">
+          <div data-analitik-privat className="flex gap-2.5 rounded-xl border border-danger/30 bg-danger-soft px-3.5 py-3 text-[13px]">
             <TriangleAlert className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden />
             <p>
               <b className="text-danger">{t("Periksa angka ini:", "Check these numbers:")}</b>{" "}
@@ -190,7 +190,7 @@ export function EditorKnowledge({ numberId, edit, tutup }: { numberId: number; e
         {hasil && hasil.kurang.length > 0 && (
           <div className="rounded-xl border border-warning/30 bg-warning-soft/60 px-3.5 py-3 text-[13px]">
             <p className="font-semibold text-warning">{t("Supaya AI bisa menjawab lebih banyak, lengkapi juga:", "So AI can answer more, also add:")}</p>
-            <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-fg">
+            <ul data-analitik-privat className="mt-1.5 list-disc space-y-0.5 pl-5 text-fg">
               {hasil.kurang.map((k) => (
                 <li key={k}>{k}</li>
               ))}

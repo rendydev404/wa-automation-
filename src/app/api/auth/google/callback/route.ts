@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { COOKIE_GOOGLE, COOKIE_GOOGLE_BAHASA, GoogleError, asal, googleSiap, selesaikanGoogle } from "@/lib/google";
 import { bahasaSah, tautan } from "@/lib/bahasa";
+import { catatFitur } from "@/lib/analitik";
 import { akunGoogle } from "@/lib/pengguna";
 import { catatLoginBerhasil, halamanAwal, mulaiSesi, pastikanAdminAwal, pendaftaranDibuka } from "@/lib/session";
 import { COOKIE_REF, terapkanReferral } from "@/lib/afiliasi";
@@ -45,6 +46,7 @@ export async function GET(req: Request) {
 
   await catatLoginBerhasil(akun.id);
   await mulaiSesi(akun, app.startsWith("https://"));
+  catatFitur(akun.id, akun.baru ? "akun.daftar_google" : "akun.masuk_google");
   const res = ke(halamanAwal(akun.peran));
   res.cookies.delete({ name: COOKIE_REF, path: "/" });
   if (akun.baru) {

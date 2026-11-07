@@ -45,6 +45,7 @@ export function ItemNotif({ n, kini, onBuka }: { n: NotifKlien; kini: number; on
   return (
     <button
       type="button"
+      data-analitik={`Buka notifikasi: ${n.jenis}`}
       onClick={() => onBuka(n)}
       className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-subtle/70 ${n.dibaca ? "" : "bg-accent-soft/40"}`}
     >
@@ -170,6 +171,7 @@ export function LoncengNotifikasi({ gelap = false, awal = 0, push = false }: { g
         }}
         aria-expanded={buka}
         aria-haspopup="dialog"
+        data-analitik="Notifikasi (lonceng)"
         aria-label={belum > 0 ? t(`Notifikasi, ${belum} belum dibaca`, `Notifications, ${belum} unread`) : t("Notifikasi", "Notifications")}
         className={`relative grid size-10 place-items-center rounded-xl transition-colors ${gelap ? "text-ink-muted hover:bg-white/[0.06] hover:text-ink-fg" : "text-muted hover:bg-subtle hover:text-fg"}`}
       >

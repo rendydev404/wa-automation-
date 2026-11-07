@@ -491,6 +491,7 @@ export function TombolHapusPengguna({
             setGalat("");
             setBuka(true);
           }}
+          data-analitik="Hapus pengguna"
           aria-label={`Hapus pengguna ${email}`}
           title={`Hapus ${email}`}
           className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-2.5 text-[12px] font-semibold text-muted transition-colors hover:border-danger/40 hover:bg-danger-soft hover:text-danger"
@@ -546,7 +547,7 @@ export function TombolHapusPengguna({
               </button>
             </div>
 
-            <div className="mt-4 rounded-xl border border-line bg-subtle/60 p-3.5 text-[13px]">
+            <div data-analitik-privat className="mt-4 rounded-xl border border-line bg-subtle/60 p-3.5 text-[13px]">
               <p className="truncate font-semibold text-fg">{nama || "(tanpa nama)"}</p>
               <p className="truncate font-mono text-[12px] text-muted">{email}</p>
               <p className="mt-1.5 text-[12px] text-muted">

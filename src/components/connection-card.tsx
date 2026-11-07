@@ -210,7 +210,7 @@ export function ConnectionCard({ id }: { id: number }) {
               <span className="grid size-12 place-items-center rounded-2xl bg-accent-soft text-accent">
                 <Smartphone className="size-6" aria-hidden />
               </span>
-              <div>
+              <div data-analitik-privat>
                 <p className="text-lg font-bold tracking-tight tabular-nums">{formatNomor(sesi.waId)}</p>
                 <p className="text-[13px] text-muted">{sesi.nama || t("Nomor terhubung", "Number connected")}</p>
               </div>
@@ -366,7 +366,7 @@ export function ConnectionCard({ id }: { id: number }) {
                         </button>
                       </div>
 
-                      <div className="flex items-center justify-center gap-1 sm:gap-2" aria-label={`${t("Kode tautan", "Link code")} ${kodeAktif.slice(0, 4)} ${kodeAktif.slice(4, 8)}`}>
+                      <div data-analitik-privat className="flex items-center justify-center gap-1 sm:gap-2" aria-label={`${t("Kode tautan", "Link code")} ${kodeAktif.slice(0, 4)} ${kodeAktif.slice(4, 8)}`}>
                         {kodeAktif
                           .slice(0, 4)
                           .split("")

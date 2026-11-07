@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { catatFitur } from "@/lib/analitik";
 import { getUser } from "@/lib/session";
 import { infoTarif, perbaruiTarif } from "@/lib/tarif";
 
@@ -10,6 +11,8 @@ import { infoTarif, perbaruiTarif } from "@/lib/tarif";
 export async function GET(req: Request) {
   const user = await getUser();
   if (user?.peran !== "admin") return NextResponse.json({ error: "Tidak ditemukan." }, { status: 404, headers: { "Cache-Control": "no-store" } });
-  const info = new URL(req.url).searchParams.get("segarkan") === "1" ? await perbaruiTarif() : await infoTarif({ tunggu: true });
+  const segarkan = new URL(req.url).searchParams.get("segarkan") === "1";
+  const info = segarkan ? await perbaruiTarif() : await infoTarif({ tunggu: true });
+  if (segarkan) catatFitur(user.id, "admin.perbarui_tarif");
   return NextResponse.json(info, { headers: { "Cache-Control": "no-store" } });
 }

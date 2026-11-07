@@ -51,7 +51,7 @@ export async function BannerAkun() {
           </p>
         </div>
       </div>
-      <Link href={`/nomor/${kosong[0].id}#knowledge`} className="btn btn-primary w-full shrink-0 sm:w-auto">
+      <Link href={`/nomor/${kosong[0].id}#knowledge`} data-analitik="Banner: isi knowledge" className="btn btn-primary w-full shrink-0 sm:w-auto">
         {t("Isi base knowledge sekarang", "Add product knowledge now")}
       </Link>
     </div>

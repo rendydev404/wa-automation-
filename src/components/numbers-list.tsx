@@ -86,7 +86,7 @@ function Kartu({ n }: { n: KartuNomor }) {
   const perluScan = sesi && sesi.status !== "WORKING";
   return (
     <li className="card group flex min-w-0 flex-col overflow-hidden transition-[border-color,box-shadow] duration-200 hover:border-line-strong hover:shadow-[0_14px_34px_-20px_rgba(21,32,27,0.4)]">
-      <Link href={`/nomor/${n.id}`} prefetch className="flex items-start gap-3 p-5 pb-4">
+      <Link href={`/nomor/${n.id}`} prefetch data-analitik="Kartu nomor: buka" className="flex items-start gap-3 p-5 pb-4">
         <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent-soft text-[15px] font-bold text-accent uppercase">
           {n.label.trim().charAt(0) || "#"}
         </span>
@@ -124,13 +124,13 @@ function Kartu({ n }: { n: KartuNomor }) {
         </div>
       </div>
 
-      <div className="mt-auto flex items-center justify-between gap-3 border-t border-line bg-subtle/40 px-5 py-3">
+      <div data-analitik-privat className="mt-auto flex items-center justify-between gap-3 border-t border-line bg-subtle/40 px-5 py-3">
         {n.jumlah_karakter === 0 ? (
-          <Link href={`/nomor/${n.id}#knowledge`} className="flex items-center gap-1.5 text-[13px] font-semibold text-warning hover:underline">
+          <Link href={`/nomor/${n.id}#knowledge`} data-analitik="Kartu nomor: isi knowledge" className="flex items-center gap-1.5 text-[13px] font-semibold text-warning hover:underline">
             {t("Isi product knowledge dulu", "Add product knowledge first")}
           </Link>
         ) : perluScan ? (
-          <Link href={`/nomor/${n.id}`} className="flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline">
+          <Link href={`/nomor/${n.id}`} data-analitik="Kartu nomor: scan QR" className="flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline">
             <QrCode className="size-4" aria-hidden /> {t("Scan QR untuk menautkan", "Scan QR to link")}
           </Link>
         ) : (
@@ -140,6 +140,7 @@ function Kartu({ n }: { n: KartuNomor }) {
           aktif={aktif && n.jumlah_karakter > 0}
           disabled={n.jumlah_karakter === 0}
           label={t(`Balasan otomatis ${n.label}`, `Auto-reply for ${n.label}`)}
+          analitik="Kartu nomor: saklar balasan otomatis"
           onUbah={(v) =>
             mulai(async () => {
               setAktif(v);

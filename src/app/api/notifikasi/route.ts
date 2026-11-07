@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { catatFitur } from "@/lib/analitik";
 import { teksPermintaan } from "@/lib/bahasa-server";
 import { daftarNotif, jumlahBelum, tandaiNotifDibaca } from "@/lib/notifikasi";
 import { getUser } from "@/lib/session";
@@ -25,5 +26,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: (await teksPermintaan()).t("Sesi berakhir.", "Your session has ended.") }, { status: 401, headers: tanpaCache });
   const badan = (await req.json().catch(() => ({}))) as { id?: unknown };
   const id = typeof badan.id === "number" && Number.isInteger(badan.id) && badan.id > 0 ? badan.id : undefined;
-  return NextResponse.json({ belum: await tandaiNotifDibaca(user.id, id) }, { headers: tanpaCache });
+  const belum = await tandaiNotifDibaca(user.id, id);
+  catatFitur(user.id, id ? "notifikasi.baca" : "notifikasi.baca_semua");
+  return NextResponse.json({ belum }, { headers: tanpaCache });
 }

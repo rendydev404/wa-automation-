@@ -89,7 +89,7 @@ async function Isi({ params }: { params: Promise<{ order: string }> }) {
         <div className="min-w-0 space-y-6">
           <section className="card p-5 sm:p-6">
             <h2 className="text-[15px] font-bold">Rincian pembelian</h2>
-            <dl className="mt-2 divide-y divide-line">
+            <dl data-analitik-privat className="mt-2 divide-y divide-line">
               <Baris label="Paket">
                 <span className="flex flex-wrap items-center gap-2">
                   <LencanaPaket tingkat={tingkat} nama={t.nama_paket} />
@@ -124,7 +124,7 @@ async function Isi({ params }: { params: Promise<{ order: string }> }) {
                     {rp(t.komisi.nominal)}{" "}
                     <span className="text-muted">
                       ({t.komisi.komisi_jenis === "persen" ? `${t.komisi.komisi_acuan}%` : rp(t.komisi.komisi_acuan)}) untuk{" "}
-                      <Link href={`/admin/pengguna/${t.komisi.afiliator_id}`} className="font-semibold text-fg hover:underline">
+                      <Link href={`/admin/pengguna/${t.komisi.afiliator_id}`} data-analitik="Buka pengguna" className="font-semibold text-fg hover:underline">
                         {t.komisi.email}
                       </Link>
                     </span>
@@ -154,24 +154,24 @@ async function Isi({ params }: { params: Promise<{ order: string }> }) {
         </div>
 
         <div className="space-y-6">
-          <section className="card p-5">
+          <section data-analitik-privat className="card p-5">
             <h2 className="flex items-center gap-2 text-[15px] font-bold">
               <UserRound className="size-4 text-accent" aria-hidden /> Pembeli
             </h2>
             <p className="mt-3 truncate font-semibold">{t.nama_user || "(tanpa nama)"}</p>
             <p className="truncate text-[13px] text-muted">{t.email}</p>
             <p className="mt-0.5 text-[12px] text-faint">ID pengguna {t.user_id}</p>
-            <Link href={`/admin/pengguna/${t.user_id}`} className="btn btn-ghost mt-4 w-full justify-center border border-line">
+            <Link href={`/admin/pengguna/${t.user_id}`} data-analitik="Kelola pengguna" className="btn btn-ghost mt-4 w-full justify-center border border-line">
               Kelola pengguna <ExternalLink className="size-3.5" aria-hidden />
             </Link>
           </section>
           {t.lain.length > 0 && (
             <section className="card overflow-hidden">
               <h2 className="border-b border-line px-5 py-3.5 text-[13px] font-bold">Transaksi lain pengguna ini</h2>
-              <ul className="divide-y divide-line">
+              <ul data-analitik-privat className="divide-y divide-line">
                 {t.lain.map((x) => (
                   <li key={x.order_id}>
-                    <Link href={`/admin/transaksi/${encodeURIComponent(x.order_id)}`} className="flex items-center justify-between gap-3 px-5 py-3 text-[12.5px] transition-colors hover:bg-subtle/60">
+                    <Link href={`/admin/transaksi/${encodeURIComponent(x.order_id)}`} data-analitik="Buka transaksi" className="flex items-center justify-between gap-3 px-5 py-3 text-[12.5px] transition-colors hover:bg-subtle/60">
                       <span className="min-w-0">
                         <span className="block truncate font-mono font-semibold">{x.order_id}</span>
                         <span className="text-muted">

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { nomorUntuk } from "@/lib/akses";
+import { catatFitur } from "@/lib/analitik";
 import { BATAS_KATALOG, KatalogError, katalogBoleh, simpanProduk } from "@/lib/katalog";
 import { getUser } from "@/lib/session";
 import { teksPermintaan } from "@/lib/bahasa-server";
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
   if (user.peran !== "admin" && !(await katalogBoleh(nomor.user_id))) return galat(t("Katalog produk tersedia untuk paket berbayar. Pilih paket di halaman Langganan.", "The product catalog is available on paid plans. Choose a plan on the Subscription page."), 403);
 
   const idMentah = Number(form.get("id"));
+  const idLama = Number.isInteger(idMentah) && idMentah > 0 ? idMentah : undefined;
   const hargaMentah = String(form.get("harga") ?? "").replace(/\D/g, "");
   const berkas = form.get("foto");
   let foto: Uint8Array | null | undefined;
@@ -33,7 +35,7 @@ export async function POST(req: Request) {
   else if (form.get("hapus_foto") === "1") foto = null;
   try {
     const id = await simpanProduk(nomor.id, {
-      id: Number.isInteger(idMentah) && idMentah > 0 ? idMentah : undefined,
+      id: idLama,
       nama: String(form.get("nama") ?? "").slice(0, 200),
       harga: hargaMentah ? Number(hargaMentah) : null,
       deskripsi: String(form.get("deskripsi") ?? "").slice(0, 1000),
@@ -41,6 +43,7 @@ export async function POST(req: Request) {
       foto,
     });
     revalidatePath(`/nomor/${nomor.id}`);
+    catatFitur(user.id, idLama ? "katalog.ubah" : "katalog.tambah");
     return NextResponse.json({ ok: true, id });
   } catch (e) {
     if (e instanceof KatalogError) return galat((b === "en" && e.en) || e.message);

@@ -168,7 +168,7 @@ async function Isi() {
                 ? t("Pelanggan yang sedang menunggu balasanmu", "Customers waiting for your reply")
                 : t("Begini yang terjadi sekarang", "Here's what happens now")}
             </h3>
-            <ul className="mt-3 space-y-2" aria-label={t("Chat belum dibalas", "Unanswered chats")}>
+            <ul data-analitik-privat className="mt-3 space-y-2" aria-label={t("Chat belum dibalas", "Unanswered chats")}>
               {data.contohMenunggu.length ? (
                 data.contohMenunggu.map((c, i) => (
                   <li key={i} className="max-w-md rounded-2xl rounded-tl-sm bg-subtle px-3.5 py-2.5 text-[13.5px]">

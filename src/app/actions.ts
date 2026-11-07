@@ -21,6 +21,7 @@ import {
 } from "@/lib/afiliasi";
 import { nomorUntuk } from "@/lib/akses";
 import { kunciAnthropic, kursUsd, perkiraanPerBalasan } from "@/lib/ai";
+import { catatFitur } from "@/lib/analitik";
 import { KANAL_BAYAR, type KanalBayar, MAKS_HARGA_PAKET, METODE_BAYAR, kanalSah, labelKanal } from "@/lib/harga";
 import type { Bahasa, T } from "@/lib/bahasa";
 import { alihkanPermintaan, teksPermintaan } from "@/lib/bahasa-server";
@@ -95,6 +96,15 @@ export interface Hasil {
   pesan?: string;
 }
 
+/**
+ * Analitik pemakaian fitur (src/lib/analitik-fitur.ts): dicatat hanya bila hasilnya ok, lalu hasil diteruskan apa
+ * adanya. catatFitur sinkron ke buffer memori (tanpa query), jadi tidak menambah waktu aksi.
+ */
+function catatBila<H extends Hasil>(h: H, userId: number, kode: string): H {
+  if (h.ok) catatFitur(userId, kode);
+  return h;
+}
+
 // ---------- Login & pendaftaran ----------
 
 // Hash pengganti saat email tidak terdaftar: verifikasi tetap berjalan supaya waktu respons tidak membocorkan email.
@@ -139,6 +149,7 @@ export async function loginAction(_lalu: Hasil | null, form: FormData): Promise<
 
   await catatLoginBerhasil(user.id);
   await mulaiSesi(user, await lewatHttps());
+  catatFitur(user.id, "akun.masuk");
   // Kembali ke halaman yang tadi dibuka sebelum diminta login (admin selalu ke panel admin).
   const lanjut = user.peran === "admin" ? null : jalurLanjut(form.get("lanjut"));
   redirect(href(lanjut ?? halamanAwal(user.peran)));
@@ -177,6 +188,7 @@ export async function daftarAction(_lalu: Hasil | null, form: FormData): Promise
   notifPendaftarBaru(akun.id, email, "email");
   await catatLoginBerhasil(akun.id);
   await mulaiSesi(akun, await lewatHttps());
+  catatFitur(akun.id, "akun.daftar");
   redirect(href(halamanAwal(akun.peran)));
 }
 
@@ -194,6 +206,7 @@ export async function ubahProfilAction(_lalu: Hasil | null, form: FormData): Pro
   if (nama.length < 2) return { ok: false, pesan: t("Nama minimal 2 huruf.", "Name must be at least 2 letters.") };
   await ubahNama(user.id, nama);
   revalidatePath("/", "layout");
+  catatFitur(user.id, "akun.ubah_profil");
   return { ok: true, pesan: t("Profil tersimpan.", "Profile saved.") };
 }
 
@@ -213,6 +226,7 @@ export async function gantiPasswordAction(_lalu: Hasil | null, form: FormData): 
   // Sesi lain batal karena sidik hash password berubah; sesi di perangkat ini diperbarui.
   await mulaiSesi(await gantiPassword(user.id, baru), await lewatHttps());
   revalidatePath("/akun");
+  catatFitur(user.id, "akun.ganti_password");
   return {
     ok: true,
     pesan:
@@ -281,6 +295,7 @@ export async function resetPasswordOtpAction(_lalu: Hasil | null, form: FormData
     if (e instanceof GalatOtp) return { ok: false, pesan: teksGalat(e, b) };
     throw e;
   }
+  catatFitur(u.id, "akun.reset_password");
   if (u.status !== "aktif") return { ok: true, pesan: t("Password sudah diganti, tetapi akun Anda sedang diblokir admin.", "Your password was changed, but your account is blocked by the admin.") };
   await mulaiSesi(u, await lewatHttps());
   redirect(href(halamanAwal(u.peran)));
@@ -290,6 +305,7 @@ export async function keluarSemuaAction(): Promise<Hasil> {
   const user = await requireUser();
   const { t } = await teksPermintaan();
   await mulaiSesi(await cabutSesi(user.id), await lewatHttps());
+  catatFitur(user.id, "akun.keluar_semua");
   return { ok: true, pesan: t("Semua perangkat lain sudah dikeluarkan.", "All other devices have been signed out.") };
 }
 
@@ -313,11 +329,13 @@ async function pesanGalatAfiliasi(e: unknown, b: Bahasa): Promise<string> {
 }
 
 export async function hubungkanWaAction(id: number): Promise<Hasil> {
-  const nomor = await nomorUntuk(await requireUser(), id);
+  const user = await requireUser();
+  const nomor = await nomorUntuk(user, id);
   const { b, t } = await teksPermintaan();
   if (!nomor) return nomorTidakAda(t);
   try {
     await hubungkan(nomor.sesi);
+    catatFitur(user.id, "wa.hubungkan");
     return { ok: true };
   } catch (e) {
     return { ok: false, pesan: pesanGalat(e, b) };
@@ -325,11 +343,13 @@ export async function hubungkanWaAction(id: number): Promise<Hasil> {
 }
 
 export async function kodePairingWaAction(id: number, telepon: string): Promise<Hasil & { kode?: string }> {
-  const nomor = await nomorUntuk(await requireUser(), id);
+  const user = await requireUser();
+  const nomor = await nomorUntuk(user, id);
   const { b, t } = await teksPermintaan();
   if (!nomor) return nomorTidakAda(t);
   try {
     const kode = await mintaKodePairing(nomor.sesi, telepon);
+    catatFitur(user.id, "wa.kode_pairing");
     return { ok: true, kode };
   } catch (e) {
     return { ok: false, pesan: pesanGalat(e, b) };
@@ -337,11 +357,13 @@ export async function kodePairingWaAction(id: number, telepon: string): Promise<
 }
 
 export async function logoutWaAction(id: number): Promise<Hasil> {
-  const nomor = await nomorUntuk(await requireUser(), id);
+  const user = await requireUser();
+  const nomor = await nomorUntuk(user, id);
   const { b, t } = await teksPermintaan();
   if (!nomor) return nomorTidakAda(t);
   try {
     await logout(nomor.sesi);
+    catatFitur(user.id, "wa.putuskan");
     return { ok: true };
   } catch (e) {
     return { ok: false, pesan: pesanGalat(e, b) };
@@ -378,6 +400,7 @@ export async function tambahNomorAction(_lalu: Hasil | null, form: FormData): Pr
   await hubungkan(nomor.sesi).catch(() => {});
   // "layout": daftar nomor di sidebar ikut diperbarui, bukan hanya halamannya.
   revalidatePath("/", "layout");
+  catatFitur(user.id, "nomor.tambah");
   redirect(href(`/nomor/${nomor.id}`));
 }
 
@@ -420,11 +443,13 @@ export async function ubahNomorAction(_lalu: Hasil | null, form: FormData): Prom
     };
   await ubahNomor(id, { label, instruksi, tungguDetik, tungguBacaDetik, jedaDetik });
   revalidatePath("/", "layout"); // nama nomor juga tampil di sidebar
+  catatFitur(user.id, "nomor.ubah");
   return { ok: true, pesan: t("Tersimpan.", "Saved.") };
 }
 
 export async function setBotAktifAction(id: number, aktif: boolean): Promise<Hasil> {
-  const nomor = await nomorUntuk(await requireUser(), id);
+  const user = await requireUser();
+  const nomor = await nomorUntuk(user, id);
   const { t } = await teksPermintaan();
   if (!nomor) return nomorTidakAda(t);
   // Aturan pakai: balasan otomatis hanya bisa dinyalakan setelah product knowledge diisi.
@@ -434,32 +459,36 @@ export async function setBotAktifAction(id: number, aktif: boolean): Promise<Has
   await setBotAktif(id, aktif);
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${id}`);
+  catatFitur(user.id, aktif ? "bot.nyalakan" : "bot.matikan");
   return { ok: true };
 }
 
 /** Sinkron data kasir Suka Shawarma: fitur internal, khusus admin. */
 export async function setSinkronAction(id: number, aktif: boolean): Promise<Hasil> {
-  if (!(await nomorUntuk(await requireAdmin(), id))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  const admin = await requireAdmin();
+  if (!(await nomorUntuk(admin, id))) return { ok: false, pesan: "Nomor tidak ditemukan." };
   if (!konfigurasiSinkron()) return { ok: false, pesan: "Sinkron belum dikonfigurasi di server." };
   await setNomorSinkron(id, aktif);
   const s = await statusSinkron();
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${id}`);
-  return aktif && s.galat ? { ok: false, pesan: `Gagal mengambil data: ${s.galat}` } : { ok: true };
+  return catatBila(aktif && s.galat ? { ok: false, pesan: `Gagal mengambil data: ${s.galat}` } : { ok: true }, admin.id, aktif ? "sinkron.kasir_nyalakan" : "sinkron.kasir_matikan");
 }
 
 /** Data sistem ChatGerCep (paket, harga, komisi, metode bayar, fitur) sebagai knowledge otomatis: khusus admin. */
 export async function setSinkronCgAction(id: number, aktif: boolean): Promise<Hasil> {
-  if (!(await nomorUntuk(await requireAdmin(), id))) return { ok: false, pesan: "Nomor tidak ditemukan." };
+  const admin = await requireAdmin();
+  if (!(await nomorUntuk(admin, id))) return { ok: false, pesan: "Nomor tidak ditemukan." };
   await setNomorSinkronCg(id, aktif);
   const s = await statusSinkronCg();
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${id}`);
-  return aktif && s.galat ? { ok: false, pesan: `Gagal menyusun data: ${s.galat}` } : { ok: true };
+  return catatBila(aktif && s.galat ? { ok: false, pesan: `Gagal menyusun data: ${s.galat}` } : { ok: true }, admin.id, aktif ? "sinkron.cg_nyalakan" : "sinkron.cg_matikan");
 }
 
 export async function hapusNomorAction(id: number): Promise<Hasil> {
-  const nomor = await nomorUntuk(await requireUser(), id);
+  const user = await requireUser();
+  const nomor = await nomorUntuk(user, id);
   const { b, t, href } = await teksPermintaan();
   if (!nomor) return nomorTidakAda(t);
   // Sesi WhatsApp-nya ikut dihapus (perangkat tertaut dicabut). Bila itu gagal, nomor tidak dihapus
@@ -471,17 +500,19 @@ export async function hapusNomorAction(id: number): Promise<Hasil> {
   }
   await hapusNomor(id);
   revalidatePath("/", "layout");
+  catatFitur(user.id, "nomor.hapus");
   redirect(href("/dashboard"));
 }
 
 // ---------- Katalog produk (tambah/ubah lewat /api/katalog karena membawa foto) ----------
 
-async function produkMilik(numberId: number, tulis: boolean): Promise<{ id: number } | null> {
+/** Nomor yang katalognya boleh diakses pengguna ini (`userId` = pelaku, untuk analitik). */
+async function produkMilik(numberId: number, tulis: boolean): Promise<{ id: number; userId: number } | null> {
   const user = await requireUser();
   const nomor = await nomorUntuk(user, numberId);
   if (!nomor) return null;
   if (tulis && user.peran !== "admin" && !(await katalogBoleh(nomor.user_id))) return null;
-  return { id: nomor.id };
+  return { id: nomor.id, userId: user.id };
 }
 
 const katalogTerkunci = (t: T): Hasil => ({ ok: false, pesan: t("Katalog tidak bisa diubah.", "The catalog can't be changed.") });
@@ -492,6 +523,7 @@ export async function hapusProdukAction(numberId: number, id: number): Promise<H
   if (!n || !Number.isInteger(id)) return { ok: false, pesan: t("Produk tidak ditemukan.", "Product not found.") };
   await hapusProduk(n.id, id);
   revalidatePath(`/nomor/${n.id}`);
+  catatFitur(n.userId, "katalog.hapus");
   return { ok: true, pesan: t("Produk dihapus.", "Product deleted.") };
 }
 
@@ -500,6 +532,7 @@ export async function tersediaProdukAction(numberId: number, id: number, tersedi
   if (!n || !Number.isInteger(id)) return katalogTerkunci((await teksPermintaan()).t);
   await setTersedia(n.id, id, tersedia);
   revalidatePath(`/nomor/${n.id}`);
+  catatFitur(n.userId, tersedia ? "katalog.tersedia" : "katalog.habis");
   return { ok: true };
 }
 
@@ -508,6 +541,7 @@ export async function geserProdukAction(numberId: number, id: number, arah: -1 |
   if (!n || !Number.isInteger(id) || (arah !== -1 && arah !== 1)) return katalogTerkunci((await teksPermintaan()).t);
   await geserProduk(n.id, id, arah);
   revalidatePath(`/nomor/${n.id}`);
+  catatFitur(n.userId, "katalog.urutkan");
   return { ok: true };
 }
 
@@ -530,6 +564,7 @@ export async function tambahTeksAction(_lalu: Hasil | null, form: FormData): Pro
   }
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${numberId}`);
+  catatFitur(user.id, gantiId > 0 ? "knowledge.perbarui" : "knowledge.tulis");
   return { ok: true, pesan: gantiId > 0 ? t("Dokumen diperbarui.", "Document updated.") : t("Tersimpan ke base knowledge.", "Saved to product knowledge.") };
 }
 
@@ -539,6 +574,7 @@ export async function hapusDokumenAction(id: number, numberId: number): Promise<
   await hapusDokumen(id, numberId, user.peran === "admin");
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${numberId}`);
+  catatFitur(user.id, "knowledge.hapus");
   return { ok: true };
 }
 
@@ -553,6 +589,7 @@ export async function hapusPercakapanAction(numberId: number, percakapanId?: num
   const n = await hapusPercakapan(numberId, percakapanId);
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${numberId}`);
+  catatFitur(user.id, percakapanId === undefined ? "percakapan.hapus_semua" : "percakapan.hapus");
   return { ok: true, pesan: t(`${n} percakapan dihapus.`, `${n} ${n === 1 ? "conversation" : "conversations"} deleted.`) };
 }
 
@@ -563,6 +600,7 @@ export async function bukanSpamAction(numberId: number, percakapanId: number): P
   if (!(await nomorUntuk(user, numberId))) return nomorTidakAda(t);
   if (!Number.isInteger(percakapanId)) return percakapanTidakSah(t);
   if (!(await tandaiBukanSpam(numberId, percakapanId))) return { ok: false, pesan: t("Percakapan tidak ditemukan.", "Conversation not found.") };
+  catatFitur(user.id, "percakapan.bukan_spam");
   return { ok: true, pesan: t("Ditandai bukan spam. Pesan berikutnya dari kontak ini dijawab AI seperti biasa.", "Marked as not spam. The AI will reply to this contact's next messages as usual.") };
 }
 
@@ -575,29 +613,36 @@ export async function bangunkanChatAction(numberId: number, percakapanId: number
   const kunci = await kunciPercakapan(numberId, percakapanId);
   if (!kunci) return { ok: false, pesan: t("Percakapan tidak ditemukan.", "Conversation not found.") };
   await bangunkanChat(numberId, kunci);
+  catatFitur(user.id, "percakapan.bangunkan");
   return { ok: true, pesan: t("Pesan berikutnya dari kontak ini dijawab AI lagi.", "The AI will reply to this contact's next messages again.") };
 }
 
 export async function setSaringProspekAction(id: number, aktif: boolean): Promise<Hasil> {
-  if (!(await nomorUntuk(await requireUser(), id))) return nomorTidakAda((await teksPermintaan()).t);
+  const user = await requireUser();
+  if (!(await nomorUntuk(user, id))) return nomorTidakAda((await teksPermintaan()).t);
   await setSaringProspek(id, aktif);
   revalidatePath(`/nomor/${id}`);
+  catatFitur(user.id, aktif ? "penyaring.prospek_nyalakan" : "penyaring.prospek_matikan");
   return { ok: true };
 }
 
 export async function setSaringSpamAction(id: number, aktif: boolean): Promise<Hasil> {
-  if (!(await nomorUntuk(await requireUser(), id))) return nomorTidakAda((await teksPermintaan()).t);
+  const user = await requireUser();
+  if (!(await nomorUntuk(user, id))) return nomorTidakAda((await teksPermintaan()).t);
   await setSaringSpam(id, aktif);
   revalidatePath(`/nomor/${id}`);
+  catatFitur(user.id, aktif ? "penyaring.spam_nyalakan" : "penyaring.spam_matikan");
   return { ok: true };
 }
 
 // ---------- Belajar dari balasan manusia ----------
 
 export async function setBelajarAction(id: number, aktif: boolean): Promise<Hasil> {
-  if (!(await nomorUntuk(await requireUser(), id))) return nomorTidakAda((await teksPermintaan()).t);
+  const user = await requireUser();
+  if (!(await nomorUntuk(user, id))) return nomorTidakAda((await teksPermintaan()).t);
   await setBelajar(id, aktif);
   revalidatePath(`/nomor/${id}`);
+  catatFitur(user.id, aktif ? "belajar.nyalakan" : "belajar.matikan");
   return { ok: true };
 }
 
@@ -615,13 +660,16 @@ export async function hapusPelajaranAction(numberId: number, id?: number): Promi
   if (id !== undefined && !Number.isInteger(id)) return { ok: false, pesan: t("Data tidak valid.", "Invalid data.") };
   const n = await hapusPelajaran(numberId, id);
   revalidatePath(`/nomor/${numberId}`);
+  catatFitur(user.id, id === undefined ? "belajar.hapus_semua" : "belajar.hapus");
   return { ok: true, pesan: t(`${n} pelajaran dihapus.`, `${n} ${n === 1 ? "lesson" : "lessons"} deleted.`) };
 }
 
 export async function pratinjauAction(id: number, numberId: number): Promise<string | null> {
   const user = await requireUser();
   if (!(await nomorUntuk(user, numberId))) return null;
-  return pratinjauDokumen(id, numberId, user.peran === "admin");
+  const isi = await pratinjauDokumen(id, numberId, user.peran === "admin");
+  if (isi !== null) catatFitur(user.id, "knowledge.pratinjau");
+  return isi;
 }
 
 // ---------- Admin ----------
@@ -632,10 +680,12 @@ export interface HasilReset extends Hasil {
 
 const idSah = (v: unknown): number | null => (Number.isInteger(Number(v)) && Number(v) > 0 ? Number(v) : null);
 
-async function jalankanAdmin(fn: () => Promise<string | void>, ...jalur: string[]): Promise<Hasil> {
+/** Aksi admin standar: galat -> pesan, berhasil -> segarkan `jalur` lalu catat `fitur` [id admin, kode] ke analitik. */
+async function jalankanAdmin(fitur: readonly [number, string], fn: () => Promise<string | void>, ...jalur: string[]): Promise<Hasil> {
   try {
     const pesan = await fn();
     for (const j of jalur) revalidatePath(j);
+    catatFitur(fitur[0], fitur[1]);
     return { ok: true, pesan: pesan || "Tersimpan." };
   } catch (e) {
     return { ok: false, pesan: pesanGalat(e) };
@@ -649,7 +699,7 @@ export async function adminKuotaAction(_lalu: Hasil | null, form: FormData): Pro
   const kuota = mentah === "" ? null : Number(mentah);
   if (!id) return { ok: false, pesan: "Pengguna tidak valid." };
   if (kuota !== null && !(Number.isInteger(kuota) && kuota >= 0 && kuota <= 100)) return { ok: false, pesan: "Kuota harus 0–100 nomor (kosongkan = kuota bawaan)." };
-  return jalankanAdmin(() => setKuota(admin, id, kuota), `/admin/pengguna/${id}`, "/admin");
+  return jalankanAdmin([admin.id, "admin.ubah_kuota"], () => setKuota(admin, id, kuota), `/admin/pengguna/${id}`, "/admin");
 }
 
 export async function adminBonusKuotaAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
@@ -658,6 +708,7 @@ export async function adminBonusKuotaAction(_lalu: Hasil | null, form: FormData)
   const jumlah = Number(String(form.get("jumlah") ?? "").replace(/[.,\s]/g, ""));
   if (!id) return { ok: false, pesan: "Pengguna tidak valid." };
   return jalankanAdmin(
+    [admin.id, "admin.bonus_kuota"],
     async () => {
       await beriBonusKuota(admin, id, jumlah, String(form.get("catatan") ?? ""));
       return `Bonus ${jumlah.toLocaleString("id-ID")} balasan AI diberikan. Pengguna mendapat notifikasi.`;
@@ -674,7 +725,7 @@ export async function adminAiAkunAction(_lalu: Hasil | null, form: FormData): Pr
   const dipilih = form.get("penyedia");
   const penyedia = dipilih === "hermes" || dipilih === "anthropic" ? dipilih : null;
   if (penyedia === "anthropic" && !kunciAnthropic()) return { ok: false, pesan: "API key Anthropic belum dipasang developer di server (ANTHROPIC_API_KEY)." };
-  return jalankanAdmin(async () => {
+  return jalankanAdmin([admin.id, "admin.ai_akun"], async () => {
     await setAiAkun(admin, id, penyedia);
     return penyedia === null
       ? "Akun ini kembali ikut pengaturan Mesin AI."
@@ -685,7 +736,7 @@ export async function adminAiAkunAction(_lalu: Hasil | null, form: FormData): Pr
 export async function adminPeranAction(id: number, peran: "admin" | "user"): Promise<Hasil> {
   const admin = await requireAdmin();
   if (!idSah(id) || (peran !== "admin" && peran !== "user")) return { ok: false, pesan: "Data tidak valid." };
-  return jalankanAdmin(() => setPeran(admin, id, peran), `/admin/pengguna/${id}`, "/admin");
+  return jalankanAdmin([admin.id, "admin.ubah_peran"], () => setPeran(admin, id, peran), `/admin/pengguna/${id}`, "/admin");
 }
 
 export async function adminBlokirAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
@@ -694,7 +745,7 @@ export async function adminBlokirAction(_lalu: Hasil | null, form: FormData): Pr
   if (!id) return { ok: false, pesan: "Pengguna tidak valid." };
   const blokir = form.get("blokir") === "1";
   const alasan = String(form.get("alasan") ?? "").trim().slice(0, 200);
-  return jalankanAdmin(async () => {
+  return jalankanAdmin([admin.id, blokir ? "admin.blokir" : "admin.buka_blokir"], async () => {
     await setBlokir(admin, id, blokir, alasan);
     return blokir ? "Akun diblokir: sesi login dicabut dan AI berhenti membalas di nomornya." : "Blokir dibuka.";
   }, `/admin/pengguna/${id}`, "/admin");
@@ -704,7 +755,9 @@ export async function adminResetPasswordAction(id: number): Promise<HasilReset> 
   const admin = await requireAdmin();
   if (!idSah(id)) return { ok: false, pesan: "Pengguna tidak valid." };
   try {
-    return { ok: true, password: await resetPassword(admin, id) };
+    const password = await resetPassword(admin, id);
+    catatFitur(admin.id, "admin.reset_password");
+    return { ok: true, password };
   } catch (e) {
     return { ok: false, pesan: pesanGalat(e) };
   }
@@ -713,7 +766,7 @@ export async function adminResetPasswordAction(id: number): Promise<HasilReset> 
 export async function adminCabutSesiAction(id: number): Promise<Hasil> {
   const admin = await requireAdmin();
   if (!idSah(id)) return { ok: false, pesan: "Pengguna tidak valid." };
-  return jalankanAdmin(async () => {
+  return jalankanAdmin([admin.id, "admin.cabut_sesi"], async () => {
     await cabutSesi(id, admin);
     return "Semua sesi login pengguna ini dicabut.";
   }, `/admin/pengguna/${id}`);
@@ -724,7 +777,7 @@ export async function adminPutuskanWaAction(id: number): Promise<Hasil> {
   const admin = await requireAdmin();
   const u = idSah(id) ? await penggunaById(id) : undefined;
   if (!u) return { ok: false, pesan: "Pengguna tidak ditemukan." };
-  return jalankanAdmin(async () => {
+  return jalankanAdmin([admin.id, "admin.putuskan_wa"], async () => {
     const daftar = await nomorMilik(id);
     for (const n of daftar) await logout(n.sesi);
     await catatLog(admin, "putuskan WhatsApp", u.email, `${daftar.length} nomor`);
@@ -747,6 +800,7 @@ export async function adminHapusAction(id: number, konfirmasi?: string, alihkan 
   }
   revalidatePath("/admin", "layout");
   revalidatePath("/admin/pengguna");
+  catatFitur(admin.id, "admin.hapus_pengguna");
   if (alihkan) redirect("/admin/pengguna");
   return { ok: true, pesan: `Pengguna ${u.email} berhasil dihapus.` };
 }
@@ -768,6 +822,7 @@ export async function adminBuatAkunAction(_lalu: Hasil | null, form: FormData): 
   if (!akun) return { ok: false, pesan: "Email ini sudah terdaftar." };
   await catatLog(admin, "buat akun", email, peran === "admin" ? "sebagai admin" : undefined);
   revalidatePath("/admin", "layout");
+  catatFitur(admin.id, "admin.buat_akun");
   return { ok: true, pesan: `Akun ${email} dibuat.` };
 }
 
@@ -797,6 +852,7 @@ export async function adminPengaturanAction(_lalu: Hasil | null, form: FormData)
     `pendaftaran ${buka ? "dibuka" : "ditutup"}, kuota gratis ${kuota} nomor & ${balasan} balasan ${ulang === "sekali" ? `sekali (free trial${hari > 0 ? ` ${hari} hari` : ", tanpa batas waktu"})` : "per bulan"}`
   );
   revalidatePath("/admin", "layout");
+  catatFitur(admin.id, "admin.pengaturan");
   return { ok: true, pesan: "Pengaturan tersimpan." };
 }
 
@@ -816,6 +872,7 @@ export async function adminAturanAction(_lalu: Hasil | null, form: FormData): Pr
   await catatLog(admin, "ubah aturan sistem", null, nilai.filter(([k]) => k !== "aturan_global").map(([k, v]) => `${k}=${v}`).join(", ") + `, aturan global ${global.length} karakter`);
   revalidatePath("/admin", "layout");
   revalidatePath("/", "layout");
+  catatFitur(admin.id, "admin.aturan");
   return { ok: true, pesan: "Aturan tersimpan dan langsung berlaku untuk semua bot." };
 }
 
@@ -835,6 +892,7 @@ export async function adminAiAction(_lalu: Hasil | null, form: FormData): Promis
   const rincian = `${model}${cadangan ? ` (cadangan ${cadangan})` : ""}`;
   await catatLog(admin, "ubah mesin AI", null, penyedia === "hermes" ? "hermes" : penyedia === "anthropic" ? `anthropic · ${rincian}` : `per paket: gratis hermes, berbayar ${rincian}, lalu hermes`);
   revalidatePath("/admin", "layout");
+  catatFitur(admin.id, "admin.mesin_ai");
   return {
     ok: true,
     pesan:
@@ -855,6 +913,7 @@ export async function selesaiTurAction(nama: string): Promise<void> {
   const user = await requireUser();
   if (!TUR_SAH.has(nama)) return;
   await tandaiTurSelesai(user.id, nama);
+  catatFitur(user.id, nama === "nomor" ? "tur.selesai_nomor" : "tur.selesai_dashboard");
 }
 
 // ---------- Langganan & pembayaran ----------
@@ -889,6 +948,7 @@ export async function bayarPaketAction(paketId: number, kanal: string): Promise<
       });
       revalidatePath("/langganan");
     }
+    catatFitur(user.id, "langganan.buat_tagihan");
     return { ok: true, orderId: h.orderId };
   } catch (e) {
     console.error(`[bayar] gagal membuat tagihan user=${user.id} kanal=${kanal}: ${e instanceof Error ? e.message : e}`);
@@ -917,6 +977,7 @@ export async function setKanalTampilAction(kanal: string, tampil: boolean): Prom
   revalidatePath("/admin/transaksi");
   revalidatePath("/langganan", "layout");
   mintaSinkronCg();
+  catatFitur(admin.id, tampil ? "admin.tampilkan_metode_bayar" : "admin.sembunyikan_metode_bayar");
   return { ok: true };
 }
 
@@ -931,6 +992,7 @@ export async function batalBayarAction(orderId: string): Promise<Hasil & { statu
     const status = await batalkanBayar(k, user.id, orderId);
     if (!status) return { ok: false, pesan: tidakAda };
     revalidatePath("/langganan");
+    if (status === "dibatalkan") catatFitur(user.id, "langganan.batal_tagihan");
     return status === "dibatalkan"
       ? { ok: true, status }
       : {
@@ -986,6 +1048,7 @@ export async function adminPaketAction(_lalu: Hasil | null, form: FormData): Pro
   revalidatePath("/afiliasi");
   revalidatePath("/program-afiliasi");
   revalidatePath("/");
+  catatFitur(admin.id, id ? "admin.ubah_paket" : "admin.buat_paket");
   return { ok: true, pesan: id ? "Paket diperbarui." : "Paket dibuat." };
 }
 
@@ -1001,6 +1064,7 @@ export async function adminHapusPaketAction(id: number): Promise<Hasil> {
   revalidatePath("/afiliasi");
   revalidatePath("/program-afiliasi");
   revalidatePath("/");
+  catatFitur(admin.id, "admin.hapus_paket");
   return { ok: true, pesan: `Paket "${dihapus.nama}" dihapus.` };
 }
 
@@ -1043,6 +1107,7 @@ export async function adminPaketCustomAction(_lalu: Hasil | null, form: FormData
   revalidatePath("/");
   const tampil = customTampil(p) ? "Tampil di daftar harga." : p.aktif ? "Belum tampil: lengkapi tombolnya dulu." : "Belum ditampilkan di daftar harga.";
   const rugi = h.status === "rugi" ? " Perhatian: harga di bawah modal (rugi)." : "";
+  catatFitur(admin.id, "admin.paket_custom");
   return {
     ok: true,
     pesan: `Tersimpan: Rp${p.harga.toLocaleString("id-ID")} / ${p.durasi_hari} hari · ${p.kuota_balasan.toLocaleString("id-ID")} balasan · ${p.kuota_nomor.toLocaleString("id-ID")} nomor · margin ${marginTeks}. ${tampil}${rugi}`,
@@ -1101,6 +1166,7 @@ export async function adminBerikanPaketAction(_lalu: Hasil | null, form: FormDat
   );
   revalidatePath(`/admin/pengguna/${u.id}`);
   revalidatePath("/admin/transaksi");
+  catatFitur(admin.id, "admin.berikan_paket");
   return {
     ok: true,
     pesan: `${h.nama} ${h.diperpanjang ? "diperpanjang" : "aktif"} untuk ${u.email} sampai ${tanggal(h.sampai)}. Pembayaran tercatat (${h.orderId}).`,
@@ -1114,6 +1180,7 @@ export async function adminHentikanLanggananAction(id: number): Promise<Hasil> {
   await hentikanLangganan(u.id);
   await catatLog(admin, "hentikan langganan", u.email);
   revalidatePath(`/admin/pengguna/${u.id}`);
+  catatFitur(admin.id, "admin.hentikan_langganan");
   return { ok: true, pesan: "Langganan dihentikan; akun kembali ke kuota gratis." };
 }
 
@@ -1145,6 +1212,7 @@ export async function adminHargaAction(_lalu: Hasil | null, form: FormData): Pro
   if (!terapkanPenuh && !terapkanKomisiSaja) {
     await catatLog(admin, "ubah acuan harga", null, acuanTeks);
     revalidatePath("/admin", "layout");
+    catatFitur(admin.id, "admin.acuan_harga");
     return { ok: true, pesan: "Acuan harga tersimpan." };
   }
   const mode = form.get("mode") === "kunci-harga" ? "kunci-harga" : "kunci-kuota";
@@ -1196,6 +1264,7 @@ export async function adminHargaAction(_lalu: Hasil | null, form: FormData): Pro
   revalidatePath("/program-afiliasi");
   revalidatePath("/");
   const lewat = dilewati.length ? ` Tidak diubah: ${dilewati.map((d) => `${d.nama} (${d.alasan})`).join("; ")}.` : "";
+  catatFitur(admin.id, terapkanKomisiSaja ? "admin.terapkan_komisi" : "admin.terapkan_harga");
   return { ok: true, pesan: (berubah.length ? `Paket diperbarui: ${berubah.map((b) => `${b.nama} → ${b.sesudah}`).join("; ")}.` : "Paket yang dipilih sudah sesuai simulasi.") + lewat };
 }
 
@@ -1213,6 +1282,7 @@ export async function daftarAfiliasiAction(_lalu: Hasil | null, form: FormData):
     const af = await daftarAfiliator(user.id, { kode, bankNama, bankNomor, bankPemilik });
     revalidatePath("/afiliasi");
     revalidatePath("/admin/afiliasi");
+    catatFitur(user.id, "afiliasi.daftar");
     return {
       ok: true,
       pesan:
@@ -1239,6 +1309,7 @@ export async function ubahAfiliasiAction(_lalu: Hasil | null, form: FormData): P
     await ubahProfilAfiliator(user.id, { kode, bankNama, bankNomor, bankPemilik });
     revalidatePath("/afiliasi");
     revalidatePath("/admin/afiliasi");
+    catatFitur(user.id, "afiliasi.ubah_profil");
     return { ok: true, pesan: t("Profil & rekening pencairan berhasil diperbarui.", "Profile & payout account updated.") };
   } catch (e) {
     return { ok: false, pesan: await pesanGalatAfiliasi(e, b) };
@@ -1254,6 +1325,7 @@ export async function tarikKomisiAction(_lalu: Hasil | null, form: FormData): Pr
     const p = await ajukanPenarikan(user.id, nominal);
     revalidatePath("/afiliasi");
     revalidatePath("/admin/afiliasi");
+    catatFitur(user.id, "afiliasi.tarik_komisi");
     return {
       ok: true,
       pesan:
@@ -1285,6 +1357,7 @@ export async function adminAturanAfiliasiAction(_lalu: Hasil | null, form: FormD
   );
   revalidatePath("/admin/afiliasi");
   revalidatePath("/afiliasi");
+  catatFitur(admin.id, "admin.aturan_afiliasi");
   return { ok: true, pesan: "Pengaturan program afiliasi tersimpan." };
 }
 
@@ -1294,6 +1367,7 @@ export async function adminStatusAfiliatorAction(userId: number, status: StatusA
     return { ok: false, pesan: "Data tidak valid." };
   }
   return jalankanAdmin(
+    [admin.id, "admin.status_afiliator"],
     async () => {
       await setStatusAfiliatorAdmin(admin, userId, status);
       return `Status afiliator diubah menjadi ${status}.`;
@@ -1313,6 +1387,7 @@ export async function adminProsesPenarikanAction(_lalu: Hasil | null, form: Form
   const referensi = String(form.get("referensi") ?? "");
   const catatan = String(form.get("catatan") ?? "");
   return jalankanAdmin(
+    [admin.id, "admin.proses_penarikan"],
     () => prosesPenarikanAdmin(admin, id, { aksi, referensi, catatan }),
     "/admin/afiliasi",
     "/afiliasi"
@@ -1366,6 +1441,7 @@ export async function adminMetaPixelAction(_lalu: Hasil | null, form: FormData):
     );
     revalidatePath("/", "layout");
     revalidatePath("/admin", "layout");
+    catatFitur(admin.id, "admin.meta_pixel");
     return {
       ok: true,
       pesan: tersimpan.pixelId
@@ -1385,7 +1461,7 @@ export async function adminUjiMetaPixelAction(): Promise<Hasil> {
     return { ok: false, pesan: "Terlalu sering mengirim event uji. Tunggu sebentar lalu coba lagi." };
   }
   const ip = await ipKlien();
-  return ujiCapiMetaPixel({ ip, email: admin.email });
+  return catatBila(await ujiCapiMetaPixel({ ip, email: admin.email }), admin.id, "admin.uji_meta_pixel");
 }
 
 // ---------- Follow-up WhatsApp nomor CS (followup.ts) ----------
@@ -1404,6 +1480,7 @@ export async function adminFollowupAction(_lalu: Hasil | null, form: FormData): 
     pengingatHari: angkaForm("pengingat_hari"),
   };
   return jalankanAdmin(
+    [admin.id, "admin.followup_setelan"],
     async () => {
       const { simpanPengaturanFollowup } = await import("@/lib/followup");
       const s = await simpanPengaturanFollowup(setelan);
@@ -1417,6 +1494,7 @@ export async function adminFollowupAction(_lalu: Hasil | null, form: FormData): 
 export async function adminLepasRemFollowupAction(): Promise<Hasil> {
   const admin = await requireAdmin();
   return jalankanAdmin(
+    [admin.id, "admin.followup_lepas_rem"],
     async () => {
       const { lepasRemFollowup } = await import("@/lib/followup");
       await lepasRemFollowup();
@@ -1433,6 +1511,7 @@ export async function adminTautChatCsAction(_lalu: Hasil | null, form: FormData)
   if (!id) return { ok: false, pesan: "Pengguna tidak valid." };
   const nomor = String(form.get("nomor") ?? "").slice(0, 40);
   return jalankanAdmin(
+    [admin.id, "admin.followup_tautkan"],
     async () => {
       const { tautkanChatCs } = await import("@/lib/followup");
       const pesan = await tautkanChatCs(id, nomor);
@@ -1448,6 +1527,7 @@ export async function adminAntrekanFollowupAction(id: number): Promise<Hasil> {
   const admin = await requireAdmin();
   if (!idSah(id)) return { ok: false, pesan: "Pengguna tidak valid." };
   return jalankanAdmin(
+    [admin.id, "admin.followup_antre_ulang"],
     async () => {
       const { antrekanUlang } = await import("@/lib/followup");
       await antrekanUlang(id);
@@ -1460,12 +1540,13 @@ export async function adminAntrekanFollowupAction(id: number): Promise<Hasil> {
 }
 
 export async function adminTulisUlangPesanFollowupAction(id: number): Promise<Hasil & { teks?: string }> {
-  await requireAdmin();
+  const admin = await requireAdmin();
   if (!idSah(id)) return { ok: false, pesan: "Pengguna tidak valid." };
   try {
     const { tulisUlangPesan } = await import("@/lib/followup");
     const teks = await tulisUlangPesan(id);
     revalidatePath("/admin/followup");
+    catatFitur(admin.id, "admin.followup_tulis_ulang");
     return { ok: true, pesan: "Pesan ditulis ulang.", teks };
   } catch (e) {
     return { ok: false, pesan: pesanGalat(e) };
@@ -1476,6 +1557,7 @@ export async function adminSimpanPesanFollowupAction(id: number, teks: string): 
   const admin = await requireAdmin();
   if (!idSah(id)) return { ok: false, pesan: "Pengguna tidak valid." };
   return jalankanAdmin(
+    [admin.id, "admin.followup_ubah_pesan"],
     async () => {
       const { simpanPesan } = await import("@/lib/followup");
       await simpanPesan(id, String(teks ?? "").slice(0, 3000));

@@ -97,7 +97,8 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             <span aria-hidden className="kisi-tinta absolute inset-0" />
             <span className="relative">{(u.nama || u.email).charAt(0)}</span>
           </span>
-          <div className="min-w-0">
+          {/* Nama & email akun: klik di dalamnya tercatat "(isi privat)" (analitik tidak menyimpan teks data pribadi). */}
+          <div data-analitik-privat className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-2xl font-bold tracking-tight">{u.nama || "(tanpa nama)"}</h1>
               {u.peran === "admin" && <span className="rounded-md bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent uppercase">Admin</span>}
@@ -121,6 +122,12 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
           <dd>
             <Link href={`/admin/transaksi?q=${u.id}`} className="font-semibold text-accent hover:underline">
               Lihat transaksi
+            </Link>
+          </dd>
+          <dt className="text-muted">Aktivitas</dt>
+          <dd>
+            <Link href={`/admin/analitik?pengguna=${u.id}`} className="font-semibold text-accent hover:underline">
+              Lihat analitik
             </Link>
           </dd>
         </dl>

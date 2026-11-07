@@ -107,7 +107,7 @@ async function IsiAdminAfiliasi() {
             Tidak ada pengajuan penarikan yang menunggu diproses.
           </p>
         ) : (
-          <ul className="divide-y divide-line">
+          <ul data-analitik-privat className="divide-y divide-line">
             {antreanMenunggu.map((p) => (
               <li key={p.id} className="px-5 py-4 text-[13px]">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -120,7 +120,7 @@ async function IsiAdminAfiliasi() {
                     </p>
                     <p className="mt-0.5 text-[12.5px] text-muted">
                       Mitra:{" "}
-                      <Link href={`/admin/pengguna/${p.afiliator_id}`} className="font-semibold text-fg hover:underline">
+                      <Link href={`/admin/pengguna/${p.afiliator_id}`} data-analitik="Buka pengguna" className="font-semibold text-fg hover:underline">
                         {p.afiliator_nama || p.afiliator_email}
                       </Link>{" "}
                       ({p.afiliator_email} · kode <code className="font-mono">{p.afiliator_kode}</code>) · Diajukan{" "}
@@ -181,14 +181,14 @@ async function IsiAdminAfiliasi() {
         ) : (
           <>
           {/* HP: kartu per mitra, tombol tindakan langsung terlihat tanpa geser tabel. */}
-          <ul className="divide-y divide-line sm:hidden">
+          <ul data-analitik-privat className="divide-y divide-line sm:hidden">
             {afiliator.map((a) => {
               const badge = BADGE_STATUS_AF[a.status] ?? BADGE_STATUS_AF.aktif;
               return (
                 <li key={a.user_id} className="space-y-2 px-4 py-3.5 text-[13px]">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <Link href={`/admin/pengguna/${a.user_id}`} className="block truncate font-semibold hover:underline">
+                      <Link href={`/admin/pengguna/${a.user_id}`} data-analitik="Buka pengguna" className="block truncate font-semibold hover:underline">
                         {a.nama || a.email}
                       </Link>
                       <span className="block text-[12px] text-muted [overflow-wrap:anywhere]">
@@ -229,13 +229,13 @@ async function IsiAdminAfiliasi() {
                   <th className="px-5 py-3 text-right">Tindakan</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-line">
+              <tbody data-analitik-privat className="divide-y divide-line">
                 {afiliator.map((a) => {
                   const badge = BADGE_STATUS_AF[a.status] ?? BADGE_STATUS_AF.aktif;
                   return (
                     <tr key={a.user_id} className="transition-colors hover:bg-subtle/40">
                       <td className="px-5 py-3">
-                        <Link href={`/admin/pengguna/${a.user_id}`} className="font-semibold hover:underline">
+                        <Link href={`/admin/pengguna/${a.user_id}`} data-analitik="Buka pengguna" className="font-semibold hover:underline">
                           {a.nama || a.email}
                         </Link>
                         <span className="block text-[12px] text-muted">
@@ -283,12 +283,12 @@ async function IsiAdminAfiliasi() {
           {komisiTerbaru.length === 0 ? (
             <p className="px-5 py-8 text-center text-[13px] text-muted">Belum ada transaksi yang menghasilkan komisi afiliasi.</p>
           ) : (
-            <ul className="divide-y divide-line">
+            <ul data-analitik-privat className="divide-y divide-line">
               {komisiTerbaru.map((k) => (
                 <li key={k.id} className="flex items-center justify-between gap-3 px-5 py-3 text-[13px]">
                   <div className="min-w-0">
                     <p className="truncate font-semibold">
-                      <Link href={`/admin/pengguna/${k.afiliator_id}`} className="hover:underline">
+                      <Link href={`/admin/pengguna/${k.afiliator_id}`} data-analitik="Buka pengguna" className="hover:underline">
                         {k.afiliator_email}
                       </Link>{" "}
                       (<code className="font-mono text-[12px]">{k.afiliator_kode}</code>)
@@ -314,7 +314,7 @@ async function IsiAdminAfiliasi() {
           {riwayatSelesai.length === 0 ? (
             <p className="px-5 py-8 text-center text-[13px] text-muted">Belum ada riwayat penarikan yang selesai diproses.</p>
           ) : (
-            <ul className="divide-y divide-line">
+            <ul data-analitik-privat className="divide-y divide-line">
               {riwayatSelesai.map((p) => {
                 const badge = BADGE_PENARIKAN[p.status] ?? BADGE_PENARIKAN.selesai;
                 return (
@@ -322,7 +322,7 @@ async function IsiAdminAfiliasi() {
                     <div className="min-w-0 [overflow-wrap:anywhere]">
                       <p className="font-bold tabular-nums">
                         Rp{angka(p.nominal)} ·{" "}
-                        <Link href={`/admin/pengguna/${p.afiliator_id}`} className="font-semibold hover:underline">
+                        <Link href={`/admin/pengguna/${p.afiliator_id}`} data-analitik="Buka pengguna" className="font-semibold hover:underline">
                           {p.afiliator_email}
                         </Link>
                       </p>

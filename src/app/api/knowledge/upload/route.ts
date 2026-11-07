@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { catatFitur } from "@/lib/analitik";
 import { KnowledgeError, tambahDokumen } from "@/lib/knowledge";
 import { getUser } from "@/lib/session";
 import { nomorUntuk } from "@/lib/akses";
@@ -63,6 +64,7 @@ export async function POST(req: Request) {
     });
     revalidatePath("/dashboard");
     revalidatePath(`/nomor/${numberId}`);
+    catatFitur(user.id, isPdf ? "knowledge.unggah_pdf" : "knowledge.unggah_berkas");
     return NextResponse.json({ ok: true, ...hasil });
   } catch (e) {
     if (e instanceof KnowledgeError) return galat((b === "en" && e.en) || e.message);

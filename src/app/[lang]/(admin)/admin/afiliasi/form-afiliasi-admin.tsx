@@ -190,6 +190,7 @@ export function FormProsesPenarikan({
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
+          data-analitik="Salin no. rekening"
           onClick={salinNomor}
           className="btn btn-ghost border border-line px-2.5 py-1.5 text-[12px]"
         >
@@ -199,6 +200,7 @@ export function FormProsesPenarikan({
 
         <button
           type="button"
+          data-analitik="Tandai sudah ditransfer"
           onClick={() => setMode(mode === "manual" ? null : "manual")}
           className={`btn px-3 py-1.5 text-[12px] ${mode === "manual" ? "btn-primary" : "btn-ghost border border-line"}`}
         >
@@ -208,6 +210,7 @@ export function FormProsesPenarikan({
         {irisSiap && (
           <button
             type="button"
+            data-analitik="Cairkan otomatis (Iris)"
             onClick={() => setMode(mode === "iris" ? null : "iris")}
             className={`btn px-3 py-1.5 text-[12px] ${mode === "iris" ? "btn-primary" : "btn-ghost border border-line"}`}
           >
@@ -217,6 +220,7 @@ export function FormProsesPenarikan({
 
         <button
           type="button"
+          data-analitik="Tolak penarikan"
           onClick={() => setMode(mode === "tolak" ? null : "tolak")}
           className={`btn px-3 py-1.5 text-[12px] ${
             mode === "tolak" ? "bg-danger text-white" : "btn-ghost border border-line text-danger"
@@ -286,7 +290,7 @@ export function FormProsesPenarikan({
                   ? "Kirim Dana via Iris Sekarang"
                   : "Konfirmasi Tolak"}
             </SubmitButton>
-            <button type="button" onClick={() => setMode(null)} className="btn btn-ghost w-full text-[12.5px] sm:w-auto">
+            <button type="button" data-analitik="Batal proses penarikan" onClick={() => setMode(null)} className="btn btn-ghost w-full text-[12.5px] sm:w-auto">
               Batal
             </button>
           </div>
@@ -314,6 +318,7 @@ export function AksiStatusAfiliator({ userId, status }: { userId: number; status
         <button
           type="button"
           disabled={tunggu}
+          data-analitik="Setujui afiliator"
           onClick={() => ubah("aktif")}
           className="btn btn-primary px-2.5 py-1 text-[12px]"
         >
@@ -325,6 +330,7 @@ export function AksiStatusAfiliator({ userId, status }: { userId: number; status
         <button
           type="button"
           disabled={tunggu}
+          data-analitik="Nonaktifkan afiliator"
           onClick={() => ubah("nonaktif")}
           className="btn btn-ghost border border-line px-2.5 py-1 text-[12px] text-danger"
         >
@@ -335,6 +341,7 @@ export function AksiStatusAfiliator({ userId, status }: { userId: number; status
           <button
             type="button"
             disabled={tunggu}
+            data-analitik="Aktifkan kembali afiliator"
             onClick={() => ubah("aktif")}
             className="btn btn-ghost border border-line px-2.5 py-1 text-[12px]"
           >

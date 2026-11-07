@@ -99,6 +99,7 @@ export function PilihTanggal({
           ref={tombol}
           id={id}
           type="button"
+          data-analitik={label}
           aria-label={`${label}: ${p ? teksTombol : t("belum dipilih", "not set")}`}
           aria-haspopup="dialog"
           aria-expanded={buka}
@@ -164,6 +165,7 @@ export function PilihTanggal({
                   data-pilih={dipilih ? "1" : undefined}
                   data-hari-ini={kini ? "1" : undefined}
                   aria-pressed={dipilih}
+                  data-analitik={`${label}: pilih tanggal`}
                   aria-label={`${d} ${BULAN[b][lihat.m]} ${lihat.y}`}
                   onClick={() => {
                     ubah(v);

@@ -6,6 +6,7 @@ import { adaKnowledge, susunSistem } from "@/lib/knowledge";
 import { TOLAK_KODE, adaKode } from "@/lib/penjaga";
 import { type Foto, MAKS_FOTO_BYTE } from "@/lib/types";
 import { sesiDanNomor } from "@/lib/akses";
+import { catatFitur } from "@/lib/analitik";
 import { teksPermintaan } from "@/lib/bahasa-server";
 import { terlaluSering } from "@/lib/batas";
 import { alasanSpam, periksaSpam } from "@/lib/spam";
@@ -55,11 +56,17 @@ export async function POST(req: Request) {
   if ((!teksPesan && !gambar.length) || teksPesan.length > 2000) return NextResponse.json({ error: t("Pesan kosong atau terlalu panjang.", "The message is empty or too long.") }, { status: 400 });
   if (!/^[a-z0-9]{8,24}$/.test(sesi)) return NextResponse.json({ error: t("Sesi uji tidak valid.", "Invalid test session.") }, { status: 400 });
   const pesan = gambar.length ? (teksPesan ? `${teksPesan}\n[Pelanggan melampirkan foto]` : "[Pelanggan mengirim foto]") : teksPesan;
+  // Analitik: setiap jawaban uji yang berhasil (termasuk yang disaring/diabaikan) = satu pemakaian fitur; galat tidak.
+  const kodeUji = gambar.length ? "uji.kirim_foto" : "uji.kirim";
+  const jawab = (isi: object) => {
+    catatFitur(user.id, kodeUji);
+    return NextResponse.json(isi);
+  };
   // Penyaring spam sama dengan WhatsApp (chat uji = lawan bicara yang belum dikenal).
   const saringSpam = nomor.saring_spam;
   const lokal = saringSpam ? periksaSpam(teksPesan) : null;
   if (lokal?.spam)
-    return NextResponse.json({
+    return jawab({
       teks: "",
       ms: 0,
       abaikan: t(`${alasanSpam(lokal)}, tanpa memanggil AI`, `Online gambling promotion (${lokal.sinyal.slice(0, 4).join(", ")}), without calling the AI`),
@@ -90,18 +97,18 @@ export async function POST(req: Request) {
     const j = await tanyaAiTerjaga({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, [sistem, pesan, ...semuaRiwayat].join("\n"), { saringSpam, katalog: katalog.length > 0, gaya: true, nilai: nomor.saring_prospek });
     if (j.abaikan) {
       const alasan = j.abaikan.alasan ? ` (${j.abaikan.alasan})` : "";
-      return NextResponse.json({
+      return jawab({
         teks: "",
         ms: j.ms,
         abaikan: t(`Dinilai AI: ${j.abaikan.jenis}${alasan}`, `Flagged by the AI: ${JENIS_ABAIKAN_EN[j.abaikan.jenis] ?? j.abaikan.jenis}${alasan}`),
       });
     }
     // AI menilai pesan ini tidak perlu dibalas (ucapan penutup saat urusan sudah tuntas).
-    if (!j.teks && j.nilai) return NextResponse.json({ teks: "", ms: j.ms, selesai: true, nilai: j.nilai });
+    if (!j.teks && j.nilai) return jawab({ teks: "", ms: j.ms, selesai: true, nilai: j.nilai });
     // Penjaga yang sama dengan WhatsApp, supaya hasil uji mencerminkan yang benar-benar terkirim.
     const diblokir = adaKode(j.teks);
     const teks = diblokir ? TOLAK_KODE : formatWa(j.teks);
-    return NextResponse.json({
+    return jawab({
       teks,
       ms: j.ms,
       mode: konteks.mode,

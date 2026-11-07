@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { catatFitur } from "@/lib/analitik";
 import { teksDokumen } from "@/lib/knowledge";
 import { sesiDanNomor } from "@/lib/akses";
 import { teksPermintaan } from "@/lib/bahasa-server";
@@ -18,6 +19,7 @@ export async function GET(req: Request) {
 
   const nama = `${dok.judul.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").trim().slice(0, 100) || t("dokumen", "document")}.txt`;
   const ascii = nama.replace(/[^\x20-\x7e]/g, "_").replace(/"/g, "");
+  catatFitur(user.id, "knowledge.unduh");
   return new Response(dok.teks, {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",

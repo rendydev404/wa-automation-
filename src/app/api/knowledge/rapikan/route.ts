@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { nomorUntuk } from "@/lib/akses";
+import { catatFitur } from "@/lib/analitik";
 import { terlaluSering } from "@/lib/batas";
 import { teksDokumen } from "@/lib/knowledge";
 import { BATAS_RAPIKAN, GalatRapikan, rapikanKnowledge } from "@/lib/rapikan-knowledge";
@@ -37,7 +38,9 @@ export async function POST(req: Request) {
   }
   const jenis = b?.jenis && b.jenis in JENIS_USAHA ? (b.jenis as KunciUsaha) : null;
   try {
-    return NextResponse.json(await rapikanKnowledge({ teks, jenis, userId: user.id }));
+    const hasil = await rapikanKnowledge({ teks, jenis, userId: user.id });
+    catatFitur(user.id, b?.dokumenId ? "knowledge.sempurnakan_ai" : "knowledge.rapikan_ai");
+    return NextResponse.json(hasil);
   } catch (e) {
     if (e instanceof GalatRapikan) return galat((bahasa === "en" && e.en) || e.message);
     console.error(`[rapikan] gagal user=${user.id} nomor=${nomor.id}: ${e instanceof Error ? e.message : e}`);
