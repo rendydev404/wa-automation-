@@ -76,14 +76,16 @@ export function GrafikHarian({ titik, judul, perPengguna }: { titik: TitikGrafik
             {judul}
           </h2>
           <p className="hint mt-0.5">
-            {angka(totalEvent)} event ·{" "}
-            {perPengguna ? `aktif ${angka(hariAktif)} dari ${angka(n)} hari` : `rata-rata ${rataAktif.toLocaleString("id-ID", { maximumFractionDigits: 1 })} pengguna aktif per hari`}
+            {perPengguna
+              ? `Aktif ${angka(hariAktif)} dari ${angka(n)} hari · ${angka(totalEvent)} aktivitas`
+              : `Batang atas = berapa akun yang memakai aplikasi tiap hari (rata-rata ${rataAktif.toLocaleString("id-ID", { maximumFractionDigits: 1 })}/hari) · bawah = ${angka(totalEvent)} aktivitas`}
+            <span className="hidden sm:inline"> · arahkan kursor ke batang untuk detail</span>
           </p>
         </div>
         <ul aria-label="Keterangan warna" className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs font-medium text-muted">
           <li className="flex items-center gap-1.5">
             <span aria-hidden className="size-2.5 rounded-[3px]" style={{ background: WARNA_AKTIF }} />
-            {perPengguna ? "Hari aktif" : "Pengguna aktif"}
+            {perPengguna ? "Hari aktif" : "Akun aktif per hari"}
           </li>
           {SERI.map((s) => (
             <li key={s.kunci} className="flex items-center gap-1.5">
@@ -175,10 +177,10 @@ export function GrafikHarian({ titik, judul, perPengguna }: { titik: TitikGrafik
 
         {/* Judul panel di atas lapisan kolom (sorotan kolom tidak menutupinya), tidak menangkap pointer. */}
         <p aria-hidden className="pointer-events-none absolute left-9 z-10 text-[11.5px] font-semibold text-muted" style={{ top: 0 }}>
-          {perPengguna ? "Hari aktif" : "Pengguna aktif"}
+          {perPengguna ? "Hari aktif" : "Akun aktif per hari"}
         </p>
         <p aria-hidden className="pointer-events-none absolute left-9 z-10 text-[11.5px] font-semibold text-muted" style={{ top: Y_B - 22 }}>
-          Event per hari <span className="font-normal text-faint">· halaman + klik + fitur</span>
+          Aktivitas per hari <span className="font-normal text-faint">· halaman dibuka + klik + fitur dipakai</span>
         </p>
 
         <div aria-hidden className="absolute right-0 bottom-0 left-9 flex" style={{ height: T_SUMBU }}>

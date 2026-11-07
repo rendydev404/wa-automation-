@@ -1,41 +1,67 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChartNoAxesColumn, ChevronRight, Eye, FileText, Footprints, MousePointerClick, UserRound, Users, Zap } from "lucide-react";
+import { ArrowLeft, ChartNoAxesColumn, ChevronRight, Eye, FileText, Footprints, MousePointerClick, UserRound, Users, X, Zap } from "lucide-react";
 import { Delta, KartuStat, KartuUtama, Sparkline } from "@/components/stat";
-import { type BarisTop, type PenggunaAktif, type RingkasanAnalitik, ringkasanAnalitik } from "@/lib/analitik";
-import { PERIODE_ANALITIK, RETENSI_HARI } from "@/lib/analitik-def";
+import { type BarisTop, type PenggunaAktif, type RincianAnalitik, type RingkasanAnalitik, rincianAnalitik, ringkasanAnalitik } from "@/lib/analitik";
+import { JENIS, type Jenis, KODE_FITUR, MAKS_PANJANG_LABEL, PERIODE_ANALITIK, RETENSI_HARI, polaJalur } from "@/lib/analitik-def";
 import { namaFitur } from "@/lib/analitik-fitur";
 import { namaHalaman } from "@/lib/analitik-nama";
-import { angka, angkaRingkas, waktuSingkatWib } from "@/lib/format";
+import { angka, angkaRingkas, jamWib, kunciHariWib, waktuSingkatWib } from "@/lib/format";
 import { type BarisPengguna, penggunaById } from "@/lib/pengguna";
 import { requireAdmin } from "@/lib/session";
 import { GrafikHarian, type TitikGrafik } from "./grafik-harian";
 
 /**
  * Isi halaman /admin/analitik. Semua angka dari ringkasanAnalitik() (agregasi di SQL); halaman ini hanya menata.
- * Parameter URL: hari (7|30|90, bawaan 30), pengguna (id akun: mode per pengguna), admin=1 (sertakan akun admin).
+ * Parameter URL: hari (7|30|90, bawaan 30), pengguna (id akun: mode per pengguna), admin=1 (sertakan akun admin),
+ * jenis + kunci (+ label) = rincian "siapa saja" untuk satu halaman/klik/fitur.
  */
 
 type Periode = (typeof PERIODE_ANALITIK)[number];
 const HARI_BAWAAN: Periode = 30;
-/** Baris yang langsung terlihat per daftar teratas; sisanya (sampai 15) di balik "Tampilkan lainnya". */
-const TAMPIL_AWAL = 8;
+/** Baris yang langsung terlihat per daftar teratas; sisanya di balik "Tampilkan semua". */
+const TAMPIL_AWAL = 10;
+
+/** Satu butir yang dirinci: halaman (jenis 0), klik label di halaman (jenis 1), atau fitur (jenis 2). */
+interface Rinci {
+  jenis: Jenis;
+  kunci: string;
+  label: string;
+}
 
 interface Param {
   hari: Periode;
   pengguna: number | null;
   admin: boolean;
+  rinci: Rinci | null;
 }
 
+// Tautan di halaman ini hanya mengganti parameter URL: prefetch={false} supaya klik selalu mengambil data periode/saringan
+// yang baru. Dengan partialPrefetching, navigasi dari /admin/analitik (tanpa parameter) ke ?hari=7 memakai App Shell
+// yang sudah ada tanpa meminta isi dinamis, sehingga angka 30 hari tetap tampil (diukur lewat CDP di build lokal).
 const satu = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+
+/** Butir rincian dari URL, hanya bila bentuknya sah (pola halaman dikenal / kode fitur sah / label wajar). */
+function bacaRinci(sp: Record<string, string | string[] | undefined>): Rinci | null {
+  const jenis = Number(satu(sp.jenis));
+  const kunci = satu(sp.kunci) ?? "";
+  const label = satu(sp.label) ?? "";
+  if (jenis === JENIS.halaman && polaJalur(kunci) === kunci && !label) return { jenis, kunci, label };
+  if (jenis === JENIS.klik && polaJalur(kunci) === kunci && label && Array.from(label).length <= MAKS_PANJANG_LABEL + 2) return { jenis, kunci, label };
+  if (jenis === JENIS.fitur && KODE_FITUR.test(kunci) && !label) return { jenis, kunci, label };
+  return null;
+}
 
 function bacaParam(sp: Record<string, string | string[] | undefined>): Param {
   const h = Number(satu(sp.hari));
   const id = Number(satu(sp.pengguna));
+  const pengguna = Number.isSafeInteger(id) && id > 0 && id <= 2_147_483_647 ? id : null;
   return {
     hari: PERIODE_ANALITIK.find((p) => p === h) ?? HARI_BAWAAN,
-    pengguna: Number.isSafeInteger(id) && id > 0 && id <= 2_147_483_647 ? id : null,
+    pengguna,
     admin: satu(sp.admin) === "1",
+    // Mode per pengguna tidak punya rincian "siapa saja" (isinya hanya akun itu sendiri).
+    rinci: pengguna ? null : bacaRinci(sp),
   };
 }
 
@@ -46,9 +72,25 @@ function tautan(p: Param, ubah: Partial<Param> = {}): string {
   if (x.hari !== HARI_BAWAAN) q.set("hari", String(x.hari));
   if (x.pengguna) q.set("pengguna", String(x.pengguna));
   if (x.admin) q.set("admin", "1");
+  if (x.rinci && !x.pengguna) {
+    q.set("jenis", String(x.rinci.jenis));
+    q.set("kunci", x.rinci.kunci);
+    if (x.rinci.label) q.set("label", x.rinci.label);
+  }
   const s = q.toString();
   return s ? `/admin/analitik?${s}` : "/admin/analitik";
 }
+
+/** Tautan rincian "siapa saja" satu butir; langsung menggulir ke kartunya. */
+const keRinci = (p: Param, rinci: Rinci) => `${tautan(p, { rinci })}#rincian`;
+
+/** Waktu terakhir: "Hari ini 06.49" untuk hari ini (WIB), tanggal singkat untuk hari lain. */
+function waktuTerakhir(detik: number): string {
+  const kini = Math.floor(Date.now() / 1000);
+  return kunciHariWib(detik) === kunciHariWib(kini) ? `Hari ini ${jamWib(detik)}` : waktuSingkatWib(detik, kini);
+}
+
+const SATUAN: Record<Jenis, string> = { 0: "kunjungan", 1: "klik", 2: "kali" };
 
 const fmtTgl = new Intl.DateTimeFormat("id-ID", { timeZone: "UTC", day: "numeric", month: "short", year: "numeric" });
 const fmtTglPendek = new Intl.DateTimeFormat("id-ID", { timeZone: "UTC", day: "numeric", month: "short" });
@@ -92,9 +134,10 @@ export async function IsiAnalitik({ searchParams }: { searchParams: Promise<Reco
   const [, sp] = await Promise.all([requireAdmin(), searchParams]);
   const p = bacaParam(sp);
   // Mode per pengguna selalu menyertakan admin: akun yang dipilih sendiri bisa saja akun admin.
-  const [r, akun] = await Promise.all([
+  const [r, akun, rincian] = await Promise.all([
     ringkasanAnalitik({ hari: p.hari, userId: p.pengguna, sertakanAdmin: p.pengguna ? true : p.admin }),
     p.pengguna ? penggunaById(p.pengguna) : undefined,
+    p.rinci ? rincianAnalitik({ hari: p.hari, sertakanAdmin: p.admin, ...p.rinci }) : undefined,
   ]);
   const perPengguna = p.pengguna !== null;
   // Kosong = tidak ada satu baris pun pada periode ini. Dicek dari daftar teratas (mencakup semua baris tiap jenis,
@@ -112,7 +155,7 @@ export async function IsiAnalitik({ searchParams }: { searchParams: Promise<Reco
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
           <nav aria-label="Pilih periode" className="flex gap-1 rounded-xl bg-subtle p-1 sm:self-start">
             {PERIODE_ANALITIK.map((h) => (
-              <Link
+              <Link prefetch={false}
                 key={h}
                 href={tautan(p, { hari: h })}
                 aria-current={p.hari === h ? "page" : undefined}
@@ -132,6 +175,8 @@ export async function IsiAnalitik({ searchParams }: { searchParams: Promise<Reco
         {!perPengguna && <SakelarAdmin p={p} />}
       </div>
 
+      {p.rinci && rincian && <RincianSiapa p={p} rinci={p.rinci} d={rincian} />}
+
       {kosong ? (
         <Kosong p={p} perPengguna={perPengguna} r={r} />
       ) : (
@@ -141,9 +186,10 @@ export async function IsiAnalitik({ searchParams }: { searchParams: Promise<Reco
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6 xl:grid-cols-3">
             <DaftarTop
               id="halaman"
-              judul="Halaman terpopuler"
+              p={p}
+              jenis={JENIS.halaman}
+              judul="Halaman paling sering dikunjungi"
               ikon={<FileText className="size-4" aria-hidden />}
-              satuan="kunjungan"
               baris={r.halaman}
               perPengguna={perPengguna}
               nama={(b) => namaHalaman(b.kunci)}
@@ -152,9 +198,10 @@ export async function IsiAnalitik({ searchParams }: { searchParams: Promise<Reco
             />
             <DaftarTop
               id="klik"
-              judul="Klik terpopuler"
+              p={p}
+              jenis={JENIS.klik}
+              judul="Tombol & menu paling sering diklik"
               ikon={<MousePointerClick className="size-4" aria-hidden />}
-              satuan="klik"
               baris={r.klik}
               perPengguna={perPengguna}
               nama={(b) => namaKlik(b.label)}
@@ -163,10 +210,11 @@ export async function IsiAnalitik({ searchParams }: { searchParams: Promise<Reco
             />
             <DaftarTop
               id="fitur"
+              p={p}
+              jenis={JENIS.fitur}
               className="lg:col-span-2 xl:col-span-1"
-              judul="Fitur terpopuler"
+              judul="Fitur paling sering dipakai"
               ikon={<Zap className="size-4" aria-hidden />}
-              satuan="kali"
               baris={r.fitur}
               perPengguna={perPengguna}
               nama={(b) => namaFitur(b.kunci)}
@@ -178,12 +226,24 @@ export async function IsiAnalitik({ searchParams }: { searchParams: Promise<Reco
         </>
       )}
 
-      <p className="text-[11.5px] text-faint">
-        Tanggal menurut WIB; angka {p.hari} hari terakhir dibanding {p.hari} hari sebelumnya. Kunjungan & klik dikirim browser berkelompok, pemakaian fitur dicatat
-        server saat aksi berhasil, jadi angka bisa tertinggal beberapa detik. Teks yang diketik dan isi data pelanggan tidak direkam; email & nomor di label
-        disamarkan. Pengunjung anonim (belum login) hanya dicatat di halaman publik, dihitung terpisah, dan ikut di daftar halaman & klik.
-        {!perPengguna && (p.admin ? " Akun admin disertakan." : " Akun admin tidak dihitung.")} Data disimpan {RETENSI_HARI} hari.
-      </p>
+      <div className="rounded-xl bg-subtle/60 px-4 py-3 text-[12px] leading-relaxed text-muted">
+        <p className="font-semibold text-fg">Cara membaca halaman ini</p>
+        <ul className="mt-1 list-disc space-y-0.5 pl-4">
+          <li>
+            Angka di atas = total {p.hari} hari terakhir (tanggal WIB), panah hijau/merah = naik/turun dibanding {p.hari} hari sebelumnya.
+          </li>
+          <li>
+            <b className="font-semibold text-fg">Pengguna aktif</b> = akun yang login dan memakai aplikasi minimal sekali dalam periode itu.{" "}
+            <b className="font-semibold text-fg">Sedang online</b> = ada aktivitas dalam 5 menit terakhir.
+          </li>
+          <li>Buka nama halaman, tombol, atau fitur untuk melihat siapa saja yang memakainya; buka nama akun untuk melihat semua aktivitas akun itu.</li>
+          <li>
+            Data masuk otomatis dengan jeda ±20 detik. Yang direkam hanya halaman, klik, dan fitur yang berhasil — isi chat, teks yang diketik, dan data
+            pelanggan tidak pernah direkam.
+            {!perPengguna && (p.admin ? " Akun admin ikut dihitung." : " Akun admin tidak dihitung.")} Data disimpan {RETENSI_HARI} hari.
+          </li>
+        </ul>
+      </div>
     </div>
   );
 }
@@ -191,7 +251,7 @@ export async function IsiAnalitik({ searchParams }: { searchParams: Promise<Reco
 /** Sakelar "sertakan akun admin" berupa tautan (tanpa JavaScript); keadaannya tertulis untuk pembaca layar. */
 function SakelarAdmin({ p }: { p: Param }) {
   return (
-    <Link
+    <Link prefetch={false}
       href={tautan(p, { admin: !p.admin })}
       data-analitik="Sakelar sertakan akun admin"
       className="group inline-flex min-h-9 items-center gap-2.5 self-start rounded-xl px-1 py-1 text-[12.5px] font-semibold text-muted transition-colors hover:text-fg sm:self-auto"
@@ -235,11 +295,11 @@ function KepalaPengguna({ p, akun }: { p: Param; akun: BarisPengguna | undefined
       </div>
       <div className="flex flex-wrap gap-2">
         {akun && (
-          <Link href={`/admin/pengguna/${id}`} className="btn btn-ghost flex-1 sm:flex-none">
+          <Link prefetch={false} href={`/admin/pengguna/${id}`} className="btn btn-ghost flex-1 sm:flex-none">
             Kelola pengguna <ChevronRight className="size-4" aria-hidden />
           </Link>
         )}
-        <Link href={tautan(p, { pengguna: null })} className="btn btn-ghost flex-1 sm:flex-none">
+        <Link prefetch={false} href={tautan(p, { pengguna: null })} className="btn btn-ghost flex-1 sm:flex-none">
           <ArrowLeft className="size-4" aria-hidden /> Kembali ke semua
         </Link>
       </div>
@@ -251,82 +311,127 @@ function KartuAngka({ r, hari, perPengguna }: { r: RingkasanAnalitik; hari: numb
   const t = r.total;
   const pembanding = `${hari} hari sebelumnya`;
   const hariAktif = r.harian.filter((x) => x.aktif > 0 || x.halaman + x.klik + x.fitur > 0).length;
-  const rataAktif = r.harian.length ? r.harian.reduce((a, x) => a + x.aktif, 0) / r.harian.length : 0;
-  // Pembagi rata-rata: per pengguna aktif (semua akun) atau per hari aktif (mode per pengguna).
+  const aktifHariIni = r.harian.at(-1)?.aktif ?? 0;
+  // Pembagi rata-rata: per orang (semua akun) atau per hari aktif (mode per pengguna).
   const pembagi = perPengguna ? hariAktif : t.pengguna.kini;
-  const per = perPengguna ? "per hari aktif" : "per pengguna aktif";
-  const rataTeks = (n: number) => (pembagi > 0 ? `rata-rata ${desimal(n / pembagi)} ${per}` : "belum ada pengguna aktif");
-  const rata = (n: number) => kapital(rataTeks(n));
-  // Kunjungan & klik di kartu hanya dari akun yang login (ringkasanAnalitik); kunjungan anonim punya kartu sendiri.
-  const rataLogin = (n: number) => (perPengguna ? rata(n) : `Akun ber-login · ${rataTeks(n)}`);
+  const rata = (n: number, satuan: string) =>
+    pembagi > 0 ? `±${desimal(n / pembagi)} ${satuan} ${perPengguna ? "per hari aktif" : "per orang"}` : "belum ada yang aktif";
   const garis = (pilih: (x: RingkasanAnalitik["harian"][number]) => number) => <Sparkline nilai={r.harian.map(pilih)} className="h-9 w-[calc(100%-6px)]" />;
   const teratas = r.fitur[0];
+  const terakhir = Math.max(0, ...[...r.halaman, ...r.klik, ...r.fitur].map((b) => b.terakhir));
+
+  // Status sekarang (bukan angka periode): sedang online = ada aktivitas 5 menit terakhir.
+  const statusSekarang = perPengguna ? (
+    r.online > 0 ? (
+      <TitikOnline>Sedang online sekarang</TitikOnline>
+    ) : (
+      terakhir > 0 && <span className="block text-ink-fg/90">Terakhir aktif {waktuTerakhir(terakhir)}</span>
+    )
+  ) : (
+    <span className="flex flex-wrap gap-x-3 gap-y-1">
+      <TitikOnline mati={r.online === 0}>{angka(r.online)} sedang online</TitikOnline>
+      <span className="text-ink-fg/90">{angka(aktifHariIni)} aktif hari ini</span>
+    </span>
+  );
 
   return (
     <section aria-label={`Angka kunci ${hari} hari terakhir`} className={`grid grid-cols-2 gap-3 sm:gap-4 ${perPengguna ? "xl:grid-cols-4" : "xl:grid-cols-5"}`}>
       {perPengguna ? (
         <KartuUtama
-          label={`Hari aktif · ${hari} hari`}
+          label={`Hari aktif · ${hari} hari terakhir`}
           nilai={angka(hariAktif)}
-          keterangan={`dari ${angka(r.harian.length)} hari pada periode ini`}
+          keterangan={
+            <>
+              <span className="block">
+                Akun ini memakai aplikasi di {angka(hariAktif)} dari {angka(r.harian.length)} hari terakhir.
+              </span>
+              <span className="mt-2 block">{statusSekarang}</span>
+            </>
+          }
           tren={r.harian.map((x) => x.halaman + x.klik + x.fitur)}
         />
       ) : (
         <KartuUtama
-          label={`Pengguna aktif · ${hari} hari`}
+          label={`Pengguna aktif · ${hari} hari terakhir`}
           nilai={angkaRingkas(t.pengguna.kini)}
           delta={<Delta kini={t.pengguna.kini} lalu={t.pengguna.lalu} pembanding={pembanding} gelap />}
-          keterangan={`Akun unik yang login · rata-rata ${desimal(rataAktif)} per hari`}
+          keterangan={
+            <>
+              <span className="block">
+                Jumlah akun yang login dan memakai aplikasi minimal sekali dalam {hari} hari ini — bukan yang sedang online.
+              </span>
+              <span className="mt-2 block">{statusSekarang}</span>
+            </>
+          }
           tren={r.harian.map((x) => x.aktif)}
         />
       )}
       <KartuStat
-        label="Kunjungan halaman"
+        label="Halaman dibuka"
         nilai={angkaRingkas(t.halaman.kini)}
         ikon={<Eye className="size-4" aria-hidden />}
         delta={<Delta kini={t.halaman.kini} lalu={t.halaman.lalu} pembanding={pembanding} />}
-        keterangan={rataLogin(t.halaman.kini)}
+        keterangan={`Berapa kali halaman dibuka${perPengguna ? "" : " oleh akun yang login"} · ${rata(t.halaman.kini, "kali")}`}
       >
         {garis((x) => x.halaman)}
       </KartuStat>
       <KartuStat
-        label="Klik"
+        label="Klik tombol & menu"
         nilai={angkaRingkas(t.klik.kini)}
         ikon={<MousePointerClick className="size-4" aria-hidden />}
         delta={<Delta kini={t.klik.kini} lalu={t.klik.lalu} pembanding={pembanding} />}
-        keterangan={rataLogin(t.klik.kini)}
+        keterangan={`Semua klik tombol, tab, dan menu · ${rata(t.klik.kini, "klik")}`}
       >
         {garis((x) => x.klik)}
       </KartuStat>
       <KartuStat
         className={perPengguna ? "col-span-2 xl:col-span-1" : ""}
-        label="Pemakaian fitur"
+        label="Fitur dipakai"
         nilai={angkaRingkas(t.fitur.kini)}
         ikon={<Zap className="size-4" aria-hidden />}
         delta={<Delta kini={t.fitur.kini} lalu={t.fitur.lalu} pembanding={pembanding} />}
-        keterangan={teratas ? `Terbanyak: ${namaFitur(teratas.kunci)}` : "Belum ada fitur dipakai"}
+        keterangan={
+          teratas
+            ? `Aksi yang berhasil, mis. tambah nomor atau simpan pengaturan · paling sering: ${namaFitur(teratas.kunci)}`
+            : "Aksi yang berhasil (tambah nomor, simpan pengaturan, dll.) — belum ada"
+        }
       >
         {garis((x) => x.fitur)}
       </KartuStat>
       {!perPengguna && (
         <KartuStat
-          label="Pengunjung anonim"
+          label="Pengunjung belum login"
           nilai={angkaRingkas(t.anonim.kini)}
           ikon={<Footprints className="size-4" aria-hidden />}
           delta={<Delta kini={t.anonim.kini} lalu={t.anonim.lalu} pembanding={pembanding} />}
-          keterangan="Kunjungan halaman publik (landing, masuk, daftar) sebelum login"
+          keterangan="Berapa kali landing page, halaman masuk, dan daftar dibuka oleh orang yang belum punya akun / belum login"
         />
       )}
     </section>
   );
 }
 
+/** Penanda "sedang online" di kartu gelap: titik hijau berdenyut (abu-abu bila tidak ada yang online). */
+function TitikOnline({ children, mati = false }: { children: ReactNode; mati?: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 font-semibold text-ink-fg">
+      <span aria-hidden className="relative grid size-2 place-items-center">
+        {!mati && <span className="absolute inline-flex size-full animate-ping rounded-full bg-ink-signal opacity-60" />}
+        <span className={`relative inline-flex size-2 rounded-full ${mati ? "bg-ink-muted" : "bg-ink-signal"}`} />
+      </span>
+      {children}
+      <span className="sr-only"> (ada aktivitas dalam 5 menit terakhir)</span>
+    </span>
+  );
+}
+
 /** Daftar teratas: batang horizontal satu rona (besaran, bukan identitas), angka tertulis jadi batang hanya penegas. */
 function DaftarTop({
   id,
+  p,
+  jenis,
   judul,
   ikon,
-  satuan,
   baris,
   perPengguna,
   nama,
@@ -335,9 +440,10 @@ function DaftarTop({
   className = "",
 }: {
   id: string;
+  p: Param;
+  jenis: Jenis;
   judul: string;
   ikon: ReactNode;
-  satuan: string;
   baris: BarisTop[];
   perPengguna: boolean;
   nama: (b: BarisTop) => string;
@@ -345,19 +451,35 @@ function DaftarTop({
   kosong: string;
   className?: string;
 }) {
+  const satuan = SATUAN[jenis];
   const maks = Math.max(1, ...baris.map((b) => b.n));
   const total = baris.reduce((a, b) => a + b.n, 0);
   const idJudul = `judul-${id}`;
   const butir = (b: BarisTop, i: number) => {
     const teks = nama(b);
+    const rinci: Rinci = { jenis, kunci: b.kunci, label: b.label };
+    const aktif = p.rinci?.jenis === jenis && p.rinci.kunci === b.kunci && p.rinci.label === b.label;
+    const lainnya = b.pengguna - b.siapa.length;
     return (
-      <li key={`${b.kunci}|${b.label}`} className="flex gap-2.5 py-2.5">
+      <li key={`${b.kunci}|${b.label}`} className={`-mx-2 flex gap-2.5 rounded-lg px-2 py-2.5 ${aktif ? "bg-accent-soft/60" : ""}`}>
         <span className="w-5 shrink-0 pt-px text-right text-[11.5px] font-semibold text-faint tabular-nums">{i + 1}</span>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-3 text-[12.5px]">
-            <span className="truncate font-semibold" title={teks}>
-              {teks}
-            </span>
+            {perPengguna ? (
+              <span className="truncate font-semibold" title={teks}>
+                {teks}
+              </span>
+            ) : (
+              <Link prefetch={false}
+                href={keRinci(p, rinci)}
+                aria-current={aktif ? "true" : undefined}
+                data-analitik={`${judul}: lihat siapa saja`}
+                className="truncate font-semibold hover:text-accent hover:underline"
+                title={`${teks} · lihat siapa saja`}
+              >
+                {teks}
+              </Link>
+            )}
             <span className="shrink-0 font-bold tabular-nums">
               {angka(b.n)}
               <span className="sr-only"> {satuan}</span>
@@ -368,11 +490,36 @@ function DaftarTop({
           </div>
           <div className="mt-1 flex items-baseline justify-between gap-3 text-[11.5px]">
             <span className="min-w-0 truncate text-faint">{sub(b)}</span>
-            <span className="shrink-0 text-muted tabular-nums" title={`Terakhir ${waktuSingkatWib(b.terakhir)}`}>
+            <span className="shrink-0 text-muted tabular-nums" title={`Terakhir ${waktuTerakhir(b.terakhir)}`}>
               {/* pengguna 0 = hanya pengunjung anonim (kolom pengguna tidak menghitung user_id 0). */}
-              {perPengguna ? `terakhir ${waktuSingkatWib(b.terakhir)}` : b.pengguna > 0 ? `${angka(b.pengguna)} pengguna` : "pengunjung anonim"}
+              {perPengguna ? `terakhir ${waktuTerakhir(b.terakhir)}` : b.pengguna > 0 ? `${angka(b.pengguna)} pengguna` : "pengunjung anonim"}
             </span>
           </div>
+          {/* Siapa saja: akun teratas untuk butir ini (nama = data pribadi: label klik analitik dari data-analitik). */}
+          {!perPengguna && b.siapa.length > 0 && (
+            <p data-analitik-privat className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-1 text-[11.5px] leading-5">
+              <span className="text-faint">oleh</span>
+              {b.siapa.map((s, j) => (
+                <Fragment key={s.userId}>
+                  <Link prefetch={false}
+                    href={tautan(p, { pengguna: s.userId, rinci: null })}
+                    data-analitik={`${judul}: buka pengguna`}
+                    className="max-w-[11rem] truncate font-medium text-fg hover:text-accent hover:underline"
+                  >
+                    {s.nama}
+                  </Link>
+                  <span className="text-faint tabular-nums">
+                    ({angka(s.n)}){j < b.siapa.length - 1 || lainnya > 0 ? "," : ""}
+                  </span>
+                </Fragment>
+              ))}
+              {lainnya > 0 && (
+                <Link prefetch={false} href={keRinci(p, rinci)} data-analitik={`${judul}: lihat siapa saja`} className="font-semibold text-accent hover:underline">
+                  +{angka(lainnya)} lainnya
+                </Link>
+              )}
+            </p>
+          )}
         </div>
       </li>
     );
@@ -385,10 +532,12 @@ function DaftarTop({
           <span className="text-accent">{ikon}</span>
           {judul}
         </h2>
-        {baris.length > 0 && <span className="shrink-0 pt-0.5 text-[11.5px] text-faint">{baris.length} teratas</span>}
+        {baris.length > 0 && <span className="shrink-0 pt-0.5 text-[11.5px] text-faint">{baris.length} butir</span>}
       </div>
       <p className="hint mt-0.5">
-        {baris.length ? `${angka(total)} ${satuan} di daftar ini${perPengguna ? "" : " · angka kanan bawah = pengguna unik"}` : "Belum ada data pada periode ini"}
+        {baris.length
+          ? `${angka(total)} ${satuan}${perPengguna ? "" : " · buka nama untuk melihat siapa saja"}`
+          : "Belum ada data pada periode ini"}
       </p>
       {baris.length === 0 ? (
         <p className="mt-5 text-[13px] text-muted">{kosong}</p>
@@ -398,11 +547,11 @@ function DaftarTop({
           {baris.length > TAMPIL_AWAL && (
             <details className="group border-t border-line">
               <summary
-                data-analitik={`Tampilkan lainnya: ${judul}`}
+                data-analitik={`Tampilkan semua: ${judul}`}
                 className="flex min-h-10 cursor-pointer list-none items-center gap-1 pt-2 text-[12.5px] font-semibold text-accent select-none [&::-webkit-details-marker]:hidden"
               >
                 <ChevronRight className="size-4 transition-transform group-open:rotate-90" aria-hidden />
-                <span className="group-open:hidden">Tampilkan {baris.length - TAMPIL_AWAL} lainnya</span>
+                <span className="group-open:hidden">Tampilkan semua ({angka(baris.length)})</span>
                 <span className="hidden group-open:inline">Sembunyikan</span>
               </summary>
               <ol start={TAMPIL_AWAL + 1} className="divide-y divide-line">
@@ -410,6 +559,103 @@ function DaftarTop({
               </ol>
             </details>
           )}
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Judul rincian satu butir. */
+function judulRinci(r: Rinci): { utama: string; sub: string } {
+  if (r.jenis === JENIS.halaman) return { utama: namaHalaman(r.kunci), sub: `Kunjungan halaman ${r.kunci}` };
+  if (r.jenis === JENIS.klik) return { utama: `Klik “${namaKlik(r.label)}”`, sub: `di ${namaHalaman(r.kunci)} (${r.kunci})` };
+  return { utama: namaFitur(r.kunci), sub: `Pemakaian fitur · ${r.kunci}` };
+}
+
+const KOLOM_RINCI = "sm:grid-cols-[2rem_minmax(0,1fr)_5.5rem_5.5rem_8.5rem_4.5rem]";
+
+/**
+ * Siapa saja yang membuka halaman / mengeklik / memakai fitur yang dipilih: semua akun (sampai 500), terbanyak dulu.
+ * Satu daftar responsif (bukan tabel + kartu terpisah) supaya isinya tidak dirender dua kali.
+ */
+function RincianSiapa({ p, rinci, d }: { p: Param; rinci: Rinci; d: RincianAnalitik }) {
+  const j = judulRinci(rinci);
+  const satuan = SATUAN[rinci.jenis];
+  const label = (u: RincianAnalitik["daftar"][number]) => u.nama || u.email || `Akun #${u.userId}`;
+  return (
+    <section id="rincian" aria-labelledby="judul-rincian" className="card min-w-0 scroll-mt-24 overflow-hidden ring-2 ring-accent/25">
+      <div className="flex flex-col gap-3 border-b border-line p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold tracking-[0.08em] text-accent uppercase">Siapa saja · {p.hari} hari</p>
+          <h2 id="judul-rincian" className="mt-1 text-[17px] font-bold tracking-tight break-words">
+            {j.utama}
+          </h2>
+          <p className="hint mt-0.5 break-words">{j.sub}</p>
+          <p className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-muted">
+            <span>
+              <b className="font-bold text-fg tabular-nums">{angka(d.n)}</b> {satuan}
+            </span>
+            <span>
+              <b className="font-bold text-fg tabular-nums">{angka(d.pengguna)}</b> pengguna
+            </span>
+            {d.anonim > 0 && (
+              <span>
+                <b className="font-bold text-fg tabular-nums">{angka(d.anonim)}</b> oleh pengunjung belum login
+              </span>
+            )}
+          </p>
+        </div>
+        <Link prefetch={false} href={tautan(p, { rinci: null })} data-analitik="Tutup rincian siapa saja" className="btn btn-ghost shrink-0 self-start">
+          <X className="size-4" aria-hidden /> Tutup
+        </Link>
+      </div>
+      {d.daftar.length === 0 ? (
+        <p className="px-5 py-10 text-center text-[13px] text-muted">
+          {d.anonim > 0 ? "Hanya dilakukan pengunjung yang belum login pada periode ini." : "Belum ada akun yang melakukannya pada periode ini."}
+        </p>
+      ) : (
+        <>
+          <div aria-hidden className={`hidden gap-x-3 bg-subtle/60 px-6 py-2.5 text-[11px] font-semibold tracking-[0.04em] text-muted uppercase sm:grid ${KOLOM_RINCI}`}>
+            <span className="text-right">#</span>
+            <span>Akun</span>
+            <span className="text-right">{kapital(satuan)}</span>
+            <span className="text-right">Hari aktif</span>
+            <span>Terakhir</span>
+            <span />
+          </div>
+          <ol data-analitik-privat aria-label={`Akun yang ${rinci.jenis === JENIS.fitur ? "memakai" : rinci.jenis === JENIS.klik ? "mengeklik" : "membuka"} ${j.utama}`} className="divide-y divide-line">
+            {d.daftar.map((u, i) => (
+              <li key={u.userId} className={`grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 px-4 py-3 sm:px-6 ${KOLOM_RINCI}`}>
+                <span className="text-right text-[11.5px] font-semibold text-faint tabular-nums">{i + 1}</span>
+                <Link prefetch={false} href={tautan(p, { pengguna: u.userId, rinci: null })} data-analitik="Rincian siapa saja: buka pengguna" className="group/akun min-w-0">
+                  <span className="flex items-center gap-1.5">
+                    <span className="truncate text-[13px] font-semibold group-hover/akun:text-accent group-hover/akun:underline">{label(u)}</span>
+                    {u.peran === "admin" && <LencanaAdmin />}
+                  </span>
+                  {u.nama && u.email && <span className="block truncate text-[12px] text-muted">{u.email}</span>}
+                </Link>
+                <span className="text-right text-[13px] font-bold tabular-nums">
+                  {angka(u.n)}
+                  <span className="text-[11.5px] font-normal text-muted sm:hidden"> {satuan}</span>
+                </span>
+                <span className="hidden text-right text-[12.5px] tabular-nums sm:block">{angka(u.hariAktif)}</span>
+                <span className="hidden text-[12.5px] whitespace-nowrap text-muted tabular-nums sm:block">{waktuTerakhir(u.terakhir)}</span>
+                <span className="hidden text-right sm:block">
+                  {u.email ? (
+                    <Link prefetch={false} href={`/admin/pengguna/${u.userId}`} data-analitik="Rincian siapa saja: kelola" className="text-[12px] font-semibold text-accent hover:underline">
+                      Kelola<span className="sr-only"> {label(u)}</span>
+                    </Link>
+                  ) : (
+                    <span className="text-[12px] text-faint">terhapus</span>
+                  )}
+                </span>
+                <span className="col-span-2 col-start-2 text-[11.5px] text-muted sm:hidden">
+                  {angka(u.hariAktif)} hari aktif · terakhir {waktuTerakhir(u.terakhir)}
+                </span>
+              </li>
+            ))}
+          </ol>
+          {d.terpotong && <p className="border-t border-line px-6 py-3 text-[12px] text-muted">Ditampilkan {angka(d.daftar.length)} akun teratas.</p>}
         </>
       )}
     </section>
@@ -446,14 +692,14 @@ function PenggunaTeraktif({ p, daftar }: { p: Param; daftar: PenggunaAktif[] }) 
                   <span className="w-5 shrink-0 pt-0.5 text-right text-[11.5px] font-semibold text-faint tabular-nums">{i + 1}</span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-3">
-                      <Link href={keAnalitik(u)} data-analitik={ANALITIK_LIHAT} className="min-w-0 rounded-md hover:text-accent">
+                      <Link prefetch={false} href={keAnalitik(u)} data-analitik={ANALITIK_LIHAT} className="min-w-0 rounded-md hover:text-accent">
                         <span className="flex items-center gap-1.5">
                           <span className="truncate text-[13.5px] font-semibold">{label(u)}</span>
                           {u.peran === "admin" && <LencanaAdmin />}
                         </span>
                         {u.nama && u.email && <span className="block truncate text-[12px] text-muted">{u.email}</span>}
                       </Link>
-                      <span className="shrink-0 text-[11.5px] text-faint tabular-nums">{waktuSingkatWib(u.terakhir)}</span>
+                      <span className="shrink-0 text-[11.5px] text-faint tabular-nums">{waktuTerakhir(u.terakhir)}</span>
                     </div>
                     <dl className="mt-2 grid grid-cols-4 gap-2 text-center">
                       <Sel label="Halaman" nilai={u.halaman} />
@@ -503,7 +749,7 @@ function PenggunaTeraktif({ p, daftar }: { p: Param; daftar: PenggunaAktif[] }) 
                   <tr key={u.userId} className="transition-colors hover:bg-subtle/40">
                     <td className="py-3 pl-6 text-right font-semibold text-faint tabular-nums">{i + 1}</td>
                     <td className="max-w-[320px] px-4 py-3">
-                      <Link href={keAnalitik(u)} data-analitik={ANALITIK_LIHAT} className="group/akun block min-w-0">
+                      <Link prefetch={false} href={keAnalitik(u)} data-analitik={ANALITIK_LIHAT} className="group/akun block min-w-0">
                         <span className="flex items-center gap-1.5">
                           <span className="truncate font-semibold group-hover/akun:text-accent group-hover/akun:underline">{label(u)}</span>
                           {u.peran === "admin" && <LencanaAdmin />}
@@ -515,10 +761,10 @@ function PenggunaTeraktif({ p, daftar }: { p: Param; daftar: PenggunaAktif[] }) 
                     <td className="px-3 py-3 text-right tabular-nums">{angka(u.klik)}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{angka(u.fitur)}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{angka(u.hariAktif)}</td>
-                    <td className="px-3 py-3 whitespace-nowrap text-muted tabular-nums">{waktuSingkatWib(u.terakhir)}</td>
+                    <td className="px-3 py-3 whitespace-nowrap text-muted tabular-nums">{waktuTerakhir(u.terakhir)}</td>
                     <td className="py-3 pr-6 pl-3 text-right whitespace-nowrap">
                       {u.email ? (
-                        <Link href={`/admin/pengguna/${u.userId}`} data-analitik="Pengguna paling aktif: kelola" className="text-[12px] font-semibold text-accent hover:underline">
+                        <Link prefetch={false} href={`/admin/pengguna/${u.userId}`} data-analitik="Pengguna paling aktif: kelola" className="text-[12px] font-semibold text-accent hover:underline">
                           Kelola<span className="sr-only"> {label(u)}</span>
                         </Link>
                       ) : (
@@ -568,12 +814,12 @@ function Kosong({ p, perPengguna, r }: { p: Param; perPengguna: boolean; r: Ring
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-2">
         {lebihPanjang && (
-          <Link href={tautan(p, { hari: lebihPanjang })} className="btn btn-ghost">
+          <Link prefetch={false} href={tautan(p, { hari: lebihPanjang })} className="btn btn-ghost">
             Lihat {lebihPanjang} hari
           </Link>
         )}
         {!perPengguna && !p.admin && (
-          <Link href={tautan(p, { admin: true })} className="btn btn-ghost">
+          <Link prefetch={false} href={tautan(p, { admin: true })} className="btn btn-ghost">
             Sertakan akun admin
           </Link>
         )}

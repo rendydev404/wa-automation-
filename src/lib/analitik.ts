@@ -427,12 +427,21 @@ export interface Angka2 {
   kini: number;
   lalu: number;
 }
+/** Akun yang paling sering melakukan satu hal (ditampilkan di bawah butir daftar teratas). */
+export interface SiapaSingkat {
+  userId: number;
+  /** Nama akun, atau email bila nama kosong. */
+  nama: string;
+  n: number;
+}
 export interface BarisTop {
   kunci: string;
   label: string;
   n: number;
   pengguna: number;
   terakhir: number;
+  /** SIAPA_N akun teratas untuk butir ini (tanpa anonim), urut menurun; kosong dalam mode satu akun. */
+  siapa: SiapaSingkat[];
 }
 export interface TitikAnalitik {
   tanggal: string;
@@ -459,21 +468,38 @@ export interface RingkasanAnalitik {
   total: { halaman: Angka2; klik: Angka2; fitur: Angka2; pengguna: Angka2; anonim: Angka2 };
   /** Satu titik per hari di `hari` (hari tanpa data = nol). */
   harian: TitikAnalitik[];
-  /** 15 teratas jenis 0, label ''. */
+  /** Jenis 0, label '': semua halaman (ruang kuncinya dibatasi POLA_HALAMAN). */
   halaman: BarisTop[];
-  /** 15 teratas jenis 1 (kunci = pola halaman, label = label elemen). */
+  /** Jenis 1 (kunci = pola halaman, label = label elemen): 50 teratas. */
   klik: BarisTop[];
-  /** 15 teratas jenis 2 (kunci = kode fitur). */
+  /** Jenis 2 (kunci = kode fitur): semua fitur yang dipakai (maks. 150). */
   fitur: BarisTop[];
   /** 20 akun paling aktif (kosong bila filter.userId diisi). */
   pengguna: PenggunaAktif[];
+  /** Akun (login) yang tercatat beraktivitas dalam ONLINE_DETIK terakhir: perkiraan "sedang online" (tertinggal ±20 dtk). */
+  online: number;
 }
 
-const TOP_N = 15;
+/** Jendela "sedang online": aktivitas dalam 5 menit terakhir. */
+export const ONLINE_DETIK = 300;
+
+/** Batas butir per daftar: halaman & fitur praktis semuanya, klik (label bebas) 50 teratas. */
+const BATAS_TOP: Record<Jenis, number> = { 0: 40, 1: 50, 2: 150 };
+/** Akun teratas yang disebut per butir daftar. */
+const SIAPA_N = 3;
 const PENGGUNA_N = 20;
+/** Baris maksimal di rincian "siapa saja" (lebih dari ini = terpotong, ditandai). */
+const RINCIAN_N = 500;
 
 /** "YYYY-MM-DD" digeser `n` hari (kalender murni, tanpa zona waktu). */
 const geserTanggal = (tgl: string, n: number): string => new Date(Date.parse(`${tgl}T00:00:00Z`) + n * HARI_DETIK * 1000).toISOString().slice(0, 10);
+
+/** Periode `f.hari` hari terakhir (WIB, berakhir hari ini): jumlah hari (1..RETENSI_HARI) dan tanggal awal/akhir. */
+function periode(f: FilterAnalitik): { hari: number; awal: string; akhir: string } {
+  const hari = Number.isFinite(f.hari) ? Math.min(RETENSI_HARI, Math.max(1, Math.floor(f.hari))) : 30;
+  const akhir = kunciHariWib(detikSah(f.kini));
+  return { hari, akhir, awal: geserTanggal(akhir, 1 - hari) };
+}
 
 /**
  * Ringkasan analitik `f.hari` hari terakhir (WIB, berakhir hari ini) dibandingkan periode sebelumnya yang sama panjang.
@@ -488,9 +514,7 @@ const geserTanggal = (tgl: string, n: number): string => new Date(Date.parse(`${
  *   - `userId` diisi = semua angka hanya untuk akun itu (anonim = 0, `pengguna` kosong), apa pun perannya.
  */
 export async function ringkasanAnalitik(f: FilterAnalitik): Promise<RingkasanAnalitik> {
-  const hari = Number.isFinite(f.hari) ? Math.min(RETENSI_HARI, Math.max(1, Math.floor(f.hari))) : 30;
-  const akhir = kunciHariWib(detikSah(f.kini));
-  const awal = geserTanggal(akhir, 1 - hari);
+  const { hari, akhir, awal } = periode(f);
   const awalLalu = geserTanggal(awal, -hari);
   const akhirLalu = geserTanggal(awal, -1);
   const satuAkun = typeof f.userId === "number" && Number.isSafeInteger(f.userId) && f.userId > 0 ? f.userId : null;
@@ -502,16 +526,36 @@ export async function ringkasanAnalitik(f: FilterAnalitik): Promise<RingkasanAna
       ? sql``
       : sql`AND user_id NOT IN (SELECT id FROM users WHERE peran = 'admin')`;
 
-  // Daftar teratas satu jenis (indeks tanggal; tiga jenis = tiga bagian terpisah dari jendela yang sama).
+  // Daftar teratas satu jenis (indeks tanggal; tiga jenis = tiga bagian terpisah dari jendela yang sama). Per (kunci, label,
+  // akun) dulu: pengguna unik = COUNT(*), dan dari kelompok yang sama diambil SIAPA_N akun teratas per butir (row_number),
+  // digabung ke users hanya untuk baris terpilih itu. Mode satu akun: tanpa daftar siapa (isinya hanya akun itu).
+  const siapaN = satuAkun ? 0 : SIAPA_N;
   const teratas = (jenis: Jenis) => sql<BarisTop[]>`
-    SELECT kunci, label, SUM(m)::bigint AS n, COUNT(*) FILTER (WHERE user_id <> 0) AS pengguna, MAX(w) AS terakhir
-      FROM (SELECT kunci, label, user_id, SUM(n) AS m, MAX(terakhir) AS w
-              FROM analitik_harian
-             WHERE jenis = ${jenis} AND tanggal BETWEEN ${awal}::date AND ${akhir}::date ${saring}
-             GROUP BY kunci, label, user_id) p
-     GROUP BY kunci, label
-     ORDER BY n DESC, kunci, label
-     LIMIT ${TOP_N}`;
+    WITH p AS (
+      SELECT kunci, label, user_id, SUM(n) AS m, MAX(terakhir) AS w
+        FROM analitik_harian
+       WHERE jenis = ${jenis} AND tanggal BETWEEN ${awal}::date AND ${akhir}::date ${saring}
+       GROUP BY kunci, label, user_id
+    ), t AS (
+      SELECT kunci, label, SUM(m)::bigint AS n, COUNT(*) FILTER (WHERE user_id <> 0) AS pengguna, MAX(w) AS terakhir
+        FROM p
+       GROUP BY kunci, label
+       ORDER BY n DESC, kunci, label
+       LIMIT ${BATAS_TOP[jenis]}
+    ), r AS (
+      SELECT p.kunci, p.label, p.user_id, p.m, row_number() OVER (PARTITION BY p.kunci, p.label ORDER BY p.m DESC, p.user_id) AS i
+        FROM p JOIN t ON t.kunci = p.kunci AND t.label = p.label
+       WHERE p.user_id <> 0
+    ), s AS (
+      SELECT r.kunci, r.label,
+             json_agg(json_build_object('userId', r.user_id, 'nama', COALESCE(NULLIF(u.nama, ''), u.email, 'Akun #' || r.user_id), 'n', r.m) ORDER BY r.i) AS siapa
+        FROM r LEFT JOIN users u ON u.id = r.user_id
+       WHERE r.i <= ${siapaN}
+       GROUP BY r.kunci, r.label
+    )
+    SELECT t.kunci, t.label, t.n, t.pengguna, t.terakhir, COALESCE(s.siapa, '[]'::json) AS siapa
+      FROM t LEFT JOIN s ON s.kunci = t.kunci AND s.label = t.label
+     ORDER BY t.n DESC, t.kunci, t.label`;
 
   // Akun teratas (JSON, digabung ke users hanya untuk 20 baris itu); tidak dihitung dalam mode satu akun.
   const teratasAkun = satuAkun
@@ -526,7 +570,9 @@ export async function ringkasanAnalitik(f: FilterAnalitik): Promise<RingkasanAna
              LEFT JOIN users u ON u.id = p.user_id)`;
 
   type Jumlah = { halaman: number; klik: number; fitur: number; pengguna: number; anonim: number };
-  const [[kini], [lalu], halaman, klik, fitur] = await Promise.all([
+  // "Sedang online": akun dengan aktivitas tercatat ONLINE_DETIK terakhir (baris hari ini & kemarin, lewat indeks tanggal).
+  const detikKini = detikSah(f.kini);
+  const [[kini], [lalu], halaman, klik, fitur, [online]] = await Promise.all([
     sql<{ harian: TitikAnalitik[]; jumlah: Jumlah; pengguna: PenggunaAktif[] | null }[]>`
       WITH d AS MATERIALIZED (
         SELECT tanggal, user_id, SUM(n) FILTER (WHERE jenis = 0) AS h, SUM(n) FILTER (WHERE jenis = 1) AS k,
@@ -560,9 +606,14 @@ export async function ringkasanAnalitik(f: FilterAnalitik): Promise<RingkasanAna
     teratas(JENIS.halaman),
     teratas(JENIS.klik),
     teratas(JENIS.fitur),
+    sql<{ n: number }[]>`
+      SELECT COUNT(DISTINCT user_id) AS n
+        FROM analitik_harian
+       WHERE tanggal >= ${geserTanggal(akhir, -1)}::date AND terakhir >= ${detikKini - ONLINE_DETIK} AND user_id <> 0 ${saring}`,
   ]);
 
-  const baris = (r: readonly BarisTop[]): BarisTop[] => r.map((b) => ({ kunci: b.kunci, label: b.label, n: b.n, pengguna: b.pengguna, terakhir: b.terakhir }));
+  const baris = (r: readonly BarisTop[]): BarisTop[] =>
+    r.map((b) => ({ kunci: b.kunci, label: b.label, n: b.n, pengguna: b.pengguna, terakhir: b.terakhir, siapa: b.siapa }));
   const k = kini.jumlah;
   return {
     hari: kini.harian.map((h) => h.tanggal),
@@ -578,5 +629,61 @@ export async function ringkasanAnalitik(f: FilterAnalitik): Promise<RingkasanAna
     klik: baris(klik),
     fitur: baris(fitur),
     pengguna: kini.pengguna ?? [],
+    online: online?.n ?? 0,
+  };
+}
+
+// ---------- Rincian "siapa saja" untuk satu butir ----------
+
+export interface PenggunaRinci {
+  userId: number;
+  email: string | null;
+  nama: string | null;
+  peran: string | null;
+  n: number;
+  hariAktif: number;
+  terakhir: number;
+}
+export interface RincianAnalitik {
+  /** Total kejadian pada periode (akun + anonim). */
+  n: number;
+  /** Akun unik yang melakukannya (tanpa anonim). */
+  pengguna: number;
+  /** Kejadian oleh pengunjung yang belum login. */
+  anonim: number;
+  /** Akun yang melakukannya, terbanyak dulu (maks. RINCIAN_N). */
+  daftar: PenggunaRinci[];
+  /** true bila akunnya lebih dari RINCIAN_N (daftar dipotong). */
+  terpotong: boolean;
+}
+
+/**
+ * "Siapa saja" untuk satu butir daftar teratas: semua akun yang membuka halaman (jenis 0), mengeklik label di halaman
+ * itu (jenis 1), atau memakai fitur (jenis 2) pada periode `f.hari`, dengan jumlah, hari aktif, dan waktu terakhir.
+ * Satu query lewat primary key (jenis, tanggal, kunci, label, user_id); total & jumlah akun dihitung window function
+ * di query yang sama, users digabung hanya untuk baris yang dikembalikan. Aturan admin & periode = ringkasanAnalitik.
+ */
+export async function rincianAnalitik(f: FilterAnalitik & { jenis: Jenis; kunci: string; label?: string }): Promise<RincianAnalitik> {
+  const { akhir, awal } = periode(f);
+  const sql = await db();
+  const saring = f.sertakanAdmin ? sql`` : sql`AND user_id NOT IN (SELECT id FROM users WHERE peran = 'admin')`;
+  const baris = await sql<(PenggunaRinci & { total: number; akun: number })[]>`
+    SELECT p.user_id AS "userId", u.email, NULLIF(u.nama, '') AS nama, u.peran, p.m AS n, p.hari AS "hariAktif", p.w AS terakhir,
+           (SUM(p.m) OVER ())::bigint AS total, COUNT(*) FILTER (WHERE p.user_id <> 0) OVER () AS akun
+      FROM (SELECT user_id, SUM(n)::bigint AS m, COUNT(*) AS hari, MAX(terakhir) AS w
+              FROM analitik_harian
+             WHERE jenis = ${f.jenis} AND tanggal BETWEEN ${awal}::date AND ${akhir}::date
+               AND kunci = ${f.kunci} AND label = ${f.label ?? ""} ${saring}
+             GROUP BY user_id) p
+      LEFT JOIN users u ON u.id = p.user_id
+     ORDER BY (p.user_id = 0) DESC, p.m DESC, p.user_id
+     LIMIT ${RINCIAN_N + 2}`;
+  const akun = baris.filter((b) => b.userId !== 0);
+  return {
+    n: baris[0]?.total ?? 0,
+    pengguna: baris[0]?.akun ?? 0,
+    anonim: baris.find((b) => b.userId === 0)?.n ?? 0,
+    daftar: akun.slice(0, RINCIAN_N).map((b) => ({ userId: b.userId, email: b.email, nama: b.nama, peran: b.peran, n: b.n, hariAktif: b.hariAktif, terakhir: b.terakhir })),
+    terpotong: akun.length > RINCIAN_N,
   };
 }

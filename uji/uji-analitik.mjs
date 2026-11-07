@@ -773,6 +773,41 @@ try {
       assert.deepEqual([r.fitur[0].pengguna, r.fitur[0].terakhir], [2, H("2026-11-05", "08:00:00")]);
     });
 
+    await cek("siapa saja: tiap butir menyebut <= 3 akun teratas (tanpa anonim/admin), rincianAnalitik cocok dengan daftar", async () => {
+      await isiData6();
+      const r = await A.ringkasanAnalitik({ hari: 7, kini: KR });
+      for (const b of [...r.halaman, ...r.klik, ...r.fitur]) {
+        assert.equal(b.siapa.length, Math.min(3, b.pengguna), `${b.kunci} ${b.label}: jumlah siapa`);
+        for (let i = 1; i < b.siapa.length; i++) assert.ok(b.siapa[i - 1].n >= b.siapa[i].n, "siapa tidak urut menurun");
+        for (const s of b.siapa) assert.ok(s.userId !== 0 && s.userId !== AD && typeof s.nama === "string" && s.nama.length > 0);
+      }
+      const dash = r.halaman.find((b) => b.kunci === "/dashboard");
+      const d = await A.rincianAnalitik({ hari: 7, kini: KR, jenis: 0, kunci: "/dashboard" });
+      assert.deepEqual([d.n, d.pengguna, d.anonim, d.daftar.length, d.terpotong], [dash.n, dash.pengguna, 0, dash.pengguna, false]);
+      assert.equal(d.daftar.reduce((s, u) => s + u.n, 0), dash.n);
+      assert.equal(d.daftar[0].userId, dash.siapa[0].userId);
+      assert.ok(d.daftar.every((u) => u.hariAktif >= 1 && u.terakhir > 0));
+      const anon = await A.rincianAnalitik({ hari: 7, kini: KR, jenis: 0, kunci: "/" });
+      assert.deepEqual([anon.n, anon.pengguna, anon.anonim, anon.daftar.length], [10, 0, 10, 0], "halaman publik: hanya anonim");
+      const klik = r.klik.find((b) => b.label === "Tambah nomor");
+      const dk = await A.rincianAnalitik({ hari: 7, kini: KR, jenis: 1, kunci: klik.kunci, label: klik.label });
+      assert.deepEqual([dk.n, dk.pengguna], [klik.n, klik.pengguna]);
+      const fitur = await A.rincianAnalitik({ hari: 7, kini: KR, jenis: 2, kunci: "nomor.tambah" });
+      assert.deepEqual([fitur.n, fitur.pengguna], [r.fitur[0].n, r.fitur[0].pengguna]);
+      // Admin hanya muncul bila disertakan; mode satu akun tanpa daftar siapa.
+      assert.equal((await A.rincianAnalitik({ hari: 7, kini: KR, jenis: 0, kunci: "/admin" })).daftar.length, 0);
+      assert.ok((await A.rincianAnalitik({ hari: 7, kini: KR, jenis: 0, kunci: "/admin", sertakanAdmin: true })).daftar.some((u) => u.userId === AD && u.peran === "admin"));
+      const satu = await A.ringkasanAnalitik({ hari: 7, kini: KR, userId: B });
+      assert.ok([...satu.halaman, ...satu.klik, ...satu.fitur].every((b) => b.siapa.length === 0));
+      // "Sedang online" = akun (bukan anonim/admin) dengan aktivitas ONLINE_DETIK terakhir.
+      const [{ n: online }] = await sql`
+        SELECT COUNT(DISTINCT user_id)::int AS n FROM analitik_harian a
+         WHERE terakhir >= ${KR - A.ONLINE_DETIK} AND user_id <> 0 AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = a.user_id AND u.peran = 'admin')`;
+      assert.equal(r.online, online);
+      const nanti = await A.ringkasanAnalitik({ hari: 7, kini: KR + 86_400 });
+      assert.equal(nanti.online, 0, "besok tidak ada yang online");
+    });
+
     await cek("bawaan: pengguna paling aktif (tanpa admin & anonim), akun terhapus tetap tampil dengan email/nama/peran null", async () => {
       await isiData6();
       const r = await A.ringkasanAnalitik({ hari: 7, kini: KR });
@@ -955,7 +990,19 @@ try {
         [r.total.halaman.kini, r.total.halaman.lalu, r.total.klik.kini, r.total.fitur.kini, r.total.pengguna.kini, r.total.anonim.kini],
         [o.halaman_kini, o.halaman_lalu, o.klik_kini, o.fitur_kini, o.pengguna_kini, o.anonim_kini],
       );
-      assert.deepEqual([r.halaman.length, r.klik.length, r.fitur.length, r.pengguna.length, r.harian.length], [15, 15, 15, 20, 30]);
+      // Halaman & fitur: semua yang tercatat pada periode; klik: 50 teratas.
+      const [{ halaman: nHalaman, fitur: nFitur }] = await sql`
+        SELECT COUNT(DISTINCT kunci) FILTER (WHERE jenis = 0)::int AS halaman, COUNT(DISTINCT kunci) FILTER (WHERE jenis = 2)::int AS fitur
+          FROM analitik_harian a
+         WHERE tanggal > ${HARI_INI}::date - 30 AND tanggal <= ${HARI_INI}::date
+           AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = a.user_id AND u.peran = 'admin')`;
+      assert.deepEqual([r.halaman.length, r.klik.length, r.fitur.length, r.pengguna.length, r.harian.length], [nHalaman, 50, nFitur, 20, 30]);
+      assert.ok([...r.halaman, ...r.klik, ...r.fitur].every((b) => b.siapa.length === Math.min(3, b.pengguna)), "siapa per butir");
+      const k0 = r.klik[0];
+      const msRinci = await ukur("rincianAnalitik({hari:30}) klik teratas", (i) => A.rincianAnalitik({ hari: 30, kini: KR + i + 1, jenis: 1, kunci: k0.kunci, label: k0.label }), 5);
+      assert.ok(msRinci < 500, `rincian terlalu lambat: ${msRinci.toFixed(0)} ms`);
+      const dk = await A.rincianAnalitik({ hari: 30, kini: KR, jenis: 1, kunci: k0.kunci, label: k0.label });
+      assert.deepEqual([dk.n, dk.pengguna, dk.daftar[0].userId], [k0.n, k0.pengguna, k0.siapa[0].userId]);
       for (const k of ["halaman", "klik", "fitur"]) {
         for (let i = 1; i < r[k].length; i++) assert.ok(r[k][i - 1].n >= r[k][i].n, `${k} tidak urut menurun`);
       }
