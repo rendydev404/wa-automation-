@@ -16,10 +16,10 @@ const PemutarRobot = dynamic(() => import("./pemutar").then((m) => m.PemutarRobo
 
 const KUERI_GERAK = "(prefers-reduced-motion: reduce)";
 
-/** Pose pertama sprite di posisi yang sama dengan komposisi (robot 326x280 di x=170, y=88 dari kanvas 760x400). */
+/** Pose pertama sprite di posisi yang sama dengan komposisi (robot 326x280 di x=170, y=148 dari kanvas 760x460). */
 function Diam() {
   return (
-    <div aria-hidden className="absolute overflow-hidden" style={{ left: "22.37%", top: "22%", width: "42.89%", height: "70%" }}>
+    <div aria-hidden className="absolute overflow-hidden" style={{ left: "22.37%", top: "32.17%", width: "42.89%", height: "60.87%" }}>
       {/* eslint-disable-next-line @next/next/no-img-element -- satu sel sprite dipotong lewat lebar 400% */}
       <img src="/maskot/robot-lari.webp" alt="" width={1304} height={280} decoding="async" fetchPriority="low" draggable={false} style={{ width: "400%", maxWidth: "none", height: "100%" }} />
     </div>
@@ -65,7 +65,7 @@ export function RobotLari({ className = "" }: { className?: string }) {
   }, [kurangi]);
 
   return (
-    <div className={`aspect-[760/400] transition-transform duration-300 ease-out ${className}`} style={{ transform: `translateX(${condong * 8}px) rotate(${condong * 4}deg)` }}>
+    <div className={`aspect-[760/460] transition-transform duration-300 ease-out ${className}`} style={{ transform: `translateX(${condong * 8}px) rotate(${condong * 4}deg)` }}>
       {siap && !kurangi ? <PemutarRobot label={t("Maskot robot ChatGerCep: ketuk supaya melesat", "ChatGerCep robot mascot: tap to make it dash")} /> : <Diam />}
     </div>
   );

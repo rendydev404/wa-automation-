@@ -644,3 +644,43 @@ body {
     animation: harga-kilau 3.4s ease-in-out infinite;
   }
 }
+
+/*
+ * Tema gelap landing page (bawaan; src/components/landing/tombol-tema.tsx). Semua komponen memakai token --c-*
+ * lewat @theme inline, jadi cukup token yang diganti di pembungkus .tema-gelap. Halaman lain tidak terpengaruh.
+ */
+.tema-gelap {
+  color-scheme: dark;
+  --c-canvas: #08130f;
+  --c-surface: #0f1d17;
+  --c-subtle: #15271f;
+  --c-line: rgba(232, 240, 236, 0.1);
+  --c-line-strong: rgba(232, 240, 236, 0.18);
+
+  --c-fg: #e8f0ec;
+  --c-muted: #a3b7ad;
+  --c-faint: #8ea399;
+
+  --c-accent: #3ddc97;
+  --c-accent-hover: #5ee6ab;
+  --c-accent-soft: rgba(61, 220, 151, 0.12);
+  --c-on-accent: #0b1813;
+
+  --c-success: #3ddc97;
+  --c-success-soft: rgba(61, 220, 151, 0.12);
+  --c-warning: #f5c46b;
+  --c-warning-soft: rgba(245, 196, 107, 0.12);
+  --c-danger: #ff8a9b;
+  --c-danger-soft: rgba(255, 138, 155, 0.12);
+
+  --c-merek-tinta: #e8f0ec;
+  --c-seri-masuk: #8fb0f0;
+  --c-seri-dibalas: #3ddc97;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(232, 240, 236, 0.04);
+  --shadow-pop: 0 18px 44px -12px rgba(0, 0, 0, 0.7);
+}
+/* Latar di luar pembungkus (tarik-lepas di HP / gulir lewat batas) ikut gelap. */
+html:has(.tema-gelap) body {
+  background-color: #08130f;
+}

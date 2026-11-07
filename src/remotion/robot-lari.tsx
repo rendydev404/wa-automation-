@@ -11,7 +11,7 @@ import { AbsoluteFill, Easing, Img, interpolate, random, spring, staticFile, use
 export const ROBOT_FPS = 30;
 export const ROBOT_DURASI = 8 * ROBOT_FPS;
 export const ROBOT_LEBAR = 760;
-export const ROBOT_TINGGI = 400;
+export const ROBOT_TINGGI = 460; // ruang atas untuk "GERCEP!" yang dimiringkan
 export const LESAT = 96;
 export const TURBO = 168;
 const TURBO_SELESAI = 228;
@@ -42,7 +42,7 @@ export function RobotLari({ bahasa }: PropsRobot) {
   const gx = (random(`gx${frame}`) - 0.5) * kuat;
   const gy = (random(`gy${frame}`) - 0.5) * kuat;
   const x = 170 + lesat * 70 + gx;
-  const y = 88 + gy;
+  const y = 148 + gy;
   const skala = 1 + lesat * 0.1 + (turbo ? 0.04 : 0);
   const cahaya = turbo ? 26 : 12 + lesat * 16;
 
@@ -165,7 +165,7 @@ export function RobotLari({ bahasa }: PropsRobot) {
           style={{
             position: "absolute",
             left: x - 60,
-            top: -4,
+            top: 22,
             fontSize: 64,
             fontWeight: 900,
             fontStyle: "italic",

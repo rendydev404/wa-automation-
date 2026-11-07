@@ -4,6 +4,7 @@ import { ArrowRight, BookOpenText, Camera, Check, GraduationCap, Hand, History, 
 import { GantiBahasa } from "@/components/ganti-bahasa";
 import { DemoAlur, DemoChat } from "@/components/landing/demo";
 import { RobotLari } from "@/components/landing/robot-lari";
+import { SKRIP_TEMA, TombolTema } from "@/components/landing/tombol-tema";
 import { BandingLanding, HargaLanding } from "@/components/landing/harga";
 import Link from "@/components/link";
 import { Logo } from "@/components/logo";
@@ -162,7 +163,9 @@ export default async function Landing() {
   const urlWaDemo =
     b === "en" ? `https://wa.me/${NOMOR_WA_DEMO}?text=${encodeURIComponent(`Hi ${MEREK}, I'd like to see how fast the AI replies to this chat.`)}` : URL_WA_DEMO;
   return (
-    <div className="bg-canvas">
+    // Tema gelap bawaan landing; SKRIP_TEMA melepasnya sebelum digambar bila pengunjung memilih terang.
+    <div data-tema-landing className="tema-gelap bg-canvas text-fg" suppressHydrationWarning>
+      <script dangerouslySetInnerHTML={{ __html: SKRIP_TEMA }} />
       {/* ---------- Hero (gelap) ---------- */}
       <div className="relative overflow-hidden bg-ink text-ink-fg">
         <div aria-hidden className="kisi-tinta absolute inset-0 opacity-60" />
@@ -189,6 +192,7 @@ export default async function Landing() {
             </a>
           </nav>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <TombolTema />
             <GantiBahasa gelap />
             <Link href="/login" className="rounded-xl px-2.5 py-2 text-[13.5px] font-semibold whitespace-nowrap text-ink-fg transition-colors hover:bg-white/[0.06] sm:px-3.5">
               {t("Masuk", "Sign in")}
