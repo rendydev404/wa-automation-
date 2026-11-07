@@ -28,7 +28,7 @@ export async function KartuLangganan({ tautan = false }: { tautan?: boolean }) {
       <section aria-label={t("Langganan dan kuota", "Subscription and quota")} className="card grid gap-5 p-5 sm:gap-6 sm:p-6 md:grid-cols-3">
         <div className="md:col-span-2">
           <p className="text-[12.5px] font-semibold text-muted">{t("Paket sekarang", "Current plan")}</p>
-          <p className="mt-1 text-2xl font-bold">{t("Belum berlangganan", "No plan yet")}</p>
+          <p className="mt-1 text-2xl font-bold">{t("Belum ada paket aktif", "No active plan")}</p>
           <p className="mt-1 text-[13px] text-muted">
             {t(
               `AI belum membalas pelanggan. Sambungkan nomor, isi product knowledge, lalu pilih paket supaya AI mulai membalas. Pembayaran pertama lewat GoPay, ShopeePay, atau QRIS dilindungi jaminan uang kembali ${MASA_ID}.`,

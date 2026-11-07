@@ -227,7 +227,7 @@ export async function jalankanPengingat(): Promise<void> {
     await kirimNotif(l.user_id, {
       jenis: "paket_berakhir",
       judul: { id: `Paket ${l.nama_paket} telah berakhir`, en: `Your ${l.nama_paket} plan has ended` },
-      isi: { id: "Akun kembali ke kuota gratis. Pilih paket untuk melanjutkan balasan AI.", en: "Your account is back on the free quota. Choose a plan to keep AI replies going." },
+      isi: { id: "AI berhenti membalas pelanggan. Pilih atau perpanjang paket supaya AI aktif lagi.", en: "The AI has stopped replying to customers. Choose or renew a plan to turn it back on." },
       tautan: "/langganan",
       kunci: `berakhir:${l.id}`,
     });

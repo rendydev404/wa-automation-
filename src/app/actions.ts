@@ -1257,7 +1257,7 @@ export async function adminHentikanLanggananAction(id: number): Promise<Hasil> {
   await catatLog(admin, "hentikan langganan", u.email);
   revalidatePath(`/admin/pengguna/${u.id}`);
   catatFitur(admin.id, "admin.hentikan_langganan");
-  return { ok: true, pesan: "Langganan dihentikan; akun kembali ke kuota gratis." };
+  return { ok: true, pesan: "Langganan dihentikan; AI akun ini berhenti membalas sampai berlangganan lagi." };
 }
 
 /** Acuan harga & margin (simulasi di /admin). terapkan=1: harga semua paket berbayar dihitung ulang di server. */
