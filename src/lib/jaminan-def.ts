@@ -23,3 +23,19 @@ export const kanalBisaRefund = (k: string | null | undefined): boolean => !!k &&
  */
 export type ModeRefund = "manual" | "otomatis";
 export const MODE_REFUND_BAWAAN: ModeRefund = "manual";
+
+/**
+ * Syarat & ketentuan jaminan uang kembali yang ditampilkan ke pelanggan (landing & halaman Langganan). Satu sumber
+ * supaya teksnya selalu sama dengan aturan yang benar-benar diperiksa server (jaminan.ts).
+ */
+export function syaratJaminan(t: (id: string, en: string) => string): string[] {
+  return [
+    t("Hanya untuk pembayaran pertama akun (bukan perpanjangan atau pembelian berikutnya).", "Only for the account's first payment (not renewals or later purchases)."),
+    t(`Diajukan paling lambat ${JAMINAN_HARI} hari sejak pembayaran; lewat dari itu tombolnya hilang.`, `Request it within ${JAMINAN_HARI} days of paying; after that the button disappears.`),
+    t("Dibayar lewat GoPay, ShopeePay, atau QRIS. Pembayaran lewat virtual account (VA) bank tidak termasuk.", "Paid with GoPay, ShopeePay, or QRIS. Bank virtual account (VA) payments aren't covered."),
+    t(`Balasan AI yang terpakai paling banyak ${JAMINAN_MAKS_PAKAI_PERSEN}% dari kuota paket.`, `At most ${JAMINAN_MAKS_PAKAI_PERSEN}% of the plan's AI reply quota has been used.`),
+    t("Satu kali per orang: nomor WhatsApp atau email yang sama tidak bisa memakainya lagi lewat akun baru.", "Once per person: the same WhatsApp number or email can't use it again through a new account."),
+    t("Wajib menuliskan alasan saat mengajukan dari halaman Langganan.", "You must give a reason when requesting it from the Subscription page."),
+    t("Dana dikembalikan 100% dan paket langsung dihentikan begitu dana dikembalikan.", "You get 100% back, and the plan stops as soon as the refund is made."),
+  ];
+}

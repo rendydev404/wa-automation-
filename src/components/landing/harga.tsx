@@ -12,7 +12,7 @@ import { kanalAktif, konfigMidtrans } from "@/lib/midtrans";
 import { customTampil, paketCustom, tautanCustom } from "@/lib/paket-custom";
 import { KartuCustom } from "../kartu-custom";
 import { BandingAdminLanding } from "../banding-admin";
-import { JAMINAN_HARI, JAMINAN_MAKS_PAKAI_PERSEN } from "@/lib/jaminan-def";
+import { JAMINAN_HARI, syaratJaminan } from "@/lib/jaminan-def";
 
 const hari = (n: number, b: Bahasa) => (b === "en" ? `${n} ${n === 1 ? "day" : "days"}` : `${n} hari`);
 
@@ -145,13 +145,18 @@ export async function HargaLanding() {
                 )}
                 <mark className="rounded-md bg-[#a3ff47] px-1.5 font-bold text-ink [box-decoration-break:clone]">{t("uang kamu kami kembalikan 100%.", "you get 100% of your money back.")}</mark>
               </p>
-              <p className="mt-2 text-[12.5px] text-ink-muted">
-                {t(
-                  `Untuk pembayaran pertama lewat GoPay, ShopeePay, atau QRIS, selama balasan AI terpakai paling banyak ${JAMINAN_MAKS_PAKAI_PERSEN}% kuota. Ajukan sendiri dari halaman Langganan.`,
-                  `Covers your first payment via GoPay, ShopeePay, or QRIS, as long as at most ${JAMINAN_MAKS_PAKAI_PERSEN}% of the AI reply quota is used. Request it yourself from the Subscription page.`,
-                )}
-              </p>
             </div>
+          </div>
+          <div className="relative mt-6 border-t border-white/15 pt-5">
+            <p className="text-[13px] font-bold tracking-wide text-[#a3ff47] uppercase">{t("Syarat & ketentuan garansi", "Guarantee terms")}</p>
+            <ol className="mt-3 grid gap-x-8 gap-y-2 text-[13px] text-ink-fg sm:grid-cols-2">
+              {syaratJaminan(t).map((x, i) => (
+                <li key={x} className="flex gap-2.5">
+                  <span className="mt-px grid size-5 shrink-0 place-items-center rounded-full bg-[#a3ff47]/15 text-[11px] font-bold text-[#a3ff47] tabular-nums">{i + 1}</span>
+                  {x}
+                </li>
+              ))}
+            </ol>
           </div>
         </div>
       )}

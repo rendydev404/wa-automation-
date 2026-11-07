@@ -18,7 +18,7 @@ import { KartuCustom, TombolWaCustom } from "@/components/kartu-custom";
 import { requireUser } from "@/lib/session";
 import { cekJaminan, modeRefund } from "@/lib/jaminan";
 import { namaBankTampil } from "@/lib/afiliasi-def";
-import { JAMINAN_HARI, JAMINAN_MAKS_PAKAI_PERSEN } from "@/lib/jaminan-def";
+import { JAMINAN_HARI, JAMINAN_MAKS_PAKAI_PERSEN, syaratJaminan } from "@/lib/jaminan-def";
 import { sekarang } from "@/lib/db";
 import { FormJaminan } from "./jaminan";
 import { MEREK } from "@/lib/merek";
@@ -134,6 +134,14 @@ async function Jaminan() {
           ) : (
             j.alasan && <p className="mt-2 text-[12.5px] font-medium text-fg">{b === "en" ? j.alasan.en : j.alasan.id}</p>
           )}
+          <details className="group mt-4 rounded-xl border border-line bg-subtle/40 px-4 py-3 text-[12.5px]">
+            <summary className="cursor-pointer font-semibold text-fg marker:text-muted">{t("Syarat & ketentuan garansi", "Guarantee terms")}</summary>
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted">
+              {syaratJaminan(t).map((x) => (
+                <li key={x}>{x}</li>
+              ))}
+            </ol>
+          </details>
         </>
       )}
     </section>
