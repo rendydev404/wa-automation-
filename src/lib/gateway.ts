@@ -123,8 +123,8 @@ export function terpasang(g: Gateway): boolean {
 /** Status satu metode di satu provider. aktif null = tidak diketahui (dianggap boleh dipakai). */
 export interface StatusProvider {
   aktif: boolean | null;
-  /** Bila aktif null: status provider gagal dibaca, atau metode ini tidak tercantum di pengaturan provider. */
-  sebab?: "gagal-baca" | "tidak-tercantum";
+  /** Bila aktif null: status provider gagal dibaca (alasannya di sumberStatus). */
+  sebab?: "gagal-baca";
   /** Penjelasan untuk admin, mis. "Aktif di iPaymu", "Belum aktif di dashboard Midtrans". */
   catatan: string;
   /** Ditolak provider saat membuat tagihan (bisa dicoba lagi oleh admin). */
@@ -237,7 +237,8 @@ export async function statusProvider(g: Gateway): Promise<Partial<Record<KanalBa
         : v === false
           ? { aktif: false, catatan: "Belum aktif di dashboard Midtrans" }
           : pref
-            ? { aktif: null, sebab: "tidak-tercantum", catatan: "Tidak tercantum di pengaturan Midtrans; ketahuan saat pembeli membuat tagihan" }
+            ? // Terbukti di produksi (2026-11-09): QRIS, ShopeePay, BCA VA tidak ada di daftar akun dan memang ditolak saat charge.
+              { aktif: false, catatan: "Tidak ada di daftar metode akun Midtrans" }
             : { aktif: null, sebab: "gagal-baca", catatan: "Status gagal dibaca dari Midtrans (alasan di atas); tetap ditawarkan" });
   }
   return hasil;

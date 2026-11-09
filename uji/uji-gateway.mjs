@@ -60,9 +60,9 @@ globalThis.fetch = async (url, o) => {
   const body = o?.body ? JSON.parse(o.body) : null;
   panggilan.push({ url: u, method: o?.method ?? "GET", headers: o?.headers ?? {}, body, mentah: o?.body });
   if (u === "https://app.midtrans.com/snap/v3/merchant-preferences") {
-    // Preference API (pengaturan dashboard Midtrans): Permata VA belum aktif di akun ini.
+    // Preference API (pengaturan dashboard Midtrans): Permata VA belum aktif; BCA VA tidak ada di daftar (seperti produksi).
     if (o?.headers?.Authorization !== `Basic ${Buffer.from(`${SK}:`).toString("base64")}`) return jawab({ error_messages: ["unauthorized"] }, 401);
-    const nama = ["credit_card", "other_qris", "gopay", "shopeepay", "bca_va", "bni_va", "bri_va", "bsi_va", "cimb_va", "echannel", "permata_va"];
+    const nama = ["credit_card", "other_qris", "gopay", "shopeepay", "bni_va", "bri_va", "bsi_va", "cimb_va", "echannel", "permata_va"];
     return jawab({ merchant_id: "M-UJI", payment_channels: nama.map((name) => ({ name, enabled: name !== "permata_va" })) });
   }
   if (u === "https://api.midtrans.com/v2/charge") {
@@ -443,7 +443,7 @@ await cek("mode HYBRID: BCA VA, ShopeePay, DANA lewat iPaymu, sisanya Midtrans; 
   // iPaymu dicabut dari .env: DANA hilang, BCA & ShopeePay otomatis lewat Midtrans.
   delete process.env.IPAYMU_API_KEY;
   p = await G.penyediaKanal();
-  assert.deepEqual([p.dana, p.bca, p.shopeepay], [undefined, "midtrans", "midtrans"]);
+  assert.deepEqual([p.dana, p.bca, p.shopeepay], [undefined, undefined, "midtrans"], "BCA tidak aktif di Midtrans: tidak ditawarkan");
   process.env.IPAYMU_API_KEY = KUNCI_IPAYMU;
   // Hanya Midtrans: DANA tidak ditawarkan; Hanya iPaymu: GoPay tidak ditawarkan.
   await G.setModeGateway("midtrans");
@@ -463,6 +463,7 @@ await cek("status NYATA tiap provider seperti di dashboard-nya: Midtrans (Prefer
   const [m, i] = await Promise.all([G.statusProvider("midtrans"), G.statusProvider("ipaymu")]);
   assert.deepEqual(m.permata, { aktif: false, catatan: "Belum aktif di dashboard Midtrans" });
   assert.deepEqual(m.gopay, { aktif: true, catatan: "Aktif di Midtrans" });
+  assert.deepEqual(m.bca, { aktif: false, catatan: "Tidak ada di daftar metode akun Midtrans" }, "tidak tercantum = tidak aktif di akun");
   assert.equal(m.dana, undefined, "DANA tidak dilayani Midtrans");
   assert.deepEqual(i.qris, { aktif: false, catatan: "Belum aktif di dashboard iPaymu" });
   assert.deepEqual(i.dana, { aktif: true, catatan: "Aktif di iPaymu" });
