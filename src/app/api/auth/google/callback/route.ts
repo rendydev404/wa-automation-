@@ -9,6 +9,8 @@ import { COOKIE_REF, terapkanReferral } from "@/lib/afiliasi";
 import { COOKIE_PIXEL_REG, kirimCapiEvent } from "@/lib/meta-pixel";
 import { konteksMetaPermintaan } from "@/lib/meta-pixel-konteks";
 import { notifPendaftarBaru } from "@/lib/notifikasi";
+import { COOKIE_ASAL, bacaAsal } from "@/lib/asal-def";
+import { simpanAsal } from "@/lib/asal";
 
 /** Kembali dari Google: verifikasi, cari/tautkan/buat akun, lalu mulai sesi login biasa. */
 export async function GET(req: Request) {
@@ -40,7 +42,17 @@ export async function GET(req: Request) {
   if (akun.baru) {
     const refKode = toples.get(COOKIE_REF)?.value;
     if (refKode) await terapkanReferral(akun.id, refKode).catch(() => {});
-    void kirimCapiEvent({ ...(await konteksMetaPermintaan()), kunci: "complete_registration", eventId: `reg_${akun.id}`, email: identitas.email, externalId: akun.id });
+    // Asal dari LP industri / iklan: cookie dipasang proxy.ts saat /daftar atau /login dibuka dengan parameternya.
+    const asal = bacaAsal(toples.get(COOKIE_ASAL)?.value);
+    await simpanAsal(akun.id, asal);
+    void kirimCapiEvent({
+      ...(await konteksMetaPermintaan()),
+      kunci: "complete_registration",
+      eventId: `reg_${akun.id}`,
+      email: identitas.email,
+      externalId: akun.id,
+      ...(asal?.industri ? { customData: { content_category: asal.industri } } : {}),
+    });
     notifPendaftarBaru(akun.id, identitas.email, "google");
   }
 
@@ -49,6 +61,7 @@ export async function GET(req: Request) {
   catatFitur(akun.id, akun.baru ? "akun.daftar_google" : "akun.masuk_google");
   const res = ke(halamanAwal(akun.peran));
   res.cookies.delete({ name: COOKIE_REF, path: "/" });
+  if (akun.baru) res.cookies.delete({ name: COOKIE_ASAL, path: "/" });
   if (akun.baru) {
     res.cookies.set(COOKIE_PIXEL_REG, String(akun.id), { maxAge: 120, path: "/", httpOnly: false, sameSite: "lax" });
   }

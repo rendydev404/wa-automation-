@@ -103,6 +103,16 @@ function bacaDanHapusCookieReg(): string | null {
   return id;
 }
 
+/** Industri LP yang terakhir dikunjungi (localStorage `cg_industry`, ditulis lp/aset/lp.js) sebagai content_category. */
+function industriLp(): { content_category?: string } {
+  try {
+    const v = localStorage.getItem("cg_industry");
+    return v && /^[a-z-]{2,40}$/.test(v) ? { content_category: v } : {};
+  } catch {
+    return {};
+  }
+}
+
 /** Datang dari iklan (`fbclid` di URL) tetapi cookie `_fbc` belum ada: bentuk sendiri, supaya event server tetap terhubung ke kliknya. */
 function pastikanCookieFbc() {
   const fbclid = new URLSearchParams(window.location.search).get("fbclid");
@@ -135,7 +145,7 @@ export function MetaPixelClient({ konfig }: { konfig: KonfigMetaPixelPublik }) {
 
     const idDaftar = bacaDanHapusCookieReg();
     if (idDaftar && konfig.event.complete_registration) {
-      lacakMetaEvent("complete_registration", { status: true }, `reg_${idDaftar}`);
+      lacakMetaEvent("complete_registration", { status: true, ...industriLp() }, `reg_${idDaftar}`);
     }
 
     for (const kirim of antre) kirim();

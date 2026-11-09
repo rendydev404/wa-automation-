@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 import { COOKIE_REF, UMUR_COOKIE_REF, normalkanKodeRef } from "@/lib/afiliasi-def";
+import { COOKIE_ASAL, UMUR_COOKIE_ASAL, asalDariUrl, kodeAsal } from "@/lib/asal-def";
 import { type Bahasa, HEADER_BAHASA, bahasaSah, tautan, urai } from "@/lib/bahasa";
 import { jalurLanjut } from "@/lib/lanjut";
 import { JALUR_LP_PUBLIK } from "@/lib/lp/def";
@@ -89,7 +90,14 @@ export async function proxy(request: NextRequest) {
 
   // /login, /daftar & /lupa-password selalu diteruskan: cookie yang sah tanda tangannya belum tentu masih berlaku di database
   // (mis. password diganti, akun diblokir), dan mengalihkannya dari sini akan memutar tanpa henti.
-  if (pathname === "/login" || pathname === "/daftar" || pathname === "/lupa-password") return pasangRef(lanjut());
+  if (pathname === "/login" || pathname === "/daftar" || pathname === "/lupa-password") {
+    const res = pasangRef(lanjut());
+    // Asal pendaftar dari LP industri / iklan (industry, landing_page, paket, utm_*, click id): disimpan ke akun saat
+    // akun dibuat. Lewat cookie supaya ikut juga di alur Google yang meninggalkan halaman ini.
+    const asalBaru = request.method === "GET" && pathname !== "/lupa-password" ? asalDariUrl(searchParams) : null;
+    if (asalBaru) res.cookies.set(COOKIE_ASAL, kodeAsal(asalBaru), { httpOnly: true, sameSite: "lax", path: "/", maxAge: UMUR_COOKIE_ASAL });
+    return res;
+  }
   if (!sesi) {
     if (isApi) {
       const pesan = bahasa === "en" ? "Your session has ended. Please sign in again." : "Sesi berakhir. Silakan login kembali.";

@@ -19,6 +19,8 @@ import { angka } from "@/lib/format";
 import { kunciAnthropic, pengaturanAi, perkiraanPerBalasan } from "@/lib/ai";
 import { aiUntukAkun, balasanTerpakai, daftarPaket, hakAkun, langgananAktif, pemakaianNyata, riwayatBonus, riwayatLangganan } from "@/lib/langganan";
 import { MEREK } from "@/lib/merek";
+import { asalAkun } from "@/lib/asal";
+import { TEMPLAT_AI } from "@/lib/templat-ai-def";
 import { followupAkun } from "@/lib/followup";
 import { LABEL_ACK, LABEL_STATUS } from "@/lib/followup-def";
 import { AntrekanUlang, FormTautChatCs } from "../../followup/followup-akun";
@@ -130,6 +132,9 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               Lihat analitik
             </Link>
           </dd>
+          <Suspense fallback={null}>
+            <AsalDaftar id={u.id} />
+          </Suspense>
         </dl>
       </header>
 
@@ -304,6 +309,30 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Asal pendaftar dari LP industri / iklan (users.asal_*, diisi saat daftar). Akun lama atau daftar langsung = "Langsung". */
+async function AsalDaftar({ id }: { id: number }) {
+  const a = await asalAkun(id);
+  const utm = a?.utm ?? {};
+  const industri = a?.industri ? (TEMPLAT_AI.find((x) => x.slug === a.industri)?.label ?? a.industri) : null;
+  const iklan = [utm.utm_source, utm.utm_medium, utm.utm_campaign].filter(Boolean).join(" / ");
+  const klik = ["fbclid", "ttclid", "gclid"].filter((k) => utm[k]).map((k) => ({ fbclid: "Meta", ttclid: "TikTok", gclid: "Google" })[k]);
+  const bagian = [
+    industri && `LP ${industri}${a?.lp ? ` (${a.lp})` : ""}`,
+    !industri && a?.lp && `LP ${a.lp}`,
+    iklan,
+    utm.paket && `paket ${utm.paket}`,
+    klik.length && `klik iklan ${klik.join(", ")}`,
+  ].filter(Boolean);
+  return (
+    <>
+      <dt className="text-muted">Asal daftar</dt>
+      <dd className="font-semibold break-words" title={a?.utm ? JSON.stringify(a.utm) : undefined}>
+        {bagian.length ? bagian.join(" · ") : <span className="font-normal text-muted">Langsung</span>}
+      </dd>
+    </>
   );
 }
 

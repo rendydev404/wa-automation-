@@ -662,8 +662,8 @@ export async function terapkanStatus(
     await tx`UPDATE transaksi SET langganan_id = ${id}, meta_konteks = NULL WHERE id = ${t.id}`;
     await prosesKomisiTransaksi(tx, { transaksiId: t.id, userId: t.user_id, paketId: t.paket_id, namaPaket: t.nama_paket, jumlahBayar: t.jumlah });
     segarkanKuota(t.user_id);
-    const [u] = await tx<{ email: string }[]>`SELECT email FROM users WHERE id = ${t.user_id}`;
-    infoCapi = { jumlah: t.jumlah, namaPaket: t.nama_paket, userId: t.user_id, email: u?.email, konteks: t.meta_konteks };
+    const [u] = await tx<{ email: string; asal_industri: string | null }[]>`SELECT email, asal_industri FROM users WHERE id = ${t.user_id}`;
+    infoCapi = { jumlah: t.jumlah, namaPaket: t.nama_paket, userId: t.user_id, email: u?.email, industri: u?.asal_industri ?? null, konteks: t.meta_konteks };
     return { status, baruAktif: true };
   });
   if (infoRefund) notifRefund(infoRefund);
@@ -676,7 +676,8 @@ export async function terapkanStatus(
       eventId: orderId, // sama dengan eventID Pixel di halaman tagihan, supaya Meta menghitungnya sekali
       email: c.email,
       externalId: c.userId,
-      customData: { value: c.jumlah, currency: "IDR", content_name: c.namaPaket, content_type: "product" },
+      // content_category = industri LP asal akun (users.asal_industri), untuk laporan iklan per industri.
+      customData: { value: c.jumlah, currency: "IDR", content_name: c.namaPaket, content_type: "product", ...(c.industri ? { content_category: c.industri } : {}) },
     });
   }
   return hasil;
@@ -820,6 +821,7 @@ interface InfoCapiBeli {
   namaPaket: string;
   userId: number;
   email?: string;
+  industri: string | null;
   konteks: KonteksMeta | null;
 }
 

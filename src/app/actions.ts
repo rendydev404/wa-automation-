@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { MAKS_INSTRUKSI } from "@/lib/templat-ai-def";
 import { penandaTersisa } from "@/lib/templat-ai";
+import { COOKIE_ASAL, bacaAsal } from "@/lib/asal-def";
+import { simpanAsal } from "@/lib/asal";
 import {
   AfiliasiError,
   COOKIE_REF,
@@ -188,8 +190,21 @@ export async function daftarAction(_lalu: Hasil | null, form: FormData): Promise
     await terapkanReferral(akun.id, refKode).catch(() => {});
     toples.delete(COOKIE_REF);
   }
+  // Asal dari LP industri / iklan (cookie dari proxy.ts): disimpan ke akun, industrinya ikut di CompleteRegistration.
+  const asal = bacaAsal(toples.get(COOKIE_ASAL)?.value);
+  if (asal) {
+    await simpanAsal(akun.id, asal);
+    toples.delete(COOKIE_ASAL);
+  }
   toples.set(COOKIE_PIXEL_REG, String(akun.id), { maxAge: 120, path: "/", httpOnly: false, sameSite: "lax" });
-  void kirimCapiEvent({ ...(await konteksMetaPermintaan()), kunci: "complete_registration", eventId: `reg_${akun.id}`, email, externalId: akun.id });
+  void kirimCapiEvent({
+    ...(await konteksMetaPermintaan()),
+    kunci: "complete_registration",
+    eventId: `reg_${akun.id}`,
+    email,
+    externalId: akun.id,
+    ...(asal?.industri ? { customData: { content_category: asal.industri } } : {}),
+  });
   notifPendaftarBaru(akun.id, email, "email");
   await catatLoginBerhasil(akun.id);
   await mulaiSesi(akun, await lewatHttps());

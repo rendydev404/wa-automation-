@@ -665,6 +665,21 @@ const MIGRASI: string[] = [
 
 const KUNCI_MIGRASI = 7272740001;
 
+/**
+ * Kolom yang dipastikan ada DI LUAR daftar MIGRASI bernomor: katalog diperiksa dulu dan ALTER hanya dijalankan bila
+ * kolomnya belum ada (tanpa mengunci tabel saat sudah ada). Dipakai untuk perubahan skema yang dibuat bersamaan dengan
+ * migrasi bernomor sesi lain yang belum di-commit, supaya nomor versi tidak bentrok di produksi maupun database dev.
+ * Aman dipindah ke MIGRASI kelak (pakai ADD COLUMN IF NOT EXISTS).
+ */
+const KOLOM_PASTI: readonly { tabel: string; kolom: string; sql: string }[] = [
+  // Asal pendaftar dari landing page industri / iklan (src/lib/asal-def.ts): industri, halaman LP, UTM + click id + paket.
+  {
+    tabel: "users",
+    kolom: "asal_utm",
+    sql: "ALTER TABLE users ADD COLUMN IF NOT EXISTS asal_industri text, ADD COLUMN IF NOT EXISTS asal_lp text, ADD COLUMN IF NOT EXISTS asal_utm jsonb",
+  },
+];
+
 interface Keadaan {
   sql: Sql;
   siap: Promise<Sql> | null;
@@ -696,6 +711,10 @@ async function siapkan(sql: Sql): Promise<Sql> {
     for (let i = v; i < MIGRASI.length; i++) {
       await tx.unsafe(MIGRASI[i]);
       await tx`INSERT INTO skema_versi(versi) VALUES (${i + 1})`;
+    }
+    for (const k of KOLOM_PASTI) {
+      const [ada] = await tx`SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ${k.tabel} AND column_name = ${k.kolom}`;
+      if (!ada) await tx.unsafe(k.sql);
     }
   });
   const { imporDariSqlite } = await import("./impor-sqlite");
