@@ -675,6 +675,25 @@ await cek("katalog: tag <kirim_produk> dipisah dari jawaban (kode P, 'semua', ta
   assert.equal(KT.perluDaftar("Ini katalognya:\n*Kopi Susu Aren* Rp18.000\n*Roti Bakar*", produkUji), false);
 });
 
+await cek("katalog gambar panduan (nomor CS ChatGerCep): bukan produk, tanpa harga, tidak ikut 'semua', blok terpisah ringkas", async () => {
+  const panduan = [
+    { id: 30, nama: `${KT.AWALAN_PANDUAN}2 · Sambungkan WhatsApp (laptop + HP) (1/4)`, harga: null, deskripsi: "Beri nama nomor: Tulis nama bebas.", tersedia: true, adaFoto: true, urutan: 1000, diubah: 1 },
+    { id: 31, nama: `${KT.AWALAN_PANDUAN}2 · Sambungkan WhatsApp (laptop + HP) (2/4)`, harga: null, deskripsi: "Kode QR muncul.", tersedia: true, adaFoto: true, urutan: 1001, diubah: 1 },
+  ];
+  const campur = [...produkUji, ...panduan];
+  assert.equal(KT.captionProduk(panduan[0]), `*${panduan[0].nama}*\nBeri nama nomor: Tulis nama bebas.`, "tanpa 'harga tanya admin'");
+  assert.deepEqual(KT.pilihUntukKirim(campur, "semua").foto.map((p) => p.id), [12]);
+  assert.deepEqual(KT.pilihUntukKirim(campur, [30, 31]).foto.map((p) => p.id), [30, 31]);
+  assert.ok(!KT.teksKatalog(campur).includes("Panduan"));
+  const b = KT.blokKatalog(campur);
+  assert.match(b, /<katalog_produk>[\s\S]*<\/katalog_produk>\n<gambar_panduan>/);
+  assert.ok(!b.match(/<katalog_produk>[\s\S]*<\/katalog_produk>/)[0].includes("Panduan"), "panduan tidak dicampur ke daftar produk");
+  assert.match(b, /\[P30\] 2 · Sambungkan WhatsApp \(laptop \+ HP\) \(1\/4\)\n/);
+  assert.ok(!b.includes("Tulis nama bebas"), "deskripsi panduan tidak dimuat (hemat token)");
+  // Hanya gambar panduan (GercepBot tanpa produk): blok panduan saja.
+  assert.match(KT.blokKatalog(panduan), /^<gambar_panduan>/);
+});
+
 await cek("katalog + pemeriksa: 'aku kirimkan fotonya' sah HANYA dengan tag & katalog aktif; harga dari katalog lolos; harga karangan ditolak", async () => {
   const sumber = `${SUMBER}\n${KT.blokKatalog(produkUji)}`;
   const j = (t, o = {}) => periksaJawaban(t, sumber, o).map((p) => p.jenis);

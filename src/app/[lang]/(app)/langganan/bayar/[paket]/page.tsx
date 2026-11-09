@@ -71,7 +71,7 @@ async function Isi({ params }: { params: Promise<{ paket: string }> }) {
   const perpanjang = hak.paket === p.nama;
   return (
     <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <aside className="card p-5 sm:p-6 lg:sticky lg:top-6 lg:order-2" aria-labelledby="judul-ringkasan">
+      <aside className="card p-4 sm:p-6 lg:sticky lg:top-6 lg:order-2" aria-labelledby="judul-ringkasan">
         <h2 id="judul-ringkasan" className="text-[13px] font-bold tracking-wide text-muted uppercase">
           {t("Ringkasan", "Summary")}
         </h2>
@@ -104,7 +104,7 @@ async function Isi({ params }: { params: Promise<{ paket: string }> }) {
         </p>
       </aside>
 
-      <section className="card p-5 sm:p-6 lg:order-1" aria-labelledby="judul-metode">
+      <section className="card min-w-0 p-4 sm:p-6 lg:order-1" aria-labelledby="judul-metode">
         <h1 id="judul-metode" className="text-[17px] font-bold tracking-tight">
           {t("Pilih metode pembayaran", "Choose a payment method")}
         </h1>
@@ -114,10 +114,10 @@ async function Isi({ params }: { params: Promise<{ paket: string }> }) {
         {lama && (
           <Link
             href={`/langganan/tagihan/${encodeURIComponent(lama.order_id)}`}
-            className="mb-5 flex items-center gap-3 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-[13px] text-warning transition-opacity hover:opacity-90"
+            className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-warning/30 bg-warning-soft px-3.5 py-3 text-[13px] text-warning transition-opacity hover:opacity-90 sm:px-4"
           >
             <Clock className="size-4 shrink-0" aria-hidden />
-            <span className="flex-1">
+            <span className="min-w-0 flex-1 basis-48">
               {b === "en" ? (
                 <>
                   You still have an unpaid <strong className="font-semibold">{labelKanal(lama.kanal, b)}</strong> invoice for this plan.
@@ -128,7 +128,7 @@ async function Isi({ params }: { params: Promise<{ paket: string }> }) {
                 </>
               )}
             </span>
-            <span className="inline-flex shrink-0 items-center gap-1 font-semibold">
+            <span className="ml-auto inline-flex shrink-0 items-center gap-1 font-semibold">
               {t("Lanjutkan", "Continue")} <ArrowRight className="size-3.5" aria-hidden />
             </span>
           </Link>

@@ -44,6 +44,7 @@ export const POLA_HALAMAN = [
   "/daftar",
   "/lupa-password",
   "/program-afiliasi",
+  "/panduan",
   "/dashboard",
   "/akun",
   "/afiliasi",
@@ -70,7 +71,7 @@ export const POLA_HALAMAN = [
 export type PolaHalaman = (typeof POLA_HALAMAN)[number];
 
 /** Halaman yang boleh dicatat untuk pengunjung yang belum login (selain ini diabaikan untuk anonim). */
-export const HALAMAN_PUBLIK: readonly PolaHalaman[] = ["/", "/login", "/daftar", "/lupa-password", "/program-afiliasi"];
+export const HALAMAN_PUBLIK: readonly PolaHalaman[] = ["/", "/login", "/daftar", "/lupa-password", "/program-afiliasi", "/panduan"];
 
 const SEGMEN_POLA = POLA_HALAMAN.map((p) => (p === "/" ? [] : p.slice(1).split("/")));
 

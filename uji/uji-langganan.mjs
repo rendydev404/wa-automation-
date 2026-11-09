@@ -968,9 +968,33 @@ await cek("knowledge otomatis ChatGerCep (khusus admin): paket, harga, komisi, m
     assert.ok(kp.teks.includes(`Rp${(st.harga + 1000).toLocaleString("id-ID")}`));
     assert.match((await K.susunSistem({ id: n.id, instruksi: "", belajar: false }, "paket chat gercep ada di brp yak?")).sistem, /dokumen lain itu sudah usang/);
     await K.hapusDokumen(pdf.id, n.id, true);
-    // Dimatikan admin: dokumennya hilang.
+    // Tutorial bergambar: 1 kartu aturan + 1 kartu per kategori, dan gambar panduan masuk katalog nomor ini.
+    const PD = await lib("src/lib/panduan-def.ts");
+    const KAT = await lib("src/lib/katalog.ts");
+    const teksBaru = (await K.teksDokumen((await K.daftarDokumen(n.id, true))[0].id, n.id, true)).teks;
+    assert.match(teksBaru, /Jangan pernah mengirim lebih dari satu bagian/);
+    for (const [i, k] of PD.PANDUAN.entries()) assert.ok(teksBaru.includes(`bagian ${i + 1}: ${k.judul.id}`), k.id);
+    assert.ok(teksBaru.includes("https://chatgercep.com/panduan#sambung-qr"));
+    const jumlahLangkah = PD.PANDUAN.reduce((s, k) => s + k.langkah.length, 0);
+    const itemPanduan = async () => (await KAT.daftarProduk(n.id)).filter((p) => p.nama.startsWith(PD.AWALAN_PANDUAN));
+    const awal = await itemPanduan();
+    assert.equal(awal.length, jumlahLangkah);
+    assert.ok(awal.every((p) => p.adaFoto && p.harga === null && p.tersedia));
+    assert.equal(awal[0].nama, PD.namaItemPanduan(0, PD.PANDUAN[0], 0));
+    const foto = await KAT.fotoProduk(awal[0].id);
+    assert.equal(foto.mime, "image/jpeg");
+    // Akun pemilik nomor CS bukan admin/berbayar, tetapi boleh memakai katalog (foto panduan tetap terkirim).
+    assert.equal(await KAT.katalogBoleh(budi.id), true);
+    // Tanpa perubahan: tidak ditulis ulang (id tetap). Satu item terhapus dari dashboard: dipulihkan.
+    await CG.jalankanCg();
+    assert.deepEqual((await itemPanduan()).map((p) => p.id), awal.map((p) => p.id));
+    await KAT.hapusProduk(n.id, awal[3].id);
+    await CG.jalankanCg();
+    assert.equal((await itemPanduan()).length, jumlahLangkah);
+    // Dimatikan admin: dokumennya hilang, gambar panduan juga.
     await CG.setNomorSinkronCg(n.id, false);
     assert.equal((await K.daftarDokumen(n.id, true)).length, 0);
+    assert.equal((await itemPanduan()).length, 0);
   } finally {
     await L.simpanPaket(st);
     await G.setKanalMati("midtrans", "qris", null);

@@ -11,6 +11,7 @@ import { Logo } from "@/components/logo";
 import { alasanSyarat, judulSyarat, syaratNomor } from "@/components/syarat-nomor";
 import { Kalkulator } from "@/components/landing/kalkulator";
 import { PendaftarLoop } from "@/components/landing/pendaftar-loop";
+import { TahanKeluar } from "@/components/landing/tahan-keluar";
 import { WidgetWaLanding } from "@/components/landing/widget-wa";
 import { type T, bahasaSah, pembuatT } from "@/lib/bahasa";
 import { teksHalaman } from "@/lib/bahasa-halaman";
@@ -190,6 +191,9 @@ export default async function Landing() {
             <a href="#faq" className="transition-colors hover:text-ink-fg">
               FAQ
             </a>
+            <Link href="/panduan" className="transition-colors hover:text-ink-fg">
+              {t("Panduan", "Guide")}
+            </Link>
           </nav>
           <div className="flex shrink-0 items-center gap-0.5 min-[420px]:gap-1 sm:gap-2">
             <TombolTema />
@@ -340,6 +344,23 @@ export default async function Landing() {
           <div className="mt-12">
             <DemoAlur />
           </div>
+          <Link
+            href="/panduan"
+            className="group mt-10 flex flex-col gap-3 rounded-2xl border border-ink-line bg-ink-raised/60 px-5 py-4 transition-colors hover:border-ink-signal/40 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <span className="flex items-start gap-3">
+              <BookOpenText className="mt-0.5 size-5 shrink-0 text-ink-signal" aria-hidden />
+              <span>
+                <span className="block text-[15px] font-bold text-white">{t("Butuh langkah lengkapnya?", "Want the full step-by-step?")}</span>
+                <span className="mt-0.5 block text-[13.5px] text-ink-muted">
+                  {t("Panduan bergambar dari daftar sampai AI membalas pelanggan, cocok untuk yang baru pertama kali.", "An illustrated guide from sign-up to AI replying to customers, perfect for first-timers.")}
+                </span>
+              </span>
+            </span>
+            <span className="inline-flex shrink-0 items-center gap-1.5 text-[14px] font-bold text-ink-signal">
+              {t("Buka panduan", "Open the guide")} <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
+            </span>
+          </Link>
         </div>
       </section>
 
@@ -478,6 +499,9 @@ export default async function Landing() {
             >
               <IkonWhatsApp className="size-4 text-accent" /> Customer Service
             </a>
+            <Link href="/panduan" className="hover:text-fg">
+              {t("Panduan cara pakai", "How-to guide")}
+            </Link>
             <Link href="/login" className="hover:text-fg">
               {t("Masuk", "Sign in")}
             </Link>
@@ -491,6 +515,14 @@ export default async function Landing() {
       </footer>
 
       <WidgetWaLanding />
+      <TahanKeluar
+        harga={
+          <Suspense fallback={t("Rp67 ribu/30 hari", "Rp67,000/30 days")}>
+            <HargaMulai cadangan={t("Rp67 ribu/30 hari", "Rp67,000/30 days")} />
+          </Suspense>
+        }
+        kedua={{ href: "/panduan", label: t("Lihat dulu panduan bergambarnya", "See the illustrated guide first") }}
+      />
       <DataOrganisasi />
     </div>
   );

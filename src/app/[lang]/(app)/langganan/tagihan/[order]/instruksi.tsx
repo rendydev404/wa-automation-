@@ -219,10 +219,11 @@ const kelompok = (s: string) => s.replace(/(\d{4})(?=\d)/g, "$1 ");
 
 function Baris({ label, nilai, salin }: { label: string; nilai: string; salin?: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl bg-subtle px-4 py-3">
-      <div className="min-w-0">
+    // HP sempit: tombol Salin turun ke bawah, nomor tetap satu baris (patah hanya di antara kelompok 4 digit).
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl bg-subtle px-4 py-3">
+      <div className="min-w-0 flex-1 basis-48">
         <p className="text-[12px] text-muted">{label}</p>
-        <p className="mt-0.5 break-all font-mono text-[17px] font-bold tracking-wide tabular-nums sm:text-lg">{nilai}</p>
+        <p className="mt-0.5 font-mono text-[17px] font-bold tracking-wide break-words tabular-nums sm:text-lg">{nilai}</p>
       </div>
       <TombolSalin teks={salin ?? nilai} />
     </div>

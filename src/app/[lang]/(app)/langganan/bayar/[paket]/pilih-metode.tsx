@@ -84,7 +84,7 @@ export function PilihMetode({
                   return (
                     <label
                       key={x}
-                      className={`flex min-w-0 cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-3 transition-colors has-focus-visible:ring-2 has-focus-visible:ring-accent ${
+                      className={`flex min-w-0 cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-3 transition-colors sm:gap-3 sm:px-3.5 has-focus-visible:ring-2 has-focus-visible:ring-accent ${
                         aktif ? "border-accent bg-accent-soft" : "border-line bg-surface hover:bg-subtle"
                       }`}
                     >
@@ -94,8 +94,8 @@ export function PilihMetode({
                         <span className="block text-[13.5px] font-semibold">{labelKanal(x, b, penyedia[x])}</span>
                         <span className="line-clamp-2 block text-[12px] leading-snug text-muted">{infoKanal(x, b)}</span>
                         {jaminan && kanalBisaRefund(x) && (
-                          <span className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-success">
-                            <ShieldCheck className="size-3 shrink-0" aria-hidden /> {t(`Jaminan uang kembali ${MASA_ID}`, `${MASA_EN_ADJ} money-back guarantee`)}
+                          <span className="mt-1 inline-flex max-w-full items-start gap-1 rounded-lg bg-success-soft px-2 py-0.5 text-[11px] leading-snug font-semibold text-success min-[380px]:items-center min-[380px]:rounded-full min-[380px]:whitespace-nowrap">
+                            <ShieldCheck className="mt-[2px] size-3 shrink-0 min-[380px]:mt-0" aria-hidden /> {t(`Jaminan uang kembali ${MASA_ID}`, `${MASA_EN_ADJ} money-back guarantee`)}
                           </span>
                         )}
                       </span>
@@ -111,7 +111,7 @@ export function PilihMetode({
         })}
       </fieldset>
       <div className="space-y-2">
-        <button type="button" className="btn btn-primary h-11 w-full text-[14px]" disabled={!pilih || tunggu} onClick={bayar}>
+        <button type="button" className="btn btn-primary h-auto min-h-11 w-full py-2.5 text-center text-[14px] leading-snug whitespace-normal text-balance" disabled={!pilih || tunggu} onClick={bayar}>
           {tunggu && <Loader2 className="size-4 animate-spin" aria-hidden />}
           {pilih
             ? t(`Bayar Rp${harga.toLocaleString("id-ID")} dengan ${labelKanal(pilih, "id", penyedia[pilih])}`, `Pay ${uang(harga, b, kurs)} with ${labelKanal(pilih, b, penyedia[pilih])}`)
@@ -127,8 +127,8 @@ export function PilihMetode({
             )}
           </p>
         )}
-        <p className="flex items-center justify-center gap-1.5 text-[12px] text-muted">
-          <ShieldCheck className="size-3.5 text-success" aria-hidden /> {t(`Diproses aman oleh ${namaPenyedia}. Tanpa biaya tambahan.`, `Securely processed by ${namaPenyedia}. No extra fees.`)}
+        <p className="flex items-start justify-center gap-1.5 text-center text-[12px] text-muted">
+          <ShieldCheck className="mt-px size-3.5 shrink-0 text-success" aria-hidden /> {t(`Diproses aman oleh ${namaPenyedia}. Tanpa biaya tambahan.`, `Securely processed by ${namaPenyedia}. No extra fees.`)}
         </p>
       </div>
     </div>

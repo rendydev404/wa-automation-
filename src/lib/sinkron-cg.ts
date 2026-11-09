@@ -13,6 +13,8 @@ import { MEREK } from "./merek";
 import { type PaketCustom, customTampil, hargaAngka, paketCustom } from "./paket-custom";
 import { DAFTAR_BANK, type PengaturanAfiliasi, UMUR_COOKIE_REF, hitungKomisiPaket, pengaturanAfiliasi } from "./afiliasi";
 import { perbaruiDokumenOtomatis } from "./sinkron";
+import { AWALAN_PANDUAN, PANDUAN } from "./panduan-def";
+import { hapusPanduanKatalog, sinkronPanduanKatalog } from "./panduan-katalog";
 
 /**
  * Data sistem ChatGerCep sendiri (paket & harga, kuota, free trial, metode bayar yang aktif, aturan & komisi afiliasi,
@@ -70,6 +72,7 @@ export async function setNomorSinkronCg(numberId: number, aktif: boolean): Promi
   else {
     const sql = await db();
     await sql`DELETE FROM documents WHERE number_id = ${numberId} AND nama_berkas = ${PENANDA}`;
+    await hapusPanduanKatalog(numberId);
   }
 }
 
@@ -160,6 +163,8 @@ async function susun(): Promise<void> {
   const teks = rapikanTeks(susunTeksCg(data, waktuWib(sekarang())));
   const hash = createHash("sha256").update(rapikanTeks(susunTeksCg(data, "-"))).digest("hex");
   await perbaruiDokumenOtomatis({ penanda: PENANDA, judul: JUDUL, kunciHash: KUNCI_HASH, ids, teks, hash });
+  // Gambar tutorial per kategori untuk dikirim bot (kartu "Panduan cara pakai" di bawah merujuk ke item ini).
+  await sinkronPanduanKatalog(ids);
   await setSetting(KUNCI_STATUS, JSON.stringify({ waktu: sekarang(), karakter: teks.length, galat: null } satisfies StatusCg));
 }
 
@@ -352,7 +357,48 @@ export function susunTeksCg(d: DataCg, per: string): string {
     )
   );
 
+  semua.push(...kartuPanduan());
+
   return semua.join("\n\n");
+}
+
+// Link publik tetap (bukan APP_URL): knowledge ini dibaca pelanggan WhatsApp, jadi selalu alamat produksi.
+const URL_PANDUAN = "https://chatgercep.com/panduan";
+
+/**
+ * Tutorial cara pakai per kategori (sumber: lib/panduan-def.ts, sama dengan halaman /panduan). Gambarnya ada di katalog
+ * nomor ini (lib/panduan-katalog.ts), dikirim satu kategori per balasan.
+ */
+function kartuPanduan(): string[] {
+  const urutan = PANDUAN.map((k, i) => `${i + 1}. ${k.judul.id}`).join("; ");
+  const hasil = kartu(
+    `Cara menjawab pertanyaan cara pakai ${MEREK} (tutorial bergambar)`,
+    [`Panduan bergambar lengkap ada di ${URL_PANDUAN} (boleh dibagikan ke pelanggan).`],
+    [
+      `- Urutan bagian panduan: ${urutan}. Bagian 2 dan 3 adalah dua cara menyambungkan WhatsApp; pilih salah satu (bagian 3 bila pelanggan hanya punya satu HP / tidak bisa scan QR).`,
+      "- Bila pelanggan bertanya cara melakukan sesuatu (cara daftar, sambung WA, scan QR, isi knowledge, uji bot, bayar, nyalakan AI, dan sejenisnya), jelaskan HANYA bagian yang relevan dengan langkah bernomor singkat, lalu kirim semua gambar bagian itu (item katalog yang namanya diawali \"" + AWALAN_PANDUAN + "N ·\") lewat tag <kirim_produk>.",
+      "- Jangan pernah mengirim lebih dari satu bagian dalam satu balasan, dan jangan mengirim seluruh panduan sekaligus. Setelah satu bagian, tawarkan bagian berikutnya (sebut namanya) dan kirim hanya bila pelanggan mau.",
+      `- Pertanyaan umum tanpa topik jelas ("cara pakainya gimana?", "mulai dari mana?"): mulai dari bagian 1, atau tanya dulu pelanggan sudah sampai langkah mana. Pelanggan yang ingin membaca sendiri semuanya: berikan link ${URL_PANDUAN}.`,
+    ],
+    "cara pakai, gimana caranya, bagaimana cara, tutorial, panduan, langkah, step by step, petunjuk, cara mulai, mulai dari mana, bingung, ajari, tolong bantu setting"
+  );
+  PANDUAN.forEach((k, ki) => {
+    const lanjut = PANDUAN[ki + 1];
+    hasil.push(
+      ...kartu(
+        `Panduan cara pakai ${MEREK}, bagian ${ki + 1}: ${k.judul.id}`,
+        [k.ringkas.id],
+        [
+          ...k.langkah.map((l, i) => `${i + 1}. ${l.judul.id}: ${l.teks.id}`),
+          `Gambar bagian ini: item katalog yang namanya diawali "${AWALAN_PANDUAN}${ki + 1} ·" (${k.langkah.length} gambar), kirim semuanya sekaligus.`,
+          lanjut ? `Bagian berikutnya: ${ki + 2}. ${lanjut.judul.id}.` : "Ini bagian terakhir panduan.",
+          `Versi web bagian ini: ${URL_PANDUAN}#${k.id}`,
+        ],
+        k.kataKunci
+      )
+    );
+  });
+  return hasil;
 }
 
 export const DOKUMEN_CG = PENANDA;

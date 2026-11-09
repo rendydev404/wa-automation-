@@ -36,7 +36,7 @@ function IsiTab({ ikon, label, aktif, lencana }: { ikon: ReactNode; label: strin
         {ikon}
         {lencana}
       </span>
-      <span className="max-w-full truncate px-0.5">{label}</span>
+      <span className="max-w-full truncate px-0.5 max-[359px]:px-0 max-[359px]:text-[10px] max-[359px]:tracking-tight">{label}</span>
     </>
   );
 }

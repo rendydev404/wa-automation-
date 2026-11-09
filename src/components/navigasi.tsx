@@ -155,7 +155,8 @@ export function TombolPanduanAtas() {
   const { t } = useBahasa();
   return (
     <>
-      <GantiBahasa gelap className="h-10" />
+      {/* HP sangat sempit: "EN" tanpa ikon, supaya nama merek di bilah atas tidak terpotong. */}
+      <GantiBahasa gelap className="h-10 max-[359px]:px-1.5 max-[359px]:[&>svg]:hidden" />
       <span data-tur="nav-panduan" className="block">
         <TombolTur
           nama={tur.nama}
@@ -163,7 +164,8 @@ export function TombolPanduanAtas() {
           className="flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-[13px] font-semibold text-ink-muted transition-colors hover:bg-ink-raised hover:text-ink-fg"
         >
           <CircleHelp className="size-[18px]" aria-hidden />
-          {t("Panduan", "Guide")}
+          {/* HP sempit (<400 px): ikon saja supaya nama ChatGerCep di bilah atas tidak terpotong. */}
+          <span className="max-[399px]:sr-only">{t("Panduan", "Guide")}</span>
         </TombolTur>
       </span>
     </>

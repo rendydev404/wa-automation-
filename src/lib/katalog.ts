@@ -1,5 +1,5 @@
 import "server-only";
-import { db, sekarang } from "./db";
+import { db, getSetting, sekarang } from "./db";
 import { akunBerbayar } from "./langganan";
 import { BATAS_KATALOG, type KirimProduk, MAKS_HARGA_PRODUK, type Produk, pilihUntukKirim } from "./katalog-def";
 
@@ -39,16 +39,32 @@ export async function daftarProduk(numberId: number): Promise<Produk[]> {
 const gk = globalThis as unknown as { __waKatalogBoleh?: Map<number, { at: number; ok: boolean }> };
 const cacheBoleh = (gk.__waKatalogBoleh ??= new Map());
 
-/** Akun ini boleh memakai katalog: admin atau punya langganan aktif. Dipegang 60 dtk (dipanggil tiap balasan AI). */
+/**
+ * Akun ini boleh memakai katalog: admin, punya langganan aktif, atau pemilik nomor CS ChatGerCep (nomor yang dipilih
+ * admin di sinkron-cg; katalognya berisi gambar panduan). Dipegang 60 dtk (dipanggil tiap balasan AI).
+ */
 export async function katalogBoleh(userId: number | null): Promise<boolean> {
   if (userId === null) return false;
   const c = cacheBoleh.get(userId);
   if (c && Date.now() - c.at < 60_000) return c.ok;
   const sql = await db();
   const [u] = await sql<{ peran: string }[]>`SELECT peran FROM users WHERE id = ${userId}`;
-  const ok = u?.peran === "admin" || (await akunBerbayar(userId));
+  const ok = u?.peran === "admin" || (await akunBerbayar(userId)) || (await punyaNomorCs(userId));
   cacheBoleh.set(userId, { at: Date.now(), ok });
   return ok;
+}
+
+/** Setting dibaca langsung (bukan lewat sinkron-cg.ts) supaya tidak terjadi impor melingkar. */
+async function punyaNomorCs(userId: number): Promise<boolean> {
+  let ids: number[] = [];
+  try {
+    const v = JSON.parse((await getSetting("sinkron_cg_nomor")) ?? "[]");
+    if (Array.isArray(v)) ids = v.filter((x): x is number => Number.isInteger(x));
+  } catch {}
+  if (!ids.length) return false;
+  const sql = await db();
+  const [r] = await sql`SELECT 1 FROM numbers WHERE user_id = ${userId} AND id IN ${sql(ids)} LIMIT 1`;
+  return !!r;
 }
 
 export interface IsianProduk {
