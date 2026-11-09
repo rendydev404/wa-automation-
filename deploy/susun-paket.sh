@@ -17,7 +17,11 @@ P=paket
 rm -rf "$P" && mkdir -p "$P/isi/app/.next" "$P/lapisan"
 cp -r .next/standalone/. "$P/isi/app/"
 cp -r .next/static "$P/isi/app/.next/static"
-if [ -d public ]; then cp -r public "$P/isi/app/public"; fi
+# Isi public/ DIGABUNG ke app/public: standalone bisa sudah membawa sebagian public/ (berkas yang dibaca kode lewat
+# fs, mis. public/panduan/wa ikut dilacak Next). `cp -r public app/public` ke folder yang sudah ada menghasilkan
+# app/public/public dan semua aset lain jadi 404 (terjadi di rilis 7f77f20).
+if [ -d public ]; then mkdir -p "$P/isi/app/public" && cp -r public/. "$P/isi/app/public/"; fi
+if [ -e "$P/isi/app/public/public" ]; then echo "GAGAL: app/public/public terbentuk, aset statis akan 404" >&2; exit 1; fi
 # Jangan pernah ikut terkirim: data lokal, env lokal, dan biner yang tidak dipakai server Linux.
 rm -rf "$P/isi/app/data" "$P/isi/app"/.env* "$P/isi/app/node_modules/@img"
 # onnxruntime-node membawa biner semua platform (±290 MB); server hanya butuh Linux.
