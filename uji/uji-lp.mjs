@@ -79,4 +79,9 @@ assert.deepEqual(await penandaTersisa("[Contoh, ganti dengan data Anda: Cuci Rp8
 const langkah4 = renderLp(semua.find((i) => i.slug === "laundry"), semua, data);
 assert.ok(langkah4.includes("Pilih template AI") && !langkah4.includes("Salin template AI"), "langkah 4 LP = pilih template AI");
 
+// Pixel + CAPI: event browser membawa eventID, dan event yang sama dikirim ke /api/lp/event (server -> Meta CAPI).
+const js = readFileSync(path.join(akar, "lp/aset/lp.js"), "utf8");
+assert.ok(js.includes("{ eventID: eid }") && js.includes('sendBeacon("/api/lp/event"'), "lp.js: eventID sama untuk Pixel & CAPI");
+assert.match(js, /track\("Lead"/, "klik WhatsApp di LP = Lead");
+
 console.log(`uji-lp: ${semua.length} industri OK, template AI ${SLUG_LP.length} OK`);

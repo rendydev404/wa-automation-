@@ -41,12 +41,19 @@
   var TT_MAP = { ViewContent: "ViewContent", InitiateCheckout: "InitiateCheckout", ClickCTA: "ClickButton", Purchase: "CompletePayment" };
   var GA_MAP = { PageView: "page_view", ViewContent: "view_item", ClickCTA: "click_cta", InitiateCheckout: "begin_checkout", Purchase: "purchase" };
 
+  // Event yang juga dikirim lewat server (Meta Conversions API, /api/lp/event) dengan event_id sama = dihitung sekali.
+  var CAPI = { PageView: 1, ViewContent: 1, InitiateCheckout: 1, Lead: 1 };
+  function idEvent() { return "lp_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
   function send(name, params) {
     var p = Object.assign({ industry: ind, landing_page: lpPath, content_category: ind }, utm, params || {});
+    var eid = idEvent();
     try {
       if (window.fbq) {
-        if (name === "PageView") fbq("track", "PageView");
-        else if (META_STD[name]) fbq("track", name, p); else fbq("trackCustom", name, p);
+        if (name === "PageView") fbq("track", "PageView", {}, { eventID: eid });
+        else if (META_STD[name]) fbq("track", name, p, { eventID: eid }); else fbq("trackCustom", name, p);
+      }
+      if (T.meta_pixel_id && CAPI[name] && navigator.sendBeacon) {
+        navigator.sendBeacon("/api/lp/event", JSON.stringify({ nama: name, id: eid, industri: ind, nilai: p.value || 0, paket: p.plan || "", konten: p.content_name || "" }));
       }
       if (window.ttq) { if (name === "PageView") ttq.page(); else ttq.track(TT_MAP[name] || name, p); }
       if (window.gtag) gtag("event", GA_MAP[name] || name, p);
@@ -83,6 +90,7 @@
       if (a.dataset.plan) params.plan = a.dataset.plan;
       track("ClickCTA", params);
       if (a.dataset.plan) track("InitiateCheckout", { plan: a.dataset.plan, value: +a.dataset.value || 0, currency: "IDR" });
+      if (/wa\.me\/|api\.whatsapp\.com\//.test(a.getAttribute("href") || "")) track("Lead", { content_name: params.cta_text || "Klik WhatsApp" });
     });
   });
 

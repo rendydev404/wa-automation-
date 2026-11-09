@@ -9,6 +9,12 @@ export const EVENT_META_PIXEL = {
     ket: "Otomatis melacak setiap kunjungan di halaman Landing, Afiliasi, Login, Daftar, dan perpindahan halaman.",
     bawaan: true,
   },
+  view_content: {
+    kode: "ViewContent",
+    label: "ViewContent (Lihat Landing Page Industri)",
+    ket: "Melacak kunjungan ke landing page industri (/laundry, /bengkel, dst.) beserta industrinya, dari browser dan server (CAPI).",
+    bawaan: true,
+  },
   lead_wa: {
     kode: "Lead",
     label: "Lead (Klik Tombol & Widget WhatsApp)",
