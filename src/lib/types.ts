@@ -1,3 +1,4 @@
+import type { RingkasAktivitas } from "./aktivitas";
 import type { BitQr } from "./qr";
 
 export type StatusSesiWa ="BELUM_ADA" | "STOPPED" | "STARTING" | "SCAN_QR_CODE" | "WORKING" | "FAILED";
@@ -29,6 +30,8 @@ export interface StatusWa {
   nomor: Record<number, SesiNomor>;
   /** Jumlah notifikasi in-app yang belum dibaca (lonceng). */
   notif: number;
+  /** Detak aktivitas nomor-nomor ini sejak proses jalan (lib/aktivitas.ts), untuk maskot dashboard. */
+  aktivitas: RingkasAktivitas;
 }
 
 export interface QrWa {

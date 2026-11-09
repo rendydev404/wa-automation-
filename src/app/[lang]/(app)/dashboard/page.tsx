@@ -15,6 +15,8 @@ import { TUR_DASHBOARD } from "@/components/isi-tur";
 import { TurOtomatis } from "@/components/tur";
 import { teksHalaman } from "@/lib/bahasa-halaman";
 import { turSelesai } from "@/lib/pengguna";
+import { Maskot } from "@/components/maskot/maskot";
+import { hakAkunSekali, sisaKuotaAi } from "@/lib/langganan";
 import { kuotaNomor, requireUser } from "@/lib/session";
 import { deretHarian, hariTerakhir, persen } from "@/lib/tren";
 
@@ -69,7 +71,15 @@ async function TanggalHariIni() {
 async function Ringkasan() {
   const [user, { b, t }] = await Promise.all([requireUser(), teksHalaman()]);
   const hari = hariTerakhir(tanggalWib(), 7);
-  const [nomor, stat, kuota, tur] = await Promise.all([daftarNomor(user.id, user.peran === "admin"), statHarian(hari[0], { userId: user.id }), kuotaNomor(user), turSelesai(user.id)]);
+  // hakAkun dibagi dengan banner kuota & kartu langganan (cache per permintaan); sisa kuota dari cache memori 60 dtk.
+  const [nomor, stat, kuota, tur, hak, sisaAi] = await Promise.all([
+    daftarNomor(user.id, user.peran === "admin"),
+    statHarian(hari[0], { userId: user.id }),
+    kuotaNomor(user),
+    turSelesai(user.id),
+    hakAkunSekali(user),
+    sisaKuotaAi(user.id),
+  ]);
 
   const tren = deretHarian(hari, stat);
   const urutan = new Map(hari.map((t, i) => [t, i]));
@@ -92,6 +102,18 @@ async function Ringkasan() {
   return (
     <div className="space-y-6 lg:space-y-8">
       <TurOtomatis nama="dashboard" langkah={TUR_DASHBOARD} sudah={tur.includes("dashboard")} />
+      <Maskot
+        tur={{ nama: "dashboard", langkah: TUR_DASHBOARD }}
+        data={{
+          jenis: "pengguna",
+          nama: (user.nama || user.email.split("@")[0]).split(/\s+/)[0],
+          hariIni: { masuk: kini.masuk, dibalas: kini.dibalas },
+          kemarin: { masuk: kemarin.masuk, dibalas: kemarin.dibalas },
+          pekan: { masuk: tren.reduce((a, x) => a + x.masuk, 0), dibalas: tren.reduce((a, x) => a + x.dibalas, 0) },
+          nomor: nomor.map((n) => ({ id: n.id, label: n.label, botAktif: !!n.bot_aktif, knowledge: n.jumlah_karakter > 0 })),
+          kuota: { aktif: !(hak.sampai === null && hak.balasan === 0), sisa: sisaAi, batas: hak.balasan },
+        }}
+      />
       <section aria-label={t("Statistik hari ini", "Today's stats")} data-tur="ringkasan" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <KartuUtama
           label={t("Pesan masuk hari ini", "Incoming messages today")}

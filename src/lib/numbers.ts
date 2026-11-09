@@ -1,5 +1,6 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
+import { catatAktivitas } from "./aktivitas";
 import { db, sekarang, transaksi } from "./db";
 
 export interface Nomor {
@@ -212,6 +213,7 @@ export async function hapusNomor(id: number): Promise<void> {
 }
 
 export async function catatStat(numberId: number, kolom: "masuk" | "dibalas" | "gagal", n = 1): Promise<void> {
+  catatAktivitas(numberId, kolom, n); // detak di memori untuk maskot dashboard (lewat poller status), tanpa query
   const sql = await db();
   const k = sql(kolom);
   await sql`

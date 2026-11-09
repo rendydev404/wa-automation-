@@ -1,7 +1,7 @@
 import Link from "@/components/link";
 import { teksHalaman } from "@/lib/bahasa-halaman";
 import { angka, tanggal } from "@/lib/format";
-import { balasanTerpakai, hakAkun } from "@/lib/langganan";
+import { balasanTerpakai, hakAkunSekali } from "@/lib/langganan";
 import { nomorMilik } from "@/lib/numbers";
 import { requireUser } from "@/lib/session";
 import { tingkatPaket } from "@/lib/tingkat-paket";
@@ -15,7 +15,7 @@ import { MASA_ID, MASA_EN_ADJ } from "@/lib/jaminan-def";
  */
 export async function KartuLangganan({ tautan = false }: { tautan?: boolean }) {
   const [user, { b, t }] = await Promise.all([requireUser(), teksHalaman()]);
-  const hak = await hakAkun(user);
+  const hak = await hakAkunSekali(user);
   const [terpakai, nomor] = await Promise.all([hak.balasan === null ? Promise.resolve(0) : balasanTerpakai(user.id, hak.periodeMulai), nomorMilik(user.id)]);
   const persenBalasan = hak.balasan ? Math.min(100, Math.round((terpakai / hak.balasan) * 100)) : 0;
   const berakhir = hak.percobaanBerakhir;

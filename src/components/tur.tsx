@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
 import { selesaiTurAction } from "@/app/actions";
 import type { T } from "@/lib/bahasa";
 import { useBahasa } from "./bahasa";
+import { GambarPose, type Pose } from "./maskot/pose";
 
 /**
  * Tur panduan: menyorot satu bagian layar per langkah (elemen dengan atribut data-tur="..."), sisanya diredupkan.
@@ -30,6 +31,8 @@ export type IsiTur = (t: T) => LangkahTur[];
 
 interface KonteksTur {
   mulai: (nama: string, langkah: LangkahTur[]) => void;
+  /** Ada tur yang sedang berjalan (maskot dashboard menyingkir, karena maskot ikut tampil di kartu tur). */
+  aktif: boolean;
 }
 const Konteks = createContext<KonteksTur | null>(null);
 
@@ -37,6 +40,11 @@ export function useTur(): KonteksTur {
   const k = useContext(Konteks);
   if (!k) throw new Error("useTur di luar PenyediaTur");
   return k;
+}
+
+/** Sama dengan useTur, tetapi null di luar PenyediaTur (komponen yang juga dipasang di halaman tanpa tur). */
+export function useTurOpsional(): KonteksTur | null {
+  return useContext(Konteks);
 }
 
 // Tur yang sudah dibuka di tab ini (supaya tidak dimulai dua kali sebelum halaman dimuat ulang).
@@ -53,7 +61,7 @@ export function PenyediaTur({ children }: { children: ReactNode }) {
     void selesaiTurAction(nama); // idempoten di database
   }, []);
   return (
-    <Konteks value={{ mulai }}>
+    <Konteks value={{ mulai, aktif: aktif !== null }}>
       {children}
       {aktif && <Sorot key={aktif.nama} langkah={aktif.langkah} tutup={() => tutup(aktif.nama)} />}
     </Konteks>
@@ -88,6 +96,7 @@ export function TombolTur({ nama, langkah, children, className }: { nama: string
 }
 
 const JARAK = 10;
+const POSE_TUR: readonly Pose[] = ["tunjuk", "jelaskan", "tablet", "analitik"];
 
 /** Elemen benar-benar tampil (bukan di laci sidebar yang tertutup di HP, bukan disembunyikan). */
 function terlihat(el: Element | null): boolean {
@@ -146,6 +155,8 @@ function Sorot({ langkah: semua, tutup }: { langkah: LangkahTur[]; tutup: () => 
   }, [i, langkah.length, tutup]);
 
   if (!l) return null;
+  // Maskot memandu: menyapa di langkah pertama, menunjuk/menjelaskan di tengah, jempol di langkah terakhir.
+  const pose: Pose = i === 0 ? "sapa" : i === langkah.length - 1 ? "jempol" : POSE_TUR[(i - 1) % POSE_TUR.length];
   const kotak = l.sasaran && ukuran?.i === i ? ukuran.r : null;
   const terakhir = i === langkah.length - 1;
   // Kartu di bawah elemen bila muat, di atasnya bila tidak; di tengah bila tanpa sasaran. HP: selalu menempel di bawah.
@@ -184,6 +195,13 @@ function Sorot({ langkah: semua, tutup }: { langkah: LangkahTur[]; tutup: () => 
         className="fixed w-[min(360px,calc(100vw-32px))] animate-masuk rounded-2xl bg-surface p-5 text-fg shadow-pop outline-none max-sm:!top-auto max-sm:!bottom-[calc(5rem+env(safe-area-inset-bottom))] max-sm:!left-4 max-sm:!transform-none"
         style={gayaKartu}
       >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-[66px] right-12 h-[76px] w-[78px]"
+          style={{ maskImage: "linear-gradient(#000 72%, transparent)", WebkitMaskImage: "linear-gradient(#000 72%, transparent)" }}
+        >
+          <GambarPose pose={pose} className="size-full object-contain object-bottom" />
+        </div>
         <div className="flex items-start justify-between gap-3">
           <p className="text-[11.5px] font-semibold tracking-[0.08em] text-accent uppercase">
             {t("Panduan", "Guide")} {i + 1}/{langkah.length}

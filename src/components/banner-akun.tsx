@@ -5,7 +5,7 @@ import { db, sekarang } from "@/lib/db";
 import { teksHalaman } from "@/lib/bahasa-halaman";
 import { angka, tanggal } from "@/lib/format";
 import { tautanChatCs } from "@/lib/followup";
-import { hakAkun, sisaKuotaAi } from "@/lib/langganan";
+import { hakAkunSekali, sisaKuotaAi } from "@/lib/langganan";
 import { requireUser } from "@/lib/session";
 import { MASA_ID, MASA_EN_ADJ } from "@/lib/jaminan-def";
 
@@ -67,7 +67,7 @@ export async function BannerKuota() {
   const user = await requireUser();
   if (user.peran === "admin") return null;
   const ambang = await aturan("peringatan_kuota_persen");
-  const [hak, sisa] = await Promise.all([hakAkun(user), sisaKuotaAi(user.id)]);
+  const [hak, sisa] = await Promise.all([hakAkunSekali(user), sisaKuotaAi(user.id)]);
   if (hak.sampai === null && hak.balasan === 0) {
     // Tanpa free trial: belum (atau tidak lagi) berlangganan. Ajakan tenang, bukan peringatan merah.
     const { t } = await teksHalaman();

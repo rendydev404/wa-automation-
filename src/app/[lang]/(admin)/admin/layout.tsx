@@ -5,6 +5,7 @@ import { logoutAction } from "@/app/actions";
 import { NavBawahKerangka } from "@/components/navigasi";
 import { LoncengNotifikasi } from "@/components/notifikasi";
 import { Rangka } from "@/components/rangka";
+import { PenyediaTur } from "@/components/tur";
 import { requireAdmin } from "@/lib/session";
 import { NavAdmin, NavAdminBawah } from "./nav-admin";
 import { MEREK } from "@/lib/merek";
@@ -27,6 +28,7 @@ async function Penjaga() {
 /** Panel admin: rangka, menu, dan halaman terpisah dari workspace pengguna (/dashboard, /nomor/...). */
 export default function LayoutAdmin({ children }: LayoutProps<"/[lang]/admin">) {
   return (
+    <PenyediaTur>
     <Rangka
       beranda="/admin"
       lencana="Admin"
@@ -63,5 +65,6 @@ export default function LayoutAdmin({ children }: LayoutProps<"/[lang]/admin">) 
         {children}
       </main>
     </Rangka>
+    </PenyediaTur>
   );
 }

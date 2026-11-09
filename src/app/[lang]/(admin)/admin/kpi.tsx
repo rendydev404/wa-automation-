@@ -24,6 +24,11 @@ import { requireAdmin } from "@/lib/session";
 import { deretHarian, persen } from "@/lib/tren";
 import { infoSesi } from "@/lib/wa";
 import { sekarang } from "@/lib/db";
+import { Maskot } from "@/components/maskot/maskot";
+import { TUR_ADMIN } from "@/components/isi-tur";
+import { TurOtomatis } from "@/components/tur";
+import { WaStatusProvider } from "@/components/wa-status";
+import { turSelesai } from "@/lib/pengguna";
 
 /**
  * Ringkasan panel admin sebagai dashboard KPI: empat angka kunci 30 hari (dibanding 30 hari sebelumnya), jalur
@@ -34,8 +39,8 @@ const PEMBANDING = `${PERIODE_HARI} hari sebelumnya`;
 const HARI_GRAFIK = 14;
 
 export async function KpiRingkasan() {
-  await requireAdmin();
-  const [k, kursI, log] = await Promise.all([kpiAdmin(), infoKurs(), daftarLog(6)]);
+  const admin = await requireAdmin();
+  const [k, kursI, log, tur] = await Promise.all([kpiAdmin(), infoKurs(), daftarLog(6), turSelesai(admin.id)]);
   const kini = sekarang();
   const kurs = kursI.kurs;
 
@@ -55,10 +60,35 @@ export async function KpiRingkasan() {
   const terhubung = k.nomor.tertaut.length - terputus.length;
 
   const grafik = deretHarian(k.hari.slice(-HARI_GRAFIK), k.balasan.harian);
+  const hariIni = k.balasan.harian.at(-1) ?? { masuk: 0, dibalas: 0 };
 
   return (
     <div className="space-y-4 lg:space-y-6">
-      <section aria-label={`Angka kunci ${PERIODE_HARI} hari terakhir`} className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+      <TurOtomatis nama="admin" langkah={TUR_ADMIN} sudah={tur.includes("admin")} />
+      {/* Poller status hanya untuk maskot (koneksi, kesehatan AI, detak balasan semua nomor): satu permintaan ringan per 20 dtk. */}
+      <WaStatusProvider>
+        <Maskot
+          tur={{ nama: "admin", langkah: TUR_ADMIN }}
+          data={{
+            jenis: "admin",
+            nama: (admin.nama || "Admin").split(/\s+/)[0],
+            pendapatan: k.pendapatan,
+            berbayar: { kini: k.berbayar.kini, lalu: k.berbayar.lalu },
+            balasan: { kini: k.balasan.kini, lalu: k.balasan.lalu, masuk: k.balasan.masuk },
+            hariIni: { masuk: hariIni.masuk, dibalas: hariIni.dibalas },
+            biaya,
+            laba,
+            margin,
+            menunggu: k.menunggu,
+            berakhir: k.berakhir.length,
+            kuotaMenipis: k.kuotaMenipis.length,
+            nomor: { total: k.nomor.total, tertaut: k.nomor.tertaut.length, terputus: terputus.length },
+            akunBaru: { kini: k.akun.baruKini, lalu: k.akun.baruLalu },
+            pengguna: k.akun.pengguna,
+          }}
+        />
+      </WaStatusProvider>
+      <section data-tur="admin-kpi" aria-label={`Angka kunci ${PERIODE_HARI} hari terakhir`} className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <KartuUtama
           label={`Pendapatan · ${PERIODE_HARI} hari`}
           nilai={rupiahRingkas(k.pendapatan.kini)}
@@ -103,7 +133,7 @@ export async function KpiRingkasan() {
       </section>
 
       {/* Garis pemisah 1px = celah grid di atas latar garis, rapi di 2 maupun 4 kolom. */}
-      <section aria-label="Angka pendukung" className="card grid grid-cols-2 gap-px overflow-hidden bg-line md:grid-cols-4">
+      <section data-tur="admin-pendukung" aria-label="Angka pendukung" className="card grid grid-cols-2 gap-px overflow-hidden bg-line md:grid-cols-4">
         <Pendukung href="/admin/pengguna" ikon={<Users className="size-4" aria-hidden />} label={`Pendaftar baru · ${PERIODE_HARI} hari`} nilai={angka(k.akun.baruKini)}>
           <Delta kini={k.akun.baruKini} lalu={k.akun.baruLalu} pembanding={PEMBANDING} />
           <p className="mt-1">
@@ -240,7 +270,7 @@ function sisaWaktu(sampai: number, kini: number): string {
 function PerluPerhatian({ k, terputus, kini }: { k: KpiAdmin; terputus: KpiAdmin["nomor"]["tertaut"]; kini: number }) {
   const jumlah = (terputus.length ? 1 : 0) + (k.menunggu.jumlah ? 1 : 0) + k.berakhir.length + k.kuotaMenipis.length;
   return (
-    <section aria-labelledby="judul-perhatian" className="card flex min-w-0 flex-col p-5 sm:p-6">
+    <section data-tur="admin-perhatian" aria-labelledby="judul-perhatian" className="card flex min-w-0 flex-col p-5 sm:p-6">
       <div className="flex items-center justify-between gap-3">
         <h2 id="judul-perhatian" className="text-[15px] font-bold tracking-tight">
           Perlu perhatian
@@ -318,7 +348,7 @@ function PerPaket({ k }: { k: KpiAdmin }) {
   const gratis = Math.max(0, k.akun.pengguna - k.berbayar.kini);
   const konversi = persen(k.berbayar.kini, k.akun.pengguna);
   return (
-    <section aria-labelledby="judul-paket" className="card flex flex-col p-5 sm:p-6">
+    <section data-tur="admin-paket" aria-labelledby="judul-paket" className="card flex flex-col p-5 sm:p-6">
       <div className="flex items-center justify-between gap-3">
         <h2 id="judul-paket" className="text-[15px] font-bold tracking-tight">
           Pelanggan aktif per paket

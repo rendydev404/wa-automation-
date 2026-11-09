@@ -175,3 +175,36 @@ export const TUR_NOMOR: IsiTur = (t) => [
     ),
   },
 ];
+
+/** Tur panel admin (bahasa Indonesia saja, seperti panel admin). */
+export const TUR_ADMIN: IsiTur = () => [
+  {
+    judul: "Halo, saya GerCep 👋",
+    isi: (
+      <>
+        <p>Saya akan menemani Anda keliling panel admin. Semua angka di sini dihitung langsung dari data 30 hari terakhir.</p>
+        <p>Setelah tur, saya tetap berjaga di pojok kanan bawah: ketuk saya kapan saja untuk ringkasan, hal yang perlu ditindak, atau biaya AI.</p>
+      </>
+    ),
+  },
+  {
+    sasaran: "admin-kpi",
+    judul: "Angka kunci",
+    isi: <p>Pendapatan, pelanggan berbayar, balasan AI, dan laba kotor, masing-masing dibanding 30 hari sebelumnya.</p>,
+  },
+  {
+    sasaran: "admin-pendukung",
+    judul: "Angka pendukung",
+    isi: <p>Pendaftar baru, nomor yang tersambung, langganan yang akan berakhir, dan pembayaran yang masih menunggu. Klik kotaknya untuk membuka daftar lengkap.</p>,
+  },
+  {
+    sasaran: "admin-perhatian",
+    judul: "Perlu perhatian",
+    isi: <p>Daftar yang sebaiknya ditindaklanjuti hari ini: nomor terputus, tagihan tertunda, langganan hampir habis, dan kuota yang menipis.</p>,
+  },
+  {
+    sasaran: "admin-paket",
+    judul: "Sebaran paket",
+    isi: <p>Berapa pelanggan aktif di tiap paket dan berapa yang masih gratis: bahan untuk menentukan promo atau paket baru.</p>,
+  },
+];

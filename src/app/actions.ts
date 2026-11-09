@@ -937,13 +937,14 @@ export async function adminAiAction(_lalu: Hasil | null, form: FormData): Promis
 
 // ---------- Tur panduan ----------
 
-const TUR_SAH = new Set(["dashboard", "nomor"]);
+const TUR_SAH = new Set(["dashboard", "nomor", "admin"]);
 
 export async function selesaiTurAction(nama: string): Promise<void> {
   const user = await requireUser();
   if (!TUR_SAH.has(nama)) return;
   await tandaiTurSelesai(user.id, nama);
-  catatFitur(user.id, nama === "nomor" ? "tur.selesai_nomor" : "tur.selesai_dashboard");
+  // Tur panel admin tidak masuk analitik fitur (analitik mengukur perilaku pengguna, bukan admin).
+  if (nama !== "admin") catatFitur(user.id, nama === "nomor" ? "tur.selesai_nomor" : "tur.selesai_dashboard");
 }
 
 // ---------- Langganan & pembayaran ----------

@@ -687,3 +687,239 @@ body {
 html[data-tema-landing="gelap"] body {
   background-color: #08130f;
 }
+
+/*
+ * Maskot robot dashboard (components/maskot/*). Semua gerak di CSS (compositor: transform & opacity saja), tanpa
+ * pustaka. Gerak dikurangi = semua animasi dimatikan, maskot tetap tampil diam.
+ */
+.maskot-badan {
+  /* Pinggang robot "masuk" ke piringan: atas terlihat penuh, bagian bawah hanya di dalam lingkaran piringan. */
+  -webkit-mask:
+    linear-gradient(#000, #000) top / 100% calc(100% - var(--maskot-r, 52px)) no-repeat,
+    radial-gradient(circle var(--maskot-r, 52px) at 50% calc(100% - var(--maskot-r, 52px)), #000 98%, transparent 100%);
+  mask:
+    linear-gradient(#000, #000) top / 100% calc(100% - var(--maskot-r, 52px)) no-repeat,
+    radial-gradient(circle var(--maskot-r, 52px) at 50% calc(100% - var(--maskot-r, 52px)), #000 98%, transparent 100%);
+}
+.maskot-apung {
+  animation: maskot-apung 3.4s ease-in-out infinite;
+}
+.maskot-ganti {
+  animation: maskot-ganti 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.maskot-lompat {
+  animation: maskot-lompat 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.maskot-goyang {
+  animation: maskot-goyang 0.5s ease-in-out 2;
+}
+.maskot-lambai {
+  animation: maskot-lambai 1.4s ease-in-out 1;
+  transform-origin: 50% 90%;
+}
+.maskot-piringan {
+  background: radial-gradient(circle at 50% 30%, #e9fbf2 0%, #c4efda 55%, #8fdcb9 100%);
+  box-shadow:
+    inset 0 -6px 12px rgba(15, 122, 92, 0.22),
+    0 10px 24px -8px rgba(15, 122, 92, 0.45);
+}
+.maskot-cincin {
+  animation: maskot-cincin 2.4s ease-out infinite;
+}
+.maskot-cincin-2 {
+  animation: maskot-cincin 2.4s ease-out 1.2s infinite;
+}
+.maskot-chat {
+  animation: maskot-chat 2.6s ease-out infinite both;
+}
+.maskot-zzz {
+  animation: maskot-zzz 3s ease-in-out infinite both;
+}
+.maskot-kilau {
+  animation: maskot-kilau 1.6s ease-in-out infinite both;
+}
+.maskot-pop {
+  animation: maskot-pop 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) infinite both;
+}
+.maskot-batang {
+  transform-origin: bottom;
+  animation: maskot-batang 1.8s ease-in-out infinite both;
+}
+.maskot-titik {
+  animation: maskot-titik 1.1s ease-in-out infinite both;
+}
+.maskot-kursor::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: currentColor;
+  animation: maskot-kedip 0.8s steps(1) infinite;
+}
+.maskot-hati {
+  animation: maskot-hati 1.3s ease-out forwards;
+}
+
+@keyframes maskot-apung {
+  50% {
+    transform: translateY(-5px);
+  }
+}
+@keyframes maskot-ganti {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.9);
+  }
+}
+@keyframes maskot-lompat {
+  30% {
+    transform: translateY(-14px) scale(1.04, 0.97);
+  }
+  60% {
+    transform: translateY(0) scale(0.97, 1.03);
+  }
+}
+@keyframes maskot-goyang {
+  25% {
+    transform: rotate(-6deg);
+  }
+  75% {
+    transform: rotate(6deg);
+  }
+}
+@keyframes maskot-lambai {
+  15%,
+  45%,
+  75% {
+    transform: rotate(-5deg);
+  }
+  30%,
+  60% {
+    transform: rotate(5deg);
+  }
+}
+@keyframes maskot-cincin {
+  from {
+    opacity: 0.55;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+}
+@keyframes maskot-chat {
+  0% {
+    opacity: 0;
+    transform: translate(0, 6px) scale(0.6);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(2px, -4px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(10px, -46px) scale(0.85);
+  }
+}
+@keyframes maskot-zzz {
+  0% {
+    opacity: 0;
+    transform: translate(0, 4px) scale(0.6);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(14px, -30px) scale(1.15);
+  }
+}
+@keyframes maskot-kilau {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.3) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(45deg);
+  }
+}
+@keyframes maskot-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  25%,
+  75% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+@keyframes maskot-batang {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+@keyframes maskot-titik {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+@keyframes maskot-kedip {
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes maskot-hati {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(var(--x, 0px), -14px) scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--x, 0px) * 2), -70px) scale(0.8);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .maskot-apung,
+  .maskot-ganti,
+  .maskot-lompat,
+  .maskot-goyang,
+  .maskot-lambai,
+  .maskot-cincin,
+  .maskot-cincin-2,
+  .maskot-chat,
+  .maskot-zzz,
+  .maskot-kilau,
+  .maskot-pop,
+  .maskot-batang,
+  .maskot-titik,
+  .maskot-hati,
+  .maskot-kursor::after {
+    animation: none !important;
+  }
+}

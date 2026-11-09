@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ringkasAktivitas } from "@/lib/aktivitas";
 import { getSetting, sekarang } from "@/lib/db";
 import { aiSehat } from "@/lib/ai";
 import { catatTerhubung, nomorMilik, semuaNomor } from "@/lib/numbers";
@@ -40,10 +41,17 @@ export async function GET() {
   // Galat AI berisi detail teknis server (termasuk nama mesin/model): hanya untuk admin.
   const galatMentah = user.peran === "admin" ? await getSetting("galat_terakhir") : null;
   const galatAi = galatMentah ? (JSON.parse(galatMentah) as { at: number; pesan: string }) : null;
-  const hasil: StatusWa = { ai, galatAi: galatAi && sekarang() - galatAi.at < 86400 ? galatAi : null, nomor: {}, notif };
+  const daftar = user.peran === "admin" ? await semuaNomor() : await nomorMilik(user.id);
+  const hasil: StatusWa = {
+    ai,
+    galatAi: galatAi && sekarang() - galatAi.at < 86400 ? galatAi : null,
+    nomor: {},
+    notif,
+    aktivitas: ringkasAktivitas(daftar.map((n) => n.id)),
+  };
 
   // Admin memantau semua nomor (juga saat membuka nomor milik pengguna lain); pengguna biasa hanya miliknya.
-  for (const n of user.peran === "admin" ? await semuaNomor() : await nomorMilik(user.id)) {
+  for (const n of daftar) {
     const s = infoSesi(n.sesi);
     hasil.nomor[n.id] = s;
     // Biasanya sudah dicatat saat sesi terhubung; ini hanya menulis bila ternyata masih berbeda.

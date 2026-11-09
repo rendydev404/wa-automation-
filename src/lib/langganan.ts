@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { randomBytes } from "node:crypto";
 import { type Tx, db, getSetting, sekarang, transaksi as transaksiDb } from "./db";
 import { MODEL_BAWAAN, type Penyedia, kunciAnthropic, kursUsd, pengaturanAi, perkiraanPerBalasan } from "./ai";
@@ -174,6 +175,12 @@ export interface HakAkun {
 }
 
 const BUKAN_PERCOBAAN = { percobaan: false, percobaanSampai: null, percobaanBerakhir: false } as const;
+
+/**
+ * hakAkun sekali per permintaan halaman: Ringkasan memanggilnya dari beberapa bagian (banner kuota, kartu langganan,
+ * maskot) dengan objek user yang sama (getUser di-cache), jadi query-nya cukup sekali.
+ */
+export const hakAkunSekali = cache((user: { id: number; peran: string }): Promise<HakAkun> => hakAkun(user));
 
 export async function hakAkun(user: { id: number; peran: string }): Promise<HakAkun> {
   if (user.peran === "admin") return { nomor: null, balasan: null, periodeMulai: awalBulanWib(), sampai: null, paket: "Admin", kodePaket: null, bonus: 0, ...BUKAN_PERCOBAAN };
