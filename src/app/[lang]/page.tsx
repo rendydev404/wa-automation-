@@ -6,6 +6,7 @@ import { DemoAlur, DemoChat } from "@/components/landing/demo";
 import { RobotLari } from "@/components/landing/robot-lari";
 import { SKRIP_TEMA, TombolTema } from "@/components/landing/tombol-tema";
 import { BandingLanding, HargaLanding, HargaMulai } from "@/components/landing/harga";
+import { ContohIndustri } from "@/components/landing/contoh-industri";
 import Link from "@/components/link";
 import { Logo } from "@/components/logo";
 import { alasanSyarat, judulSyarat, syaratNomor } from "@/components/syarat-nomor";
@@ -313,6 +314,9 @@ export default async function Landing() {
           ))}
         </div>
       </section>
+
+      {/* ---------- Contoh landing page per jenis usaha (/laundry, /bengkel, ...) ---------- */}
+      <ContohIndustri b={b} t={t} />
 
       {/* ---------- Gaji admin vs ChatGerCep (jangkar harga sebelum cara kerja & daftar harga) ---------- */}
       <section id="banding-biaya" aria-labelledby="judul-banding" className="mx-auto max-w-[1200px] scroll-mt-8 px-4 pb-20 sm:px-6 lg:pb-28">

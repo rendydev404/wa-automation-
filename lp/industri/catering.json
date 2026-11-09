@@ -1,0 +1,86 @@
+{
+  "slug": "catering",
+  "industry_name": "Catering",
+  "industry_short": "catering",
+  "theme": { "accent": "#e07a3a", "accent_soft": "#fdeee4", "accent_ink": "#94440f", "glow": "rgba(224,122,58,.28)", "icon": "utensils" },
+  "seo_metadata": {
+    "title": "AI WhatsApp untuk Catering · Jawab Menu & Harga Nasi Box 24 Jam | ChatGerCep",
+    "description": "Pelanggan catering tanya menu, harga per porsi, minimal order, dan pengiriman di WhatsApp? ChatGerCep menjawab dari daftar menu Anda 24 jam dan merangkum pesanan untuk dikonfirmasi.",
+    "og_title": "Lagi masak, chat pesan nasi box tetap dibalas",
+    "og_description": "AI WhatsApp untuk catering: menu, harga per porsi, minimal order, dan data pesanan acara dijawab 24 jam."
+  },
+  "hero": {
+    "badge": "AI WhatsApp untuk Catering",
+    "title": "Lagi Sibuk di Dapur, Pesanan Nasi Box",
+    "title_highlight": "Keburu Pindah ke Catering Lain?",
+    "subtitle": "ChatGerCep menjawab menu, harga per porsi, minimal order, dan area pengiriman dari daftar menu yang Anda isi. Detail acara dirangkum di chat, Anda tinggal cek kapasitas dapur dan konfirmasi.",
+    "cards": [
+      { "pos": "tl", "kicker": "Sesuai daftar menu", "title": "Harga nasi box", "lines": ["Paket A · Rp25.000", "Paket B · Rp32.000"] },
+      { "pos": "br", "kicker": "Siap dikonfirmasi", "title": "Pesanan acara", "lines": ["150 box · Paket B", "Sabtu 11.00 · Tebet"] }
+    ]
+  },
+  "pain_points": [
+    { "title": "Tangan sibuk masak, HP terus berbunyi", "body": "Saat produksi pesanan, chat calon pelanggan tidak sempat dibalas." },
+    { "title": "Menu dan harga ditanya setiap hari", "body": "Paket nasi box, prasmanan, snack box, minimal order. Jawabannya sama, tapi menyita waktu." },
+    { "title": "Detail acara sering tidak lengkap", "body": "Tanggal, jam, jumlah porsi, alamat, pilihan menu: harus ditanya bolak-balik." },
+    { "title": "Pesanan mendadak di malam hari", "body": "Banyak yang mencari catering untuk acara besok saat malam. Yang tidak dibalas cepat, kehilangan pesanan." }
+  ],
+  "solutions": [
+    { "pain": "Sibuk produksi", "answer": "AI menjawab chat selagi Anda memasak. Begitu Anda membalas sendiri, AI otomatis diam di chat itu." },
+    { "pain": "Menu & harga", "answer": "Daftar menu, harga per porsi, dan minimal order diisi sekali. AI menjawab sesuai data Anda." },
+    { "pain": "Detail acara", "answer": "AI bisa diarahkan menanyakan tanggal, jam, jumlah porsi, alamat, dan menu sampai lengkap." },
+    { "pain": "Pesanan malam", "answer": "Calon pelanggan malam hari langsung dapat jawaban dan aturan batas waktu pemesanan Anda." }
+  ],
+  "demo_conversations": {
+    "business_name": "Dapur Bunda Sari",
+    "business_initials": "BS",
+    "scenarios": [
+      {
+        "id": "harga", "label": "Tanya harga nasi box",
+        "messages": [
+          { "from": "c", "text": "Kak nasi box harganya berapa? Minimal order?" },
+          { "from": "a", "text": "Halo Kak! Pilihan nasi box kami:\n• Paket A (ayam goreng, sayur, sambal, buah): Rp25.000\n• Paket B (ayam bakar, perkedel, sayur, buah): Rp32.000\nMinimal order 30 box 😊" },
+          { "from": "c", "text": "Free ongkir ga?" },
+          { "from": "a", "text": "Gratis ongkir untuk order minimal 50 box di area Jakarta Selatan. Di luar itu admin hitungkan ongkirnya ya Kak." }
+        ]
+      },
+      {
+        "id": "menu", "label": "Tanya menu & pantangan",
+        "messages": [
+          { "from": "c", "text": "Bisa request menu tanpa pedas? Ada tamu anak2" },
+          { "from": "a", "text": "Bisa Kak, sambal bisa dipisah atau ditiadakan. Untuk anak-anak ada Paket Kids (nugget, sosis, nasi, buah) Rp20.000." },
+          { "from": "c", "text": "Kalau ada yang alergi kacang?" },
+          { "from": "a", "text": "Untuk kebutuhan alergi, admin kami akan memastikan langsung bahan setiap menu ya Kak, supaya aman 🙏" }
+        ]
+      },
+      {
+        "id": "pesan", "label": "Mau pesan untuk acara",
+        "messages": [
+          { "from": "c", "text": "Mau pesan 150 box paket B buat Sabtu" },
+          { "from": "a", "text": "Siap Kak! Boleh lengkapi:\n1. Nama & nomor yang bisa dihubungi\n2. Alamat acara\n3. Jam makanan harus tiba" },
+          { "from": "c", "text": "Sinta, Jl. Tebet Raya 20, jam 11 siang" },
+          { "from": "a", "text": "Terima kasih Kak Sinta, sudah kami catat ✅\n150 box Paket B · Sabtu 11.00 · Tebet Raya 20.\nAdmin cek kapasitas dapur dan kirim total + info DP di chat ini ya." }
+        ]
+      }
+    ]
+  },
+  "benefits": [
+    { "title": "Respons cepat", "body": "Pelanggan tidak perlu menunggu Anda selesai memasak." },
+    { "title": "Layanan 24 jam", "body": "Pesanan untuk acara besok yang masuk malam hari tetap dijawab." },
+    { "title": "Tidak mengulang daftar menu", "body": "Menu, harga, minimal order cukup diisi sekali." },
+    { "title": "Pelanggan dapat info jelas", "body": "Isi paket, batas waktu pesan, dan area kirim dijelaskan konsisten." },
+    { "title": "Detail acara langsung lengkap", "body": "Tanggal, jam, porsi, dan alamat dirangkum untuk Anda." },
+    { "title": "Anda tetap pegang kendali", "body": "Balas manual kapan saja, AI otomatis diam di chat itu." }
+  ],
+  "faq": [
+    { "q": "Apakah AI bisa memastikan kapasitas dapur untuk tanggal tertentu?", "a": "Tidak. ChatGerCep tidak terhubung ke jadwal produksi Anda. AI mencatat pesanan dan Anda yang mengonfirmasi." },
+    { "q": "Apakah AI bisa menjawab menu dan harga per porsi?", "a": "Bisa. Isi daftar menu, isi paket, harga, dan minimal order ke knowledge." },
+    { "q": "Bagaimana dengan pertanyaan alergi?", "a": "Template catering mengarahkan AI untuk tidak menjamin bebas alergen dan meneruskan ke Anda untuk memastikan bahan." },
+    { "q": "Apakah AI bisa menerima DP?", "a": "AI bisa menjelaskan aturan DP dan melihat foto bukti transfer, tetapi tidak mengecek mutasi. Verifikasi pembayaran tetap oleh Anda." },
+    { "q": "Apakah nomor WhatsApp catering lama bisa dipakai?", "a": "Bisa, lewat scan QR sebagai perangkat tertaut. HP tetap bisa dipakai seperti biasa." },
+    { "q": "Apakah admin tetap bisa membalas manual?", "a": "Bisa. Begitu Anda membalas dari HP, AI otomatis diam di chat itu." }
+  ],
+  "image_assets": { "hero": null, "hero_alt": "Tim dapur catering menyiapkan ratusan nasi box", "brief": "Dapur catering profesional di Indonesia: staf ber-apron dan hairnet menata nasi box di meja stainless, tumpukan box siap kirim." },
+  "ai_prompt_template": "prompts/catering.md",
+  "cta_tracking": { "content_name": "LP Catering", "content_category": "catering" }
+}

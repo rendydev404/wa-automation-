@@ -1,0 +1,94 @@
+{
+  "slug": "toko-online",
+  "industry_name": "Toko Online",
+  "industry_short": "toko online",
+  "theme": { "accent": "#f08a3c", "accent_soft": "#fff1e6", "accent_ink": "#9a4a0c", "glow": "rgba(240,138,60,.28)", "icon": "box" },
+  "seo_metadata": {
+    "title": "AI WhatsApp untuk Toko Online · Balas Chat Pembeli 24 Jam | ChatGerCep",
+    "description": "Pembeli tanya harga, varian, ukuran, dan cara order di WhatsApp? ChatGerCep menjawab dari katalog Anda 24 jam, pakai nomor toko yang sama. Mulai Rp67.000/30 hari.",
+    "og_title": "Chat “Ready, Kak?” dibalas dalam hitungan detik, 24 jam",
+    "og_description": "AI WhatsApp untuk toko online: jawab harga, varian, dan cara order dari katalog Anda. Anda fokus packing."
+  },
+  "hero": {
+    "badge": "AI WhatsApp untuk Toko Online",
+    "title": "Pembeli Tanya “Ready, Kak?” Lalu Hilang Karena",
+    "title_highlight": "Telat Dibalas?",
+    "subtitle": "ChatGerCep menjawab harga, varian, ukuran, dan cara order dari katalog yang Anda isi, 24 jam, langsung dari nomor WhatsApp toko Anda. Anda tetap fokus packing, pesanan tinggal dikonfirmasi.",
+    "cards": [
+      { "pos": "tl", "kicker": "23.14 · saat Anda tidur", "title": "3 chat pembeli dibalas AI", "lines": ["“Ready kak?”", "“Ukuran L ada?”", "“Bisa COD?”"] },
+      { "pos": "br", "kicker": "Siap dikonfirmasi admin", "title": "Rekap pesanan di chat", "lines": ["2× Pashmina Sage", "1× Pashmina Mocca"] }
+    ]
+  },
+  "pain_points": [
+    { "title": "Pertanyaan yang sama, ratusan kali", "body": "“Ready kak?”, “Warna apa aja?”, “Bisa COD?”. Jawabannya sama, tapi harus diketik ulang setiap hari." },
+    { "title": "Packing sambil pegang HP", "body": "Tangan di lakban, mata di notifikasi. Balasan jadi lambat, dan risiko salah kirim ikut naik." },
+    { "title": "Chat malam tenggelam sampai pagi", "body": "Banyak pembeli scroll katalog jam 21.00 ke atas. Kalau baru dibalas besok, mereka sudah checkout di toko lain." },
+    { "title": "Chat banjir setelah live atau promo", "body": "Habis live atau tanggal kembar, chat masuk bersamaan. Admin kewalahan, yang menunggu paling lama biasanya batal." },
+    { "title": "Foto produk dan bukti transfer dicek satu-satu", "body": "Pembeli kirim screenshot produk atau bukti bayar, lalu menunggu sampai Anda sempat membuka chat." }
+  ],
+  "solutions": [
+    { "pain": "Pertanyaan berulang", "answer": "Isi katalog, harga, varian, dan FAQ sekali. AI menjawab pertanyaan yang sama dengan konsisten, kapan pun ditanya." },
+    { "pain": "Sibuk packing", "answer": "AI melayani chat masuk selagi Anda bekerja. Begitu Anda membalas sendiri, AI otomatis diam di chat itu." },
+    { "pain": "Chat malam", "answer": "Pembeli yang chat jam 23.00 tetap dapat jawaban saat itu juga, bukan besok siang." },
+    { "pain": "Lonjakan chat", "answer": "Puluhan chat bersamaan dijawab paralel, sesuai kuota balasan paket Anda." },
+    { "pain": "Foto & bukti transfer", "answer": "AI bisa melihat foto yang dikirim pembeli dan menanggapinya. Pengecekan mutasi dan pengiriman tetap oleh Anda." }
+  ],
+  "demo_conversations": {
+    "business_name": "Rumah Hijab Nadia",
+    "business_initials": "RN",
+    "scenarios": [
+      {
+        "id": "harga", "label": "Tanya harga",
+        "messages": [
+          { "from": "c", "text": "Kak pashmina ceruti harganya berapa? Ada warna apa aja?" },
+          { "from": "a", "text": "Halo Kak! Pashmina Ceruti Rp45.000/pcs. Warna yang ada di katalog: dusty pink, sage, mocca, hitam, dan navy. Beli 3 jadi Rp120.000 ya Kak 😊 Mau warna apa?" },
+          { "from": "c", "text": "Ongkir ke Bekasi berapa kak?" },
+          { "from": "a", "text": "Ongkir pastinya tergantung ekspedisi dan berat paket, Kak. Boleh kirim kecamatan + kode posnya? Admin kami hitungkan ongkir pastinya di chat ini ya 🙏" }
+        ]
+      },
+      {
+        "id": "spesifikasi", "label": "Tanya bahan & ukuran",
+        "messages": [
+          { "from": "c", "text": "Bahannya adem ga kak? Nerawang nggak?" },
+          { "from": "a", "text": "Bahannya ceruti babydoll Kak, ringan dan jatuh. Warna gelap tidak nerawang; untuk warna muda disarankan pakai inner. Ukurannya 75 × 180 cm." },
+          { "from": "c", "text": "Kalau dicuci luntur ga?" },
+          { "from": "a", "text": "Disarankan cuci tangan dengan air dingin dan jangan diperas kencang ya Kak, supaya warna dan teksturnya awet ✨" }
+        ]
+      },
+      {
+        "id": "order", "label": "Mau order",
+        "messages": [
+          { "from": "c", "text": "Kak aku mau 3. Sage 2, mocca 1. Gimana ordernya?" },
+          { "from": "a", "text": "Siap Kak! Rekap pesanan:\n• 2× Pashmina Ceruti Sage\n• 1× Pashmina Ceruti Mocca\nTotal Rp120.000 + ongkir.\n\nBoleh kirim nama, nomor HP, dan alamat lengkap? Admin kirim total akhir + rekening setelahnya." },
+          { "from": "c", "text": "[Foto bukti transfer]", "image": "transfer" },
+          { "from": "a", "text": "Terima kasih Kak, bukti transfernya sudah kami terima 🙏 Admin cek mutasi dulu, lalu kabari nomor resi setelah paket dikirim." }
+        ]
+      }
+    ]
+  },
+  "benefits": [
+    { "title": "Balas dalam hitungan detik", "body": "Pembeli yang dijawab cepat lebih kecil kemungkinannya pindah ke toko sebelah." },
+    { "title": "Toko tetap “buka” 24 jam", "body": "Jam berapa pun pembeli bertanya, ada yang menjawab." },
+    { "title": "Bebas dari pertanyaan berulang", "body": "Harga, varian, ukuran, cara order: cukup diisi sekali di knowledge." },
+    { "title": "Pembeli dapat info lengkap", "body": "AI menjelaskan bahan, ukuran, dan cara perawatan sesuai katalog Anda, tanpa mengarang." },
+    { "title": "Bantu arahkan ke pesanan", "body": "AI bisa diarahkan merekap pesanan dan meminta data pengiriman, lalu admin mengonfirmasi." },
+    { "title": "Admin ambil alih kapan saja", "body": "Balas sendiri dari HP, AI otomatis diam di chat itu." }
+  ],
+  "faq": [
+    { "q": "Apakah AI bisa menjawab stok secara real-time?", "a": "Tidak. ChatGerCep belum terhubung ke sistem stok atau marketplace. AI menjawab dari katalog dan info stok yang Anda isi di knowledge. Kalau stok sering berubah, perbarui knowledge atau arahkan AI agar meminta pembeli menunggu konfirmasi admin." },
+    { "q": "Apakah AI bisa menghitung ongkir?", "a": "AI tidak terhubung ke sistem ekspedisi. Kalau Anda punya tabel ongkir tetap (misalnya per kota), isikan ke knowledge. Kalau tidak, AI bisa diarahkan untuk meminta alamat lalu admin yang menghitung." },
+    { "q": "Bisa memeriksa bukti transfer?", "a": "AI bisa melihat foto yang dikirim pembeli, termasuk bukti transfer, dan menanggapinya. Tapi AI tidak bisa mengecek mutasi rekening, jadi verifikasi pembayaran tetap oleh Anda." },
+    { "q": "Apakah nomor WhatsApp toko yang lama tetap bisa dipakai?", "a": "Bisa. Nomor disambungkan lewat scan QR sebagai perangkat tertaut, seperti WhatsApp Web. HP tetap bisa dipakai seperti biasa. Nomor tidak boleh sedang terhubung ke WhatsApp Business API atau auto-reply lain." },
+    { "q": "Bisa dipakai untuk chat dari Shopee atau TikTok Shop?", "a": "Tidak. ChatGerCep membalas chat WhatsApp. Chat di dalam aplikasi marketplace tidak ikut dibalas." },
+    { "q": "Kalau pembeli tanya yang tidak ada di katalog?", "a": "AI dilarang menebak. Kalau informasinya tidak ada di knowledge, AI berkata terus terang dan meneruskan ke Anda." },
+    { "q": "Bolehkah dipakai untuk broadcast promo?", "a": "Tidak. ChatGerCep hanya untuk membalas pembeli yang menghubungi Anda. Akun yang dipakai untuk spam akan diblokir." },
+    { "q": "Saya punya 2 admin dan 3 nomor. Paket apa yang cocok?", "a": "Paket Bisnis mendukung 3 nomor dan 4.000 balasan AI per 30 hari. Admin tetap bisa membalas manual di nomor mana pun." }
+  ],
+  "image_assets": {
+    "hero": null,
+    "hero_alt": "Pemilik toko online sedang packing pesanan sambil memegang smartphone",
+    "brief": "Owner online shop Indonesia di meja packing: kardus, plastik pengiriman, label, smartphone. Cahaya natural, nuansa hangat."
+  },
+  "ai_prompt_template": "prompts/toko-online.md",
+  "cta_tracking": { "content_name": "LP Toko Online", "content_category": "toko-online" }
+}

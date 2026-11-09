@@ -4,6 +4,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 import { COOKIE_REF, UMUR_COOKIE_REF, normalkanKodeRef } from "@/lib/afiliasi-def";
 import { type Bahasa, HEADER_BAHASA, bahasaSah, tautan, urai } from "@/lib/bahasa";
 import { jalurLanjut } from "@/lib/lanjut";
+import { JALUR_LP_PUBLIK } from "@/lib/lp/def";
 
 // /api/sinkron dipanggil database (bukan browser); keabsahannya dicek lewat tanda tangan HMAC di handler-nya.
 // "/" = landing page publik; /api/auth/google* = masuk dengan Google (sebelum ada sesi);
@@ -12,7 +13,8 @@ import { jalurLanjut } from "@/lib/lanjut";
 // /api/analitik = event analitik dari browser, juga pengunjung yang belum login (handler-nya sendiri memeriksa Origin,
 // tanda tangan cookie sesi, ukuran, dan batas laju).
 const BERKAS_STATIS = /\.(?:png|jpe?g|webp|avif|gif|svg|ico|mp4|webm|woff2?)$/i;
-const PUBLIK = new Set(["/", "/program-afiliasi", "/panduan", "/api/health", "/api/pendaftar", "/api/sinkron", "/api/auth/google", "/api/auth/google/callback", "/api/midtrans/notifikasi", "/api/ipaymu/notifikasi", "/api/analitik"]);
+// Landing page per industri (/laundry, /bengkel, ...), /garansi, dan /sitemap-lp.xml: halaman iklan, tanpa login.
+const PUBLIK = new Set([...JALUR_LP_PUBLIK, "/", "/program-afiliasi", "/panduan", "/api/health", "/api/pendaftar", "/api/sinkron", "/api/auth/google", "/api/auth/google/callback", "/api/midtrans/notifikasi", "/api/ipaymu/notifikasi", "/api/analitik"]);
 
 function asalSama(req: NextRequest): boolean {
   const origin = req.headers.get("origin");

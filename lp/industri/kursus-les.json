@@ -1,0 +1,86 @@
+{
+  "slug": "kursus-les",
+  "industry_name": "Kursus & Les",
+  "industry_short": "kursus dan les",
+  "theme": { "accent": "#5b8def", "accent_soft": "#eaf1fe", "accent_ink": "#2551b3", "glow": "rgba(91,141,239,.28)", "icon": "book" },
+  "seo_metadata": {
+    "title": "AI WhatsApp untuk Kursus & Les · Jawab Program & Biaya 24 Jam | ChatGerCep",
+    "description": "Orang tua tanya program, biaya, jadwal kelas, dan trial di WhatsApp? ChatGerCep menjawab dari info lembaga Anda 24 jam dan merangkum data calon siswa untuk tim pendaftaran.",
+    "og_title": "Orang tua tanya biaya les malam hari, langsung terjawab",
+    "og_description": "AI WhatsApp untuk kursus dan les: program, biaya, jadwal, kelas trial, dan data calon siswa dijawab 24 jam."
+  },
+  "hero": {
+    "badge": "AI WhatsApp untuk Kursus & Les",
+    "title": "Orang Tua Tanya Biaya Les, Tapi Anda",
+    "title_highlight": "Sedang Mengajar di Kelas?",
+    "subtitle": "ChatGerCep menjawab pilihan program, biaya, jadwal kelas, dan info kelas trial dari data lembaga Anda. Data calon siswa dirangkum di chat, tim tinggal menghubungi untuk pendaftaran.",
+    "cards": [
+      { "pos": "tl", "kicker": "Sesuai daftar program", "title": "Biaya les dijawab", "lines": ["Matematika SD · Rp350rb/bln", "8 pertemuan · maks 6 siswa"] },
+      { "pos": "br", "kicker": "Siap dihubungi tim", "title": "Calon siswa", "lines": ["Kelas 5 SD · Matematika", "Minat kelas trial Sabtu"] }
+    ]
+  },
+  "pain_points": [
+    { "title": "Pengajar dan admin sibuk di kelas", "body": "Saat jam mengajar, chat orang tua menumpuk tanpa ada yang membalas." },
+    { "title": "Biaya dan jadwal ditanya berulang", "body": "Program apa saja, berapa per bulan, jadwalnya hari apa. Sama setiap hari." },
+    { "title": "Orang tua bertanya di malam hari", "body": "Setelah anak tidur, orang tua baru sempat mencari les. Kalau besok baru dibalas, mereka sudah menghubungi tempat lain." },
+    { "title": "Musim pendaftaran, chat membludak", "body": "Awal semester dan menjelang ujian, pertanyaan datang bersamaan." }
+  ],
+  "solutions": [
+    { "pain": "Sibuk mengajar", "answer": "AI menjawab chat selagi Anda mengajar. Begitu Anda membalas sendiri, AI otomatis diam di chat itu." },
+    { "pain": "Pertanyaan berulang", "answer": "Daftar program, biaya, dan jadwal diisi sekali. AI menjawab sesuai jenjang yang ditanya." },
+    { "pain": "Chat malam", "answer": "Orang tua yang bertanya malam hari langsung mendapat jawaban." },
+    { "pain": "Musim pendaftaran", "answer": "Banyak chat bersamaan tetap dijawab, dan data calon siswa dirangkum untuk tim." }
+  ],
+  "demo_conversations": {
+    "business_name": "Bimbel Cerdas Ceria",
+    "business_initials": "CC",
+    "scenarios": [
+      {
+        "id": "harga", "label": "Tanya biaya",
+        "messages": [
+          { "from": "c", "text": "Kak les matematika anak kelas 5 SD berapa biayanya?" },
+          { "from": "a", "text": "Halo Bunda! Les Matematika SD Rp350.000/bulan untuk 8 pertemuan (2× seminggu, 90 menit). Satu kelas maksimal 6 siswa 😊" },
+          { "from": "c", "text": "Ada biaya pendaftaran?" },
+          { "from": "a", "text": "Ada, biaya pendaftaran Rp100.000 sekali di awal, sudah termasuk modul semester pertama." }
+        ]
+      },
+      {
+        "id": "program", "label": "Tanya program & jadwal",
+        "messages": [
+          { "from": "c", "text": "Jadwalnya hari apa aja? Bisa sore?" },
+          { "from": "a", "text": "Jadwal kelas SD:\n• Senin & Rabu 15.30–17.00\n• Selasa & Kamis 16.00–17.30\n• Sabtu 09.00–12.00 (kelas intensif)\nSemua di jam sore/akhir pekan, Bunda." },
+          { "from": "c", "text": "Bisa jamin nilainya naik?" },
+          { "from": "a", "text": "Kami tidak bisa menjamin nilai, Bunda, karena hasil belajar setiap anak berbeda. Yang kami berikan: kelas kecil, laporan perkembangan bulanan, dan sesi konsultasi dengan pengajar 🙏" }
+        ]
+      },
+      {
+        "id": "daftar", "label": "Mau ikut trial",
+        "messages": [
+          { "from": "c", "text": "Bisa coba dulu ga sebelum daftar?" },
+          { "from": "a", "text": "Bisa, ada kelas trial gratis 1× pertemuan. Boleh info:\n1. Nama anak & kelas\n2. Mata pelajaran\n3. Jadwal trial yang diinginkan" },
+          { "from": "c", "text": "Naya, kelas 5, matematika, Sabtu" },
+          { "from": "a", "text": "Terima kasih Bunda, sudah kami catat ✅\nNaya · kelas 5 SD · Matematika · trial Sabtu.\nTim kami akan mengonfirmasi jam dan kuota kelas di chat ini ya." }
+        ]
+      }
+    ]
+  },
+  "benefits": [
+    { "title": "Respons cepat ke orang tua", "body": "Orang tua tidak perlu menunggu jam mengajar selesai." },
+    { "title": "Layanan 24 jam", "body": "Pertanyaan malam hari tetap dijawab." },
+    { "title": "Tidak mengulang info program", "body": "Program, biaya, dan jadwal cukup diisi sekali." },
+    { "title": "Orang tua dapat info lengkap", "body": "Jenjang, metode, dan jumlah siswa per kelas dijelaskan konsisten." },
+    { "title": "Data calon siswa terkumpul", "body": "Nama, kelas, mata pelajaran, dan jadwal trial dirangkum untuk tim." },
+    { "title": "Tim tetap pegang kendali", "body": "Balas manual kapan saja, AI otomatis diam di chat itu." }
+  ],
+  "faq": [
+    { "q": "Apakah AI tahu kuota kelas yang masih kosong?", "a": "Tidak. ChatGerCep tidak terhubung ke sistem jadwal Anda. AI mencatat minat calon siswa dan tim Anda yang mengonfirmasi kuota." },
+    { "q": "Bisa menjawab biaya per jenjang dan mata pelajaran?", "a": "Bisa, selama daftar program dan biaya sudah Anda isi di knowledge." },
+    { "q": "Apakah AI menjanjikan nilai atau kelulusan?", "a": "Tidak. Template kursus melarang AI menjanjikan nilai, ranking, atau kelulusan." },
+    { "q": "Apakah AI bisa memproses pendaftaran dan pembayaran?", "a": "Tidak. AI mengumpulkan data dan menjelaskan langkah pendaftaran. Pembayaran tetap melalui tim Anda." },
+    { "q": "Apakah nomor WhatsApp lembaga yang lama bisa dipakai?", "a": "Bisa, lewat scan QR sebagai perangkat tertaut. HP tetap bisa dipakai seperti biasa." },
+    { "q": "Kami punya beberapa cabang. Bisa?", "a": "Bisa. Paket Bisnis mendukung 3 nomor dan Pro 5 nomor." }
+  ],
+  "image_assets": { "hero": null, "hero_alt": "Guru les mengajar sekelompok kecil siswa di kelas", "brief": "Kelas bimbel kecil di Indonesia: guru menjelaskan di whiteboard kepada 4–6 siswa SD, orang tua menunggu di ruang tunggu, terang dan ceria." },
+  "ai_prompt_template": "prompts/kursus-les.md",
+  "cta_tracking": { "content_name": "LP Kursus & Les", "content_category": "kursus-les" }
+}

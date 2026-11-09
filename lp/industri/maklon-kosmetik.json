@@ -1,0 +1,87 @@
+{
+  "slug": "maklon-kosmetik",
+  "industry_name": "Maklon Kosmetik",
+  "industry_short": "maklon kosmetik",
+  "theme": { "accent": "#9b7be0", "accent_soft": "#f2edfc", "accent_ink": "#5b3ea8", "glow": "rgba(155,123,224,.28)", "icon": "flask" },
+  "seo_metadata": {
+    "title": "AI WhatsApp untuk Maklon Kosmetik · Layani Calon Brand Owner 24 Jam | ChatGerCep",
+    "description": "Calon brand owner tanya MOQ, alur maklon, biaya, dan legalitas di WhatsApp? ChatGerCep menjawab dari informasi pabrik Anda 24 jam dan menyaring lead sebelum diteruskan ke tim sales.",
+    "og_title": "Calon brand owner tanya MOQ jam 11 malam, langsung terjawab",
+    "og_description": "AI WhatsApp untuk maklon kosmetik: MOQ, alur produksi, estimasi biaya, dan kualifikasi lead dijawab 24 jam."
+  },
+  "hero": {
+    "badge": "AI WhatsApp untuk Maklon Kosmetik",
+    "title": "Ratusan Chat “MOQ Berapa?”, Tapi Yang",
+    "title_highlight": "Serius Mau Produksi Tenggelam?",
+    "subtitle": "ChatGerCep menjawab MOQ, alur maklon, kisaran biaya, dan proses legalitas dari informasi pabrik Anda. AI juga menanyakan kategori produk, target jumlah, dan anggaran, supaya tim sales fokus ke calon brand owner yang paling siap.",
+    "cards": [
+      { "pos": "tl", "kicker": "Ditanya setiap hari", "title": "Alur maklon dijelaskan", "lines": ["Konsultasi → sampel → produksi", "MOQ mulai 1.000 pcs"] },
+      { "pos": "br", "kicker": "Lead siap diteruskan", "title": "Calon brand owner", "lines": ["Serum · 2.000 pcs", "Target launching Maret"] }
+    ]
+  },
+  "pain_points": [
+    { "title": "Banyak yang bertanya, sedikit yang serius", "body": "Chat dari iklan membludak, tapi sebagian besar baru riset. Tim sales habis waktu menjelaskan dasar-dasar." },
+    { "title": "Penjelasan alur maklon sangat panjang", "body": "Formulasi, sampel, kemasan, legalitas, produksi. Harus dijelaskan ulang ke setiap calon klien." },
+    { "title": "Lead malam dan akhir pekan hilang", "body": "Calon brand owner sering riset di luar jam kerja. Senin pagi, mereka sudah menghubungi pabrik lain." },
+    { "title": "Data calon klien tidak lengkap", "body": "Kategori produk, jumlah, anggaran, target launching: tanpa ini, sales tidak bisa memberi penawaran." }
+  ],
+  "solutions": [
+    { "pain": "Lead belum serius", "answer": "AI menjawab pertanyaan dasar dan menanyakan kategori, jumlah, serta anggaran, sehingga sales tahu siapa yang perlu diprioritaskan." },
+    { "pain": "Alur panjang", "answer": "Alur maklon, MOQ, dan estimasi waktu diisi sekali di knowledge, lalu dijelaskan konsisten ke setiap calon klien." },
+    { "pain": "Lead di luar jam kerja", "answer": "Calon brand owner yang chat malam atau akhir pekan tetap mendapat jawaban saat itu juga." },
+    { "pain": "Data tidak lengkap", "answer": "AI merangkum kebutuhan calon klien di chat, lalu sales mengambil alih untuk konsultasi dan penawaran." }
+  ],
+  "demo_conversations": {
+    "business_name": "Lumina Cosmetic Lab",
+    "business_initials": "LC",
+    "scenarios": [
+      {
+        "id": "harga", "label": "Tanya MOQ & biaya",
+        "messages": [
+          { "from": "c", "text": "Kak mau tanya maklon serum, MOQ berapa dan biayanya kira2 berapa?" },
+          { "from": "a", "text": "Halo Kak, terima kasih sudah menghubungi Lumina Cosmetic Lab! MOQ serum mulai 1.000 pcs. Biaya per pcs tergantung formula, bahan aktif, dan kemasan, sehingga angka pastinya diberikan tim kami setelah konsultasi." },
+          { "from": "c", "text": "Ada kisarannya ga?" },
+          { "from": "a", "text": "Sebagai gambaran umum dari daftar kami, serum 20 ml dengan kemasan standar berada di kisaran Rp15.000–Rp35.000/pcs. Angka final tetap mengikuti penawaran resmi ya Kak." }
+        ]
+      },
+      {
+        "id": "alur", "label": "Tanya alur & legalitas",
+        "messages": [
+          { "from": "c", "text": "Alurnya gimana kak? Sama urus BPOM dibantu?" },
+          { "from": "a", "text": "Alurnya:\n1. Konsultasi kebutuhan\n2. Pengembangan & revisi sampel\n3. Desain dan pengadaan kemasan\n4. Pendaftaran legalitas\n5. Produksi & QC\nPengurusan notifikasi BPOM bisa kami bantu prosesnya. Lama dan hasil persetujuannya mengikuti proses di BPOM." },
+          { "from": "c", "text": "Total waktunya berapa lama?" },
+          { "from": "a", "text": "Estimasi umum dari pengalaman kami 2–4 bulan, tergantung jumlah revisi sampel dan proses legalitas. Tim kami akan memberi timeline yang lebih akurat saat konsultasi." }
+        ]
+      },
+      {
+        "id": "lead", "label": "Siap konsultasi",
+        "messages": [
+          { "from": "c", "text": "Saya mau bikin brand skincare sendiri, mulai dari serum dulu" },
+          { "from": "a", "text": "Wah, menarik Kak! Supaya tim kami bisa menyiapkan konsultasi yang pas, boleh info:\n1. Nama & kota\n2. Jenis produk dan target jumlah awal\n3. Kisaran anggaran\n4. Target launching" },
+          { "from": "c", "text": "Rani, Bandung. Serum brightening 2.000 pcs, budget 50jt, pengen launching Maret" },
+          { "from": "a", "text": "Terima kasih Kak Rani, sudah kami catat ✅\nSerum brightening · 2.000 pcs · ±Rp50 juta · launching Maret.\nTim formulasi kami akan menghubungi Kakak di chat ini untuk jadwal konsultasi." }
+        ]
+      }
+    ]
+  },
+  "benefits": [
+    { "title": "Respons cepat untuk lead iklan", "body": "Calon brand owner langsung mendapat jawaban, bukan menunggu jam kerja." },
+    { "title": "Melayani 24 jam", "body": "Riset malam hari dan akhir pekan tetap terlayani." },
+    { "title": "Sales tidak mengulang penjelasan dasar", "body": "MOQ, alur, dan estimasi waktu dijelaskan oleh AI." },
+    { "title": "Calon klien lebih paham", "body": "Mereka datang ke konsultasi dengan gambaran alur dan biaya yang realistis." },
+    { "title": "Kualifikasi lead", "body": "AI menanyakan produk, jumlah, anggaran, dan target, lalu merangkumnya untuk sales." },
+    { "title": "Sales ambil alih kapan saja", "body": "Balas manual dari HP, AI otomatis diam di chat itu." }
+  ],
+  "faq": [
+    { "q": "Apakah AI bisa membuat penawaran harga resmi?", "a": "Tidak. AI hanya menyampaikan kisaran atau informasi harga yang Anda isi di knowledge. Penawaran resmi tetap dibuat tim Anda." },
+    { "q": "Apakah AI bisa menjamin produk lolos BPOM?", "a": "Tidak, dan template maklon melarang AI menjanjikannya. AI menjelaskan bahwa hasil dan lama proses mengikuti BPOM." },
+    { "q": "Bisa menanyakan anggaran calon klien?", "a": "Bisa. Pertanyaan kualifikasi seperti kategori produk, jumlah, anggaran, dan target launching sudah ada di template dan bisa Anda ubah." },
+    { "q": "Bagaimana dengan pertanyaan teknis formulasi?", "a": "AI menjawab sebatas informasi yang Anda isi. Pertanyaan teknis yang lebih dalam diteruskan ke tim formulator." },
+    { "q": "Apakah nomor WhatsApp pabrik yang lama bisa dipakai?", "a": "Bisa, lewat scan QR sebagai perangkat tertaut. Nomor tidak boleh terdaftar di WhatsApp Business API." },
+    { "q": "Tim sales kami beberapa orang dengan nomor berbeda. Bisa?", "a": "Bisa. Paket Bisnis mendukung 3 nomor, Pro 5 nomor. Untuk kebutuhan lebih besar, tersedia paket Custom." },
+    { "q": "Apakah calon klien tahu yang membalas adalah AI?", "a": "AI membalas dari nomor Anda. Cara AI memperkenalkan diri, termasuk menyebut dirinya asisten virtual, bisa Anda atur lewat instruksi di dashboard." }
+  ],
+  "image_assets": { "hero": null, "hero_alt": "Laboratorium kosmetik dengan deretan botol skincare dan lini produksi", "brief": "Laboratorium kosmetik modern di Indonesia: staf berjas lab, botol serum & jar krim, lini filling produksi di latar." },
+  "ai_prompt_template": "prompts/maklon-kosmetik.md",
+  "cta_tracking": { "content_name": "LP Maklon Kosmetik", "content_category": "maklon-kosmetik" }
+}

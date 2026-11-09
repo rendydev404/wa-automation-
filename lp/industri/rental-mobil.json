@@ -1,0 +1,89 @@
+{
+  "slug": "rental-mobil",
+  "industry_name": "Rental Mobil",
+  "industry_short": "rental mobil",
+  "theme": { "accent": "#e8b53a", "accent_soft": "#fdf5e1", "accent_ink": "#8a6208", "glow": "rgba(232,181,58,.26)", "icon": "car" },
+  "seo_metadata": {
+    "title": "AI WhatsApp untuk Rental Mobil · Jawab Tarif & Unit 24 Jam | ChatGerCep",
+    "description": "Calon penyewa tanya tarif, unit, lepas kunci, dan syarat sewa di WhatsApp? ChatGerCep menjawab dari daftar armada Anda 24 jam dan merangkum data sewa untuk dikonfirmasi admin.",
+    "og_title": "Chat “Avanza lepas kunci berapa?” dibalas saat itu juga",
+    "og_description": "AI WhatsApp untuk rental mobil: tarif harian, dengan sopir atau lepas kunci, syarat sewa, dan data pemesanan dijawab 24 jam."
+  },
+  "hero": {
+    "badge": "AI WhatsApp untuk Rental Mobil",
+    "title": "Calon Penyewa Tanya Tarif, Tapi Anda Lagi",
+    "title_highlight": "Antar Unit di Jalan?",
+    "subtitle": "ChatGerCep menjawab tarif harian, pilihan unit, lepas kunci atau dengan sopir, dan syarat sewa dari daftar armada yang Anda isi. Data pemesanan dirangkum di chat, Anda tinggal cek ketersediaan dan konfirmasi.",
+    "cards": [
+      { "pos": "tl", "kicker": "Pertanyaan paling sering", "title": "Tarif dijawab AI", "lines": ["Avanza · Rp350.000/hari", "+ Sopir · Rp150.000/hari"] },
+      { "pos": "br", "kicker": "Siap dicek admin", "title": "Data sewa lengkap", "lines": ["Innova · 20–22 Des", "Dengan sopir · Jogja"] }
+    ]
+  },
+  "pain_points": [
+    { "title": "Chat masuk saat Anda menyetir", "body": "Lagi antar atau jemput unit, HP tidak bisa dipegang. Calon penyewa menunggu lalu sewa di tempat lain." },
+    { "title": "Pertanyaan tarif yang sama terus", "body": "“Avanza berapa sehari?”, “Lepas kunci bisa?”, “Sudah termasuk BBM?”. Harus diketik ulang setiap hari." },
+    { "title": "Syarat sewa harus dijelaskan berulang", "body": "KTP, SIM, jaminan, DP, aturan luar kota. Kalau tidak dijelaskan dari awal, banyak yang batal di akhir." },
+    { "title": "Musim liburan, chat membludak", "body": "Lebaran, Natal, tahun baru: permintaan datang bersamaan dan yang telat dibalas langsung pindah rental." },
+    { "title": "Data pemesanan tercecer", "body": "Tanggal, jam ambil, tujuan, unit: sering tidak lengkap dan harus ditanya bolak-balik." }
+  ],
+  "solutions": [
+    { "pain": "Sedang menyetir", "answer": "AI menjawab chat selagi Anda di jalan. Begitu Anda membalas sendiri, AI otomatis diam di chat itu." },
+    { "pain": "Pertanyaan tarif", "answer": "Daftar armada dan tarif diisi sekali. AI menjawab tarif harian, sopir, dan biaya tambahan sesuai data Anda." },
+    { "pain": "Syarat sewa", "answer": "Persyaratan, jaminan, dan aturan luar kota dijelaskan di awal percakapan, jadi calon penyewa siap sebelum datang." },
+    { "pain": "Musim liburan", "answer": "Banyak chat bersamaan tetap dijawab, sesuai kuota balasan paket Anda." },
+    { "pain": "Data pemesanan", "answer": "AI bisa diarahkan menanyakan unit, tanggal, jam ambil, tujuan, dan lepas kunci atau sopir sampai lengkap, lalu Anda konfirmasi ketersediaan." }
+  ],
+  "demo_conversations": {
+    "business_name": "Sentosa Rent Car",
+    "business_initials": "SR",
+    "scenarios": [
+      {
+        "id": "harga", "label": "Tanya tarif",
+        "messages": [
+          { "from": "c", "text": "Kak Avanza sewa per hari berapa? Lepas kunci bisa?" },
+          { "from": "a", "text": "Halo Kak! Avanza Rp350.000/hari (12 jam), belum termasuk BBM. Lepas kunci bisa untuk area dalam kota dengan syarat dokumen lengkap. Kalau mau dengan sopir tambah Rp150.000/hari 😊" },
+          { "from": "c", "text": "Kalau 24 jam?" },
+          { "from": "a", "text": "Untuk 24 jam Rp450.000 ya Kak. Rencana sewanya tanggal berapa?" }
+        ]
+      },
+      {
+        "id": "syarat", "label": "Tanya syarat sewa",
+        "messages": [
+          { "from": "c", "text": "Syarat lepas kunci apa aja kak?" },
+          { "from": "a", "text": "Syarat lepas kunci:\n• KTP & SIM A asli penyewa\n• Jaminan: kendaraan motor + STNK atau deposit sesuai ketentuan\n• DP 50% untuk booking\nUnit dicek bersama saat serah terima ya Kak." },
+          { "from": "c", "text": "Boleh dibawa ke luar kota?" },
+          { "from": "a", "text": "Boleh untuk wilayah Jawa Tengah & DIY. Untuk luar provinsi, admin kami perlu konfirmasi dulu ya Kak 🙏" }
+        ]
+      },
+      {
+        "id": "booking", "label": "Mau sewa",
+        "messages": [
+          { "from": "c", "text": "Mau sewa Innova pakai sopir tgl 20-22 Des, ke Jogja" },
+          { "from": "a", "text": "Siap Kak! Boleh lengkapi dulu:\n1. Nama\n2. Jam & lokasi penjemputan\n3. Jumlah penumpang\nNanti admin cek ketersediaan unit untuk tanggal itu." },
+          { "from": "c", "text": "Bima, jemput jam 6 pagi di Banyumanik, 6 orang" },
+          { "from": "a", "text": "Terima kasih Kak Bima, sudah kami catat ✅\nInnova + sopir · 20–22 Des · Jogja · jemput 06.00 Banyumanik · 6 orang.\nAdmin cek ketersediaan unit dan kirim total biayanya di chat ini ya." }
+        ]
+      }
+    ]
+  },
+  "benefits": [
+    { "title": "Respons cepat saat Anda di jalan", "body": "Calon penyewa tetap dilayani walau Anda sedang menyetir." },
+    { "title": "Layanan 24 jam", "body": "Pertanyaan tengah malam untuk sewa besok pagi tetap terjawab." },
+    { "title": "Tarif tidak perlu diketik ulang", "body": "Tarif, sopir, BBM, overtime: cukup diisi sekali." },
+    { "title": "Syarat jelas dari awal", "body": "Calon penyewa tahu dokumen dan jaminan yang dibutuhkan sebelum datang." },
+    { "title": "Data sewa langsung lengkap", "body": "AI bisa diarahkan mengumpulkan tanggal, unit, dan tujuan sebelum Anda konfirmasi." },
+    { "title": "Anda tetap pegang kendali", "body": "Balas manual kapan saja, AI otomatis diam di chat itu." }
+  ],
+  "faq": [
+    { "q": "Apakah AI tahu unit mana yang sedang kosong?", "a": "Tidak. ChatGerCep tidak terhubung ke jadwal armada Anda. AI mengumpulkan detail pemesanan, lalu Anda atau admin yang mengecek ketersediaan dan mengonfirmasi." },
+    { "q": "Bisa menjelaskan tarif dengan sopir dan lepas kunci?", "a": "Bisa, selama tarif, biaya sopir, BBM, tol, overtime, dan aturan lepas kunci sudah Anda isi di knowledge." },
+    { "q": "Apakah AI bisa menerima DP atau memastikan booking?", "a": "Tidak. AI tidak memproses pembayaran dan tidak memastikan booking. Konfirmasi unit dan DP tetap oleh Anda." },
+    { "q": "Pelanggan kirim foto KTP atau SIM. Aman?", "a": "Foto tersimpan di WhatsApp Anda seperti biasa. Histori percakapan di ChatGerCep hanya tampil di akun Anda dan terhapus otomatis setelah 30 hari. Sebaiknya verifikasi dokumen tetap dilakukan langsung oleh Anda." },
+    { "q": "Apakah nomor WhatsApp lama tetap bisa dipakai?", "a": "Bisa, lewat scan QR sebagai perangkat tertaut. HP tetap bisa dipakai seperti biasa. Nomor tidak boleh terdaftar di WhatsApp Business API." },
+    { "q": "Bagaimana kalau ada pertanyaan yang tidak ada di knowledge?", "a": "AI dilarang menebak. AI berkata terus terang dan meneruskan ke Anda." },
+    { "q": "Rental saya punya beberapa admin. Paket apa yang cocok?", "a": "Paket Bisnis mendukung 3 nomor dan 4.000 balasan AI per 30 hari." }
+  ],
+  "image_assets": { "hero": null, "hero_alt": "Customer service rental mobil menyerahkan kunci kepada penyewa", "brief": "Mobil MPV rental bersih di depan kantor rental Indonesia, CS menyerahkan kunci ke penyewa, tablet/HP reservasi." },
+  "ai_prompt_template": "prompts/rental-mobil.md",
+  "cta_tracking": { "content_name": "LP Rental Mobil", "content_category": "rental-mobil" }
+}

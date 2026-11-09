@@ -1,0 +1,86 @@
+{
+  "slug": "distributor",
+  "industry_name": "Distributor",
+  "industry_short": "distributor",
+  "theme": { "accent": "#3fb5a5", "accent_soft": "#e4f6f3", "accent_ink": "#1c6d62", "glow": "rgba(63,181,165,.28)", "icon": "truck" },
+  "seo_metadata": {
+    "title": "AI WhatsApp untuk Distributor · Jawab Harga Grosir & Syarat Agen 24 Jam | ChatGerCep",
+    "description": "Reseller dan toko tanya harga grosir, minimal order, dan syarat agen di WhatsApp? ChatGerCep menjawab dari price list Anda 24 jam dan merangkum order untuk tim sales.",
+    "og_title": "Reseller tanya price list, langsung dijawab sesuai tier",
+    "og_description": "AI WhatsApp untuk distributor: harga grosir per tier, minimal order, syarat agen, dan rekap order dijawab 24 jam."
+  },
+  "hero": {
+    "badge": "AI WhatsApp untuk Distributor",
+    "title": "Reseller Minta Price List, Tim Sales",
+    "title_highlight": "Sibuk di Gudang?",
+    "subtitle": "ChatGerCep menjawab harga grosir per tier, minimal order, syarat menjadi agen, dan area pengiriman dari price list yang Anda isi. Order dirangkum rapi di chat, tim Anda tinggal cek stok dan konfirmasi.",
+    "cards": [
+      { "pos": "tl", "kicker": "Sesuai price list", "title": "Harga grosir per tier", "lines": ["1–9 karton · Rp96.000", "10+ karton · Rp90.000"] },
+      { "pos": "br", "kicker": "Siap dicek gudang", "title": "Rekap order reseller", "lines": ["15 karton · Toko Berkah", "Kirim ke Cirebon"] }
+    ]
+  },
+  "pain_points": [
+    { "title": "Price list diminta berulang kali", "body": "Setiap reseller baru minta harga, minimal order, dan diskon volume. Tim sales mengirim hal yang sama setiap hari." },
+    { "title": "Order masuk tidak terstruktur", "body": "Nama barang, jumlah, alamat, dan cara bayar dikirim terpisah-pisah. Rawan salah input." },
+    { "title": "Calon agen menunggu terlalu lama", "body": "Pertanyaan syarat kemitraan tidak segera dijawab, padahal calon agen sedang membandingkan distributor." },
+    { "title": "Chat di luar jam kantor", "body": "Pemilik toko sering order malam hari setelah tokonya tutup." }
+  ],
+  "solutions": [
+    { "pain": "Price list berulang", "answer": "Harga per tier dan minimal order diisi sekali. AI menjawab sesuai jumlah yang ditanyakan." },
+    { "pain": "Order tidak terstruktur", "answer": "AI bisa diarahkan merekap nama toko, produk, jumlah, dan alamat dalam satu pesan untuk tim Anda." },
+    { "pain": "Calon agen", "answer": "Syarat kemitraan dan keuntungan agen dijelaskan saat itu juga, lalu diteruskan ke sales untuk tindak lanjut." },
+    { "pain": "Chat malam", "answer": "Order dan pertanyaan malam hari tetap dijawab, lalu diproses tim di jam kerja." }
+  ],
+  "demo_conversations": {
+    "business_name": "CV Sumber Pangan",
+    "business_initials": "SP",
+    "scenarios": [
+      {
+        "id": "harga", "label": "Tanya harga grosir",
+        "messages": [
+          { "from": "c", "text": "Pak minyak goreng 1L harga grosir berapa per karton?" },
+          { "from": "a", "text": "Halo Kak! Sesuai price list kami, minyak goreng 1L (isi 12):\n• 1–9 karton: Rp96.000/karton\n• 10+ karton: Rp90.000/karton\nMinimal order 5 karton 😊" },
+          { "from": "c", "text": "Ongkir ke Cirebon?" },
+          { "from": "a", "text": "Cirebon masuk area kirim gratis untuk order minimal 10 karton. Di bawah itu, admin hitungkan ongkirnya ya Kak." }
+        ]
+      },
+      {
+        "id": "agen", "label": "Tanya syarat agen",
+        "messages": [
+          { "from": "c", "text": "Kalau mau jadi agen syaratnya apa?" },
+          { "from": "a", "text": "Syarat agen:\n• Punya toko/gudang fisik\n• Order pertama minimal 50 karton\n• Order rutin minimal 30 karton/bulan\nAgen mendapat harga khusus dan prioritas pengiriman." },
+          { "from": "c", "text": "Harga agen berapa?" },
+          { "from": "a", "text": "Harga agen diberikan langsung oleh tim sales setelah verifikasi toko, Kak. Boleh info nama toko dan kotanya? Saya teruskan ke tim kami 🙏" }
+        ]
+      },
+      {
+        "id": "order", "label": "Mau order",
+        "messages": [
+          { "from": "c", "text": "Order 15 karton minyak 1L, Toko Berkah Cirebon" },
+          { "from": "a", "text": "Siap Kak! Rekap order:\n• 15 karton minyak goreng 1L × Rp90.000 = Rp1.350.000\nBoleh lengkapi alamat kirim dan nama penerima?" },
+          { "from": "c", "text": "Jl. Pemuda 12 Cirebon, Pak Haris" },
+          { "from": "a", "text": "Terima kasih Kak, sudah kami catat ✅\nAdmin cek ketersediaan stok dan kirim konfirmasi order + jadwal kirim di chat ini ya." }
+        ]
+      }
+    ]
+  },
+  "benefits": [
+    { "title": "Respons cepat ke reseller", "body": "Reseller yang dijawab cepat tidak sempat membandingkan ke distributor lain." },
+    { "title": "Layanan 24 jam", "body": "Order malam hari tetap tercatat dan dijawab." },
+    { "title": "Tidak mengirim price list berulang", "body": "Harga per tier dijawab sesuai jumlah yang ditanya." },
+    { "title": "Info lengkap untuk calon agen", "body": "Syarat dan keuntungan kemitraan dijelaskan di awal." },
+    { "title": "Order lebih rapi", "body": "AI merekap produk, jumlah, dan alamat dalam satu pesan." },
+    { "title": "Sales tetap pegang kendali", "body": "Balas manual kapan saja, AI otomatis diam di chat itu." }
+  ],
+  "faq": [
+    { "q": "Apakah AI tahu stok gudang secara real-time?", "a": "Tidak. ChatGerCep tidak terhubung ke sistem gudang. AI menjawab dari info yang Anda isi, dan ketersediaan stok dikonfirmasi tim Anda." },
+    { "q": "Bisa membedakan harga per jumlah order?", "a": "Bisa, selama tier harga ditulis jelas di knowledge, misalnya 1–9 karton dan 10+ karton." },
+    { "q": "Bisa memberi harga khusus agen?", "a": "Bisa bila Anda mengisinya. Kalau harga agen hanya untuk mitra terverifikasi, arahkan AI untuk meneruskan ke sales." },
+    { "q": "Apakah AI membuat invoice?", "a": "Tidak. AI hanya merekap order di chat. Invoice dan pembayaran tetap diproses tim Anda." },
+    { "q": "Bisa dipakai untuk broadcast promo ke reseller?", "a": "Tidak. ChatGerCep hanya membalas chat yang masuk. Akun yang dipakai untuk spam akan diblokir." },
+    { "q": "Tim sales punya beberapa nomor. Bisa?", "a": "Bisa. Paket Bisnis mendukung 3 nomor, Pro 5 nomor, dan Custom untuk kebutuhan lebih besar." }
+  ],
+  "image_assets": { "hero": null, "hero_alt": "Gudang distributor dengan tumpukan karton dan staf mengecek stok", "brief": "Gudang distributor Indonesia: rak tinggi berisi karton, forklift, staf mengecek stok dengan tablet, truk loading." },
+  "ai_prompt_template": "prompts/distributor.md",
+  "cta_tracking": { "content_name": "LP Distributor", "content_category": "distributor" }
+}

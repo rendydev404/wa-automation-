@@ -1,0 +1,86 @@
+{
+  "slug": "bengkel",
+  "industry_name": "Bengkel",
+  "industry_short": "bengkel",
+  "theme": { "accent": "#e2603f", "accent_soft": "#fdece7", "accent_ink": "#9c3417", "glow": "rgba(226,96,63,.28)", "icon": "wrench" },
+  "seo_metadata": {
+    "title": "AI WhatsApp untuk Bengkel · Jawab Harga Servis 24 Jam | ChatGerCep",
+    "description": "Pelanggan bengkel tanya harga servis, ganti oli, dan antrean di WhatsApp? ChatGerCep menjawab dari daftar harga bengkel Anda 24 jam, selagi mekanik fokus bekerja.",
+    "og_title": "Tangan penuh oli, chat pelanggan bengkel tetap dibalas",
+    "og_description": "AI WhatsApp untuk bengkel: harga servis, ganti oli, jam buka, dan data kendaraan dijawab 24 jam."
+  },
+  "hero": {
+    "badge": "AI WhatsApp untuk Bengkel",
+    "title": "Tangan Penuh Oli, Chat “Servis Berkala Berapa?”",
+    "title_highlight": "Nunggu Sampai Sore?",
+    "subtitle": "ChatGerCep menjawab harga servis, ganti oli, jam buka, dan layanan bengkel dari daftar yang Anda isi. Data kendaraan dan keluhan dirangkum di chat, jadi mekanik tahu yang akan datang.",
+    "cards": [
+      { "pos": "tl", "kicker": "Pertanyaan paling sering", "title": "Harga servis dijawab", "lines": ["Servis berkala · mulai Rp250rb", "Ganti oli · mulai Rp180rb"] },
+      { "pos": "br", "kicker": "Siap dicek mekanik", "title": "Data kendaraan", "lines": ["Xenia 2018 · 60.000 km", "Keluhan: rem bunyi"] }
+    ]
+  },
+  "pain_points": [
+    { "title": "Mekanik dan owner sibuk di bawah mobil", "body": "Tidak ada yang sempat memegang HP. Chat menumpuk sampai jam istirahat." },
+    { "title": "Pertanyaan harga yang sama terus", "body": "Ganti oli, servis berkala, spooring, balancing. Jawabannya ada di daftar harga, tapi tetap ditanya setiap hari." },
+    { "title": "Keluhan kendaraan tidak jelas", "body": "“Mobil saya bunyi, kenapa ya?” Tanpa data mobil, tahun, dan kilometer, susah memberi gambaran." },
+    { "title": "Pelanggan datang saat bengkel penuh", "body": "Tidak tahu jam ramai, pelanggan menunggu lama lalu kecewa." }
+  ],
+  "solutions": [
+    { "pain": "Tidak sempat pegang HP", "answer": "AI menjawab chat selagi tim bekerja. Begitu Anda membalas sendiri, AI otomatis diam di chat itu." },
+    { "pain": "Pertanyaan harga", "answer": "Daftar harga jasa dan paket servis diisi sekali. AI menjawab sesuai daftar, tanpa mengarang." },
+    { "pain": "Keluhan tidak jelas", "answer": "AI menanyakan merek, tipe, tahun, kilometer, dan keluhan, lalu menyarankan pemeriksaan langsung oleh mekanik." },
+    { "pain": "Bengkel penuh", "answer": "AI menjelaskan jam buka dan aturan antrean atau janji servis sesuai kebijakan bengkel Anda." }
+  ],
+  "demo_conversations": {
+    "business_name": "Bengkel Maju Motor",
+    "business_initials": "MM",
+    "scenarios": [
+      {
+        "id": "harga", "label": "Tanya harga servis",
+        "messages": [
+          { "from": "c", "text": "Bang servis berkala Avanza berapa?" },
+          { "from": "a", "text": "Halo Kak! Servis berkala Avanza mulai Rp250.000 untuk jasa + cek 20 titik. Oli dan part dihitung terpisah sesuai yang dipakai. Paket ganti oli + filter mulai Rp180.000 😊" },
+          { "from": "c", "text": "Kalau spooring balancing?" },
+          { "from": "a", "text": "Spooring Rp100.000, balancing Rp15.000/roda. Kalau diambil bersamaan biasanya selesai sekitar 1 jam, Kak." }
+        ]
+      },
+      {
+        "id": "keluhan", "label": "Tanya keluhan",
+        "messages": [
+          { "from": "c", "text": "Rem mobil saya bunyi ngik ngik, kenapa ya bang?" },
+          { "from": "a", "text": "Bunyi rem bisa punya beberapa penyebab, Kak, jadi perlu dicek langsung oleh mekanik supaya tidak salah. Boleh info merek, tipe, tahun, dan kilometer mobilnya?" },
+          { "from": "c", "text": "Xenia 2018, 60rb km" },
+          { "from": "a", "text": "Terima kasih Kak. Pengecekan rem gratis jika sekalian servis di sini. Kalau rem terasa kurang pakem, sebaiknya jangan dipakai jarak jauh dulu sebelum dicek ya 🙏" }
+        ]
+      },
+      {
+        "id": "datang", "label": "Mau datang servis",
+        "messages": [
+          { "from": "c", "text": "Besok pagi bisa servis bang?" },
+          { "from": "a", "text": "Bisa Kak, bengkel buka 08.00–17.00. Antrean pagi biasanya lebih cepat. Boleh info nama dan jam datang yang direncanakan?" },
+          { "from": "c", "text": "Andi, jam 8" },
+          { "from": "a", "text": "Siap Kak Andi, sudah kami catat ✅\nXenia 2018 · servis + cek rem · besok 08.00.\nAdmin konfirmasi slotnya di chat ini ya." }
+        ]
+      }
+    ]
+  },
+  "benefits": [
+    { "title": "Respons cepat", "body": "Pelanggan tidak perlu menunggu mekanik selesai bekerja untuk tahu harga." },
+    { "title": "Layanan 24 jam", "body": "Pelanggan yang merencanakan servis malam hari tetap terjawab." },
+    { "title": "Tidak mengulang daftar harga", "body": "Jasa servis dan paket cukup diisi sekali." },
+    { "title": "Data kendaraan sudah lengkap", "body": "Mekanik tahu mobil, tahun, dan keluhan sebelum pelanggan datang." },
+    { "title": "Bantu arahkan ke kunjungan", "body": "AI menjelaskan jam buka dan mencatat rencana kedatangan untuk dikonfirmasi." },
+    { "title": "Owner tetap pegang kendali", "body": "Balas manual kapan saja, AI otomatis diam di chat itu." }
+  ],
+  "faq": [
+    { "q": "Apakah AI bisa mendiagnosis kerusakan mobil?", "a": "Tidak. Template bengkel mengarahkan AI untuk tidak menebak kerusakan dan menyarankan pemeriksaan langsung oleh mekanik." },
+    { "q": "Apakah AI tahu harga part dan stoknya?", "a": "AI hanya tahu harga dan stok part yang Anda isi di knowledge. ChatGerCep tidak terhubung ke sistem stok bengkel." },
+    { "q": "Bisa mencatat janji servis?", "a": "AI bisa mengumpulkan nama, kendaraan, keluhan, dan jam datang di chat. Konfirmasi slot tetap oleh Anda. Tidak ada penjadwalan otomatis." },
+    { "q": "Pelanggan kirim foto kerusakan. Apa yang dilakukan AI?", "a": "AI bisa melihat foto, tetapi tidak akan menyimpulkan kerusakan atau memberi estimasi biaya perbaikan dari foto. AI meneruskan ke mekanik." },
+    { "q": "Apakah nomor WhatsApp bengkel lama tetap bisa dipakai?", "a": "Bisa, lewat scan QR sebagai perangkat tertaut. HP tetap bisa dipakai seperti biasa." },
+    { "q": "Apakah admin tetap bisa membalas manual?", "a": "Bisa. Begitu Anda membalas dari HP, AI otomatis diam di chat itu dan melanjutkan setelah jeda yang Anda atur." }
+  ],
+  "image_assets": { "hero": null, "hero_alt": "Mekanik memeriksa mobil di bengkel modern", "brief": "Bengkel mobil modern di Indonesia: mekanik berseragam di samping mobil di atas lift, rak part rapi, pencahayaan terang." },
+  "ai_prompt_template": "prompts/bengkel.md",
+  "cta_tracking": { "content_name": "LP Bengkel", "content_category": "bengkel" }
+}

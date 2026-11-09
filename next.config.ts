@@ -21,6 +21,8 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/**": [
       "./hermes/SOUL-cs.md",
+      // CSS & skrip landing page industri, dibaca saat jalan (src/lib/lp/halaman.ts).
+      "./lp/aset/*",
       "./ml/model/model.onnx",
       "./ml/model/tokenizer.json",
       "./ml/model/tokenizer_config.json",

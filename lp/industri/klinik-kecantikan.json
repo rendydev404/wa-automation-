@@ -1,0 +1,92 @@
+{
+  "slug": "klinik-kecantikan",
+  "industry_name": "Klinik Kecantikan",
+  "industry_short": "klinik kecantikan",
+  "theme": { "accent": "#d0708f", "accent_soft": "#fcedf2", "accent_ink": "#93385a", "glow": "rgba(208,112,143,.30)", "icon": "sparkle" },
+  "seo_metadata": {
+    "title": "AI WhatsApp untuk Klinik Kecantikan · Jawab Treatment & Promo 24 Jam | ChatGerCep",
+    "description": "Calon pasien tanya harga treatment, promo, dan jadwal dokter di WhatsApp? ChatGerCep menjawab sopan dari informasi klinik Anda 24 jam. Pertanyaan medis tetap diarahkan ke dokter.",
+    "og_title": "Calon pasien chat jam 10 malam, langsung dapat jawaban",
+    "og_description": "AI WhatsApp untuk klinik kecantikan: harga treatment, promo, jadwal praktik, dan alur reservasi dijawab 24 jam."
+  },
+  "hero": {
+    "badge": "AI WhatsApp untuk Klinik Kecantikan",
+    "title": "Calon Pasien Tanya Treatment Jam 10 Malam,",
+    "title_highlight": "Dibalas Besok Siang?",
+    "subtitle": "ChatGerCep menjawab harga treatment, promo, jadwal praktik, dan alur reservasi dari informasi klinik Anda, dengan bahasa yang sopan dan hangat. Pertanyaan medis tetap diarahkan ke dokter Anda.",
+    "cards": [
+      { "pos": "tl", "kicker": "Dari iklan promo", "title": "Harga treatment dijawab", "lines": ["Facial Acne · Rp250.000", "Konsultasi dokter · Rp50.000"] },
+      { "pos": "br", "kicker": "Diteruskan ke resepsionis", "title": "Calon pasien siap konsul", "lines": ["Sabtu · sekitar 11.00", "Keluhan: bekas jerawat"] }
+    ]
+  },
+  "pain_points": [
+    { "title": "Chat dari iklan promo membanjir", "body": "Iklan treatment jalan, chat “harganya berapa kak?” masuk terus. Yang tidak dibalas cepat, hilang begitu saja." },
+    { "title": "Resepsionis sibuk melayani pasien di klinik", "body": "Saat klinik ramai, chat WhatsApp terpaksa menunggu. Calon pasien merasa diabaikan." },
+    { "title": "Chat malam dan hari libur tidak terjawab", "body": "Banyak orang mencari info perawatan setelah jam kerja, justru saat klinik tutup." },
+    { "title": "Pertanyaan yang seharusnya dijawab dokter", "body": "“Cocok nggak buat kulit saya?” perlu ditangani hati-hati, tidak bisa dijawab asal oleh siapa pun." },
+    { "title": "Banyak yang bertanya, sedikit yang datang", "body": "Calon pasien butuh info jelas soal harga, durasi, dan langkah reservasi sebelum memutuskan." }
+  ],
+  "solutions": [
+    { "pain": "Chat dari iklan", "answer": "Harga treatment dan detail promo diisi ke knowledge. Setiap calon pasien langsung mendapat jawaban yang sama jelasnya." },
+    { "pain": "Resepsionis sibuk", "answer": "AI melayani chat selagi tim fokus ke pasien di klinik. Resepsionis bisa mengambil alih chat kapan saja." },
+    { "pain": "Chat malam", "answer": "Calon pasien yang chat di luar jam praktik tetap mendapat jawaban saat itu juga." },
+    { "pain": "Pertanyaan medis", "answer": "AI diarahkan untuk tidak mendiagnosis atau merekomendasikan treatment pribadi, dan menyarankan konsultasi dengan dokter." },
+    { "pain": "Menuju kunjungan", "answer": "AI menjelaskan alur reservasi dan mengumpulkan nama serta waktu yang diinginkan, lalu resepsionis mengonfirmasi slot." }
+  ],
+  "demo_conversations": {
+    "business_name": "Aura Skin Clinic",
+    "business_initials": "AS",
+    "scenarios": [
+      {
+        "id": "harga", "label": "Tanya harga & promo",
+        "messages": [
+          { "from": "c", "text": "Kak facial acne berapa ya? Ada promo ga?" },
+          { "from": "a", "text": "Halo Kak, terima kasih sudah menghubungi Aura Skin Clinic 🤍 Facial Acne Rp250.000 (±60 menit). Bulan ini ada promo kunjungan pertama jadi Rp199.000, berlaku sampai 30 November." },
+          { "from": "c", "text": "Itu udah termasuk konsul dokter?" },
+          { "from": "a", "text": "Belum termasuk, Kak. Konsultasi dokter Rp50.000 dan bisa dipotongkan dari biaya treatment bila treatment di hari yang sama." }
+        ]
+      },
+      {
+        "id": "treatment", "label": "Tanya treatment",
+        "messages": [
+          { "from": "c", "text": "Kak kalau laser bekas jerawat bisa langsung ilang ga? Kulit aku sensitif" },
+          { "from": "a", "text": "Terima kasih sudah cerita, Kak. Hasil treatment berbeda untuk setiap orang, dan untuk kulit sensitif perlu diperiksa dokter terlebih dulu supaya aman." },
+          { "from": "a", "text": "Saran kami, konsultasi dokter dulu (Rp50.000). Dokter akan menilai kondisi kulit Kakak dan menjelaskan pilihan yang sesuai. Mau dibantu dicatatkan untuk konsultasi?" }
+        ]
+      },
+      {
+        "id": "reservasi", "label": "Mau reservasi",
+        "messages": [
+          { "from": "c", "text": "Mau konsul hari Sabtu bisa kak?" },
+          { "from": "a", "text": "Bisa, Kak. Jadwal praktik dokter hari Sabtu pukul 10.00–16.00. Boleh info nama lengkap dan jam yang Kakak inginkan?" },
+          { "from": "c", "text": "Dinda, sekitar jam 11" },
+          { "from": "a", "text": "Baik Kak Dinda, sudah kami catat: konsultasi dokter, Sabtu sekitar pukul 11.00 🤍 Resepsionis akan mengonfirmasi ketersediaan slotnya di chat ini ya." }
+        ]
+      }
+    ]
+  },
+  "benefits": [
+    { "title": "Respons cepat untuk chat dari iklan", "body": "Calon pasien yang baru melihat promo langsung mendapat jawaban." },
+    { "title": "Melayani di luar jam praktik", "body": "Malam hari dan hari libur, pertanyaan tetap dijawab." },
+    { "title": "Resepsionis lebih fokus", "body": "Pertanyaan harga, durasi, dan lokasi tidak perlu diketik ulang." },
+    { "title": "Informasi yang konsisten", "body": "Harga, promo, dan syaratnya disampaikan sama persis seperti yang Anda tetapkan." },
+    { "title": "Mengarahkan ke konsultasi", "body": "AI menjelaskan langkah reservasi dan mengumpulkan data awal untuk resepsionis." },
+    { "title": "Tim tetap pegang kendali", "body": "Resepsionis membalas manual kapan saja, AI otomatis diam di chat itu." }
+  ],
+  "faq": [
+    { "q": "Apakah AI bisa memberi diagnosis atau rekomendasi treatment?", "a": "Tidak, dan memang tidak seharusnya. Template klinik mengarahkan AI untuk tidak mendiagnosis atau merekomendasikan treatment pribadi, dan menyarankan konsultasi dengan dokter." },
+    { "q": "Apakah AI bisa booking jadwal otomatis?", "a": "Tidak. ChatGerCep tidak terhubung ke sistem reservasi klinik. AI menjelaskan jadwal praktik yang Anda isi dan mengumpulkan nama serta waktu yang diinginkan, lalu resepsionis mengonfirmasi slot." },
+    { "q": "Bagaimana kalau promo berubah?", "a": "Perbarui informasi promo di knowledge. AI menjawab sesuai data terbaru yang Anda isi, termasuk periode dan syaratnya." },
+    { "q": "Pasien kirim foto kulit. Apa yang dilakukan AI?", "a": "AI bisa melihat foto, tetapi template klinik mengarahkannya untuk tidak menilai kondisi kulit dan menyarankan konsultasi dokter." },
+    { "q": "Apakah chat pasien aman?", "a": "Setiap akun terpisah. Histori percakapan hanya tampil di akun Anda dan terhapus otomatis setelah 30 hari." },
+    { "q": "Apakah nomor WhatsApp klinik yang lama tetap bisa dipakai?", "a": "Bisa, lewat scan QR sebagai perangkat tertaut. Nomor tidak boleh terdaftar di WhatsApp Business API atau terhubung ke auto-reply lain." },
+    { "q": "Klinik kami punya beberapa cabang. Bisa?", "a": "Bisa. Paket Bisnis mendukung 3 nomor, paket Pro 5 nomor. Knowledge tiap nomor bisa disesuaikan dengan cabangnya." }
+  ],
+  "image_assets": {
+    "hero": null,
+    "hero_alt": "Resepsionis klinik kecantikan modern menyambut pasien",
+    "brief": "Resepsionis klinik kecantikan modern di Indonesia, interior bersih nuansa krem-pink, ruang treatment terlihat di belakang. Profesional, tanpa foto before/after."
+  },
+  "ai_prompt_template": "prompts/klinik-kecantikan.md",
+  "cta_tracking": { "content_name": "LP Klinik Kecantikan", "content_category": "klinik-kecantikan" }
+}

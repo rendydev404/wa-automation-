@@ -1,0 +1,93 @@
+{
+  "slug": "laundry",
+  "industry_name": "Laundry",
+  "industry_short": "laundry",
+  "theme": { "accent": "#3a9be0", "accent_soft": "#e8f4fd", "accent_ink": "#145d93", "glow": "rgba(58,155,224,.30)", "icon": "shirt" },
+  "seo_metadata": {
+    "title": "AI WhatsApp untuk Laundry · Jawab Harga & Pickup 24 Jam | ChatGerCep",
+    "description": "Pelanggan laundry terus tanya harga kiloan, express, dan pickup? ChatGerCep menjawab dari daftar harga Anda 24 jam dan merangkum permintaan jemput untuk dikonfirmasi admin.",
+    "og_title": "Lagi nyetrika, chat pelanggan laundry tetap dibalas",
+    "og_description": "AI WhatsApp untuk laundry: harga kiloan, express, satuan, dan permintaan pickup dijawab 24 jam dari nomor laundry Anda."
+  },
+  "hero": {
+    "badge": "AI WhatsApp untuk Laundry",
+    "title": "Lagi Nyetrika, Chat “Kiloan Berapa, Kak?”",
+    "title_highlight": "Numpuk Tanpa Jawaban?",
+    "subtitle": "ChatGerCep menjawab harga kiloan, satuan, paket express, dan jam buka dari daftar harga yang Anda isi. Permintaan jemput dirangkum rapi di chat, admin tinggal konfirmasi jadwalnya.",
+    "cards": [
+      { "pos": "tl", "kicker": "Pertanyaan paling sering", "title": "Harga kiloan dijawab AI", "lines": ["Cuci setrika · Rp8.000/kg", "Express 1 hari · Rp12.000/kg"] },
+      { "pos": "br", "kicker": "Permintaan jemput", "title": "Data pickup lengkap", "lines": ["Griya Asri Blok C/12", "±5 kg · jam 16.00"] }
+    ]
+  },
+  "pain_points": [
+    { "title": "Tangan sibuk, HP bunyi terus", "body": "Lagi menimbang, mencuci, atau menyetrika. Chat menumpuk dan baru sempat dibalas berjam-jam kemudian." },
+    { "title": "Pelanggan terus bertanya harga", "body": "Kiloan, satuan, bed cover, sepatu, express. Pertanyaannya itu-itu saja, tapi menyita waktu kerja." },
+    { "title": "Banyak permintaan pickup lewat WhatsApp", "body": "Alamat, patokan, jam jemput, perkiraan berat: data sering tidak lengkap dan harus ditanya bolak-balik." },
+    { "title": "Chat malam baru dijawab besok", "body": "Pelanggan memilah cucian malam hari. Yang tidak dibalas cepat sering pindah ke laundry lain." },
+    { "title": "Admin kewalahan saat order ramai", "body": "Akhir pekan dan musim hujan, chat melonjak bersamaan dengan cucian." }
+  ],
+  "solutions": [
+    { "pain": "Tangan sibuk", "answer": "AI menjawab chat masuk selagi Anda bekerja. Kalau Anda membalas sendiri, AI otomatis diam di chat itu." },
+    { "pain": "Pertanyaan harga", "answer": "Daftar harga diisi sekali. AI menjawab kiloan, satuan, dan express dengan angka yang sama setiap kali." },
+    { "pain": "Permintaan pickup", "answer": "AI bisa diarahkan menanyakan nama, alamat, patokan, perkiraan berat, dan jam jemput sampai lengkap, lalu admin mengonfirmasi." },
+    { "pain": "Chat malam", "answer": "Pelanggan yang chat malam mendapat jawaban saat itu juga." },
+    { "pain": "Order ramai", "answer": "Banyak chat bersamaan tetap dijawab, sesuai kuota balasan paket Anda." }
+  ],
+  "demo_conversations": {
+    "business_name": "Laundry Wangi Bersih",
+    "business_initials": "WB",
+    "scenarios": [
+      {
+        "id": "harga", "label": "Tanya harga kiloan",
+        "messages": [
+          { "from": "c", "text": "Kak cuci setrika per kilo berapa?" },
+          { "from": "a", "text": "Halo Kak! Cuci Setrika Rp8.000/kg (minimal 3 kg), selesai 2 hari. Kalau butuh cepat, Express 1 hari Rp12.000/kg 😊" },
+          { "from": "c", "text": "Kalau bed cover?" },
+          { "from": "a", "text": "Bed cover mulai Rp25.000/pcs tergantung ukuran, selesai 3 hari. Mau sekalian dijemput Kak?" }
+        ]
+      },
+      {
+        "id": "layanan", "label": "Tanya layanan",
+        "messages": [
+          { "from": "c", "text": "Bisa cuci sepatu sama boneka besar ga kak?" },
+          { "from": "a", "text": "Bisa Kak! Cuci sepatu Rp35.000/pasang, selesai 3 hari. Boneka dihitung per ukuran. Boleh kirim foto bonekanya?" },
+          { "from": "c", "text": "[Foto boneka]", "image": "doll" },
+          { "from": "a", "text": "Dari fotonya termasuk ukuran sedang ya Kak, Rp30.000 sesuai daftar harga. Kalau ternyata lebih besar, admin infokan saat barang diterima 🙏" }
+        ]
+      },
+      {
+        "id": "pickup", "label": "Minta dijemput",
+        "messages": [
+          { "from": "c", "text": "Kak bisa jemput? Di Perum Griya Asri" },
+          { "from": "a", "text": "Bisa Kak, jemput gratis untuk radius 3 km dari outlet. Boleh info:\n1. Nama\n2. Alamat lengkap + patokan\n3. Perkiraan berat\n4. Jam jemput yang diinginkan" },
+          { "from": "c", "text": "Rina, Griya Asri Blok C no 12 depan masjid, kira2 5 kg, jam 4 sore" },
+          { "from": "a", "text": "Siap Kak Rina, sudah kami catat ✅\nGriya Asri Blok C/12 (depan masjid) · ±5 kg · 16.00\nAdmin konfirmasi jadwal kurirnya di chat ini sebentar lagi ya." }
+        ]
+      }
+    ]
+  },
+  "benefits": [
+    { "title": "Respons lebih cepat", "body": "Pelanggan tidak perlu menunggu Anda selesai menyetrika untuk tahu harga." },
+    { "title": "Layanan 24 jam", "body": "Chat malam dijawab malam itu juga, bukan besok pagi." },
+    { "title": "Tidak lagi mengetik harga berulang", "body": "Kiloan, satuan, express: cukup diisi sekali di daftar harga." },
+    { "title": "Pelanggan dapat info lengkap", "body": "Estimasi selesai, minimal kilo, area jemput: dijelaskan sesuai aturan laundry Anda." },
+    { "title": "Data pickup langsung lengkap", "body": "AI bisa diarahkan mengumpulkan detail jemput sebelum admin mengonfirmasi." },
+    { "title": "Admin tetap pegang kendali", "body": "Balas manual kapan saja, AI otomatis diam di chat itu." }
+  ],
+  "faq": [
+    { "q": "Apakah AI bisa menjawab harga laundry kiloan?", "a": "Bisa. Isikan daftar harga kiloan, satuan, dan minimal berat ke knowledge. AI menjawab sesuai angka yang Anda isi dan tidak mengarang harga." },
+    { "q": "Apakah AI bisa menjelaskan layanan express?", "a": "Bisa, selama info express (harga, estimasi selesai, batas jam masuk) sudah Anda isikan ke knowledge." },
+    { "q": "Apakah AI bisa menerima permintaan pickup?", "a": "AI bisa diarahkan menanyakan nama, alamat, patokan, perkiraan berat, dan jam jemput sampai lengkap di chat. Penjadwalan kurir tetap dikonfirmasi oleh Anda atau admin. ChatGerCep tidak menjadwalkan kurir otomatis." },
+    { "q": "Apakah AI tahu status cucian pelanggan?", "a": "Tidak. ChatGerCep tidak terhubung ke aplikasi kasir laundry. Kalau pelanggan menanyakan status, AI bisa diarahkan untuk meminta nomor nota lalu meneruskan ke admin." },
+    { "q": "Apakah nomor WhatsApp lama tetap bisa digunakan?", "a": "Bisa. Nomor disambungkan lewat scan QR sebagai perangkat tertaut. Matikan dulu Pesan salam dan Pesan tidak di tempat di WhatsApp Business supaya pelanggan tidak menerima balasan ganda." },
+    { "q": "Apakah admin tetap bisa membalas secara manual?", "a": "Bisa. Begitu Anda atau admin membalas dari HP, AI otomatis diam di chat itu dan melanjutkan setelah jeda yang Anda atur." },
+    { "q": "Laundry saya punya 2 cabang. Bisa?", "a": "Bisa. Paket Bisnis mendukung 3 nomor WhatsApp, cocok bila tiap cabang punya nomor sendiri." }
+  ],
+  "image_assets": {
+    "hero": null,
+    "hero_alt": "Staf laundry melipat pakaian bersih di depan deretan mesin cuci komersial",
+    "brief": "Laundry kiloan Indonesia: deretan mesin cuci komersial, tumpukan pakaian terlipat rapi, staf berseragam. Terang, bersih, biru-putih."
+  },
+  "ai_prompt_template": "prompts/laundry.md",
+  "cta_tracking": { "content_name": "LP Laundry", "content_category": "laundry" }
+}

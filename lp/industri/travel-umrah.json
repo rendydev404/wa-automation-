@@ -1,0 +1,87 @@
+{
+  "slug": "travel-umrah",
+  "industry_name": "Travel Umrah",
+  "industry_short": "travel umrah",
+  "theme": { "accent": "#c9a24d", "accent_soft": "#faf3e2", "accent_ink": "#7e5f17", "glow": "rgba(201,162,77,.26)", "icon": "plane" },
+  "seo_metadata": {
+    "title": "AI WhatsApp untuk Travel Umrah · Jawab Paket & Jadwal 24 Jam | ChatGerCep",
+    "description": "Calon jamaah tanya paket, harga, jadwal keberangkatan, dan persyaratan di WhatsApp? ChatGerCep menjawab sopan dari informasi travel Anda 24 jam, lalu meneruskan ke tim untuk konfirmasi.",
+    "og_title": "Calon jamaah bertanya, langsung dilayani dengan sopan",
+    "og_description": "AI WhatsApp untuk travel umrah: paket, harga, fasilitas, jadwal, dan persyaratan dokumen dijawab 24 jam."
+  },
+  "hero": {
+    "badge": "AI WhatsApp untuk Travel Umrah",
+    "title": "Calon Jamaah Bertanya Paket Umrah, Tapi",
+    "title_highlight": "Baru Dijawab Besok?",
+    "subtitle": "ChatGerCep menjawab pilihan paket, harga, fasilitas, jadwal keberangkatan, dan persyaratan dokumen dari informasi travel Anda, dengan bahasa yang sopan. Ketersediaan seat dan pendaftaran tetap dikonfirmasi tim Anda.",
+    "cards": [
+      { "pos": "tl", "kicker": "Sesuai brosur paket", "title": "Paket dijelaskan AI", "lines": ["Reguler 9 hari · Rp32,5 jt", "Plus Turki 12 hari · Rp41 jt"] },
+      { "pos": "br", "kicker": "Diteruskan ke tim", "title": "Calon jamaah", "lines": ["2 orang · Februari", "Paket Reguler"] }
+    ]
+  },
+  "pain_points": [
+    { "title": "Pertanyaan paket datang tanpa henti", "body": "Harga, hotel, maskapai, fasilitas, jadwal. Tim harus menjelaskan detail brosur satu per satu." },
+    { "title": "Calon jamaah butuh waktu dan kepercayaan", "body": "Mereka bertanya berkali-kali sebelum memutuskan. Balasan lambat terasa kurang meyakinkan." },
+    { "title": "Persyaratan dokumen dijelaskan berulang", "body": "Paspor, vaksin, foto, mahram, dan dokumen lain ditanya hampir oleh semua calon jamaah." },
+    { "title": "Chat malam dari keluarga yang berdiskusi", "body": "Keputusan umrah sering dibicarakan bersama keluarga malam hari, saat kantor travel tutup." }
+  ],
+  "solutions": [
+    { "pain": "Pertanyaan paket", "answer": "Isi brosur paket ke knowledge. AI menjelaskan harga, hotel, maskapai, dan fasilitas sesuai data Anda." },
+    { "pain": "Membangun kepercayaan", "answer": "AI menjawab dengan sopan dan cepat, lalu menyerahkan ke tim untuk percakapan yang lebih personal." },
+    { "pain": "Persyaratan dokumen", "answer": "Daftar dokumen dan ketentuannya dijelaskan konsisten sesuai yang Anda tetapkan." },
+    { "pain": "Chat malam", "answer": "Keluarga yang berdiskusi malam hari tetap mendapat jawaban saat itu juga." }
+  ],
+  "demo_conversations": {
+    "business_name": "Amanah Mulia Tour",
+    "business_initials": "AM",
+    "scenarios": [
+      {
+        "id": "harga", "label": "Tanya paket & harga",
+        "messages": [
+          { "from": "c", "text": "Assalamualaikum, paket umrah bulan Februari ada? Harganya berapa?" },
+          { "from": "a", "text": "Waalaikumsalam, terima kasih sudah menghubungi Amanah Mulia Tour 🤍 Untuk Februari ada:\n• Reguler 9 hari: Rp32.500.000\n• Plus Turki 12 hari: Rp41.000.000\nHarga per orang, kamar quad." },
+          { "from": "c", "text": "Hotelnya bintang berapa?" },
+          { "from": "a", "text": "Paket Reguler memakai hotel bintang 4 di Makkah dan Madinah sesuai brosur. Jarak hotel ke masjid tercantum di detail paket, mau saya kirimkan ringkasannya?" }
+        ]
+      },
+      {
+        "id": "syarat", "label": "Tanya persyaratan",
+        "messages": [
+          { "from": "c", "text": "Syarat dokumennya apa aja?" },
+          { "from": "a", "text": "Dokumen yang perlu disiapkan:\n• Paspor berlaku minimal 8 bulan\n• KTP & KK\n• Pas foto sesuai ketentuan\n• Dokumen vaksin sesuai aturan terbaru\nDetail terbaru akan dikonfirmasi tim kami saat pendaftaran." },
+          { "from": "c", "text": "Visanya pasti keluar kan?" },
+          { "from": "a", "text": "Pengurusan visa kami bantu prosesnya, Bapak/Ibu. Penerbitan visa merupakan kewenangan otoritas Arab Saudi, jadi kami tidak dapat menjaminnya. Tim kami akan menjelaskan prosesnya lebih lengkap 🙏" }
+        ]
+      },
+      {
+        "id": "daftar", "label": "Mau mendaftar",
+        "messages": [
+          { "from": "c", "text": "Saya dan istri mau ikut yang Reguler Februari" },
+          { "from": "a", "text": "Alhamdulillah, semoga dimudahkan 🤍 Boleh info:\n1. Nama lengkap\n2. Kota domisili\n3. Apakah paspor sudah ada?" },
+          { "from": "c", "text": "Hasan, Bekasi, paspor sudah ada dua2nya" },
+          { "from": "a", "text": "Terima kasih Pak Hasan, sudah kami catat ✅\nReguler Februari · 2 orang · Bekasi · paspor sudah ada.\nTim kami akan mengonfirmasi ketersediaan seat dan langkah pendaftarannya di chat ini." }
+        ]
+      }
+    ]
+  },
+  "benefits": [
+    { "title": "Respons cepat dan sopan", "body": "Calon jamaah merasa dilayani sejak pertanyaan pertama." },
+    { "title": "Melayani 24 jam", "body": "Diskusi keluarga malam hari tetap mendapat jawaban." },
+    { "title": "Tidak mengulang isi brosur", "body": "Harga, hotel, maskapai, dan fasilitas dijelaskan AI." },
+    { "title": "Calon jamaah lebih paham", "body": "Persyaratan dokumen dijelaskan jelas dari awal." },
+    { "title": "Data calon jamaah terkumpul", "body": "Nama, jumlah orang, paket, dan kesiapan dokumen dirangkum untuk tim." },
+    { "title": "Tim tetap pegang kendali", "body": "Balas manual kapan saja, AI otomatis diam di chat itu." }
+  ],
+  "faq": [
+    { "q": "Apakah AI bisa menjamin visa atau tanggal keberangkatan?", "a": "Tidak. Template travel melarang AI menjanjikan visa, seat, atau keberangkatan. Semua itu dikonfirmasi oleh tim Anda." },
+    { "q": "Apakah AI tahu sisa seat?", "a": "Tidak. ChatGerCep tidak terhubung ke sistem manifest. AI mencatat minat calon jamaah dan tim Anda yang mengonfirmasi seat." },
+    { "q": "Bisa menjawab dengan salam dan bahasa yang sopan?", "a": "Bisa. Nada bicara diatur dalam template, termasuk menjawab salam dan memanggil Bapak/Ibu." },
+    { "q": "Bagaimana kalau harga atau jadwal berubah?", "a": "Perbarui knowledge. AI menjawab sesuai data terbaru yang Anda isi." },
+    { "q": "Apakah AI menerima pembayaran DP?", "a": "Tidak. AI tidak memproses pembayaran. Proses DP dan pendaftaran tetap melalui tim Anda." },
+    { "q": "Apakah nomor WhatsApp travel lama bisa dipakai?", "a": "Bisa, lewat scan QR sebagai perangkat tertaut. Nomor tidak boleh terdaftar di WhatsApp Business API." },
+    { "q": "Kami punya beberapa agen/cabang. Bisa?", "a": "Bisa. Paket Bisnis mendukung 3 nomor, Pro 5 nomor, dan tersedia paket Custom." }
+  ],
+  "image_assets": { "hero": null, "hero_alt": "Staf travel umrah melayani calon jamaah di meja konsultasi", "brief": "Kantor travel umrah Indonesia: staf berhijab melayani pasangan calon jamaah di meja, koper dan brosur, nuansa hangat dan sopan. Hindari foto Ka'bah close-up." },
+  "ai_prompt_template": "prompts/travel-umrah.md",
+  "cta_tracking": { "content_name": "LP Travel Umrah", "content_category": "travel-umrah" }
+}
