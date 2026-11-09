@@ -4,13 +4,16 @@ import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna, hitungPaketPengguna, hitungPengguna } from "@/lib/pengguna";
 import { SaringPaket } from "./pengguna/saring-paket";
 import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
-import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, SaklarKanal, TombolHapusPengguna } from "./form-admin";
+import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, TombolHapusPengguna } from "./form-admin";
 import { customTampil, hargaAngka, paketCustom } from "@/lib/paket-custom";
 import { labelKomisiPaket } from "@/lib/afiliasi-def";
 import { PembangunCustom } from "./paket-custom";
 import { acuanHarga, aturanPercobaan, daftarPaket, pemakaianNyata } from "@/lib/langganan";
 import { SimulasiHarga } from "./simulasi-harga";
-import { kanalMati, kanalTerpasang, konfigMidtrans } from "@/lib/midtrans";
+import { konfigMidtrans } from "@/lib/midtrans";
+import { GATEWAY, infoGateway, rencanaKanal } from "@/lib/gateway";
+import { labelKanal } from "@/lib/harga";
+import { BarisKanal, type DataBarisKanal, FormModeGateway, TombolPerbaruiStatus } from "./transaksi/form-gateway";
 import { kunciAnthropic, modelAnthropic, pengaturanAi, perkiraanPerBalasan, ringkasPakai } from "@/lib/ai";
 import { infoKurs } from "@/lib/kurs";
 import { sttTerkonfigurasi } from "@/lib/stt";
@@ -276,29 +279,62 @@ export async function KelolaPaketCustom() {
 }
 
 
-/** Metode pembayaran di halaman bayar: yang ditolak Midtrans tersembunyi sendiri; admin bisa menampilkan/menyembunyikan. */
+/**
+ * Payment gateway: mode (hanya Midtrans / hanya iPaymu / hybrid per metode, bisa diganti kapan saja) dan metode bayar di
+ * halaman bayar beserta providernya. Metode yang ditolak provider tersembunyi sendiri; admin bisa menampilkan/menyembunyikan.
+ */
 export async function MetodeBayar() {
   await requireAdmin();
-  const [k, mati] = await Promise.all([konfigMidtrans(), kanalMati()]);
+  const [info, rencana] = await Promise.all([infoGateway(), rencanaKanal()]);
   const kini = sekarang();
+  const baris: DataBarisKanal[] = rencana.kanal.map((r) => {
+    const m = r.mati;
+    const asal = r.penyedia ? GATEWAY[r.penyedia].label : "";
+    return {
+      kanal: r.kanal,
+      label: labelKanal(r.kanal, "id", r.penyedia),
+      penyedia: r.penyedia,
+      pilihan: r.pilihan,
+      status: r.status,
+      tampil: !m,
+      keterangan: m ? `Disembunyikan admin ${waktuSingkatWib(m.waktu, kini)} · ${asal}` : "",
+    };
+  });
   return (
     <section className="card overflow-hidden">
       <div className="border-b border-line px-5 py-4">
         <h2 className="flex items-center gap-2 text-[15px] font-bold">
-          <Wallet className="size-4 text-accent" aria-hidden /> Metode pembayaran
+          <Wallet className="size-4 text-accent" aria-hidden /> Payment gateway &amp; metode pembayaran
         </h2>
-        <p className={`mt-0.5 text-[13px] ${k ? "text-muted" : "text-warning"}`}>
-          {k
-            ? "Hanya metode yang menyala yang tampil di halaman bayar. Metode yang ditolak Midtrans karena belum aktif di akun Midtrans tersembunyi sendiri; nyalakan lagi setelah diaktifkan di dashboard Midtrans."
-            : "Midtrans belum dipasang di server (developer: MIDTRANS_SERVER_KEY di .env), jadi halaman bayar belum menampilkan metode apa pun."}
+        <p className="mt-0.5 text-[13px] text-muted">Pilih lewat mana pembeli membayar. Bisa diganti kapan saja.</p>
+        <div className="mt-3">
+          <FormModeGateway mode={info.mode} opsi={info.daftar} />
+        </div>
+        <ul className="mt-4 space-y-1 rounded-xl bg-subtle px-4 py-3 text-[12.5px] leading-relaxed text-muted [&_b]:font-semibold [&_b]:text-fg">
+          <li>
+            <b>Hanya Midtrans / Hanya iPaymu:</b> semua metode bayar lewat satu provider.
+          </li>
+          <li>
+            <b>Hybrid:</b> tiap metode lewat provider yang kamu pilih di daftar bawah, misalnya BCA VA, ShopeePay, dan DANA lewat iPaymu, sisanya lewat Midtrans. Metode yang tidak ada di satu provider otomatis lewat provider lainnya.
+          </li>
+          <li>
+            <b>Tagihan lama aman:</b> mengganti pilihan hanya berlaku untuk tagihan baru; tagihan yang sudah dibuat tetap diproses provider asalnya.
+          </li>
+          <li>
+            <b>Uang kembali:</b> pembayaran lewat Midtrans bisa dikembalikan otomatis; lewat iPaymu ditransfer manual oleh admin.
+          </li>
+        </ul>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
+        <p className="max-w-3xl text-[13px] text-muted">
+          Status tiap metode dibaca dari dashboard provider (iPaymu &amp; Midtrans, diperbarui tiap 10 menit). Metode yang belum aktif di provider otomatis nonaktif; di mode hybrid, metode itu lewat provider lain yang sudah aktif.
         </p>
+        <TombolPerbaruiStatus />
       </div>
       <ul className="divide-y divide-line">
-        {kanalTerpasang().map((x) => {
-          const m = mati[x];
-          const ket = !m ? "" : m.oleh === "otomatis" ? `Disembunyikan otomatis ${waktuSingkatWib(m.waktu, kini)}: ditolak Midtrans${m.alasan ? ` (${m.alasan})` : ""}` : `Disembunyikan admin ${waktuSingkatWib(m.waktu, kini)}`;
-          return <SaklarKanal key={x} kanal={x} tampil={!m} keterangan={ket} />;
-        })}
+        {baris.map((d) => (
+          <BarisKanal key={`${info.mode}-${d.kanal}-${d.penyedia}`} d={d} mode={info.mode} />
+        ))}
       </ul>
     </section>
   );

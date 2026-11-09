@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   if (!n || !tandaTanganSah(n, k.kunciTandaTangan ?? [k.serverKey])) return NextResponse.json({ ok: false }, { status: 403 });
   if (!ORDER_SAH.test(n.order_id ?? "")) return NextResponse.json({ ok: true }); // bukan transaksi aplikasi ini
   try {
-    const h = await terapkanStatus(k, n.order_id!);
+    const h = await terapkanStatus(n.order_id!);
     if (h?.baruAktif) console.log(`[bayar] lunas, paket aktif order=${n.order_id}`);
     return NextResponse.json({ ok: true });
   } catch (e) {

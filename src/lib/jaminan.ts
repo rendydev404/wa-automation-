@@ -4,7 +4,9 @@ import { DAFTAR_BANK, namaBankTampil } from "./afiliasi-def";
 import { JAMINAN_HARI, JAMINAN_MAKS_PAKAI_PERSEN, MODE_REFUND_BAWAAN, type ModeRefund, MASA_ID, MASA_EN_ADJ } from "./jaminan-def";
 import { ORDER_SAH, balasanTerpakai, catatRefundBerhasil } from "./langganan";
 import { MEREK } from "./merek";
-import { type KonfigMidtrans, MidtransError, kanalBisaRefund, refundMidtrans, statusMidtrans } from "./midtrans";
+import { adapter } from "./gateway";
+import { type Gateway, GatewayError, labelGateway } from "./gateway-def";
+import { kanalBisaRefund } from "./jaminan-def";
 
 /**
  * Jaminan uang kembali (pengganti free trial). Pemilik akun mengajukan sendiri dari halaman Langganan bila:
@@ -17,6 +19,7 @@ import { type KonfigMidtrans, MidtransError, kanalBisaRefund, refundMidtrans, st
  *     (atau menolak). Paket tetap aktif sampai admin menandai selesai.
  *   - otomatis: Refund API Midtrans langsung ke metode bayar asal ("diproses" -> selesai / gagal). Gagal (mis. fitur
  *     refund belum diaktifkan Midtrans, saldo Midtrans kurang) = paket tetap aktif, admin bisa mencoba ulang.
+ *     Pembayaran lewat provider tanpa Refund API (iPaymu) selalu memakai cara manual (modeRefundAkun).
  * Selesai (cara apa pun) = paket dicabut dan komisi afiliasinya batal (langganan.ts selesaikanRefund). Refund dari
  * dashboard Midtrans tetap tercatat lewat webhook (terapkanStatus).
  */
@@ -36,6 +39,25 @@ export async function modeRefund(): Promise<ModeRefund> {
 
 export async function setModeRefund(mode: ModeRefund): Promise<void> {
   await setSetting(KUNCI_MODE, mode);
+}
+
+/** Provider asal pembayaran pertama akun ini (yang dicakup jaminan), lewat transaksi_user_idx; null = belum bayar. */
+async function gatewayPertama(userId: number): Promise<Gateway | null> {
+  const sql = await db();
+  const [t] = await sql<{ gateway: Gateway }[]>`
+    SELECT gateway FROM transaksi WHERE user_id = ${userId} AND status IN ('lunas', 'dikembalikan') AND jumlah > 0
+     ORDER BY dibuat ASC, id ASC LIMIT 1`;
+  return t?.gateway ?? null;
+}
+
+/**
+ * Cara pengembalian yang berlaku untuk akun ini: mode admin, KECUALI pembayarannya lewat provider tanpa Refund API
+ * (mis. iPaymu) = manual (admin mentransfer ke rekening/e-wallet yang diisi pemilik akun).
+ */
+export async function modeRefundAkun(userId: number): Promise<ModeRefund> {
+  const [mode, g] = await Promise.all([modeRefund(), gatewayPertama(userId)]);
+  if (mode === "manual" || !g) return mode;
+  return (await adapter(g))?.refund || g === "midtrans" ? mode : "manual";
 }
 
 export interface Tujuan {
@@ -222,15 +244,14 @@ function notifAdmin(judul: Teks, isi: Teks, orderId: string): void {
  * transaksi supaya kunci tidak tertahan selama panggilan jaringan. Klik ganda / dua tab: yang kedua "sedang diproses".
  */
 export async function ajukanJaminan(
-  k: KonfigMidtrans | null,
   userId: number,
   isi: { alasan: string; tujuan?: { bank: string; nomor: string; nama: string } },
 ): Promise<HasilJaminan> {
   const catatan = isi.alasan.trim().replace(/\s+/g, " ").slice(0, 300);
   if (catatan.length < MIN_ALASAN)
     return { ok: false, pesan: { id: `Tulis alasan kamu minta uang kembali (minimal ${MIN_ALASAN} huruf).`, en: `Tell us why you want a refund (at least ${MIN_ALASAN} characters).` } };
-  const mode = await modeRefund();
-  if (mode === "otomatis" && !k) return { ok: false, pesan: { id: "Pembayaran online belum diaktifkan admin.", en: "Online payment has not been enabled by the admin yet." } };
+  const mode = await modeRefundAkun(userId);
+  if (mode === "otomatis" && !(await adapter(await gatewayPertama(userId)))) return { ok: false, pesan: { id: "Pembayaran online belum diaktifkan admin.", en: "Online payment has not been enabled by the admin yet." } };
   let tujuan: Tujuan | null = null;
   if (mode === "manual") {
     const v = tujuanSah(isi.tujuan ?? { bank: "", nomor: "", nama: "" });
@@ -268,21 +289,24 @@ export async function ajukanJaminan(
     klaim.orderId,
   );
   if (mode === "manual") return { ok: true, cara: "manual" };
-  return (await kirimRefund(k!, klaim)) ? { ok: true, cara: "otomatis" } : { ok: false, pesan: GAGAL_MIDTRANS };
+  return (await kirimRefund(klaim)) ? { ok: true, cara: "otomatis" } : { ok: false, pesan: GAGAL_MIDTRANS };
 }
 
 /**
- * Kirim refund ke Midtrans untuk pengajuan yang sudah diklaim "diproses". Bila Midtrans ternyata sudah mencatat refund
- * (percobaan sebelumnya berhasil tapi jawabannya hilang), tidak dikirim lagi. true = dana dikembalikan.
+ * Kirim refund ke provider ASAL transaksi untuk pengajuan yang sudah diklaim "diproses". Bila provider ternyata sudah
+ * mencatat refund (percobaan sebelumnya berhasil tapi jawabannya hilang), tidak dikirim lagi. true = dana dikembalikan.
  */
-async function kirimRefund(k: KonfigMidtrans, p: { orderId: string; jumlah: number; refundKey: string }): Promise<boolean> {
+async function kirimRefund(p: { orderId: string; jumlah: number; refundKey: string }): Promise<boolean> {
   try {
-    const s = await statusMidtrans(k, p.orderId).catch(() => null);
-    if (s?.transaction_status !== "refund") await refundMidtrans(k, p.orderId, { refundKey: p.refundKey, jumlah: p.jumlah, alasan: `Jaminan uang kembali ${MEREK}` });
+    const sql = await db();
+    const [t] = await sql<{ gateway: Gateway }[]>`SELECT gateway FROM transaksi WHERE order_id = ${p.orderId}`;
+    const g = await adapter(t?.gateway ?? "midtrans");
+    if (!g?.refund) throw new GatewayError(`${labelGateway(t?.gateway)} tidak mendukung refund otomatis: transfer manual lalu tandai selesai.`);
+    await g.refund(p.orderId, { refundKey: p.refundKey, jumlah: p.jumlah, alasan: `Jaminan uang kembali ${MEREK}` });
     await catatRefundBerhasil(p.orderId);
     return true;
   } catch (e) {
-    const galat = (e instanceof MidtransError ? e.message : "Midtrans tidak bisa dihubungi").slice(0, 300);
+    const galat = (e instanceof GatewayError ? e.message : "Payment gateway tidak bisa dihubungi").slice(0, 300);
     console.error(`[jaminan] refund gagal order=${p.orderId}: ${galat}`);
     const sql = await db();
     await sql`UPDATE pengembalian_dana SET status = 'gagal', galat = ${galat} WHERE refund_key = ${p.refundKey} AND status = 'diproses'`;
@@ -351,7 +375,7 @@ export async function tolakPengembalian(id: number, catatan: string): Promise<Ha
  * menerima kunci refund yang sama sampai 7 hari sejak percobaan pertama; lewat dari itu dipakai kunci baru (aman: status
  * dicek dulu).
  */
-export async function ulangiPengembalian(k: KonfigMidtrans, id: number): Promise<HasilJaminan> {
+export async function ulangiPengembalian(id: number): Promise<HasilJaminan> {
   const sql = await db();
   const kini = sekarang();
   const [p] = await sql<{ order_id: string; jumlah: number; refund_key: string }[]>`
@@ -361,7 +385,7 @@ export async function ulangiPengembalian(k: KonfigMidtrans, id: number): Promise
      WHERE id = ${id} AND status IN ('gagal', 'menunggu') AND refund_key IS NOT NULL
      RETURNING order_id, jumlah, refund_key`;
   if (!p) return { ok: false, pesan: TIDAK_BISA };
-  return (await kirimRefund(k, { orderId: p.order_id, jumlah: p.jumlah, refundKey: p.refund_key })) ? { ok: true, cara: "otomatis" } : { ok: false, pesan: GAGAL_MIDTRANS };
+  return (await kirimRefund({ orderId: p.order_id, jumlah: p.jumlah, refundKey: p.refund_key })) ? { ok: true, cara: "otomatis" } : { ok: false, pesan: GAGAL_MIDTRANS };
 }
 
 export interface BarisPengembalian {

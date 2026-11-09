@@ -8,7 +8,7 @@ import { BATAS_KATALOG } from "./katalog-def";
 import { type AturanPercobaan, type Paket, aturanPercobaan, daftarPaket, kuotaNomorGratis } from "./langganan";
 import { JAMINAN_MAKS_PAKAI_PERSEN, type ModeRefund, MASA_ID } from "./jaminan-def";
 import { modeRefund } from "./jaminan";
-import { kanalAktif, konfigMidtrans } from "./midtrans";
+import { kanalAktif, pembayaranAktif } from "./gateway";
 import { MEREK } from "./merek";
 import { type PaketCustom, customTampil, hargaAngka, paketCustom } from "./paket-custom";
 import { DAFTAR_BANK, type PengaturanAfiliasi, UMUR_COOKIE_REF, hitungKomisiPaket, pengaturanAfiliasi } from "./afiliasi";
@@ -145,7 +145,7 @@ async function ambilData(): Promise<DataCg> {
     aturanPercobaan(),
     kuotaNomorGratis(),
     getSetting("pendaftaran"),
-    konfigMidtrans(),
+    pembayaranAktif(),
     kanalAktif(),
     pengaturanAfiliasi(),
     modeRefund(),

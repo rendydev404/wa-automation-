@@ -8,10 +8,11 @@ import { jalurLanjut } from "@/lib/lanjut";
 // /api/sinkron dipanggil database (bukan browser); keabsahannya dicek lewat tanda tangan HMAC di handler-nya.
 // "/" = landing page publik; /api/auth/google* = masuk dengan Google (sebelum ada sesi);
 // /api/midtrans/notifikasi = webhook Midtrans (keabsahan dicek lewat tanda tangan SHA-512 + status ulang dari API).
+// /api/ipaymu/notifikasi = callback iPaymu (trx_id harus cocok dengan transaksi kita + status ulang dari API iPaymu).
 // /api/analitik = event analitik dari browser, juga pengunjung yang belum login (handler-nya sendiri memeriksa Origin,
 // tanda tangan cookie sesi, ukuran, dan batas laju).
 const BERKAS_STATIS = /\.(?:png|jpe?g|webp|avif|gif|svg|ico|mp4|webm|woff2?)$/i;
-const PUBLIK = new Set(["/", "/program-afiliasi", "/api/health", "/api/pendaftar", "/api/sinkron", "/api/auth/google", "/api/auth/google/callback", "/api/midtrans/notifikasi", "/api/analitik"]);
+const PUBLIK = new Set(["/", "/program-afiliasi", "/api/health", "/api/pendaftar", "/api/sinkron", "/api/auth/google", "/api/auth/google/callback", "/api/midtrans/notifikasi", "/api/ipaymu/notifikasi", "/api/analitik"]);
 
 function asalSama(req: NextRequest): boolean {
   const origin = req.headers.get("origin");

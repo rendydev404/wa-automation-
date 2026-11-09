@@ -11,7 +11,8 @@ import { labelKanal } from "@/lib/harga";
 import { kursUsd } from "@/lib/kurs";
 import { TombolSalin } from "@/components/tombol-salin";
 import { ORDER_TAMPIL, type Transaksi, langgananAktif, paketById, statusTagihan, transaksiMilik } from "@/lib/langganan";
-import { type InstruksiBayar as DataMidtrans, konfigMidtrans } from "@/lib/midtrans";
+import type { InstruksiBayar as DataMidtrans } from "@/lib/midtrans";
+import { labelGateway } from "@/lib/gateway-def";
 import { MEREK, PERUSAHAAN } from "@/lib/merek";
 import { type BitQr, kemasQr } from "@/lib/qr";
 import { requireUser } from "@/lib/session";
@@ -43,8 +44,8 @@ interface L {
   kurs?: number;
 }
 
-type T = Transaksi & { bayar: DataMidtrans | null };
-const labelMetode = (t: Transaksi, b: Bahasa) => (t.kanal ? labelKanal(t.kanal, b) : t.metode ? (METODE[t.metode]?.[b] ?? t.metode.replace(/_/g, " ")) : null);
+type T = Transaksi & { bayar: DataMidtrans | null; gateway?: string };
+const labelMetode = (t: Transaksi & { gateway?: string }, b: Bahasa) => (t.kanal ? labelKanal(t.kanal, b, t.gateway) : t.metode ? (METODE[t.metode]?.[b] ?? t.metode.replace(/_/g, " ")) : null);
 const waktuWib = (d: number, b: Bahasa) => `${tanggal(d, b)}, ${jamWib(d, b)} ${b === "en" ? "WIB (UTC+7)" : "WIB"}`;
 const namaPaket = (nama: string, t: Terjemah) => t(`Paket ${nama}`, `${nama} plan`);
 
@@ -78,9 +79,9 @@ async function Isi({ params }: { params: Promise<{ order: string }> }) {
   let t: T | undefined = awal;
   const l: L = { b, t: tr, kurs };
   if (!t) return <TidakAda l={l} />;
-  // Batas bayar sudah lewat tetapi webhook "expire" belum datang: pastikan ke Midtrans sekarang (sekali, dijatah).
+  // Batas bayar sudah lewat tetapi webhook "expire" belum datang: pastikan ke provider asalnya sekarang (sekali, dijatah).
   if (t.status === "menunggu" && t.kedaluwarsa !== null && t.kedaluwarsa <= sekarang()) {
-    const s = await statusTagihan(await konfigMidtrans(), user.id, t.order_id);
+    const s = await statusTagihan(user.id, t.order_id);
     if (s && s !== "menunggu") t = { ...t, status: s };
   }
   if (t.status === "lunas") return <Sukses t={t} userId={user.id} l={l} />;
@@ -111,15 +112,15 @@ async function Tagihan({ t, l }: { t: T; l: L }) {
       <InstruksiBayar
         orderId={t.order_id}
         kanal={kanal}
-        labelKanal={`${labelKanal(kanal, l.b)} · ${namaPaket(t.nama_paket, l.t)}`}
-        namaAplikasi={kanal === "gopay" ? "GoPay" : kanal === "shopeepay" ? "ShopeePay" : undefined}
+        labelKanal={`${labelKanal(kanal, l.b, t.gateway)} · ${namaPaket(t.nama_paket, l.t)}`}
+        namaAplikasi={kanal === "gopay" ? "GoPay" : kanal === "shopeepay" ? "ShopeePay" : kanal === "dana" ? "DANA" : undefined}
         jumlah={t.jumlah}
         kurs={l.kurs}
         sisaAwal={t.kedaluwarsa === null ? null : Math.max(0, t.kedaluwarsa - sekarang())}
         batas={t.kedaluwarsa === null ? null : waktuWib(t.kedaluwarsa, l.b)}
         bayar={bayar}
         gantiHref={ganti}
-        langkah={<LangkahBayar kanal={kanal} kode={t.bayar?.biller} b={l.b} />}
+        langkah={<LangkahBayar kanal={kanal} kode={t.bayar?.biller} penyedia={labelGateway(t.gateway)} b={l.b} />}
       />
       <p className="flex items-center justify-center gap-1 text-[12px] text-faint">
         {l.t("ID pembelian", "Purchase ID")} <span className="font-mono font-semibold text-muted">{t.order_id}</span>

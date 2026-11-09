@@ -9,6 +9,7 @@ import { Pesan } from "@/components/ui";
 import { useBahasa, useRouterBahasa } from "@/components/bahasa";
 import { angka, uang } from "@/lib/format";
 import { KANAL_BAYAR, type KanalBayar, grupKanal, infoKanal, labelKanal } from "@/lib/harga";
+import { GATEWAY, type Gateway } from "@/lib/gateway-def";
 import { kanalBisaRefund, MASA_ID, MASA_EN_ADJ } from "@/lib/jaminan-def";
 
 const IKON_GRUP = { QRIS: QrCode, "E-wallet": Wallet, "Virtual account": Building2 } as const;
@@ -23,6 +24,7 @@ export function PilihMetode({
   kanal: awal,
   kurs,
   jaminan = false,
+  penyedia = {},
 }: {
   paketId: number;
   harga: number;
@@ -30,11 +32,15 @@ export function PilihMetode({
   kurs?: number;
   /** Pembayaran pertama akun ini: kanal yang bisa di-refund diberi tanda jaminan uang kembali. */
   jaminan?: boolean;
+  /** Provider tiap metode (src/lib/gateway.ts penyediaKanal; mode hybrid bisa berbeda per metode). */
+  penyedia?: Partial<Record<KanalBayar, Gateway>>;
 }) {
   const router = useRouterBahasa();
   const { b, t } = useBahasa();
   const [kanal, setKanal] = useState(awal);
   const [pilih, setPilih] = useState<KanalBayar | null>(awal[0] ?? null);
+  // Nama provider di catatan bawah: provider metode yang dipilih (mode hybrid bisa berbeda per metode).
+  const namaPenyedia = GATEWAY[(pilih && penyedia[pilih]) || "midtrans"].label;
   const [galat, setGalat] = useState("");
   const [tunggu, mulai] = useTransition();
   const grup = new Map<keyof typeof IKON_GRUP, KanalBayar[]>();
@@ -85,7 +91,7 @@ export function PilihMetode({
                       <input type="radio" name="kanal" value={x} checked={aktif} onChange={() => setPilih(x)} className="sr-only" />
                       <LogoKanal kanal={x} />
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[13.5px] font-semibold">{labelKanal(x, b)}</span>
+                        <span className="block text-[13.5px] font-semibold">{labelKanal(x, b, penyedia[x])}</span>
                         <span className="block truncate text-[12px] text-muted">{infoKanal(x, b)}</span>
                         {jaminan && kanalBisaRefund(x) && (
                           <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[11px] font-semibold text-success">
@@ -108,7 +114,7 @@ export function PilihMetode({
         <button type="button" className="btn btn-primary h-11 w-full text-[14px]" disabled={!pilih || tunggu} onClick={bayar}>
           {tunggu && <Loader2 className="size-4 animate-spin" aria-hidden />}
           {pilih
-            ? t(`Bayar Rp${harga.toLocaleString("id-ID")} dengan ${labelKanal(pilih)}`, `Pay ${uang(harga, b, kurs)} with ${labelKanal(pilih, b)}`)
+            ? t(`Bayar Rp${harga.toLocaleString("id-ID")} dengan ${labelKanal(pilih, "id", penyedia[pilih])}`, `Pay ${uang(harga, b, kurs)} with ${labelKanal(pilih, b, penyedia[pilih])}`)
             : t("Pilih metode pembayaran", "Choose a payment method")}
         </button>
         {b === "en" && <p className="text-center text-[12px] text-muted tabular-nums">Billed in Indonesian rupiah: Rp{angka(harga, b)}</p>}
@@ -116,13 +122,13 @@ export function PilihMetode({
         {jaminan && pilih && !kanalBisaRefund(pilih) && kanal.some(kanalBisaRefund) && (
           <p className="text-center text-[12px] text-warning">
             {t(
-              `Pembayaran lewat ${labelKanal(pilih)} tidak termasuk jaminan uang kembali. Pilih GoPay, ShopeePay, atau QRIS bila ingin dijamin.`,
-              `Paying with ${labelKanal(pilih, b)} isn't covered by the money-back guarantee. Choose GoPay, ShopeePay, or QRIS to be covered.`,
+              `Pembayaran lewat ${labelKanal(pilih, "id", penyedia[pilih])} tidak termasuk jaminan uang kembali. Pilih GoPay, ShopeePay, atau QRIS bila ingin dijamin.`,
+              `Paying with ${labelKanal(pilih, b, penyedia[pilih])} isn't covered by the money-back guarantee. Choose GoPay, ShopeePay, or QRIS to be covered.`,
             )}
           </p>
         )}
         <p className="flex items-center justify-center gap-1.5 text-[12px] text-muted">
-          <ShieldCheck className="size-3.5 text-success" aria-hidden /> {t("Diproses aman oleh Midtrans. Tanpa biaya tambahan.", "Securely processed by Midtrans. No extra fees.")}
+          <ShieldCheck className="size-3.5 text-success" aria-hidden /> {t(`Diproses aman oleh ${namaPenyedia}. Tanpa biaya tambahan.`, `Securely processed by ${namaPenyedia}. No extra fees.`)}
         </p>
       </div>
     </div>

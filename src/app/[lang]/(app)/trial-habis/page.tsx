@@ -8,7 +8,7 @@ import { labelKanal } from "@/lib/harga";
 import { alihkanHalaman, teksHalaman } from "@/lib/bahasa-halaman";
 import { kursUsd } from "@/lib/kurs";
 import { MEREK } from "@/lib/merek";
-import { kanalAktif, konfigMidtrans } from "@/lib/midtrans";
+import { kanalAktif, pembayaranAktif } from "@/lib/gateway";
 import { requireUser } from "@/lib/session";
 import { sekarang } from "@/lib/db";
 import { dataTrialHabis } from "@/lib/trial-habis";
@@ -46,7 +46,7 @@ async function Isi() {
   const [user, { b, t }] = await Promise.all([requireUser(), teksHalaman()]);
   const [d, k, kurs, chatCs] = await Promise.all([
     dataTrialHabis(user),
-    konfigMidtrans(),
+    pembayaranAktif(),
     b === "en" ? kursUsd() : Promise.resolve(undefined),
     tautanChatCs(user.id).catch(() => null),
   ]);

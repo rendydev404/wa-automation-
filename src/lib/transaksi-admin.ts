@@ -145,6 +145,8 @@ export async function ringkasanTransaksi(): Promise<RingkasanTrx> {
 
 export interface DetailTrx extends BarisTrxAdmin {
   bayar: InstruksiBayar | null;
+  /** Provider pembayaran asal transaksi ini (src/lib/gateway.ts). */
+  gateway: string;
   langganan_id: number | null;
   kuota_nomor: number | null;
   kuota_balasan: number | null;
@@ -157,7 +159,7 @@ export interface DetailTrx extends BarisTrxAdmin {
 export async function detailTransaksi(orderId: string): Promise<DetailTrx | undefined> {
   const sql = await db();
   const [t] = await sql<(Omit<DetailTrx, "komisi" | "lain"> & { k_id: number | null; k_email: string | null; k_nominal: number | null; k_jenis: "persen" | "rupiah" | null; k_acuan: number | null })[]>`
-    SELECT ${sql.unsafe(KOLOM)}, t.bayar, t.langganan_id, l.kuota_nomor, l.kuota_balasan,
+    SELECT ${sql.unsafe(KOLOM)}, t.bayar, t.gateway, t.langganan_id, l.kuota_nomor, l.kuota_balasan,
            k.afiliator_id AS k_id, ka.email AS k_email, k.nominal AS k_nominal, k.komisi_jenis AS k_jenis, k.komisi_acuan AS k_acuan
       FROM transaksi t
       JOIN users u ON u.id = t.user_id

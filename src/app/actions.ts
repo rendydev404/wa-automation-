@@ -42,7 +42,8 @@ import { konteksMetaPermintaan } from "@/lib/meta-pixel-konteks";
 import { notifPendaftarBaru } from "@/lib/notifikasi";
 import { ATURAN_ANGKA, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
 import { type IsiKhusus, METODE_MANUAL, type MetodeManual, batalkanBayar, berikanPaketManual, hapusPaket, hentikanLangganan, mulaiBayar, ORDER_SAH, paketById, segarkanKuota, simpanPaket, terapkanSimulasi } from "@/lib/langganan";
-import { MidtransError, kanalAktif, kanalBelumAktif, konfigMidtrans, setKanalMati } from "@/lib/midtrans";
+import { GATEWAY, GatewayError, adapter, gatewaySah, kanalMati, lupakanStatusKanal, modeGateway, modeGatewaySah, penyediaKanal, rencanaKanal, setKanalMati, setModeGateway, setPenyediaHybrid, terpasang } from "@/lib/gateway";
+import { MODE_GATEWAY } from "@/lib/gateway-def";
 import { ajukanJaminan, selesaikanManual, setModeRefund, tolakPengembalian, ulangiPengembalian } from "@/lib/jaminan";
 import { teksProsesRefund } from "@/lib/jaminan-def";
 import { tanggal, uang } from "@/lib/format";
@@ -921,24 +922,26 @@ export async function selesaiTurAction(nama: string): Promise<void> {
 // ---------- Langganan & pembayaran ----------
 
 /**
- * Buat tagihan paket lewat Midtrans Core API dengan kanal pilihan pelanggan; browser lalu dibawa ke halaman instruksi
- * bayar kita sendiri. Klik ganda / tagihan yang sama yang masih berlaku = order_id yang sama (tanpa charge baru).
+ * Buat tagihan paket dengan kanal pilihan pelanggan, lewat provider kanal itu menurut mode admin (Midtrans / iPaymu /
+ * hybrid per metode); browser lalu dibawa ke halaman instruksi bayar kita sendiri. Klik ganda / tagihan yang sama yang
+ * masih berlaku = order_id yang sama (tanpa charge baru).
  */
 /** `kanalMati`: kanal yang baru ketahuan belum aktif; browser menghapusnya dari pilihan. */
 export async function bayarPaketAction(paketId: number, kanal: string): Promise<Hasil & { orderId?: string; kanalMati?: KanalBayar }> {
   const user = await requireUser();
   const { b, t } = await teksPermintaan();
   if (terlaluSering(`bayar:${user.id}`, 10, 10 * 60_000)) return terlaluBanyak(t);
-  const k = await konfigMidtrans();
-  if (!k) return { ok: false, pesan: t("Pembayaran belum diaktifkan admin.", "Payments haven't been enabled by the admin yet.") };
   const tidakTersedia = t("Metode pembayaran ini sedang tidak tersedia. Pilih metode lain.", "This payment method isn't available right now. Please choose another one.");
   if (!kanalSah(kanal)) return { ok: false, pesan: tidakTersedia };
-  if (!(await kanalAktif()).includes(kanal)) return { ok: false, pesan: tidakTersedia, kanalMati: kanal };
+  const peta = await penyediaKanal();
+  if (!Object.keys(peta).length) return { ok: false, pesan: t("Pembayaran belum diaktifkan admin.", "Payments haven't been enabled by the admin yet.") };
+  const g = peta[kanal] ? await adapter(peta[kanal]) : null;
+  if (!g) return { ok: false, pesan: tidakTersedia, kanalMati: kanal };
   const paket = Number.isInteger(paketId) ? await paketById(paketId) : undefined;
   if (!paket || !paket.aktif || paket.harga < 1) return { ok: false, pesan: t("Paket tidak ditemukan.", "Plan not found.") };
   try {
     const konteks = await konteksMetaPermintaan();
-    const h = await mulaiBayar(k, user, paket, kanal, await asalAplikasi(), konteks);
+    const h = await mulaiBayar(g, user, paket, kanal, await asalAplikasi(), konteks);
     if (h.baru) {
       void kirimCapiEvent({
         ...konteks,
@@ -953,33 +956,106 @@ export async function bayarPaketAction(paketId: number, kanal: string): Promise<
     catatFitur(user.id, "langganan.buat_tagihan");
     return { ok: true, orderId: h.orderId };
   } catch (e) {
-    console.error(`[bayar] gagal membuat tagihan user=${user.id} kanal=${kanal}: ${e instanceof Error ? e.message : e}`);
-    if (e instanceof MidtransError && kanalBelumAktif(e.kode)) {
+    console.error(`[bayar] gagal membuat tagihan user=${user.id} gateway=${g.nama} kanal=${kanal}: ${e instanceof Error ? e.message : e}`);
+    if (e instanceof GatewayError && e.kanalMati) {
       revalidatePath("/langganan", "layout");
       mintaSinkronCg(); // metode bayar yang disebut bot ChatGerCep ikut diperbarui
-      const label = labelKanal(kanal, b);
+      const label = labelKanal(kanal, b, g.nama);
       return { ok: false, pesan: t(`${label} belum tersedia. Pilih metode pembayaran lain.`, `${label} isn't available yet. Please choose another payment method.`), kanalMati: kanal };
     }
     return {
       ok: false,
       pesan:
-        e instanceof MidtransError
+        e instanceof GatewayError
           ? t("Tagihan sedang tidak bisa dibuat. Coba lagi sebentar lagi atau pilih metode lain.", "The invoice can't be created right now. Try again shortly or choose another method.")
           : pesanGalat(null, b),
     };
   }
 }
 
-/** Admin menampilkan/menyembunyikan satu metode pembayaran di halaman bayar (juga kanal yang tersembunyi otomatis). */
+/**
+ * Admin menampilkan/menyembunyikan satu metode pembayaran di halaman bayar (juga kanal yang tersembunyi otomatis).
+ * Berlaku untuk provider yang sekarang melayani metode itu (tiap provider punya daftar kanal tersembunyi sendiri).
+ */
 export async function setKanalTampilAction(kanal: string, tampil: boolean): Promise<Hasil> {
   const admin = await requireAdmin();
   if (!kanalSah(kanal)) return { ok: false, pesan: "Metode pembayaran tidak dikenal." };
-  await setKanalMati(kanal, tampil ? null : { oleh: "admin", waktu: sekarang() });
-  await catatLog(admin, tampil ? "tampilkan metode bayar" : "sembunyikan metode bayar", null, KANAL_BAYAR[kanal].label);
+  const g = (await rencanaKanal()).kanal.find((r) => r.kanal === kanal)?.penyedia;
+  if (!g) return { ok: false, pesan: "Metode ini tidak dilayani provider yang dipakai sekarang." };
+  await setKanalMati(g, kanal, tampil ? null : { oleh: "admin", waktu: sekarang() });
+  await catatLog(admin, tampil ? "tampilkan metode bayar" : "sembunyikan metode bayar", null, `${KANAL_BAYAR[kanal].label} (${GATEWAY[g].label})`);
   revalidatePath("/admin/transaksi");
   revalidatePath("/langganan", "layout");
   mintaSinkronCg();
   catatFitur(admin.id, tampil ? "admin.tampilkan_metode_bayar" : "admin.sembunyikan_metode_bayar");
+  return { ok: true };
+}
+
+/**
+ * Admin memilih cara memakai payment gateway untuk tagihan BARU, kapan saja: hanya Midtrans, hanya iPaymu, atau hybrid
+ * (provider per metode). Tagihan yang sudah ada tetap dicek, dibatalkan, dan di-refund lewat provider asalnya. Provider
+ * yang kredensialnya belum dipasang di .env ditolak (hybrid butuh keduanya).
+ */
+export async function adminGatewayAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireAdmin();
+  const m = form.get("mode");
+  if (!modeGatewaySah(m)) return { ok: false, pesan: "Pilih Hanya Midtrans, Hanya iPaymu, atau Hybrid." };
+  const perlu = m === "hybrid" ? (["midtrans", "ipaymu"] as const) : [m];
+  const belum = perlu.filter((g) => !terpasang(g));
+  if (belum.length)
+    return {
+      ok: false,
+      pesan: belum.map((g) => (g === "ipaymu" ? "iPaymu belum dipasang di server (developer: IPAYMU_VA & IPAYMU_API_KEY di .env)." : "Midtrans belum dipasang di server (developer: MIDTRANS_SERVER_KEY di .env).")).join(" "),
+    };
+  const lama = await modeGateway();
+  if (lama !== m) {
+    await setModeGateway(m);
+    await catatLog(admin, "ganti payment gateway", null, `${MODE_GATEWAY[lama].judul} -> ${MODE_GATEWAY[m].judul}`);
+    revalidatePath("/admin/transaksi");
+    revalidatePath("/langganan", "layout");
+    mintaSinkronCg(); // metode bayar yang disebut bot ChatGerCep ikut diperbarui
+  }
+  return {
+    ok: true,
+    pesan:
+      m === "hybrid"
+        ? "Mode hybrid aktif: tiap metode lewat provider yang tertulis di daftar di bawah. Tagihan yang sudah ada tetap diproses provider asalnya."
+        : `Semua tagihan baru sekarang lewat ${GATEWAY[m].label}. Tagihan yang sudah ada tetap diproses provider asalnya.`,
+  };
+}
+
+/** Admin membaca ulang status kanal dari dashboard provider sekarang (biasanya tersimpan 10 menit). */
+export async function adminSegarkanStatusKanalAction(): Promise<Hasil> {
+  await requireAdmin();
+  lupakanStatusKanal();
+  revalidatePath("/admin/transaksi");
+  revalidatePath("/langganan", "layout");
+  return { ok: true };
+}
+
+/** Metode yang pernah ditolak provider saat membuat tagihan: admin mencobanya lagi (mis. setelah diaktifkan di provider). */
+export async function adminCobaLagiKanalAction(kanal: string, gateway: string): Promise<Hasil> {
+  const admin = await requireAdmin();
+  if (!kanalSah(kanal) || !gatewaySah(gateway)) return { ok: false, pesan: "Pilihan tidak dikenal." };
+  if ((await kanalMati(gateway))[kanal]?.oleh === "otomatis") await setKanalMati(gateway, kanal, null);
+  lupakanStatusKanal();
+  await catatLog(admin, "coba lagi metode bayar", null, `${KANAL_BAYAR[kanal].label} (${GATEWAY[gateway].label})`);
+  revalidatePath("/admin/transaksi");
+  revalidatePath("/langganan", "layout");
+  mintaSinkronCg();
+  return { ok: true };
+}
+
+/** Mode hybrid: admin memilih provider untuk satu metode bayar (hanya provider terpasang yang melayani metode itu). */
+export async function adminPenyediaKanalAction(kanal: string, gateway: string): Promise<Hasil> {
+  const admin = await requireAdmin();
+  if (!kanalSah(kanal) || !gatewaySah(gateway)) return { ok: false, pesan: "Pilihan tidak dikenal." };
+  const r = (await rencanaKanal()).kanal.find((x) => x.kanal === kanal);
+  if (!r?.pilihan.includes(gateway)) return { ok: false, pesan: `${KANAL_BAYAR[kanal].label} belum aktif di ${GATEWAY[gateway].label}.` };
+  await setPenyediaHybrid(kanal, gateway);
+  await catatLog(admin, "ubah provider metode bayar (hybrid)", null, `${KANAL_BAYAR[kanal].label} -> ${GATEWAY[gateway].label}`);
+  revalidatePath("/admin/transaksi");
+  revalidatePath("/langganan", "layout");
   return { ok: true };
 }
 
@@ -988,10 +1064,9 @@ export async function batalBayarAction(orderId: string): Promise<Hasil & { statu
   const user = await requireUser();
   const { t } = await teksPermintaan();
   const tidakAda = t("Tagihan tidak ditemukan.", "Invoice not found.");
-  const k = await konfigMidtrans();
-  if (!k || !ORDER_SAH.test(orderId)) return { ok: false, pesan: tidakAda };
+  if (!ORDER_SAH.test(orderId)) return { ok: false, pesan: tidakAda };
   try {
-    const status = await batalkanBayar(k, user.id, orderId);
+    const status = await batalkanBayar(user.id, orderId);
     if (!status) return { ok: false, pesan: tidakAda };
     revalidatePath("/langganan");
     if (status === "dibatalkan") catatFitur(user.id, "langganan.batal_tagihan");
@@ -1014,7 +1089,7 @@ export async function ajukanJaminanAction(_lalu: Hasil | null, form: FormData): 
   const { b, t } = await teksPermintaan();
   if (terlaluSering(`jaminan:${user.id}`, 3, 10 * 60_000)) return terlaluBanyak(t);
   const teks = (n: string) => String(form.get(n) ?? "");
-  const h = await ajukanJaminan(await konfigMidtrans(), user.id, {
+  const h = await ajukanJaminan(user.id, {
     alasan: teks("alasan"),
     tujuan: { bank: teks("tujuan_bank"), nomor: teks("tujuan_nomor"), nama: teks("tujuan_nama") },
   });
@@ -1059,9 +1134,8 @@ export async function adminTolakPengembalianAction(_lalu: Hasil | null, form: Fo
 
 export async function adminUlangiPengembalianAction(id: number): Promise<Hasil> {
   const admin = await requireAdmin();
-  const k = await konfigMidtrans();
-  if (!k || !idSah(id)) return { ok: false, pesan: "Pengajuan tidak ditemukan." };
-  const h = await ulangiPengembalian(k, id);
+  if (!idSah(id)) return { ok: false, pesan: "Pengajuan tidak ditemukan." };
+  const h = await ulangiPengembalian(id);
   await catatLog(admin, "ulangi pengembalian dana (otomatis)", `#${id}`, h.ok ? "berhasil" : h.pesan.id);
   revalidatePath("/admin/transaksi", "layout");
   if (h.ok) catatFitur(admin.id, "admin.ulangi_pengembalian");

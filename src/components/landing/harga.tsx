@@ -8,7 +8,7 @@ import { angka, uang, UMUR_HISTORI_HARI } from "@/lib/format";
 import { ringkasKanal } from "@/lib/harga";
 import { kursUsd } from "@/lib/kurs";
 import { aturanPercobaan, daftarPaket } from "@/lib/langganan";
-import { kanalAktif, konfigMidtrans } from "@/lib/midtrans";
+import { kanalAktif, pembayaranAktif } from "@/lib/gateway";
 import { customTampil, paketCustom, tautanCustom } from "@/lib/paket-custom";
 import { KartuCustom } from "../kartu-custom";
 import { BandingAdminLanding } from "../banding-admin";
@@ -31,7 +31,7 @@ export async function HargaLanding() {
       aturanPercobaan(),
       paketCustom(),
       kanalAktif(),
-      konfigMidtrans(),
+      pembayaranAktif(),
       b === "en" ? kursUsd() : Promise.resolve(undefined),
     ]);
   } catch {

@@ -12,11 +12,11 @@ import { METODE_MANUAL, ORDER_TAMPIL, daftarPaket, hakAkun, riwayatTransaksi } f
 import { tingkatPaket } from "@/lib/tingkat-paket";
 import { LencanaPaket } from "@/components/lencana-paket";
 import { TombolSalin } from "@/components/tombol-salin";
-import { kanalAktif, konfigMidtrans } from "@/lib/midtrans";
+import { kanalAktif, pembayaranAktif } from "@/lib/gateway";
 import { customTampil, idPaketCustom, paketCustom, tautanCustom } from "@/lib/paket-custom";
 import { KartuCustom, TombolWaCustom } from "@/components/kartu-custom";
 import { requireUser } from "@/lib/session";
-import { cekJaminan, modeRefund } from "@/lib/jaminan";
+import { cekJaminan, modeRefundAkun } from "@/lib/jaminan";
 import { namaBankTampil } from "@/lib/afiliasi-def";
 import { JAMINAN_MAKS_PAKAI_PERSEN, syaratJaminan, teksProsesRefund, MASA_ID, MASA_EN_ADJ } from "@/lib/jaminan-def";
 import { sekarang } from "@/lib/db";
@@ -77,7 +77,7 @@ export default async function HalamanLangganan() {
 async function Jaminan() {
   const [user, { b, t }] = await Promise.all([requireUser(), teksHalaman()]);
   if (user.peran === "admin") return null;
-  const [j, mode] = await Promise.all([cekJaminan(user.id), modeRefund()]);
+  const [j, mode] = await Promise.all([cekJaminan(user.id), modeRefundAkun(user.id)]);
   if (!j || (!j.pengajuan && sekarang() > j.sampai)) return null;
   const rp = uang(j.jumlah, b);
   const p = j.pengajuan;
@@ -165,7 +165,7 @@ async function Paket() {
   const [user, { b, t }] = await Promise.all([requireUser(), teksHalaman()]);
   const [paket, k, hak, custom, idCustom, kanal, kurs] = await Promise.all([
     daftarPaket(),
-    konfigMidtrans(),
+    pembayaranAktif(),
     hakAkun(user),
     paketCustom(),
     idPaketCustom(),

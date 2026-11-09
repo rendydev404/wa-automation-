@@ -653,6 +653,14 @@ const MIGRASI: string[] = [
   CREATE INDEX pengembalian_dana_wa_idx ON pengembalian_dana USING gin (wa_ids);
   UPDATE settings SET nilai = '0' WHERE kunci = 'kuota_percobaan'; -- database baru: bawaan KUOTA_PERCOBAAN_AWAL = 0
   `,
+  // v31: payment gateway per transaksi (src/lib/gateway.ts). Provider aktif bisa diganti admin kapan saja (Midtrans <->
+  //   iPaymu); transaksi lama tetap dicek, dibatalkan, dan di-refund lewat provider asalnya. Data lama = 'midtrans'
+  //   (default konstan: PostgreSQL 11+ tidak menulis ulang tabel). gateway_ref = id transaksi di provider (iPaymu
+  //   TransactionId, dipakai cek status & mencocokkan callback); Midtrans cukup order_id kita, jadi NULL.
+  `
+  ALTER TABLE transaksi ADD COLUMN gateway text NOT NULL DEFAULT 'midtrans' CHECK (gateway IN ('midtrans', 'ipaymu')),
+                        ADD COLUMN gateway_ref text;
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

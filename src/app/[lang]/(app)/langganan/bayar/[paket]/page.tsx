@@ -7,7 +7,8 @@ import { labelKanal } from "@/lib/harga";
 import { teksHalaman } from "@/lib/bahasa-halaman";
 import { kursUsd } from "@/lib/kurs";
 import { hakAkun, paketById, tagihanMenunggu } from "@/lib/langganan";
-import { kanalAktif, konfigMidtrans } from "@/lib/midtrans";
+import { penyediaKanal } from "@/lib/gateway";
+import type { KanalBayar } from "@/lib/harga";
 import { MEREK } from "@/lib/merek";
 import { requireUser } from "@/lib/session";
 import { sudahPernahBayar } from "@/lib/jaminan";
@@ -18,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: `${t("Pembayaran", "Payment")} · ${MEREK}` };
 }
 
-/** Checkout paket: ringkasan + pilihan kanal pembayaran (Midtrans Core API, di halaman kita sendiri). */
+/** Checkout paket: ringkasan + pilihan kanal pembayaran (Midtrans / iPaymu menurut mode admin, di halaman kita sendiri). */
 export default async function HalamanBayar(props: PageProps<"/[lang]/langganan/bayar/[paket]">) {
   const { t } = await teksHalaman();
   return (
@@ -48,9 +49,9 @@ export default async function HalamanBayar(props: PageProps<"/[lang]/langganan/b
 async function Isi({ params }: { params: Promise<{ paket: string }> }) {
   const [user, { b, t }] = await Promise.all([requireUser(), teksHalaman()]);
   const id = Number((await params).paket);
-  const [p, k, kurs] = await Promise.all([
+  const [p, penyedia, kurs] = await Promise.all([
     Number.isInteger(id) && id > 0 ? paketById(id) : undefined,
-    konfigMidtrans(),
+    penyediaKanal(),
     b === "en" ? kursUsd() : Promise.resolve(undefined),
   ]);
   if (!p || !p.aktif || p.harga < 1) {
@@ -64,7 +65,9 @@ async function Isi({ params }: { params: Promise<{ paket: string }> }) {
       </section>
     );
   }
-  const [hak, lama, kanal, pernahBayar] = await Promise.all([hakAkun(user), tagihanMenunggu(user.id, p.id), k ? kanalAktif() : Promise.resolve([]), sudahPernahBayar(user.id)]);
+  const kanal = Object.keys(penyedia) as KanalBayar[];
+  const k = kanal.length > 0;
+  const [hak, lama, pernahBayar] = await Promise.all([hakAkun(user), tagihanMenunggu(user.id, p.id), sudahPernahBayar(user.id)]);
   const perpanjang = hak.paket === p.nama;
   return (
     <div className="grid items-start gap-5 lg:grid-cols-[1fr_20rem]">
@@ -131,7 +134,7 @@ async function Isi({ params }: { params: Promise<{ paket: string }> }) {
           </Link>
         )}
         {k ? (
-          <PilihMetode paketId={p.id} harga={p.harga} kanal={kanal} kurs={kurs} jaminan={!pernahBayar && user.peran !== "admin"} />
+          <PilihMetode paketId={p.id} harga={p.harga} kanal={kanal} kurs={kurs} jaminan={!pernahBayar && user.peran !== "admin"} penyedia={penyedia} />
         ) : (
           <p className="text-[13.5px] text-warning">{t("Pembayaran online belum diaktifkan admin.", "Online payment has not been enabled by the admin yet.")}</p>
         )}

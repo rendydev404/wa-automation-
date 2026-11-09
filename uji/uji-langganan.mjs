@@ -182,7 +182,10 @@ await cek("free trial: kuota percobaan dihitung sejak akun dibuat (tidak terisi 
 
 console.log("== Midtrans ==");
 const SK = "Mid-server-UJIabcdefghijklmnop";
-const k = { serverKey: SK, produksi: true };
+// Lapisan payment gateway (src/lib/gateway.ts): adapter Midtrans dari .env, perilaku sama dengan midtrans.ts.
+process.env.MIDTRANS_SERVER_KEY = SK;
+const G = await lib("src/lib/gateway.ts");
+const g = await G.adapter("midtrans");
 
 await cek("tanda tangan notifikasi: SHA-512(order+status+gross+serverKey) sah; diubah sedikit / kunci lain = ditolak", async () => {
   const n = { order_id: "WA-1-1-ab", status_code: "200", gross_amount: "99000.00" };
@@ -275,7 +278,7 @@ const tunggu = async (fn, ms = 2000) => {
 let orderId;
 await cek("bayar QRIS: charge Core API dengan Basic auth server key, nominal & batas waktu; isi QR & batas bayar tersimpan, tagihan 'menunggu'", async () => {
   const t0 = performance.now();
-  const h = await L.mulaiBayar(k, pembeli, starter, "qris", "https://wa.uji");
+  const h = await L.mulaiBayar(g, pembeli, starter, "qris", "https://wa.uji");
   console.log(`      (mulaiBayar QRIS dengan Midtrans tiruan: ${(performance.now() - t0).toFixed(1)} ms)`);
   assert.equal(h.baru, true);
   orderId = h.orderId;
@@ -301,14 +304,14 @@ await cek("bayar QRIS: charge Core API dengan Basic auth server key, nominal & b
 
 await cek("idempoten: klik ulang / 3 permintaan serentak paket+kanal sama = tagihan yang sama, tanpa charge baru", async () => {
   const n = charge().length;
-  const h = await L.mulaiBayar(k, pembeli, starter, "qris", "https://wa.uji");
+  const h = await L.mulaiBayar(g, pembeli, starter, "qris", "https://wa.uji");
   assert.deepEqual(h, { orderId, baru: false });
-  const serentak = await Promise.all([1, 2, 3].map(() => L.mulaiBayar(k, pembeli, starter, "qris", "https://wa.uji")));
+  const serentak = await Promise.all([1, 2, 3].map(() => L.mulaiBayar(g, pembeli, starter, "qris", "https://wa.uji")));
   assert.deepEqual(new Set(serentak.map((x) => x.orderId)), new Set([orderId]));
   assert.equal(charge().length, n);
   // Sisa waktu < 2 menit: tidak dipakai ulang (pelanggan tidak sempat membayar) -> tagihan baru.
   await sql`UPDATE transaksi SET kedaluwarsa = ${sekarang() + 60} WHERE order_id = ${orderId}`;
-  const baru = await L.mulaiBayar(k, pembeli, starter, "qris", "https://wa.uji");
+  const baru = await L.mulaiBayar(g, pembeli, starter, "qris", "https://wa.uji");
   assert.equal(baru.baru, true);
   assert.notEqual(baru.orderId, orderId);
   // ... dan tagihan lama dibatalkan di Midtrans (di latar) supaya tidak terbayar dua kali.
@@ -321,7 +324,7 @@ await cek("klik ganda serentak dengan charge lambat: dua permintaan mengantre di
   const n = charge().length;
   tiruan.jeda = 150;
   try {
-    const [a, b] = await Promise.all([L.mulaiBayar(k, pembeli, bisnis, "bca", "https://wa.uji"), L.mulaiBayar(k, pembeli, bisnis, "bca", "https://wa.uji")]);
+    const [a, b] = await Promise.all([L.mulaiBayar(g, pembeli, bisnis, "bca", "https://wa.uji"), L.mulaiBayar(g, pembeli, bisnis, "bca", "https://wa.uji")]);
     assert.equal(a.orderId, b.orderId);
     assert.deepEqual([a.baru, b.baru].sort(), [false, true]);
   } finally {
@@ -348,7 +351,7 @@ await cek("data instruksi per kanal: BNI/BRI/BSI/CIMB va_numbers, Permata, Mandi
     ["shopeepay", { payment_type: "shopeepay" }, (b) => assert.match(b.deeplink, /deeplink-redirect$/)],
   ];
   for (const [kanal, harap, periksa] of kasus) {
-    const h = await L.mulaiBayar(k, pembeli, bisnis, kanal, "https://wa.uji");
+    const h = await L.mulaiBayar(g, pembeli, bisnis, kanal, "https://wa.uji");
     const c = charge().at(-1).body;
     for (const [kunci, nilai] of Object.entries(harap)) assert.deepEqual(c[kunci], nilai, `${kanal}.${kunci}`);
     if (kanal === "mandiri") assert.ok(c.echannel.bill_info1 && c.echannel.bill_info2);
@@ -366,16 +369,16 @@ await cek("charge ditolak (kanal belum aktif = 402, QRIS tanpa merchant = 404, d
   const sebelum = (await sql`SELECT COUNT(*)::int AS n FROM transaksi`)[0].n;
   tiruan.tolak = "402";
   try {
-    await assert.rejects(L.mulaiBayar(k, pembeli, starter, "shopeepay", "https://wa.uji"), (e) => e instanceof M.MidtransError && e.kode === "402");
+    await assert.rejects(L.mulaiBayar(g, pembeli, starter, "shopeepay", "https://wa.uji"), (e) => e instanceof M.MidtransError && e.kode === "402" && e.kanalMati);
     tiruan.tolak = "404";
-    await assert.rejects(L.mulaiBayar(k, pembeli, starter, "qris", "https://wa.uji"), (e) => e instanceof M.MidtransError && e.kode === "404");
+    await assert.rejects(L.mulaiBayar(g, pembeli, starter, "qris", "https://wa.uji"), (e) => e instanceof M.MidtransError && e.kode === "404");
     tiruan.tolak = "406";
-    await assert.rejects(L.mulaiBayar(k, pembeli, starter, "bri", "https://wa.uji"), (e) => e.kode === "406");
+    await assert.rejects(L.mulaiBayar(g, pembeli, starter, "bri", "https://wa.uji"), (e) => e.kode === "406" && !e.kanalMati);
   } finally {
     tiruan.tolak = null;
   }
   assert.equal((await sql`SELECT COUNT(*)::int AS n FROM transaksi`)[0].n, sebelum);
-  const aktif = await M.kanalAktif();
+  const aktif = await G.kanalAktif("midtrans");
   assert.deepEqual([aktif.includes("shopeepay"), aktif.includes("qris")], [false, false]); // pembeli lain tidak ikut gagal
   assert.equal(aktif.includes("bri"), true, "406 = order ganda, bukan soal kanal");
   // Tersimpan di database (tahan restart), lengkap dengan alasannya untuk panel admin.
@@ -384,15 +387,15 @@ await cek("charge ditolak (kanal belum aktif = 402, QRIS tanpa merchant = 404, d
   assert.equal(mati.qris.oleh, "otomatis");
   assert.match(mati.qris.alasan, /kode 404: Merchant pop id is not found/);
   // Admin menampilkan lagi, atau menyembunyikan sendiri.
-  await M.setKanalMati("qris", null);
-  await M.setKanalMati("shopeepay", null);
-  await M.setKanalMati("permata", { oleh: "admin", waktu: sekarang() });
-  assert.equal((await M.kanalAktif()).includes("permata"), false);
-  await M.setKanalMati("permata", null);
+  await G.setKanalMati("midtrans", "qris", null);
+  await G.setKanalMati("midtrans", "shopeepay", null);
+  await G.setKanalMati("midtrans", "permata", { oleh: "admin", waktu: sekarang() });
+  assert.equal((await G.kanalAktif("midtrans")).includes("permata"), false);
+  await G.setKanalMati("midtrans", "permata", null);
   process.env.MIDTRANS_KANAL = "qris, bca ,gopay";
-  assert.deepEqual(await M.kanalAktif(), ["qris", "gopay", "bca"]); // urut seperti KANAL_BAYAR
+  assert.deepEqual(await G.kanalAktif("midtrans"), ["qris", "gopay", "bca"]); // urut seperti KANAL_BAYAR
   delete process.env.MIDTRANS_KANAL;
-  assert.equal((await M.kanalAktif()).length, Object.keys(H0.KANAL_BAYAR).length);
+  assert.equal((await G.kanalAktif("midtrans")).length, Object.keys(H0.KANAL_BAYAR).length - 1, "semua kecuali DANA (hanya lewat iPaymu)");
   assert.deepEqual([H0.kanalSah("bca"), H0.kanalSah("kartu"), H0.kanalSah("toString")], [true, false, false]);
   assert.equal(H0.ringkasKanal(["gopay", "bni", "bri", "mandiri", "permata"]), "GoPay atau virtual account (BNI, BRI, Mandiri, Permata)");
   assert.equal(H0.ringkasKanal(["qris", "gopay", "bca"]), "QRIS, GoPay, atau virtual account (BCA)");
@@ -400,13 +403,13 @@ await cek("charge ditolak (kanal belum aktif = 402, QRIS tanpa merchant = 404, d
 });
 
 await cek("status dari API Midtrans: pending tetap menunggu; settlement = lunas & paket aktif TEPAT SEKALI walau notifikasi berulang", async () => {
-  const h = await L.mulaiBayar(k, pembeli, starter, "qris", "https://wa.uji");
+  const h = await L.mulaiBayar(g, pembeli, starter, "qris", "https://wa.uji");
   orderId = h.orderId;
-  assert.deepEqual(await L.terapkanStatus(k, orderId), { status: "menunggu", baruAktif: false });
+  assert.deepEqual(await L.terapkanStatus(orderId), { status: "menunggu", baruAktif: false });
   assert.equal(await L.langgananAktif(budi.id), undefined);
   dunia.get(orderId).status = "settlement";
-  assert.deepEqual(await L.terapkanStatus(k, orderId), { status: "lunas", baruAktif: true });
-  assert.deepEqual(await L.terapkanStatus(k, orderId), { status: "lunas", baruAktif: false }); // notifikasi ulang
+  assert.deepEqual(await L.terapkanStatus(orderId), { status: "lunas", baruAktif: true });
+  assert.deepEqual(await L.terapkanStatus(orderId), { status: "lunas", baruAktif: false }); // notifikasi ulang
   const a = await L.langgananAktif(budi.id);
   assert.equal(a.nama_paket, "Starter");
   assert.equal(a.sampai - a.mulai, 30 * 86400); // tidak diperpanjang dua kali
@@ -414,62 +417,71 @@ await cek("status dari API Midtrans: pending tetap menunggu; settlement = lunas 
   assert.deepEqual({ ...t }, { status: "lunas", metode: "qris", dibayar: true, langganan_id: a.id });
   assert.equal((await sql`SELECT COUNT(*)::int AS n FROM langganan WHERE user_id = ${budi.id} AND sampai > ${sekarang()}`)[0].n, 1);
   // Tagihan lunas tidak dipakai ulang: beli lagi = tagihan baru.
-  assert.equal((await L.mulaiBayar(k, pembeli, starter, "qris", "https://wa.uji")).baru, true);
+  assert.equal((await L.mulaiBayar(g, pembeli, starter, "qris", "https://wa.uji")).baru, true);
 });
 
 await cek("polling status: dari DB tanpa memanggil Midtrans; cadangan webhook paling sering tiap 20 dtk, segera sekali setelah batas lewat; milik orang lain = null", async () => {
-  const h = await L.mulaiBayar(k, pembeli, bisnis, "qris", "https://wa.uji");
+  const h = await L.mulaiBayar(g, pembeli, bisnis, "qris", "https://wa.uji");
   const statusKe = () => panggilan.filter((p) => p.url.endsWith(`/v2/${h.orderId}/status`)).length;
   const t0 = performance.now();
-  for (let i = 0; i < 20; i++) assert.equal(await L.statusTagihan(k, budi.id, h.orderId), "menunggu");
+  for (let i = 0; i < 20; i++) assert.equal(await L.statusTagihan(budi.id, h.orderId), "menunggu");
   console.log(`      (statusTagihan dari DB: ${((performance.now() - t0) / 20).toFixed(2)} ms per polling)`);
   assert.equal(statusKe(), 0, "tagihan baru: Midtrans belum ditanya");
-  assert.equal(await L.statusTagihan(k, lain.id, h.orderId), null);
+  assert.equal(await L.statusTagihan(lain.id, h.orderId), null);
   // Webhook tidak sampai: setelah jeda, Midtrans ditanya sekali dan hasilnya diterapkan.
   dunia.get(h.orderId).status = "settlement";
   globalThis.__waCekBayar.set(h.orderId, Date.now() - L.JEDA_CEK_MIDTRANS - 1);
-  assert.equal(await L.statusTagihan(k, budi.id, h.orderId), "lunas");
-  assert.equal(await L.statusTagihan(k, budi.id, h.orderId), "lunas");
+  assert.equal(await L.statusTagihan(budi.id, h.orderId), "lunas");
+  assert.equal(await L.statusTagihan(budi.id, h.orderId), "lunas");
   assert.equal(statusKe(), 1);
   // Batas bayar lewat: langsung dipastikan sekali (tanpa menunggu jeda), lalu kembali dijatah.
-  const x = await L.mulaiBayar(k, pembeli, starter, "bca", "https://wa.uji");
+  const x = await L.mulaiBayar(g, pembeli, starter, "bca", "https://wa.uji");
   await sql`UPDATE transaksi SET kedaluwarsa = ${sekarang() - 1} WHERE order_id = ${x.orderId}`;
   globalThis.__waCekBayar.set(x.orderId, Date.now() - 5_000); // dibuat 5 dtk lalu, sebelum batasnya lewat
   dunia.get(x.orderId).status = "expire";
-  assert.equal(await L.statusTagihan(k, budi.id, x.orderId), "kedaluwarsa");
-  // Tanpa konfigurasi Midtrans: status DB saja.
-  assert.equal(await L.statusTagihan(null, budi.id, x.orderId), "kedaluwarsa");
+  assert.equal(await L.statusTagihan(budi.id, x.orderId), "kedaluwarsa");
+  // Provider asal tidak terpasang lagi (kunci dicabut): status DB saja, tanpa memanggil Midtrans.
+  const y = await L.mulaiBayar(g, pembeli, bisnis, "bni", "https://wa.uji");
+  globalThis.__waCekBayar.set(y.orderId, 0);
+  const n = panggilan.length;
+  delete process.env.MIDTRANS_SERVER_KEY;
+  try {
+    assert.equal(await L.statusTagihan(budi.id, y.orderId), "menunggu");
+  } finally {
+    process.env.MIDTRANS_SERVER_KEY = SK;
+  }
+  assert.equal(panggilan.length, n);
 });
 
 await cek("batalkan tagihan: milik sendiri -> 'dibatalkan' di Midtrans & DB; sudah dibayar (Midtrans menolak batal) -> status sebenarnya; orang lain = null", async () => {
-  const a = await L.mulaiBayar(k, pembeli, starter, "bni", "https://wa.uji");
-  assert.equal(await L.batalkanBayar(k, lain.id, a.orderId), null);
-  assert.equal(await L.batalkanBayar(k, budi.id, a.orderId), "dibatalkan");
+  const a = await L.mulaiBayar(g, pembeli, starter, "bni", "https://wa.uji");
+  assert.equal(await L.batalkanBayar(lain.id, a.orderId), null);
+  assert.equal(await L.batalkanBayar(budi.id, a.orderId), "dibatalkan");
   assert.equal((await L.transaksiMilik(budi.id, a.orderId)).status, "dibatalkan");
-  assert.equal(await L.batalkanBayar(k, budi.id, a.orderId), "dibatalkan"); // dua kali: tidak memanggil Midtrans lagi
+  assert.equal(await L.batalkanBayar(budi.id, a.orderId), "dibatalkan"); // dua kali: tidak memanggil Midtrans lagi
   assert.equal(panggilan.filter((p) => p.url.endsWith(`/v2/${a.orderId}/cancel`)).length, 1);
-  const b = await L.mulaiBayar(k, pembeli, starter, "bri", "https://wa.uji");
+  const b = await L.mulaiBayar(g, pembeli, starter, "bri", "https://wa.uji");
   dunia.get(b.orderId).status = "settlement";
   tiruan.tolakBatal = true;
   try {
-    assert.equal(await L.batalkanBayar(k, budi.id, b.orderId), "lunas");
+    assert.equal(await L.batalkanBayar(budi.id, b.orderId), "lunas");
   } finally {
     tiruan.tolakBatal = false;
   }
 });
 
 await cek("nominal dari Midtrans berbeda dengan tagihan = TIDAK diaktifkan; order tak dikenal = null", async () => {
-  const { orderId: o2 } = await L.mulaiBayar(k, pembeli, bisnis, "permata", "https://wa.uji");
+  const { orderId: o2 } = await L.mulaiBayar(g, pembeli, bisnis, "permata", "https://wa.uji");
   Object.assign(dunia.get(o2), { status: "settlement", gross: 1000 });
   const sebelum = (await L.langgananAktif(budi.id)).id;
-  const h = await L.terapkanStatus(k, o2);
+  const h = await L.terapkanStatus(o2);
   assert.equal(h.baruAktif, false);
   assert.equal((await sql`SELECT status FROM transaksi WHERE order_id = ${o2}`)[0].status, "menunggu");
   assert.equal((await L.langgananAktif(budi.id)).id, sebelum);
   Object.assign(dunia.get(o2), { status: "expire", gross: null });
-  assert.equal((await L.terapkanStatus(k, o2)).status, "kedaluwarsa");
+  assert.equal((await L.terapkanStatus(o2)).status, "kedaluwarsa");
   dunia.set("WA-999-1-abcdef", { status: "settlement", gross: 5000, payment_type: "qris" }); // dikenal Midtrans, tidak ada di DB kita
-  assert.equal(await L.terapkanStatus(k, "WA-999-1-abcdef"), null);
+  assert.equal(await L.terapkanStatus("WA-999-1-abcdef"), null);
 });
 
 await cek("lunas lewat webhook mengirim Purchase ke Meta sekali, lengkap dengan data pembeli dari checkout", async () => {
@@ -477,11 +489,11 @@ await cek("lunas lewat webhook mengirim Purchase ke Meta sekali, lengkap dengan 
   await setSetting("meta_pixel_id", "889900112233445");
   await setSetting("meta_pixel_capi_token", "EAABuji");
   const konteks = { fbp: "fb.1.1.123", fbc: "fb.1.1.klik", ip: "203.0.113.10", userAgent: "Mozilla/5.0 Uji", urlSumber: "https://wa.uji/langganan/bayar/1" };
-  const { orderId: o } = await L.mulaiBayar(k, pembeli, starter, "qris", "https://wa.uji", konteks);
+  const { orderId: o } = await L.mulaiBayar(g, pembeli, starter, "qris", "https://wa.uji", konteks);
   dunia.get(o).status = "settlement";
   const keMeta = () => panggilan.filter((p) => p.url.startsWith("https://graph.facebook.com/") && p.body.data[0].event_id === o);
-  await L.terapkanStatus(k, o);
-  await L.terapkanStatus(k, o); // notifikasi ulang tidak mengirim dua kali
+  await L.terapkanStatus(o);
+  await L.terapkanStatus(o); // notifikasi ulang tidak mengirim dua kali
   for (let i = 0; i < 100 && keMeta().length === 0; i++) await new Promise((r) => setTimeout(r, 10));
   assert.equal(keMeta().length, 1);
   const ev = keMeta()[0].body.data[0];
@@ -741,7 +753,7 @@ await cek("paket Custom dibayar/diberikan seperti paket biasa: kuota dari isi pa
     return new Response(JSON.stringify({ status_code: "201", transaction_status: "pending", va_numbers: [{ bank: "bca", va_number: "12345000999" }], expiry_time: "2026-11-04 10:00:00" }));
   };
   try {
-    await L.mulaiBayar(k, { id: lain.id, email: "lain@uji.test", nama: "Lain" }, await L.paketById(id), "bca", "https://wa.uji");
+    await L.mulaiBayar(g, { id: lain.id, email: "lain@uji.test", nama: "Lain" }, await L.paketById(id), "bca", "https://wa.uji");
   } finally {
     globalThis.fetch = fetchAsli;
   }
@@ -914,7 +926,7 @@ await cek("knowledge otomatis ChatGerCep (khusus admin): paket, harga, komisi, m
   const n = await tambahNomor("CS ChatGerCep", budi.id);
   const st = (await L.daftarPaket()).find((p) => p.kode === "starter");
   try {
-    await M.setKanalMati("qris", { oleh: "otomatis", waktu: sekarang(), alasan: "kode 404" });
+    await G.setKanalMati("midtrans", "qris", { oleh: "otomatis", waktu: sekarang(), alasan: "kode 404" });
     await CG.setNomorSinkronCg(n.id, true);
     const dok = await K.daftarDokumen(n.id, true);
     assert.deepEqual(dok.map((d) => d.nama_berkas), ["sinkron:chatgercep"]);
@@ -961,7 +973,7 @@ await cek("knowledge otomatis ChatGerCep (khusus admin): paket, harga, komisi, m
     assert.equal((await K.daftarDokumen(n.id, true)).length, 0);
   } finally {
     await L.simpanPaket(st);
-    await M.setKanalMati("qris", null);
+    await G.setKanalMati("midtrans", "qris", null);
     if (kunciLama === undefined) delete process.env.MIDTRANS_SERVER_KEY;
     else process.env.MIDTRANS_SERVER_KEY = kunciLama;
   }

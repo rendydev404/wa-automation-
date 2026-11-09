@@ -101,6 +101,8 @@ export const KANAL_BAYAR = {
     label_en: "GoPay", info_en: "Open the Gojek / GoPay app", grup_en: "E-wallet" },
   shopeepay: { label: "ShopeePay", info: "Buka aplikasi Shopee di HP ini", metode: "ewallet", grup: "E-wallet", menit: 15,
     label_en: "ShopeePay", info_en: "Open the Shopee app on this phone", grup_en: "E-wallet" },
+  dana: { label: "DANA", info: "Buka aplikasi DANA", metode: "ewallet", grup: "E-wallet", menit: 15,
+    label_en: "DANA", info_en: "Open the DANA app", grup_en: "E-wallet" },
   bca: { label: "BCA Virtual Account", info: "BCA mobile, KlikBCA, atau ATM BCA", metode: "va", grup: "Virtual account", menit: 1440,
     label_en: "BCA Virtual Account", info_en: "BCA mobile, KlikBCA, or a BCA ATM", grup_en: "Virtual account" },
   bni: { label: "BNI Virtual Account", info: "BNI Mobile Banking atau ATM", metode: "va", grup: "Virtual account", menit: 1440,
@@ -119,8 +121,12 @@ export const KANAL_BAYAR = {
 export type KanalBayar = keyof typeof KANAL_BAYAR;
 export const kanalSah = (x: unknown): x is KanalBayar => typeof x === "string" && Object.hasOwn(KANAL_BAYAR, x);
 
-/** Nama kanal untuk pelanggan sesuai bahasa tampilan. */
-export const labelKanal = (k: KanalBayar, b: Bahasa = "id"): string => (b === "en" ? KANAL_BAYAR[k].label_en : KANAL_BAYAR[k].label);
+/**
+ * Nama kanal untuk pelanggan sesuai bahasa tampilan. `gateway` = provider tagihan: di luar Midtrans, Mandiri berupa
+ * virtual account biasa (bukan Bill Payment).
+ */
+export const labelKanal = (k: KanalBayar, b: Bahasa = "id", gateway?: string | null): string =>
+  k === "mandiri" && gateway && gateway !== "midtrans" ? "Mandiri Virtual Account" : b === "en" ? KANAL_BAYAR[k].label_en : KANAL_BAYAR[k].label;
 /** Keterangan singkat kanal (aplikasi yang dipakai) sesuai bahasa. */
 export const infoKanal = (k: KanalBayar, b: Bahasa = "id"): string => (b === "en" ? KANAL_BAYAR[k].info_en : KANAL_BAYAR[k].info);
 /** Golongan kanal (QRIS, E-wallet, Virtual account) sesuai bahasa. */

@@ -10,6 +10,7 @@ import { requireAdmin } from "@/lib/session";
 import { tingkatPaket } from "@/lib/tingkat-paket";
 import { detailTransaksi } from "@/lib/transaksi-admin";
 import { STATUS_TRX, labelMetode, rp } from "../bagian-transaksi";
+import { labelGateway } from "@/lib/gateway-def";
 import { BarisRefund } from "../pengembalian";
 import { pengembalianTransaksi } from "@/lib/jaminan";
 
@@ -102,7 +103,8 @@ async function Isi({ params }: { params: Promise<{ order: string }> }) {
               </Baris>
               <Baris label="Jumlah dibayar">{rp(t.jumlah)}</Baris>
               <Baris label="Metode pembayaran">{labelMetode(t)}</Baris>
-              {t.metode && t.kanal && <Baris label="Metode menurut Midtrans">{t.metode.replace(/_/g, " ")}</Baris>}
+              {t.kanal && <Baris label="Payment gateway">{labelGateway(t.gateway)}</Baris>}
+              {t.metode && t.kanal && <Baris label={`Metode menurut ${labelGateway(t.gateway)}`}>{t.metode.replace(/_/g, " ")}</Baris>}
               {t.bayar?.va && <Baris label="Nomor virtual account">{t.bayar.va}</Baris>}
               <Baris label="Dibuat">{waktuLengkap(t.dibuat)}</Baris>
               <Baris label="Dibayar">{t.dibayar ? waktuLengkap(t.dibayar) : "—"}</Baris>

@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
-import { getSetting, setSetting } from "./db";
+import { GatewayError, type StatusBayar } from "./gateway-def";
 import { KANAL_BAYAR, type KanalBayar } from "./harga";
 
 /**
@@ -8,7 +8,7 @@ import { KANAL_BAYAR, type KanalBayar } from "./harga";
  * Kunci dipasang developer di .env server, tidak lewat dashboard: MIDTRANS_SERVER_KEY, MIDTRANS_SIGNATURE_KEY
  * (opsional, kunci tambahan untuk verifikasi notifikasi), MIDTRANS_MODE (bawaan production; "sandbox" hanya untuk
  * mencoba), MIDTRANS_KANAL (opsional: kanal yang aktif di akun Midtrans, dipisah koma; kosong = semua KANAL_BAYAR;
- * kanal yang ditolak Midtrans tersembunyi sendiri, lihat kanalMati).
+ * kanal yang ditolak Midtrans tersembunyi sendiri, lihat kanalMati di src/lib/gateway.ts).
  * Alur:
  *   1. buatCharge(): POST /v2/charge -> nomor VA / isi QRIS / deeplink e-wallet + batas waktu, disimpan di transaksi.
  *   2. Midtrans memanggil webhook /api/midtrans/notifikasi. Tanda tangan diperiksa (SHA-512), lalu status
@@ -38,53 +38,51 @@ const alamatApi = (k: KonfigMidtrans) => (k.produksi ? "https://api.midtrans.com
 const otorisasi = (k: KonfigMidtrans) => `Basic ${Buffer.from(`${k.serverKey}:`).toString("base64")}`;
 
 /** `kode` = status_code dari Midtrans (mis. "402" kanal belum aktif), bila ada. */
-export class MidtransError extends Error {
-  readonly kode?: string;
+export class MidtransError extends GatewayError {
   constructor(pesan: string, kode?: string) {
-    super(pesan);
-    this.kode = kode;
+    super(pesan, kode, kanalBelumAktif(kode));
   }
 }
 
-/**
- * Kanal yang disembunyikan dari pembeli (settings `kanal_mati`): ditolak Midtrans karena belum aktif di akun (`otomatis`,
- * lihat kanalBelumAktif), atau disembunyikan admin di /admin/transaksi. Tetap tersembunyi sampai admin menampilkannya
- * lagi, jadi pembeli lain (juga setelah restart) tidak ikut memilih kanal yang pasti gagal.
- */
-export interface KanalMati {
-  oleh: "otomatis" | "admin";
-  waktu: number;
-  alasan?: string;
-}
-const KUNCI_KANAL_MATI = "kanal_mati";
+/** Kanal yang tidak dilayani Midtrans Core API (hanya lewat provider lain, mis. DANA lewat iPaymu). */
+export const KANAL_BUKAN_MIDTRANS: readonly KanalBayar[] = ["dana"];
 
-export async function kanalMati(): Promise<Partial<Record<KanalBayar, KanalMati>>> {
-  try {
-    const v = JSON.parse((await getSetting(KUNCI_KANAL_MATI)) ?? "{}");
-    return v && typeof v === "object" && !Array.isArray(v) ? v : {};
-  } catch {
-    return {};
-  }
-}
-
-/** null = tampilkan lagi. */
-export async function setKanalMati(kanal: KanalBayar, mati: KanalMati | null): Promise<void> {
-  const m = await kanalMati();
-  if (mati) m[kanal] = mati;
-  else delete m[kanal];
-  await setSetting(KUNCI_KANAL_MATI, JSON.stringify(m));
-}
-
-/** Kanal yang dipasang developer (MIDTRANS_KANAL; kosong = semua KANAL_BAYAR), urut seperti KANAL_BAYAR. */
+/** Kanal yang dipasang developer (MIDTRANS_KANAL; kosong = semua kanal Midtrans), urut seperti KANAL_BAYAR. */
 export function kanalTerpasang(): KanalBayar[] {
   const env = process.env.MIDTRANS_KANAL?.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
-  return (Object.keys(KANAL_BAYAR) as KanalBayar[]).filter((x) => !env?.length || env.includes(x));
+  return (Object.keys(KANAL_BAYAR) as KanalBayar[]).filter((x) => !KANAL_BUKAN_MIDTRANS.includes(x) && (!env?.length || env.includes(x)));
 }
 
-/** Kanal yang ditawarkan ke pelanggan, urut seperti KANAL_BAYAR. */
-export async function kanalAktif(): Promise<KanalBayar[]> {
-  const mati = await kanalMati();
-  return kanalTerpasang().filter((x) => !mati[x]);
+/** Nama kanal di Preference API Midtrans (payment_channels[].name) per kanal kita; beberapa nama = salah satu cukup. */
+export const NAMA_PREFERENSI: Partial<Record<KanalBayar, string[]>> = {
+  qris: ["other_qris", "qris"],
+  gopay: ["gopay"],
+  shopeepay: ["shopeepay"],
+  bca: ["bca_va"],
+  bni: ["bni_va"],
+  bri: ["bri_va"],
+  bsi: ["bsi_va"],
+  cimb: ["cimb_va"],
+  mandiri: ["echannel", "mandiri_bill"],
+  permata: ["permata_va"],
+};
+
+/**
+ * Metode bayar menurut pengaturan dashboard Midtrans (Preference API: GET {app}/snap/v3/merchant-preferences,
+ * payment_channels[].enabled), nama -> aktif. Disimpan sementara oleh pemanggil (src/lib/gateway.ts).
+ */
+export async function bacaPreferensiMidtrans(k: KonfigMidtrans): Promise<Map<string, boolean>> {
+  const alamat = k.produksi ? "https://app.midtrans.com" : "https://app.sandbox.midtrans.com";
+  // Dipakai bersama banyak permintaan: fetch asli, tidak terikat ke satu render Next.
+  const f = (globalThis.fetch as typeof fetch & { _nextOriginalFetch?: typeof fetch })._nextOriginalFetch || fetch;
+  const res = await f(`${alamat}/snap/v3/merchant-preferences`, {
+    headers: { Authorization: otorisasi(k), Accept: "application/json", "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(8_000),
+    cache: "no-store",
+  });
+  const d = (await res.json().catch(() => null)) as { payment_channels?: { name?: string; enabled?: boolean }[] } | null;
+  if (!res.ok || !Array.isArray(d?.payment_channels)) throw new MidtransError(`Preferensi Midtrans tidak terbaca (HTTP ${res.status})`);
+  return new Map(d.payment_channels.filter((c) => typeof c.name === "string").map((c) => [c.name!.toLowerCase(), c.enabled === true]));
 }
 
 /**
@@ -215,8 +213,7 @@ export async function buatCharge(
   const kode = d?.status_code ?? String(res.status);
   if (!res.ok || !d || (kode !== "201" && kode !== "200")) {
     const rinci = [d?.status_message, ...(d?.validation_messages ?? [])].filter(Boolean).join("; ");
-    if (kanalBelumAktif(kode))
-      await setKanalMati(t.kanal, { oleh: "otomatis", waktu: Math.floor(Date.now() / 1000), alasan: `kode ${kode}${rinci ? `: ${rinci}` : ""}`.slice(0, 200) }).catch(() => {});
+    // kanalBelumAktif(kode) -> MidtransError.kanalMati: adapter di src/lib/gateway.ts menyembunyikan kanalnya.
     throw new MidtransError(`Midtrans menolak tagihan (kode ${kode})${rinci ? `: ${rinci}` : ""}`, kode);
   }
   const bayar = instruksiDari(t.kanal, d);
@@ -300,7 +297,7 @@ export function tandaTanganSah(n: Partial<StatusMidtrans>, kunci: string | strin
   });
 }
 
-export type StatusBayar = "menunggu" | "lunas" | "gagal" | "kedaluwarsa" | "dibatalkan" | "dikembalikan";
+export type { StatusBayar };
 
 /** Status Midtrans -> status transaksi kita. "capture" kartu hanya lunas bila fraud_status accept. */
 export function petaStatus(s: Pick<StatusMidtrans, "transaction_status" | "fraud_status">): StatusBayar {

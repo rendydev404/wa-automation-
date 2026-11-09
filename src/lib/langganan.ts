@@ -4,7 +4,9 @@ import { type Tx, db, getSetting, sekarang, transaksi as transaksiDb } from "./d
 import { MODEL_BAWAAN, type Penyedia, kunciAnthropic, kursUsd, pengaturanAi, perkiraanPerBalasan } from "./ai";
 import { type KanalBayar, METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hargaMinimal, hitungHarga, kuotaDariHarga, nomorDariKuota, sisaBersih } from "./harga";
 import { hermesTerkonfigurasi } from "./hermes";
-import { type InstruksiBayar, type KonfigMidtrans, MidtransError, type StatusBayar, type StatusMidtrans, batalkanCharge, buatCharge, petaStatus, statusMidtrans, waktuMidtrans } from "./midtrans";
+import { type AdapterGateway, type StatusGateway, adapter } from "./gateway";
+import { type Gateway, GatewayError, type StatusBayar, labelGateway } from "./gateway-def";
+import type { InstruksiBayar } from "./midtrans";
 import { KODE_CUSTOM } from "./paket-custom-def";
 import { namaBankTampil } from "./afiliasi-def";
 import { type JenisKomisi, prosesKomisiTransaksi } from "./afiliasi";
@@ -483,10 +485,10 @@ export async function riwayatTransaksi(opsi: { userId?: number; batas?: number }
 }
 
 /** Satu transaksi milik pengguna ini beserta data instruksi bayarnya (undefined bila tidak ada atau milik orang lain). */
-export async function transaksiMilik(userId: number, orderId: string): Promise<(Transaksi & { bayar: InstruksiBayar | null }) | undefined> {
+export async function transaksiMilik(userId: number, orderId: string): Promise<(Transaksi & { bayar: InstruksiBayar | null; gateway: Gateway }) | undefined> {
   const sql = await db();
-  const [t] = await sql<(Transaksi & { bayar: InstruksiBayar | null })[]>`
-    SELECT ${sql.unsafe(KOLOM_TRX)}, bayar FROM transaksi WHERE order_id = ${orderId} AND user_id = ${userId}`;
+  const [t] = await sql<(Transaksi & { bayar: InstruksiBayar | null; gateway: Gateway })[]>`
+    SELECT ${sql.unsafe(KOLOM_TRX)}, bayar, gateway FROM transaksi WHERE order_id = ${orderId} AND user_id = ${userId}`;
   return t;
 }
 
@@ -524,64 +526,79 @@ function catatCek(orderId: string): void {
  * masih menunggu dibatalkan di latar supaya tidak terbayar dua kali.
  */
 export async function mulaiBayar(
-  k: KonfigMidtrans,
+  g: AdapterGateway,
   user: { id: number; email: string; nama: string },
   paket: Paket,
   kanal: KanalBayar,
   asalApp: string,
   konteksMeta?: KonteksMeta
 ): Promise<{ orderId: string; baru: boolean }> {
-  if (!paket.aktif || paket.harga < 1) throw new MidtransError("Paket ini tidak bisa dibeli."); // harga 0 = hanya diberikan admin
+  if (!paket.aktif || paket.harga < 1) throw new GatewayError("Paket ini tidak bisa dibeli."); // harga 0 = hanya diberikan admin
   let lama: string[] = [];
   const hasil = await transaksiDb(async (tx) => {
     await tx`SELECT pg_advisory_xact_lock(${KUNCI_BAYAR}, ${user.id})`;
     const kini = sekarang();
-    const menunggu = await tx<{ order_id: string; paket_id: number | null; kanal: string; jumlah: number; kedaluwarsa: number | null }[]>`
-      SELECT order_id, paket_id, kanal, jumlah, kedaluwarsa FROM transaksi
+    const menunggu = await tx<{ order_id: string; paket_id: number | null; kanal: string; jumlah: number; kedaluwarsa: number | null; gateway: Gateway }[]>`
+      SELECT order_id, paket_id, kanal, jumlah, kedaluwarsa, gateway FROM transaksi
        WHERE user_id = ${user.id} AND status = 'menunggu' AND kanal IS NOT NULL`;
-    const sama = menunggu.find((t) => t.paket_id === paket.id && t.kanal === kanal && t.jumlah === paket.harga && (t.kedaluwarsa ?? 0) > kini + SISA_PAKAI_ULANG);
+    // Dipakai ulang hanya bila provider-nya sama dengan provider aktif (admin bisa saja baru mengganti provider).
+    const sama = menunggu.find(
+      (t) => t.paket_id === paket.id && t.kanal === kanal && t.jumlah === paket.harga && t.gateway === g.nama && (t.kedaluwarsa ?? 0) > kini + SISA_PAKAI_ULANG
+    );
     if (sama) return { orderId: sama.order_id, baru: false };
     lama = menunggu.map((t) => t.order_id);
     const orderId = `WA-${user.id}-${kini}-${randomBytes(3).toString("hex")}`;
-    const c = await buatCharge(k, {
+    const c = await g.buatCharge({
       orderId,
       jumlah: paket.harga,
       kanal,
       item: { id: paket.kode, nama: `Paket ${paket.nama} (${paket.durasi_hari} hari)` },
       pelanggan: { nama: user.nama || user.email.split("@")[0], email: user.email },
-      kembaliUrl: `${asalApp}/langganan/tagihan/${encodeURIComponent(orderId)}`,
+      asalApp,
     });
     // Baris ditulis setelah charge berhasil: charge yang ditolak tidak meninggalkan tagihan yatim. Notifikasi "pending"
     // yang tiba sebelum commit diabaikan webhook (order belum ada), dan memang tidak mengubah apa pun.
     await tx`
-      INSERT INTO transaksi(order_id, user_id, paket_id, nama_paket, jumlah, status, kanal, bayar, kedaluwarsa, dibuat, meta_konteks)
-      VALUES (${orderId}, ${user.id}, ${paket.id}, ${paket.nama}, ${paket.harga}, 'menunggu', ${kanal}, ${tx.json(c.bayar as Record<string, string | undefined>)}, ${c.kedaluwarsa}, ${kini}, ${konteksMeta ? tx.json(konteksMeta as Record<string, string | undefined>) : null})`;
+      INSERT INTO transaksi(order_id, user_id, paket_id, nama_paket, jumlah, status, kanal, bayar, kedaluwarsa, dibuat, meta_konteks, gateway, gateway_ref)
+      VALUES (${orderId}, ${user.id}, ${paket.id}, ${paket.nama}, ${paket.harga}, 'menunggu', ${kanal}, ${tx.json(c.bayar as Record<string, string | undefined>)}, ${c.kedaluwarsa}, ${kini}, ${konteksMeta ? tx.json(konteksMeta as Record<string, string | undefined>) : null}, ${g.nama}, ${c.ref})`;
     return { orderId, baru: true };
   });
   if (hasil.baru) {
-    catatCek(hasil.orderId); // baru dibuat: pemeriksaan cadangan pertama ke Midtrans setelah JEDA_CEK_MIDTRANS
-    if (lama.length) void Promise.all(lama.map((o) => batalkan(k, o))).catch(() => {});
+    catatCek(hasil.orderId); // baru dibuat: pemeriksaan cadangan pertama ke provider setelah JEDA_CEK_MIDTRANS
+    // Tagihan lama dibatalkan lewat provider ASALNYA masing-masing (bisa berbeda dari provider aktif).
+    if (lama.length) void Promise.all(lama.map((o) => batalkan(o))).catch(() => {});
   }
   return hasil;
 }
 
-/** Batalkan satu tagihan di Midtrans; ditolak (sudah dibayar / kedaluwarsa) = status sebenarnya diambil ulang. */
-async function batalkan(k: KonfigMidtrans, orderId: string): Promise<StatusBayar | null> {
-  if (await batalkanCharge(k, orderId).catch(() => false)) {
+/** Provider asal satu transaksi (lewat indeks unik order_id); undefined = tidak ada. */
+export async function asalTransaksi(orderId: string): Promise<{ gateway: Gateway; gateway_ref: string | null } | undefined> {
+  const sql = await db();
+  const [t] = await sql<{ gateway: Gateway; gateway_ref: string | null }[]>`SELECT gateway, gateway_ref FROM transaksi WHERE order_id = ${orderId}`;
+  return t;
+}
+
+/** Batalkan satu tagihan di provider asalnya; ditolak (sudah dibayar / kedaluwarsa) = status sebenarnya diambil ulang. */
+async function batalkan(orderId: string, asal?: { gateway: Gateway; gateway_ref: string | null }): Promise<StatusBayar | null> {
+  const t = asal ?? (await asalTransaksi(orderId));
+  const g = t && (await adapter(t.gateway));
+  if (!t || !g) return null;
+  if (await g.batalkan(orderId, t.gateway_ref).catch(() => false)) {
     const sql = await db();
     await sql`UPDATE transaksi SET status = 'dibatalkan' WHERE order_id = ${orderId} AND status = 'menunggu'`;
     return "dibatalkan";
   }
-  return (await terapkanStatus(k, orderId).catch(() => null))?.status ?? null;
+  return (await terapkanStatus(orderId, { g, asal: t }).catch(() => null))?.status ?? null;
 }
 
-/** Pelanggan membatalkan tagihannya sendiri yang masih menunggu. null = bukan miliknya. */
-export async function batalkanBayar(k: KonfigMidtrans, userId: number, orderId: string): Promise<StatusBayar | null> {
+/** Pelanggan membatalkan tagihannya sendiri yang masih menunggu. null = bukan miliknya (atau provider-nya tidak terpasang). */
+export async function batalkanBayar(userId: number, orderId: string): Promise<StatusBayar | null> {
   const sql = await db();
-  const [t] = await sql<{ status: StatusBayar }[]>`SELECT status FROM transaksi WHERE order_id = ${orderId} AND user_id = ${userId}`;
+  const [t] = await sql<{ status: StatusBayar; gateway: Gateway; gateway_ref: string | null }[]>`
+    SELECT status, gateway, gateway_ref FROM transaksi WHERE order_id = ${orderId} AND user_id = ${userId}`;
   if (!t) return null;
   if (t.status !== "menunggu") return t.status;
-  return batalkan(k, orderId);
+  return batalkan(orderId, t);
 }
 
 /**
@@ -589,45 +606,55 @@ export async function batalkanBayar(k: KonfigMidtrans, userId: number, orderId: 
  * utama; bila terlambat atau tidak sampai, status ditanyakan ke Midtrans paling sering tiap JEDA_CEK_MIDTRANS per
  * tagihan, dan segera sekali setelah batas bayar lewat. null = bukan milik pengguna ini.
  */
-export async function statusTagihan(k: KonfigMidtrans | null, userId: number, orderId: string): Promise<StatusBayar | null> {
+export async function statusTagihan(userId: number, orderId: string): Promise<StatusBayar | null> {
   const sql = await db();
-  const [t] = await sql<{ status: StatusBayar; kedaluwarsa: number | null }[]>`
-    SELECT status, kedaluwarsa FROM transaksi WHERE order_id = ${orderId} AND user_id = ${userId}`;
+  const [t] = await sql<{ status: StatusBayar; kedaluwarsa: number | null; gateway: Gateway; gateway_ref: string | null }[]>`
+    SELECT status, kedaluwarsa, gateway, gateway_ref FROM transaksi WHERE order_id = ${orderId} AND user_id = ${userId}`;
   if (!t) return null;
-  if (t.status !== "menunggu" || !k) return t.status;
+  if (t.status !== "menunggu") return t.status;
   const lalu = cekTerakhir.get(orderId) ?? 0;
   const lewat = t.kedaluwarsa !== null && t.kedaluwarsa * 1000 <= Date.now() && lalu < t.kedaluwarsa * 1000;
   if (!lewat && Date.now() - lalu < JEDA_CEK_MIDTRANS) return t.status;
+  const g = await adapter(t.gateway);
+  if (!g) return t.status; // provider asal tidak terpasang lagi: status DB saja
   catatCek(orderId);
-  return (await terapkanStatus(k, orderId).catch(() => null))?.status ?? t.status;
+  return (await terapkanStatus(orderId, { g, asal: t }).catch(() => null))?.status ?? t.status;
 }
 
 /**
- * Terapkan status terbaru dari Midtrans ke transaksi (idempoten: aman dipanggil berkali-kali oleh webhook dan
- * halaman "selesai bayar"). Paket diaktifkan TEPAT SEKALI saat status berubah menjadi lunas.
- * Nominal harus sama persis dengan tagihan kita.
+ * Terapkan status terbaru dari provider ASAL transaksi (transaksi.gateway, bukan provider aktif) ke transaksi
+ * (idempoten: aman dipanggil berkali-kali oleh webhook Midtrans/iPaymu dan halaman "selesai bayar"). Paket diaktifkan
+ * TEPAT SEKALI saat status berubah menjadi lunas. Nominal harus sama persis dengan tagihan kita.
+ * null = order tidak ada di database kita. Provider asal tidak terpasang = galat (webhook dicoba ulang provider).
  */
-export async function terapkanStatus(k: KonfigMidtrans, orderId: string): Promise<{ status: StatusBayar; baruAktif: boolean } | null> {
-  const s = await statusMidtrans(k, orderId);
-  const status = petaStatus(s);
+export async function terapkanStatus(
+  orderId: string,
+  o: { g?: AdapterGateway; asal?: { gateway: Gateway; gateway_ref: string | null } } = {},
+): Promise<{ status: StatusBayar; baruAktif: boolean } | null> {
+  const asal = o.asal ?? (await asalTransaksi(orderId));
+  if (!asal) return null;
+  const g = o.g ?? (await adapter(asal.gateway));
+  if (!g) throw new GatewayError(`${labelGateway(asal.gateway)} belum dipasang di server.`);
+  const s = await g.cekStatus(orderId, asal.gateway_ref);
+  const status = s.status;
   let infoCapi: InfoCapiBeli | null = null;
   let infoRefund: InfoRefund | null = null;
   const hasil = await transaksiDb(async (tx) => {
     const [t] = await tx<(Transaksi & { aktif_id: number | null; meta_konteks: KonteksMeta | null })[]>`
       SELECT ${tx.unsafe(KOLOM_TRX)}, langganan_id AS aktif_id, meta_konteks FROM transaksi WHERE order_id = ${orderId} FOR UPDATE`;
     if (!t) return null;
-    if (Math.round(Number(s.gross_amount)) !== t.jumlah) {
-      console.error(`[bayar] nominal tidak cocok order=${orderId}: midtrans ${s.gross_amount}, tagihan ${t.jumlah}`);
+    if (s.jumlah !== t.jumlah) {
+      console.error(`[bayar] nominal tidak cocok order=${orderId}: ${g.nama} ${s.jumlah}, tagihan ${t.jumlah}`);
       return { status: t.status, baruAktif: false };
     }
-    // Sudah kita tandai dikembalikan (Refund API menjawab 200) tapi status Midtrans belum ikut berubah: jangan mundur ke lunas.
+    // Sudah kita tandai dikembalikan (Refund API menjawab 200 / admin menandai selesai) tapi status provider belum ikut berubah: jangan mundur ke lunas.
     if (t.status === "dikembalikan" && status === "lunas") return { status: t.status, baruAktif: false };
     const kini = sekarang();
     await tx`
-      UPDATE transaksi SET status = ${status}, metode = ${s.payment_type ?? null}, dibayar = ${status === "lunas" ? (t.dibayar ?? kini) : t.dibayar}
+      UPDATE transaksi SET status = ${status}, metode = ${s.metode}, dibayar = ${status === "lunas" ? (t.dibayar ?? kini) : t.dibayar}
        WHERE id = ${t.id}`;
     if (status === "dikembalikan") {
-      infoRefund = await selesaikanRefund(tx, t, s);
+      infoRefund = await selesaikanRefund(tx, t, s, g.nama);
       return { status, baruAktif: false };
     }
     if (status !== "lunas" || t.aktif_id) return { status, baruAktif: false };
@@ -681,18 +708,20 @@ interface InfoRefund {
 async function selesaikanRefund(
   tx: Tx,
   t: Pick<Transaksi, "id" | "order_id" | "user_id" | "jumlah" | "nama_paket" | "status"> & { aktif_id: number | null },
-  s: Pick<StatusMidtrans, "transaction_status" | "refunds">,
+  s: Pick<StatusGateway, "refundPenuh" | "refundDikonfirmasi">,
+  gateway: Gateway = "midtrans",
 ): Promise<InfoRefund | null> {
-  if (s.transaction_status !== "refund" && s.transaction_status !== "chargeback") {
-    console.warn(`[refund] ${s.transaction_status} order=${t.order_id}: paket tidak dicabut otomatis`);
+  if (!s.refundPenuh) {
+    console.warn(`[refund] refund sebagian order=${t.order_id}: paket tidak dicabut otomatis`);
     return null;
   }
   const kini = sekarang();
-  const konfirmasi = waktuMidtrans(s.refunds?.find((r) => r.bank_confirmed_at)?.bank_confirmed_at);
-  // Pengajuan jaminan (bila ada) jadi selesai; refund dari dashboard Midtrans juga dicatat supaya tampil di admin.
+  const konfirmasi = s.refundDikonfirmasi;
+  // Pengajuan jaminan (bila ada) jadi selesai; refund dari dashboard provider juga dicatat supaya tampil di admin
+  // (cara 'midtrans' = lewat dashboard Midtrans; provider tanpa Refund API dicatat 'manual').
   const [r] = await tx<{ cara: InfoRefund["cara"]; tujuan_bank: string | null; tujuan_nomor: string | null; tujuan_nama: string | null }[]>`
     INSERT INTO pengembalian_dana(transaksi_id, user_id, email, order_id, jumlah, status, cara, alasan, wa_ids, dibuat, selesai, dikonfirmasi)
-    SELECT ${t.id}, u.id, u.email, ${t.order_id}, ${t.jumlah}, 'selesai', 'midtrans', 'Dikembalikan lewat dashboard Midtrans',
+    SELECT ${t.id}, u.id, u.email, ${t.order_id}, ${t.jumlah}, 'selesai', ${gateway === "midtrans" ? "midtrans" : "manual"}, ${`Dikembalikan lewat dashboard ${labelGateway(gateway)}`},
            ARRAY(SELECT wa_id FROM numbers WHERE user_id = u.id AND wa_id IS NOT NULL), ${kini}, ${kini}, ${konfirmasi}
       FROM users u WHERE u.id = ${t.user_id}
     ON CONFLICT (transaksi_id) DO UPDATE
@@ -735,7 +764,7 @@ export async function catatRefundBerhasil(orderId: string): Promise<void> {
       SELECT ${tx.unsafe(KOLOM_TRX)}, langganan_id AS aktif_id FROM transaksi WHERE order_id = ${orderId} FOR UPDATE`;
     if (!t) return null;
     if (t.status !== "dikembalikan") await tx`UPDATE transaksi SET status = 'dikembalikan' WHERE id = ${t.id}`;
-    return selesaikanRefund(tx, t, { transaction_status: "refund" });
+    return selesaikanRefund(tx, t, { refundPenuh: true, refundDikonfirmasi: null });
   });
   if (info) notifRefund(info);
 }

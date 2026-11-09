@@ -23,7 +23,7 @@ function antarBank(bank: string, kodeBank: string): Cara {
   };
 }
 
-function caraBayar(kanal: KanalBayar, kode?: string): Cara[] {
+function caraBayar(kanal: KanalBayar, kode?: string, penyedia = "Midtrans"): Cara[] {
   switch (kanal) {
     case "qris":
       return [
@@ -53,6 +53,17 @@ function caraBayar(kanal: KanalBayar, kode?: string): Cara[] {
             <>Ketuk <B>Buka ShopeePay</B> dari HP yang terpasang aplikasi Shopee.</>,
             <>Periksa nominal, lalu konfirmasi dengan PIN ShopeePay.</>,
             <>Membuka halaman ini di komputer? Pilih metode <B>QRIS</B>: kodenya juga bisa dibayar dengan ShopeePay.</>,
+          ],
+        },
+      ];
+    case "dana":
+      return [
+        {
+          judul: "Bayar dengan DANA",
+          langkah: [
+            <>Ketuk <B>Buka DANA</B>. Di HP yang terpasang aplikasi DANA, aplikasinya terbuka sendiri; di komputer, masuk dengan nomor DANA kamu.</>,
+            <>Periksa nominal, lalu konfirmasi dengan PIN DANA.</>,
+            <>Setelah berhasil, kembali ke halaman ini: status diperbarui otomatis.</>,
           ],
         },
       ];
@@ -96,11 +107,11 @@ function caraBayar(kanal: KanalBayar, kode?: string): Cara[] {
       return [
         {
           judul: "BSI Mobile",
-          langkah: [<>Pilih <B>Bayar</B> lalu <B>E-Commerce</B>, kemudian pilih <B>Midtrans</B>.</>, <>Masukkan nomor virtual account di atas.</>, <>Periksa detail tagihan, lalu masukkan PIN.</>],
+          langkah: [<>Pilih <B>Bayar</B> lalu <B>E-Commerce</B>, kemudian pilih <B>{penyedia}</B>.</>, <>Masukkan nomor virtual account di atas.</>, <>Periksa detail tagihan, lalu masukkan PIN.</>],
         },
         {
           judul: "ATM BSI",
-          langkah: [<>Pilih <B>Bayar/Beli</B>, <B>E-Commerce</B>, lalu <B>Midtrans</B>.</>, <>Masukkan nomor virtual account, periksa detailnya, lalu konfirmasi.</>],
+          langkah: [<>Pilih <B>Bayar/Beli</B>, <B>E-Commerce</B>, lalu <B>{penyedia}</B>.</>, <>Masukkan nomor virtual account, periksa detailnya, lalu konfirmasi.</>],
         },
         antarBank("BSI", "451"),
       ];
@@ -117,11 +128,20 @@ function caraBayar(kanal: KanalBayar, kode?: string): Cara[] {
         antarBank("CIMB Niaga", "022"),
       ];
     case "mandiri":
+      // Provider lain (iPaymu) memberi nomor virtual account Mandiri biasa, bukan kode bayar Multi Payment.
+      if (!kode && penyedia !== "Midtrans")
+        return [
+          {
+            judul: "Livin' by Mandiri",
+            langkah: [<>Pilih <B>Transfer</B> lalu <B>Virtual Account</B> (atau <B>Bayar</B>, <B>Virtual Account</B>).</>, <>Masukkan nomor virtual account di atas.</>, <>Periksa detail tagihan, lalu konfirmasi dengan PIN.</>],
+          },
+          antarBank("Mandiri", "008"),
+        ];
       return [
         {
           judul: "Livin' by Mandiri",
           langkah: [
-            <>Pilih <B>Bayar</B>, lalu cari penyedia <B>Midtrans</B>{kode ? <> (kode perusahaan {kode})</> : null}.</>,
+            <>Pilih <B>Bayar</B>, lalu cari penyedia <B>{penyedia}</B>{kode ? <> (kode perusahaan {kode})</> : null}.</>,
             <>Masukkan <B>kode bayar</B> di atas.</>,
             <>Periksa detail tagihan, lalu konfirmasi dengan PIN.</>,
           ],
@@ -130,7 +150,7 @@ function caraBayar(kanal: KanalBayar, kode?: string): Cara[] {
           judul: "ATM Mandiri",
           langkah: [
             <>Pilih <B>Bayar/Beli</B>, <B>Lainnya</B>, lalu <B>Multi Payment</B>.</>,
-            <>Masukkan kode perusahaan <B>{kode ?? "Midtrans"}</B>, lalu <B>kode bayar</B> di atas.</>,
+            <>Masukkan kode perusahaan <B>{kode ?? penyedia}</B>, lalu <B>kode bayar</B> di atas.</>,
             <>Periksa detail tagihan, lalu konfirmasi.</>,
           ],
         },
@@ -161,7 +181,7 @@ function antarBankEn(bank: string, kodeBank: string): Cara {
   };
 }
 
-function caraBayarEn(kanal: KanalBayar, kode?: string): Cara[] {
+function caraBayarEn(kanal: KanalBayar, kode?: string, penyedia = "Midtrans"): Cara[] {
   switch (kanal) {
     case "qris":
       return [
@@ -191,6 +211,17 @@ function caraBayarEn(kanal: KanalBayar, kode?: string): Cara[] {
             <>Tap <B>Open ShopeePay</B> on a phone that has the Shopee app installed.</>,
             <>Check the amount, then confirm with your ShopeePay PIN.</>,
             <>Viewing this page on a computer? Choose the <B>QRIS</B> method instead: its code can also be paid with ShopeePay.</>,
+          ],
+        },
+      ];
+    case "dana":
+      return [
+        {
+          judul: "Pay with DANA",
+          langkah: [
+            <>Tap <B>Open DANA</B>. On a phone with the DANA app it opens automatically; on a computer, sign in with your DANA number.</>,
+            <>Check the amount, then confirm with your DANA PIN.</>,
+            <>Once paid, come back to this page: the status updates automatically.</>,
           ],
         },
       ];
@@ -240,11 +271,11 @@ function caraBayarEn(kanal: KanalBayar, kode?: string): Cara[] {
       return [
         {
           judul: "BSI Mobile",
-          langkah: [<>Choose <B>Bayar</B> (Pay), then <B>E-Commerce</B>, and select <B>Midtrans</B>.</>, <>Enter the virtual account number above.</>, <>Check the invoice details, then enter your PIN.</>],
+          langkah: [<>Choose <B>Bayar</B> (Pay), then <B>E-Commerce</B>, and select <B>{penyedia}</B>.</>, <>Enter the virtual account number above.</>, <>Check the invoice details, then enter your PIN.</>],
         },
         {
           judul: "BSI ATM",
-          langkah: [<>Choose <B>Bayar/Beli</B> (Pay/Buy), <B>E-Commerce</B>, then <B>Midtrans</B>.</>, <>Enter the virtual account number, check the details, then confirm.</>],
+          langkah: [<>Choose <B>Bayar/Beli</B> (Pay/Buy), <B>E-Commerce</B>, then <B>{penyedia}</B>.</>, <>Enter the virtual account number, check the details, then confirm.</>],
         },
         antarBankEn("BSI", "451"),
       ];
@@ -265,11 +296,19 @@ function caraBayarEn(kanal: KanalBayar, kode?: string): Cara[] {
         antarBankEn("CIMB Niaga", "022"),
       ];
     case "mandiri":
+      if (!kode && penyedia !== "Midtrans")
+        return [
+          {
+            judul: "Livin' by Mandiri",
+            langkah: [<>Choose <B>Transfer</B>, then <B>Virtual Account</B> (or <B>Bayar</B> (Pay), <B>Virtual Account</B>).</>, <>Enter the virtual account number above.</>, <>Check the invoice details, then confirm with your PIN.</>],
+          },
+          antarBankEn("Mandiri", "008"),
+        ];
       return [
         {
           judul: "Livin' by Mandiri",
           langkah: [
-            <>Choose <B>Bayar</B> (Pay), then search for the biller <B>Midtrans</B>{kode ? <> (company code {kode})</> : null}.</>,
+            <>Choose <B>Bayar</B> (Pay), then search for the biller <B>{penyedia}</B>{kode ? <> (company code {kode})</> : null}.</>,
             <>Enter the <B>payment code</B> above.</>,
             <>Check the invoice details, then confirm with your PIN.</>,
           ],
@@ -278,7 +317,7 @@ function caraBayarEn(kanal: KanalBayar, kode?: string): Cara[] {
           judul: "Mandiri ATM",
           langkah: [
             <>Choose <B>Bayar/Beli</B> (Pay/Buy), <B>Lainnya</B> (Others), then <B>Multi Payment</B>.</>,
-            <>Enter the company code <B>{kode ?? "Midtrans"}</B>, then the <B>payment code</B> above.</>,
+            <>Enter the company code <B>{kode ?? penyedia}</B>, then the <B>payment code</B> above.</>,
             <>Check the invoice details, then confirm.</>,
           ],
         },
@@ -301,10 +340,11 @@ function caraBayarEn(kanal: KanalBayar, kode?: string): Cara[] {
   }
 }
 
-export function LangkahBayar({ kanal, kode, b = "id" }: { kanal: KanalBayar; kode?: string; b?: Bahasa }) {
+/** `penyedia` = nama payment gateway transaksi ini (nama merchant yang dicari di menu e-commerce / multi payment bank). */
+export function LangkahBayar({ kanal, kode, penyedia, b = "id" }: { kanal: KanalBayar; kode?: string; penyedia?: string; b?: Bahasa }) {
   return (
     <div className="divide-y divide-line rounded-2xl border border-line">
-      {(b === "en" ? caraBayarEn : caraBayar)(kanal, kode).map((c, i) => (
+      {(b === "en" ? caraBayarEn : caraBayar)(kanal, kode, penyedia).map((c, i) => (
         <details key={c.judul} open={i === 0} className="group px-4 py-3">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[13.5px] font-semibold [&::-webkit-details-marker]:hidden">
             {c.judul}

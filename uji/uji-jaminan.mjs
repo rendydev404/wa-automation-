@@ -34,7 +34,8 @@ const cek = async (nama, fn) => {
 };
 
 // ---- Midtrans tiruan: /v2/{order}/status dan /v2/{order}/refund ----
-const k = { serverKey: "Mid-server-UJIjaminan", produksi: true };
+// Provider asal transaksi dibaca dari transaksi.gateway; adapter Midtrans dari .env (src/lib/gateway.ts).
+process.env.MIDTRANS_SERVER_KEY = "Mid-server-UJIjaminan";
 /** order_id -> { status, gross, refunds[] } */
 const dunia = new Map();
 const tiruan = { tolakRefund: null };
@@ -76,7 +77,7 @@ async function bayar(user, kanal, dibayarLalu = 0) {
     INSERT INTO transaksi(order_id, user_id, paket_id, nama_paket, jumlah, status, kanal, dibuat)
     VALUES (${orderId}, ${user.id}, ${starter.id}, ${starter.nama}, ${starter.harga}, 'menunggu', ${kanal}, ${kini - dibayarLalu})`;
   dunia.set(orderId, { status: "settlement", gross: starter.harga, tipe: kanal === "bni" ? "bank_transfer" : kanal, refunds: undefined });
-  const h = await L.terapkanStatus(k, orderId);
+  const h = await L.terapkanStatus(orderId);
   assert.equal(h.baruAktif, true);
   if (dibayarLalu) await sql`UPDATE transaksi SET dibayar = dibayar - ${dibayarLalu} WHERE order_id = ${orderId}`;
   return orderId;
@@ -155,23 +156,23 @@ console.log("== mode manual (bawaan) ==");
 
 await cek("mode bawaan = manual; tujuan transfer wajib & divalidasi", async () => {
   assert.equal(await J.modeRefund(), "manual");
-  let h = await J.ajukanJaminan(k, ani.id, { alasan: "", tujuan: tujuanAni });
+  let h = await J.ajukanJaminan(ani.id, { alasan: "", tujuan: tujuanAni });
   assert.equal(h.ok, false);
   assert.match(h.pesan.id, /Tulis alasan.*minimal 10 huruf/, "alasan wajib");
-  h = await J.ajukanJaminan(k, ani.id, { alasan: "  jelek   ", tujuan: tujuanAni });
+  h = await J.ajukanJaminan(ani.id, { alasan: "  jelek   ", tujuan: tujuanAni });
   assert.match(h.pesan.id, /minimal 10 huruf/, "alasan terlalu pendek");
-  h = await J.ajukanJaminan(k, ani.id, { alasan: ALASAN });
+  h = await J.ajukanJaminan(ani.id, { alasan: ALASAN });
   assert.match(h.pesan.id, /Pilih bank atau e-wallet/);
-  h = await J.ajukanJaminan(k, ani.id, { alasan: ALASAN, tujuan: { bank: "gopay", nomor: "0812", nama: "Ani" } });
+  h = await J.ajukanJaminan(ani.id, { alasan: ALASAN, tujuan: { bank: "gopay", nomor: "0812", nama: "Ani" } });
   assert.match(h.pesan.id, /minimal 6 digit/);
-  h = await J.ajukanJaminan(k, ani.id, { alasan: ALASAN, tujuan: { bank: "bank-palsu", nomor: "081200000002", nama: "Ani" } });
+  h = await J.ajukanJaminan(ani.id, { alasan: ALASAN, tujuan: { bank: "bank-palsu", nomor: "081200000002", nama: "Ani" } });
   assert.match(h.pesan.id, /Pilih bank/);
   assert.equal((await sql`SELECT count(*)::int AS n FROM pengembalian_dana`)[0].n, 0);
 });
 
 let idAni;
 await cek("manual: ajukan = 'menunggu' + tujuan tersimpan, TANPA panggilan Midtrans; paket tetap aktif; komisi tetap tertahan walau masa jaminan lewat", async () => {
-  const h = await J.ajukanJaminan(k, ani.id, { alasan: "Kurang cocok untuk toko saya", tujuan: tujuanAni });
+  const h = await J.ajukanJaminan(ani.id, { alasan: "Kurang cocok untuk toko saya", tujuan: tujuanAni });
   assert.deepEqual(h, { ok: true, cara: "manual" });
   assert.equal(refundDipanggil().length, 0);
   const [pd] = await sql`SELECT id, status, cara, tujuan_bank, tujuan_nomor, tujuan_nama, alasan, terpakai, wa_ids FROM pengembalian_dana WHERE order_id = ${orderAni}`;
@@ -183,7 +184,7 @@ await cek("manual: ajukan = 'menunggu' + tujuan tersimpan, TANPA panggilan Midtr
   assert.ok(await L.langgananAktif(ani.id), "paket tetap aktif sampai admin mentransfer");
   const j = await J.cekJaminan(ani.id);
   assert.deepEqual([j.boleh, j.pengajuan.status, j.pengajuan.tujuan.nomor], [false, "menunggu", "081200000002"]);
-  assert.match((await J.ajukanJaminan(k, ani.id, { alasan: ALASAN, tujuan: tujuanAni })).pesan.id, /sedang diproses/);
+  assert.match((await J.ajukanJaminan(ani.id, { alasan: ALASAN, tujuan: tujuanAni })).pesan.id, /sedang diproses/);
   // Masa jaminan (3 hari) lewat tapi pengajuan belum selesai: komisinya tetap tidak boleh ditarik.
   await sql`UPDATE komisi_afiliasi SET created_at = created_at - 5 * 86400 WHERE afiliator_id = ${mitra.id}`;
   assert.equal((await A.ringkasanAfiliasiUser(mitra.id)).tertahan, 19_800);
@@ -208,7 +209,7 @@ await cek("admin 'sudah ditransfer': selesai + referensi, paket dicabut, komisi 
 });
 
 await cek("manual: status Midtrans tetap 'settlement' -> webhook berikutnya tidak membalik ke lunas / menghidupkan paket", async () => {
-  await L.terapkanStatus(k, orderAni);
+  await L.terapkanStatus(orderAni);
   assert.equal((await sql`SELECT status FROM transaksi WHERE order_id = ${orderAni}`)[0].status, "dikembalikan");
   assert.equal(await L.langgananAktif(ani.id), undefined);
 });
@@ -216,7 +217,7 @@ await cek("manual: status Midtrans tetap 'settlement' -> webhook berikutnya tida
 await cek("admin tolak: alasan wajib, status ditolak, paket tetap aktif, pemilik diberi tahu dan tidak bisa mengajukan lagi", async () => {
   const lina = await akun("lina@uji.test", "6282000000010");
   const order = await bayar(lina, "gopay");
-  assert.equal((await J.ajukanJaminan(k, lina.id, { alasan: ALASAN, tujuan: { bank: "dana", nomor: "082000000010", nama: "Lina" } })).ok, true);
+  assert.equal((await J.ajukanJaminan(lina.id, { alasan: ALASAN, tujuan: { bank: "dana", nomor: "082000000010", nama: "Lina" } })).ok, true);
   const [pd] = await sql`SELECT id FROM pengembalian_dana WHERE order_id = ${order}`;
   assert.equal((await J.tolakPengembalian(pd.id, "x")).ok, false);
   assert.deepEqual(await J.tolakPengembalian(pd.id, "Pemakaian sudah melewati batas saat dicek"), { ok: true, cara: "manual" });
@@ -251,7 +252,7 @@ await cek("VA bank tidak termasuk; pembayaran kedua & lewat 1×24 jam juga tidak
   let j = await J.cekJaminan(budi.id);
   assert.equal(j.boleh, false);
   assert.match(j.alasan.id, /GoPay, ShopeePay, atau QRIS/);
-  assert.equal((await J.ajukanJaminan(k, budi.id, { alasan: ALASAN, tujuan: tujuanAni })).ok, false);
+  assert.equal((await J.ajukanJaminan(budi.id, { alasan: ALASAN, tujuan: tujuanAni })).ok, false);
 
   const citra = await akun("citra@uji.test", "6281400000004");
   await bayar(citra, "gopay");
@@ -273,7 +274,7 @@ await cek("otomatis: Refund API sekali (kunci RF-<id>, nominal penuh), langsung 
   const oto = await akun("oto@uji.test", "6282100000011");
   await A.terapkanReferral(oto.id, af.kode);
   const order = await bayar(oto, "qris");
-  const h = await J.ajukanJaminan(k, oto.id, { alasan: "Belum butuh" });
+  const h = await J.ajukanJaminan(oto.id, { alasan: "Belum butuh" });
   assert.deepEqual(h, { ok: true, cara: "otomatis" });
   const [r] = refundDipanggil();
   const [t] = await sql`SELECT id, status FROM transaksi WHERE order_id = ${order}`;
@@ -281,8 +282,8 @@ await cek("otomatis: Refund API sekali (kunci RF-<id>, nominal penuh), langsung 
   assert.equal(t.status, "dikembalikan");
   assert.equal(await L.langgananAktif(oto.id), undefined);
   assert.equal((await A.profilAfiliator(mitra.id)).saldo, 0);
-  await L.terapkanStatus(k, order);
-  await L.terapkanStatus(k, order);
+  await L.terapkanStatus(order);
+  await L.terapkanStatus(order);
   assert.equal(refundDipanggil().length, 1);
   const [pd] = await sql`SELECT status, cara, dikonfirmasi FROM pengembalian_dana WHERE order_id = ${order}`;
   assert.deepEqual([pd.status, pd.cara], ["selesai", "otomatis"]);
@@ -293,7 +294,7 @@ await cek("otomatis ditolak Midtrans (refund belum diaktifkan / saldo kurang): '
   const eka = await akun("eka@uji.test", "6281600000006");
   const order = await bayar(eka, "gopay");
   tiruan.tolakRefund = "412";
-  const h = await J.ajukanJaminan(k, eka.id, { alasan: ALASAN });
+  const h = await J.ajukanJaminan(eka.id, { alasan: ALASAN });
   assert.equal(h.ok, false);
   assert.match(h.pesan.id, /Admin sudah diberi tahu/);
   const [pd] = await sql`SELECT id, status, galat, refund_key FROM pengembalian_dana WHERE order_id = ${order}`;
@@ -302,17 +303,17 @@ await cek("otomatis ditolak Midtrans (refund belum diaktifkan / saldo kurang): '
   assert.ok(await L.langgananAktif(eka.id));
   assert.equal((await J.cekJaminan(eka.id)).boleh, true, "pemilik akun boleh mencoba lagi");
   tiruan.tolakRefund = null;
-  assert.deepEqual(await J.ulangiPengembalian(k, pd.id), { ok: true, cara: "otomatis" });
+  assert.deepEqual(await J.ulangiPengembalian(pd.id), { ok: true, cara: "otomatis" });
   assert.equal(refundDipanggil().at(-1).body.refund_key, pd.refund_key);
   assert.equal(await L.langgananAktif(eka.id), undefined);
-  assert.equal((await J.ulangiPengembalian(k, pd.id)).ok, false);
+  assert.equal((await J.ulangiPengembalian(pd.id)).ok, false);
 });
 
 await cek("otomatis gagal lalu admin transfer sendiri: 'sudah ditransfer' menuntaskan sebagai manual", async () => {
   const fia = await akun("fia@uji.test", "6282200000012");
   const order = await bayar(fia, "shopeepay");
   tiruan.tolakRefund = "412";
-  await J.ajukanJaminan(k, fia.id, { alasan: ALASAN });
+  await J.ajukanJaminan(fia.id, { alasan: ALASAN });
   tiruan.tolakRefund = null;
   const [pd] = await sql`SELECT id FROM pengembalian_dana WHERE order_id = ${order}`;
   const n = refundDipanggil().length;
@@ -328,7 +329,7 @@ await cek("refund dari dashboard Midtrans (webhook): paket dicabut, komisi batal
   const order = await bayar(fani, "qris");
   assert.equal((await A.profilAfiliator(mitra.id)).saldo, 19_800);
   dunia.get(order).status = "refund";
-  await L.terapkanStatus(k, order);
+  await L.terapkanStatus(order);
   assert.equal(await L.langgananAktif(fani.id), undefined);
   assert.equal((await A.profilAfiliator(mitra.id)).saldo, 0);
   const [pd] = await sql`SELECT status, cara, refund_key FROM pengembalian_dana WHERE order_id = ${order}`;
@@ -336,7 +337,7 @@ await cek("refund dari dashboard Midtrans (webhook): paket dicabut, komisi batal
   const gita = await akun("gita@uji.test", "6281800000008");
   const o2 = await bayar(gita, "gopay");
   dunia.get(o2).status = "partial_refund";
-  await L.terapkanStatus(k, o2);
+  await L.terapkanStatus(o2);
   assert.ok(await L.langgananAktif(gita.id));
   await J.setModeRefund("manual");
 });
