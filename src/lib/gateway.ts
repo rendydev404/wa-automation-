@@ -123,6 +123,8 @@ export function terpasang(g: Gateway): boolean {
 /** Status satu metode di satu provider. aktif null = tidak diketahui (dianggap boleh dipakai). */
 export interface StatusProvider {
   aktif: boolean | null;
+  /** Bila aktif null: status provider gagal dibaca, atau metode ini tidak tercantum di pengaturan provider. */
+  sebab?: "gagal-baca" | "tidak-tercantum";
   /** Penjelasan untuk admin, mis. "Aktif di iPaymu", "Belum aktif di dashboard Midtrans". */
   catatan: string;
   /** Ditolak provider saat membuat tagihan (bisa dicoba lagi oleh admin). */
@@ -130,7 +132,7 @@ export interface StatusProvider {
 }
 
 const SIMPAN_STATUS_MS = 10 * 60_000;
-type Simpanan = { waktu: number; isi: unknown; jalan?: Promise<void> };
+type Simpanan = { waktu: number; isi: unknown; jalan?: Promise<void>; dibaca: number | null; galat: string | null };
 const gs = globalThis as unknown as { __waStatusKanal?: Map<string, Simpanan> };
 
 /**
@@ -140,16 +142,18 @@ const gs = globalThis as unknown as { __waStatusKanal?: Map<string, Simpanan> };
 async function simpanSementara<T>(kunci: string, ambil: () => Promise<T>): Promise<T | null> {
   const peta = (gs.__waStatusKanal ??= new Map());
   let c = peta.get(kunci);
-  if (!c) peta.set(kunci, (c = { waktu: 0, isi: null }));
+  if (!c) peta.set(kunci, (c = { waktu: 0, isi: null, dibaca: null, galat: null }));
   if (Date.now() - c.waktu > SIMPAN_STATUS_MS && !c.jalan) {
     const cc = c;
     cc.jalan = ambil()
       .then((isi) => {
         cc.isi = isi;
-        cc.waktu = Date.now();
+        cc.waktu = cc.dibaca = Date.now();
+        cc.galat = null;
       })
       .catch((e) => {
         cc.waktu = Date.now() - SIMPAN_STATUS_MS + 60_000;
+        cc.galat = e instanceof GatewayError ? e.message : "Gagal membaca status dari provider.";
         console.warn(`[gateway] status kanal ${kunci.split("|")[0]} tidak terbaca: ${e instanceof Error ? e.message : e}`);
       })
       .finally(() => {
@@ -158,6 +162,32 @@ async function simpanSementara<T>(kunci: string, ambil: () => Promise<T>): Promi
     if (cc.isi === null) await cc.jalan;
   }
   return c.isi as T | null;
+}
+
+const kunciStatusIpaymu = (k: { produksi: boolean; va: string }) => `ipaymu|${k.produksi ? "prod" : "sandbox"}|${k.va}`;
+const kunciStatusMidtrans = (k: { produksi: boolean; serverKey: string }) => `midtrans|${k.produksi ? "prod" : "sandbox"}|${k.serverKey.slice(-6)}`;
+
+/** Dari mana status kanal tiap provider dibaca, kapan terakhir berhasil, dan alasan bila gagal (untuk panel admin). */
+export interface SumberStatus {
+  terpasang: boolean;
+  produksi: boolean;
+  /** Terakhir berhasil dibaca (ms epoch); null = belum pernah. */
+  dibaca: number | null;
+  /** Alasan percobaan terakhir gagal; null = terakhir berhasil. */
+  galat: string | null;
+}
+
+/** Panggil setelah statusProvider/rencanaKanal (yang mengisi simpanan): tanpa jaringan. */
+export async function sumberStatus(): Promise<Record<Gateway, SumberStatus>> {
+  const [kM, kI] = [await konfigMidtrans(), konfigIpaymu()];
+  const baca = (kunci: string | null) => {
+    const c = kunci ? gs.__waStatusKanal?.get(kunci) : undefined;
+    return { dibaca: c?.dibaca ?? null, galat: c?.galat ?? null };
+  };
+  return {
+    midtrans: { terpasang: !!kM, produksi: kM?.produksi ?? true, ...baca(kM ? kunciStatusMidtrans(kM) : null) },
+    ipaymu: { terpasang: !!kI, produksi: kI?.produksi ?? true, ...baca(kI ? kunciStatusIpaymu(kI) : null) },
+  };
 }
 
 /** Lupakan status kanal tersimpan (tombol "Perbarui status" admin / uji): dibaca ulang dari provider. */
@@ -180,13 +210,13 @@ export async function statusProvider(g: Gateway): Promise<Partial<Record<KanalBa
   if (g === "ipaymu") {
     const k = konfigIpaymu();
     if (!k) return hasil;
-    const akun = await simpanSementara(`ipaymu|${k.produksi ? "prod" : "sandbox"}|${k.va}`, () => bacaKanalAkunIpaymu(k));
+    const akun = await simpanSementara(kunciStatusIpaymu(k), () => bacaKanalAkunIpaymu(k));
     for (const x of kanalDilayaniIpaymu()) {
       const s = akun?.get(x);
       hasil[x] =
         ditolak(x) ??
         (!akun
-          ? { aktif: null, catatan: "Status belum terbaca dari iPaymu" }
+          ? { aktif: null, sebab: "gagal-baca", catatan: "Status gagal dibaca dari iPaymu (alasan di atas); tetap ditawarkan" }
           : !s
             ? { aktif: false, catatan: "Tidak ada di akun iPaymu" }
             : !s.aktif
@@ -197,7 +227,7 @@ export async function statusProvider(g: Gateway): Promise<Partial<Record<KanalBa
   }
   const k = await konfigMidtrans();
   if (!k) return hasil;
-  const pref = await simpanSementara(`midtrans|${k.produksi ? "prod" : "sandbox"}|${k.serverKey.slice(-6)}`, () => bacaPreferensiMidtrans(k));
+  const pref = await simpanSementara(kunciStatusMidtrans(k), () => bacaPreferensiMidtrans(k));
   for (const x of kanalTerpasangMidtrans()) {
     const v = NAMA_PREFERENSI[x]?.map((n) => pref?.get(n)).find((b) => b !== undefined);
     hasil[x] =
@@ -206,7 +236,9 @@ export async function statusProvider(g: Gateway): Promise<Partial<Record<KanalBa
         ? { aktif: true, catatan: "Aktif di Midtrans" }
         : v === false
           ? { aktif: false, catatan: "Belum aktif di dashboard Midtrans" }
-          : { aktif: null, catatan: pref ? "Tidak tercantum di pengaturan Midtrans (dicoba saat bayar)" : "Status belum terbaca dari Midtrans" });
+          : pref
+            ? { aktif: null, sebab: "tidak-tercantum", catatan: "Tidak tercantum di pengaturan Midtrans; ketahuan saat pembeli membuat tagihan" }
+            : { aktif: null, sebab: "gagal-baca", catatan: "Status gagal dibaca dari Midtrans (alasan di atas); tetap ditawarkan" });
   }
   return hasil;
 }

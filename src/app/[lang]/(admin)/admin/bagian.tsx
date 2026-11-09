@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDown, Bot, ChevronRight, Package, ShieldCheck, Sparkles, UserPlus, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowDown, Bot, CheckCircle2, ChevronRight, Info, Package, ShieldCheck, Sparkles, UserPlus, Wallet } from "lucide-react";
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna, hitungPaketPengguna, hitungPengguna } from "@/lib/pengguna";
 import { SaringPaket } from "./pengguna/saring-paket";
@@ -11,7 +11,7 @@ import { PembangunCustom } from "./paket-custom";
 import { acuanHarga, aturanPercobaan, daftarPaket, pemakaianNyata } from "@/lib/langganan";
 import { SimulasiHarga } from "./simulasi-harga";
 import { konfigMidtrans } from "@/lib/midtrans";
-import { GATEWAY, infoGateway, rencanaKanal } from "@/lib/gateway";
+import { GATEWAY, type Gateway, infoGateway, rencanaKanal, sumberStatus } from "@/lib/gateway";
 import { labelKanal } from "@/lib/harga";
 import { BarisKanal, type DataBarisKanal, FormModeGateway, TombolPerbaruiStatus } from "./transaksi/form-gateway";
 import { kunciAnthropic, modelAnthropic, pengaturanAi, perkiraanPerBalasan, ringkasPakai } from "@/lib/ai";
@@ -286,6 +286,8 @@ export async function KelolaPaketCustom() {
 export async function MetodeBayar() {
   await requireAdmin();
   const [info, rencana] = await Promise.all([infoGateway(), rencanaKanal()]);
+  const sumber = await sumberStatus(); // setelah rencanaKanal: hasil baca provider sudah tersimpan
+  const jam = (ms: number) => new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" }).format(new Date(ms));
   const kini = sekarang();
   const baris: DataBarisKanal[] = rencana.kanal.map((r) => {
     const m = r.mati;
@@ -331,6 +333,42 @@ export async function MetodeBayar() {
         </p>
         <TombolPerbaruiStatus />
       </div>
+      <ul className="space-y-2 border-b border-line px-5 py-3 text-[12.5px] leading-relaxed">
+        {(["ipaymu", "midtrans"] as Gateway[]).map((g) => {
+          const s = sumber[g];
+          const nama = `${GATEWAY[g].label} (${s.produksi ? "production" : "sandbox"})`;
+          const sumberNya = g === "ipaymu" ? "daftar metode di akun iPaymu" : "pengaturan metode bayar di dashboard Midtrans";
+          if (!s.terpasang)
+            return (
+              <li key={g} className="flex gap-2 text-muted">
+                <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <span>
+                  <b className="font-semibold text-fg">{GATEWAY[g].label}</b> belum dipasang di server ({g === "ipaymu" ? "IPAYMU_VA & IPAYMU_API_KEY" : "MIDTRANS_SERVER_KEY"} di .env), jadi metodenya tidak dipakai.
+                </span>
+              </li>
+            );
+          if (s.galat)
+            return (
+              <li key={g} className="flex gap-2 rounded-lg bg-warning/10 px-3 py-2 text-fg">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+                <span>
+                  <b className="font-semibold">{nama}: status GAGAL dibaca.</b> {s.galat}{" "}
+                  {s.dibaca ? `Terakhir berhasil dibaca pukul ${jam(s.dibaca)} WIB. ` : ""}
+                  Sampai terbaca, metode {GATEWAY[g].label} tetap ditawarkan dan baru ketahuan aktif atau tidak saat pembeli membuat tagihan.
+                </span>
+              </li>
+            );
+          return (
+            <li key={g} className="flex gap-2 text-muted">
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
+              <span>
+                <b className="font-semibold text-fg">{nama}:</b> status dibaca langsung dari {sumberNya}
+                {s.dibaca ? ` pukul ${jam(s.dibaca)} WIB` : ""}.
+              </span>
+            </li>
+          );
+        })}
+      </ul>
       <ul className="divide-y divide-line">
         {baris.map((d) => (
           <BarisKanal key={`${info.mode}-${d.kanal}-${d.penyedia}`} d={d} mode={info.mode} />

@@ -68,6 +68,8 @@ export function FormModeGateway({ mode, opsi }: { mode: ModeGateway; opsi: OpsiG
   );
 }
 
+type StatusMetode = { aktif: boolean | null; catatan: string; ditolak?: boolean; sebab?: "gagal-baca" | "tidak-tercantum" };
+
 export interface DataBarisKanal {
   kanal: KanalBayar;
   label: string;
@@ -75,20 +77,20 @@ export interface DataBarisKanal {
   /** Provider yang metode ini aktif di akunnya (boleh dipilih). */
   pilihan: Gateway[];
   /** Status nyata metode ini di tiap provider yang melayaninya. */
-  status: Partial<Record<Gateway, { aktif: boolean | null; catatan: string; ditolak?: boolean }>>;
+  status: Partial<Record<Gateway, StatusMetode>>;
   tampil: boolean;
   /** Alasan disembunyikan admin. */
   keterangan: string;
 }
 
-/** Lencana status satu provider untuk satu metode: hijau aktif, abu-abu belum aktif, kuning belum diketahui. */
-function LencanaStatus({ g, s, kanal }: { g: Gateway; s: { aktif: boolean | null; catatan: string; ditolak?: boolean }; kanal: KanalBayar }) {
+/** Lencana status satu provider untuk satu metode: hijau aktif, abu-abu belum aktif, kuning gagal dibaca / tidak tercantum. */
+function LencanaStatus({ g, s, kanal }: { g: Gateway; s: StatusMetode; kanal: KanalBayar }) {
   const [menunggu, mulai] = useTransition();
   const warna = s.aktif === true ? "bg-success/12 text-success" : s.aktif === false ? "bg-line text-muted" : "bg-warning/15 text-warning";
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
       <span title={s.catatan} className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${warna}`}>
-        {GATEWAY[g].label}: {s.aktif === true ? "aktif" : s.aktif === false ? "belum aktif" : "belum diketahui"}
+        {GATEWAY[g].label}: {s.aktif === true ? "aktif" : s.aktif === false ? "belum aktif" : s.sebab === "tidak-tercantum" ? "tidak tercantum" : "gagal dibaca"}
       </span>
       {s.aktif !== true && <span className="text-[11px] text-faint">{s.catatan}</span>}
       {s.ditolak && (

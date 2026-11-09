@@ -494,10 +494,31 @@ await cek("status NYATA tiap provider seperti di dashboard-nya: Midtrans (Prefer
   globalThis.fetch = async (url, o) => (String(url).includes("merchant-preferences") || String(url).includes("payment-channels") ? new Response("gangguan", { status: 503 }) : asliFetch(url, o));
   try {
     const [m2, i2] = await Promise.all([G.statusProvider("midtrans"), G.statusProvider("ipaymu")]);
-    assert.deepEqual([m2.permata.aktif, i2.qris.aktif], [null, null]);
+    assert.deepEqual([m2.permata.aktif, m2.permata.sebab, i2.qris.aktif, i2.qris.sebab], [null, "gagal-baca", null, "gagal-baca"]);
+    // Alasan gagal yang JELAS untuk admin, bukan sekadar "belum diketahui".
+    const sb = await G.sumberStatus();
+    assert.match(sb.midtrans.galat, /Midtrans menjawab HTTP 503/);
+    assert.match(sb.ipaymu.galat, /iPaymu menjawab kode 503/);
   } finally {
     globalThis.fetch = asliFetch;
   }
+  // Kunci Midtrans salah (seperti server lokal dengan kunci palsu): alasan 401 yang menunjuk ke .env.
+  G.lupakanStatusKanal();
+  process.env.MIDTRANS_SERVER_KEY = "Mid-server-SALAH";
+  try {
+    await G.statusProvider("midtrans");
+    const sb = await G.sumberStatus();
+    assert.match(sb.midtrans.galat, /Kunci server Midtrans ditolak \(HTTP 401\)\. Periksa MIDTRANS_SERVER_KEY dan MIDTRANS_MODE \(production\)/);
+    assert.equal(sb.midtrans.dibaca, null);
+  } finally {
+    process.env.MIDTRANS_SERVER_KEY = SK;
+  }
+  // Berhasil dibaca: tanpa galat, dengan waktu baca.
+  G.lupakanStatusKanal();
+  await Promise.all([G.statusProvider("midtrans"), G.statusProvider("ipaymu")]);
+  const ok = await G.sumberStatus();
+  assert.deepEqual([ok.midtrans.galat, ok.ipaymu.galat, ok.midtrans.produksi, ok.ipaymu.produksi], [null, null, true, false]);
+  assert.ok(Date.now() - ok.midtrans.dibaca < 5000 && Date.now() - ok.ipaymu.dibaca < 5000);
   G.lupakanStatusKanal();
   tiruan.kanalNonaktif = new Set();
   await G.setModeGateway("midtrans");

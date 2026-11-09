@@ -75,13 +75,23 @@ export async function bacaPreferensiMidtrans(k: KonfigMidtrans): Promise<Map<str
   const alamat = k.produksi ? "https://app.midtrans.com" : "https://app.sandbox.midtrans.com";
   // Dipakai bersama banyak permintaan: fetch asli, tidak terikat ke satu render Next.
   const f = (globalThis.fetch as typeof fetch & { _nextOriginalFetch?: typeof fetch })._nextOriginalFetch || fetch;
-  const res = await f(`${alamat}/snap/v3/merchant-preferences`, {
-    headers: { Authorization: otorisasi(k), Accept: "application/json", "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(8_000),
-    cache: "no-store",
-  });
+  let res: Response;
+  try {
+    res = await f(`${alamat}/snap/v3/merchant-preferences`, {
+      headers: { Authorization: otorisasi(k), Accept: "application/json", "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(8_000),
+      cache: "no-store",
+    });
+  } catch {
+    throw new MidtransError("Server Midtrans tidak terjangkau (jaringan / batas waktu 8 dtk).");
+  }
   const d = (await res.json().catch(() => null)) as { payment_channels?: { name?: string; enabled?: boolean }[] } | null;
-  if (!res.ok || !Array.isArray(d?.payment_channels)) throw new MidtransError(`Preferensi Midtrans tidak terbaca (HTTP ${res.status})`);
+  if (res.status === 401)
+    throw new MidtransError(`Kunci server Midtrans ditolak (HTTP 401). Periksa MIDTRANS_SERVER_KEY dan MIDTRANS_MODE (${k.produksi ? "production" : "sandbox"}).`, "401");
+  if (res.status === 403 || res.status === 404)
+    throw new MidtransError(`Midtrans tidak mengizinkan membaca pengaturan metode bayar untuk akun ini (HTTP ${res.status}).`, String(res.status));
+  if (!res.ok) throw new MidtransError(`Midtrans menjawab HTTP ${res.status} saat membaca pengaturan metode bayar.`, String(res.status));
+  if (!Array.isArray(d?.payment_channels)) throw new MidtransError("Jawaban Midtrans tidak berisi daftar metode bayar (payment_channels).");
   return new Map(d.payment_channels.filter((c) => typeof c.name === "string").map((c) => [c.name!.toLowerCase(), c.enabled === true]));
 }
 

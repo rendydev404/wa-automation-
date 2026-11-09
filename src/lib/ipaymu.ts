@@ -68,8 +68,17 @@ interface GrupKanal {
 export async function bacaKanalAkunIpaymu(k: KonfigIpaymu): Promise<Map<KanalBayar, { aktif: boolean; sehat: string }>> {
   // Hasilnya dipakai bersama banyak permintaan, jadi tidak boleh terikat ke satu render: fetch asli (bukan fetch Next
   // yang dibatalkan saat prerender halaman selesai lebih dulu).
-  const { http, d } = await panggil<GrupKanal[]>(k, "/api/v2/payment-channels", undefined, "GET", 8_000, true);
-  if (!sukses(http, d) || !Array.isArray(d?.Data)) throw new IpaymuError(`kode ${d?.Status ?? http}${d?.Message ? `: ${d.Message}` : ""}`);
+  let jawab: { http: number; d: Jawab<GrupKanal[]> | null };
+  try {
+    jawab = await panggil<GrupKanal[]>(k, "/api/v2/payment-channels", undefined, "GET", 8_000, true);
+  } catch {
+    throw new IpaymuError("Server iPaymu tidak terjangkau (jaringan / batas waktu 8 dtk).");
+  }
+  const { http, d } = jawab;
+  const kode = d?.Status ?? http;
+  if (kode === 401 || http === 401) throw new IpaymuError("VA / API key iPaymu ditolak (kode 401). Periksa IPAYMU_VA dan IPAYMU_API_KEY.", "401");
+  if (!sukses(http, d)) throw new IpaymuError(`iPaymu menjawab kode ${kode}${d?.Message ? `: ${d.Message}` : ""} saat membaca daftar metode bayar.`, String(kode));
+  if (!Array.isArray(d?.Data)) throw new IpaymuError("Jawaban iPaymu tidak berisi daftar metode bayar.");
   const hasil = new Map<KanalBayar, { aktif: boolean; sehat: string }>();
   for (const g of d.Data)
     for (const c of g.Channels ?? []) {
