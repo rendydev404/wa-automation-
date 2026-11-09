@@ -23,6 +23,8 @@ const nextConfig: NextConfig = {
       "./hermes/SOUL-cs.md",
       // CSS & skrip landing page industri, dibaca saat jalan (src/lib/lp/halaman.ts).
       "./lp/aset/*",
+      // Template AI per industri untuk Instruksi khusus nomor (src/app/api/templat-ai).
+      "./lp/prompt/*",
       "./ml/model/model.onnx",
       "./ml/model/tokenizer.json",
       "./ml/model/tokenizer_config.json",

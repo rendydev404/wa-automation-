@@ -1,4 +1,4 @@
-/* ChatGerCep Industry LP runtime: consent, pixel, UTM, CTA tracking, demo, sticky */
+/* ChatGerCep Industry LP runtime: pixel, UTM, CTA tracking, demo, sticky */
 (function () {
   "use strict";
   var LP = window.CG_LP || {};
@@ -19,8 +19,8 @@
   store.set("cg_industry", ind, true);
   store.set("cg_landing_page", lpPath, true);
 
-  /* ---------- Pixel loader (hanya setelah consent bila diwajibkan) ---------- */
-  var loaded = false, queue = [];
+  /* ---------- Pixel loader ---------- */
+  var loaded = false;
   function loadPixels() {
     if (loaded) return; loaded = true;
     if (T.meta_pixel_id) {
@@ -35,7 +35,6 @@
       window.dataLayer = window.dataLayer || []; window.gtag = function () { dataLayer.push(arguments); };
       gtag("js", new Date()); gtag("config", T.ga4_id, { send_page_view: false });
     }
-    queue.forEach(function (a) { send(a[0], a[1]); }); queue = [];
   }
 
   var META_STD = { PageView: 1, ViewContent: 1, InitiateCheckout: 1, Purchase: 1, Lead: 1, CompleteRegistration: 1 };
@@ -56,22 +55,12 @@
   }
   function track(name, params) {
     if (name === "Purchase") return; // Purchase TIDAK pernah dikirim dari LP. Kirim dari server setelah pembayaran sukses.
-    if (loaded || !T.require_consent) { loadPixels(); send(name, params); } else queue.push([name, params]);
+    loadPixels(); send(name, params);
   }
   window.cgTrack = track;
 
-  /* ---------- Consent ---------- */
-  var anyPixel = T.meta_pixel_id || T.tiktok_pixel_id || T.ga4_id;
-  var consent = store.get("cg_consent");
-  var bar = document.getElementById("consent");
-  if (anyPixel && T.require_consent && consent !== "yes") {
-    if (consent !== "no" && bar) bar.classList.add("on");
-  } else if (anyPixel) loadPixels();
-  if (bar) bar.addEventListener("click", function (e) {
-    var b = e.target.closest("button"); if (!b) return;
-    var ok = b.dataset.c === "yes"; store.set("cg_consent", ok ? "yes" : "no", true);
-    bar.classList.remove("on"); if (ok) loadPixels(); else queue = [];
-  });
+  /* Tanpa banner cookie: pixel langsung dimuat (keputusan pemilik, 2026-11-09). */
+  if (T.meta_pixel_id || T.tiktok_pixel_id || T.ga4_id) loadPixels();
 
   track("PageView");
   track("ViewContent", { content_name: LP.content_name, content_type: "landing_page" });

@@ -6,6 +6,7 @@ import { hapusNomorAction, setBotAktifAction, setSaringProspekAction, setSaringS
 import { angka } from "@/lib/format";
 import type { StatusMl } from "@/lib/prospek";
 import { useBahasa } from "./bahasa";
+import { InstruksiNomor } from "./instruksi-nomor";
 import { LencanaSesi } from "./connection-card";
 import { bukaTabNomor } from "./tab-nomor";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "./ui";
@@ -317,29 +318,7 @@ export function NumberSettings({
 
         <SaklarSpam id={id} aktif={saringSpam} />
 
-        <div>
-          <label htmlFor="instruksi" className="label">
-            {t("Instruksi khusus", "Custom instructions")} <span className="font-normal text-faint">{t("(opsional)", "(optional)")}</span>
-          </label>
-          <textarea
-            id="instruksi"
-            name="instruksi"
-            rows={4}
-            maxLength={2000}
-            defaultValue={instruksi}
-            placeholder={t(
-              "Contoh: Sapa pelanggan dengan ramah dan jawab singkat. Untuk permintaan penawaran, tanyakan dulu kebutuhannya.",
-              "E.g. Greet customers warmly and keep answers short. For quote requests, ask about their needs first.",
-            )}
-            className="field resize-y leading-relaxed"
-          />
-          <p className="hint mt-1.5">
-            {t(
-              "Gaya bicara dan alur khusus nomor ini. Siapa pemilik nomor dan faktanya (layanan, harga, jadwal) taruh di base knowledge.",
-              "Tone and special flows for this number. Put who owns the number and the facts (services, prices, schedule) in product knowledge.",
-            )}
-          </p>
-        </div>
+        <InstruksiNomor awal={instruksi} />
         <div className="flex items-center gap-3">
           <SubmitButton>{t("Simpan", "Save")}</SubmitButton>
           <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>

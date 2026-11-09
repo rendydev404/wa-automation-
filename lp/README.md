@@ -23,7 +23,7 @@ satu; yang beda hanya halaman depannya. Sumber awal: paket `chatgercep-lp-10-ind
 lp/industri/<slug>.json   isi satu industri: hero, masalah, solusi, demo WA, manfaat, FAQ, SEO, warna aksen
 lp/prompt/<slug>.md       template instruksi AI per industri (belum dipakai dashboard)
 lp/aset/lp.css            desain (token warna = :root chatgercep.com)
-lp/aset/lp.js             consent, Meta Pixel, simpan UTM, tracking klik CTA, demo WA interaktif, sticky CTA HP
+lp/aset/lp.js             Meta Pixel, simpan UTM, tracking klik CTA, demo WA interaktif, sticky CTA HP
 ```
 
 Kode: `src/lib/lp/` (def = daftar slug, industri = impor JSON, template = HTML, halaman = penyaji + cache),
@@ -34,8 +34,8 @@ utama `src/components/landing/contoh-industri.tsx`.
 
 - **Harga & kuota paket**: dari Paket & harga di panel admin (`daftarPaket()`), paket Custom dari pengaturannya.
   Ubah harga di admin = LP ikut berubah paling lambat 1 menit (HTML disimpan di memori proses 60 detik).
-- **Meta Pixel**: ID dari menu Pixel admin (hanya bila aktif). Pixel baru dimuat setelah pengunjung klik Setuju di
-  banner cookie (`require_consent`). TikTok & GA4 belum dipasang.
+- **Meta Pixel**: ID dari menu Pixel admin (hanya bila aktif). Pixel langsung dimuat tanpa banner cookie
+  (keputusan pemilik). TikTok & GA4 belum dipasang.
 - **Nomor CS**: nomor ChatGerCep yang sama dengan tombol "Coba Tes Bot WA" (`NOMOR_WA_DEMO` di `src/lib/merek.ts`).
 - **Teks garansi**: dari `MASA_ID` & `syaratJaminan()`.
 
@@ -48,8 +48,12 @@ Semua tautan ke `/daftar` otomatis ditambah `industry`, `landing_page`, `paket` 
 `ttclid` yang dibawa iklan. Event dari LP: PageView, ViewContent, ClickCTA, DemoScenario, InitiateCheckout. Purchase
 TIDAK pernah dikirim dari LP (hanya server setelah pembayaran sukses).
 
+Template AI per industri: `lp/prompt/<slug>.md` dipakai pemilih "Template AI per jenis usaha" di pengaturan nomor
+(`src/components/instruksi-nomor.tsx`, `GET /api/templat-ai`, `src/lib/templat-ai.ts`). Baris judul `# ` dan catatan
+`> ` dibuang, `Contoh baris: X` jadi penanda; simpan ditolak selama penanda dari template belum diganti.
+
 Belum dikerjakan (brief prioritas 2–3): `/daftar` menyimpan `industry` + UTM ke tabel user, `content_category` di
-CompleteRegistration/Purchase, dropdown template AI per industri di dashboard, gambar Open Graph.
+CompleteRegistration/Purchase, gambar Open Graph.
 
 ## Menambah industri (mis. properti)
 

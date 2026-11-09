@@ -5,7 +5,9 @@
  *
  * Seluruh teks dari JSON di-escape. Skrip runtime (lp/aset/lp.js) hanya memakai textContent / teks ter-escape.
  */
-import { MASA_ID } from "@/lib/jaminan-def";
+import { MASA_ID, syaratJaminan } from "@/lib/jaminan-def";
+import { tingkatPaket } from "@/lib/tingkat-paket";
+import { UMUR_HISTORI_HARI } from "@/lib/format";
 import { MEREK, NOMOR_WA_DEMO, NOMOR_WA_TAMPIL, PERUSAHAAN } from "@/lib/merek";
 import type { IndustriLp } from "./industri";
 
@@ -39,6 +41,12 @@ export const IKON: Record<string, string> = {
   shield: P('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>'),
   arrow: P('<path d="M5 12h14M13 6l6 6-6 6"/>'),
   play: P('<path d="M6 4l14 8-14 8V4z"/>'),
+  // Ikon kartu harga, sama dengan landing utama (lucide Rocket/Trophy/Crown/Flame).
+  rocket: P('<path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>'),
+  trophy: P('<path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/>'),
+  crown: P('<path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zM5 20h14"/>'),
+  flame: P('<path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 002.5 2.5z"/>'),
+  chatWa: P('<path d="M7.9 20A9 9 0 104 16.1L2 22z"/>'),
 };
 const IKON_MANFAAT = ["bolt", "clock", "repeat", "info", "target", "hand"];
 
@@ -166,37 +174,55 @@ export function renderLp(ind: IndustriLp, semua: IndustriLp[], d: DataLp): strin
     ["Daftar dan pilih paket", "Buat akun dalam satu menit. 1 nomor bisa disambungkan untuk setup dan uji bot sebelum berlangganan."],
     ["Sambungkan WhatsApp lewat QR", "Buka WhatsApp → Perangkat tertaut → scan. Nomor tetap sama, HP tetap bisa dipakai."],
     [`Isi info ${ind.industry_short}`, "Katalog, daftar harga, FAQ, jam buka, dan aturan usaha Anda."],
-    // Pemilih template AI per industri belum ada di dashboard: sesuai brief, kalimatnya memakai versi "salin dari tim".
-    ["Salin template AI dari tim kami", `Gaya bicara, pertanyaan kualifikasi, dan batasan untuk ${ind.industry_short} sudah kami siapkan. Tinggal salin dan sesuaikan.`],
+    // Pemilih template di pengaturan nomor (src/components/instruksi-nomor.tsx), isi dari lp/prompt/<slug>.md.
+    [`Pilih template AI ${ind.industry_name}`, "Gaya bicara, pertanyaan kualifikasi, dan batasan sudah disiapkan untuk industri Anda."],
     ["Uji percakapan", "Coba tanya seperti pelanggan, lalu rapikan knowledge sampai jawabannya pas."],
     ["Aktifkan AI", "AI mulai membantu melayani pelanggan. Anda bisa mengambil alih kapan saja."],
   ]
     .map(([h, p]) => `<div class="step rv"><div><h3>${esc(h)}</h3><p>${esc(p)}</p></div></div>`)
     .join("");
 
+  // Kartu harga = tampilan "Pilih paket" landing utama (src/components/landing/harga.tsx + kartu-custom.tsx varian landing).
+  const IKON_TINGKAT: Record<string, string> = { starter: IKON.rocket, bisnis: IKON.trophy, pro: IKON.crown };
   const kartuPaket = d.paket
-    .map(
-      (p) => `
-        <div class="plan${p.unggulan ? " hl" : ""} rv">${p.unggulan ? '<span class="tag">Paling direkomendasikan</span>' : ""}
-          <h3>${esc(p.nama)}</h3>
-          <p class="pr">${rp(p.harga)} <small>/ ${p.durasi_hari} hari</small></p>
-          ${p.deskripsi ? `<p class="pd">${esc(p.deskripsi)}</p>` : ""}
-          <ul><li>${IKON.check}<span>${fmt(p.kuota_nomor)} nomor WhatsApp</span></li><li>${IKON.check}<span>${fmt(p.kuota_balasan)} balasan AI</span></li></ul>
-          <a class="btn ${p.unggulan ? "btn-dark" : "btn-outline"}" href="${reg}" data-cta="plan_${esc(p.kode)}" data-plan="${esc(p.kode)}" data-value="${p.harga}">Pilih ${esc(p.nama)}</a>
-        </div>`,
-    )
+    .map((p) => {
+      const ikon = IKON_TINGKAT[tingkatPaket(p.kode, p.nama) ?? ""] ?? IKON.sparkle;
+      const poin = [
+        `${fmt(p.kuota_nomor)} nomor WhatsApp`,
+        `${fmt(p.kuota_balasan)} balasan AI/${p.durasi_hari} hari`,
+        "Product knowledge & belajar dari balasanmu",
+        `Histori percakapan ${UMUR_HISTORI_HARI} hari & statistik`,
+      ];
+      return `
+        <article class="hg-kartu${p.unggulan ? " top" : ""} rv">${p.unggulan ? `<span class="hg-tag">${IKON.flame}Paling Banyak Dipilih</span>` : ""}
+          <div class="hg-judul"><span class="hg-ikon">${ikon}</span><div><h3>${esc(p.nama)}</h3>${p.deskripsi ? `<p>${esc(p.deskripsi)}</p>` : ""}</div></div>
+          <p class="hg-harga"><b>${rp(p.harga)}</b><span>/${p.durasi_hari} hari</span></p>
+          <ul>${poin.map((x) => `<li><span class="hg-cek">${IKON.check}</span>${esc(x)}</li>`).join("")}</ul>
+          <a class="hg-btn${p.unggulan ? " utama" : ""}" href="${reg}" data-cta="plan_${esc(p.kode)}" data-plan="${esc(p.kode)}" data-value="${p.harga}">Langsung Aktif Sekarang ${IKON.arrow}</a>
+        </article>`;
+    })
     .join("");
   const c = d.custom;
   const kartuCustom = c
     ? `
-        <div class="plan custom rv">
-          <h3>${esc(c.nama)}</h3>
-          <p class="pr" style="font-size:1.5rem">${esc(c.label)}</p>
-          ${c.catatan ? `<p class="pd">${esc(c.catatan)}</p>` : ""}
-          <ul><li>${IKON.check}<span>${esc(c.poin)}</span></li></ul>
-          <a class="btn btn-outline" href="${esc(c.href)}" data-cta="plan_custom"${c.luar ? ' target="_blank" rel="noopener"' : ""}>${esc(c.tombol)}</a>
-        </div>`
+        <article class="hg-custom rv">
+          <div><span class="hg-lencana">${esc(c.nama)}</span>${c.catatan ? `<p class="hg-cat">${esc(c.catatan)}</p>` : ""}<p class="hg-label">${esc(c.label)}</p></div>
+          <ul><li><span class="hg-cek">${IKON.check}</span>${esc(c.poin)}</li></ul>
+          <a class="hg-btn" href="${esc(c.href)}" data-cta="plan_custom"${c.luar ? ' target="_blank" rel="noopener"' : ""}>${c.luar ? IKON.chatWa : ""}${esc(c.tombol)}</a>
+        </article>`
     : "";
+  const syarat = syaratJaminan((id) => id)
+    .map((x, i) => `<li><span>${i + 1}</span>${esc(x)}</li>`)
+    .join("");
+  const kotakGaransi = `
+        <div class="hg-garansi rv" id="garansi">
+          <div class="hg-g-atas">
+            <div class="hg-g-kiri"><span class="hg-perisai">${IKON.shield}</span><p><span>Garansi uang kembali</span><b>${esc(MASA_ID)}</b></p></div>
+            <i aria-hidden="true"></i>
+            <div class="hg-g-teks"><p><strong>Coba langsung, tanpa trial.</strong></p><p>Jika dalam ${esc(MASA_ID)} pertama ChatGerCep tidak gercep atau tidak sesuai yang kami janjikan, <mark>uang kamu kami kembalikan 100%.</mark></p></div>
+          </div>
+          <div class="hg-g-syarat"><p>Syarat &amp; ketentuan garansi</p><ol>${syarat}</ol></div>
+        </div>`;
   const jumlahKartu = d.paket.length + (c ? 1 : 0);
 
   const faq = ind.faq
@@ -231,7 +257,7 @@ export function renderLp(ind: IndustriLp, semua: IndustriLp[], d: DataLp): strin
     industry: ind.slug,
     landing_page: "/" + ind.slug,
     content_name: ind.cta_tracking.content_name,
-    tracking: { meta_pixel_id: d.metaPixelId, tiktok_pixel_id: "", ga4_id: "", require_consent: true },
+    tracking: { meta_pixel_id: d.metaPixelId, tiktok_pixel_id: "", ga4_id: "" },
     demo: ind.demo_conversations.scenarios,
   };
 
@@ -350,26 +376,16 @@ ${kepalaFont}
 
 ${
   jumlahKartu
-    ? `<section class="s" id="harga" aria-labelledby="h-harga">
+    ? `<section class="s hg" id="harga" aria-labelledby="h-harga">
   <div class="wrap">
-    <div class="head center"><span class="eyebrow">Harga</span><h2 id="h-harga">Pilih paket, langsung aktif</h2><p class="lead">Tanpa kontrak. Perpanjang kapan saja, kuota balasan AI langsung bertambah.</p></div>
-    <div class="plans" style="--kolom:${Math.min(Math.max(jumlahKartu, 1), 4)}">${kartuPaket}${kartuCustom}
+    <div class="head center"><span class="eyebrow">Harga</span><h2 id="h-harga">Pilih paket, <em>langsung aktif.</em></h2><p class="lead">Tanpa kontrak. Perpanjang kapan saja, kuota balasan AI langsung bertambah.</p></div>
+    <div class="hg-grid">${kartuPaket}${kartuCustom}${kotakGaransi}
+      <p class="hg-catatan">Belum yakin? Daftar dulu. 1 nomor bisa disambungkan untuk setup dan uji bot sebelum berlangganan. <a href="/garansi">Baca syarat garansi</a></p>
     </div>
-    <p class="trial-note">Belum yakin? Daftar dulu. 1 nomor bisa disambungkan untuk setup dan uji bot sebelum berlangganan.</p>
   </div>
 </section>`
     : `<section class="s" id="harga" aria-labelledby="h-harga"><div class="wrap"><div class="head center"><span class="eyebrow">Harga</span><h2 id="h-harga">Lihat paket terbaru</h2><p class="lead">Daftar harga lengkap ada di <a href="/#harga">halaman utama</a>.</p></div></div></section>`
 }
-
-<section class="s" style="padding-top:0" aria-labelledby="h-garansi">
-  <div class="wrap">
-    <div class="guar rv">
-      <span class="seal">${IKON.shield}</span>
-      <div><h2 id="h-garansi">Garansi uang kembali 100%</h2><p>${esc(TEKS_GARANSI)} <a href="/garansi">Baca syarat garansi</a></p></div>
-      <a class="btn btn-dark" href="${reg}" data-cta="guarantee">Coba Sekarang</a>
-    </div>
-  </div>
-</section>
 
 <section class="s sol" aria-labelledby="h-faq">
   <div class="wrap">
@@ -400,11 +416,6 @@ ${termurah ? `<div class="sticky" id="sticky">
   <div class="p">Mulai<b>${rp(termurah.harga)}</b></div>
   <a class="btn btn-primary" href="${reg}" data-cta="sticky_mobile">Aktifkan AI Sekarang</a>
 </div>` : ""}
-
-<div class="consent" id="consent" role="dialog" aria-label="Persetujuan cookie">
-  <p>Kami memakai cookie dan piksel iklan (Meta) untuk mengukur performa iklan. Setuju?</p>
-  <div><button type="button" data-c="no">Tolak</button><button type="button" class="ok" data-c="yes">Setuju</button></div>
-</div>
 
 <script>window.CG_LP=${jsonAman(runtime)};</script>
 <script>${d.js}</script>

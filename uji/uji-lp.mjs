@@ -41,7 +41,9 @@ for (const ind of semua) {
   const html = renderLp(ind, semua, data);
   assert.ok(!/undefined|NaN|\[object Object\]/.test(html.replace(/<script>window\.CG_LP=[\s\S]*?<\/script>/, "")), `${ind.slug}: ada nilai kosong di HTML`);
   assert.ok(html.includes("Rp67.000") && html.includes("Rp246.000"), `${ind.slug}: harga paket dari data`);
-  assert.ok(html.includes('data-plan="bisnis"') && html.includes("--kolom:2"), `${ind.slug}: kartu paket`);
+  assert.ok(html.includes('data-plan="bisnis"') && html.includes("hg-kartu"), `${ind.slug}: kartu paket`);
+  assert.ok(html.includes("hg-garansi") && html.includes("Syarat &amp; ketentuan garansi"), `${ind.slug}: kotak garansi seperti landing utama`);
+  assert.ok(!html.includes('id="consent"'), `${ind.slug}: tanpa banner cookie`);
   assert.ok(html.includes("Simulasi percakapan"), `${ind.slug}: label Simulasi wajib ada`);
   assert.ok(!html.includes("og:image"), `${ind.slug}: tanpa gambar OG, meta og:image tidak dipasang`);
 }
@@ -57,4 +59,24 @@ assert.ok(h.includes(`og:image" content="https://contoh.test/lp-assets/og/${jaha
 const g = renderGaransi(["Syarat <satu>", "Syarat dua"], { asal: "https://contoh.test", css: "" });
 assert.ok(g.includes("Syarat &lt;satu&gt;") && g.includes("1×24 jam"), "halaman garansi");
 
-console.log(`uji-lp: ${semua.length} industri OK`);
+// Template AI per industri (pemilih di pengaturan nomor): tiap slug punya lp/prompt/<slug>.md, hasil siapkanTemplat
+// bersih dari judul/catatan/baris contoh, muat di kolom instruksi, dan memang berisi penanda yang wajib diisi.
+const { MAKS_INSTRUKSI, TEMPLAT_AI, siapkanTemplat, sisaPenanda } = await lib("src/lib/templat-ai-def.ts");
+const { penandaTersisa, bacaTemplat } = await lib("src/lib/templat-ai.ts");
+assert.deepEqual(TEMPLAT_AI.map((x) => x.slug).sort(), [...SLUG_LP].sort(), "pemilih template mencakup semua industri LP");
+for (const slug of SLUG_LP) {
+  const teks = siapkanTemplat(readFileSync(path.join(akar, "lp/prompt", `${slug}.md`), "utf8"));
+  assert.ok(!/^#\s|^>\s|^\s*Contoh baris:/im.test(teks), `${slug}: template masih memuat judul/catatan/baris contoh`);
+  assert.ok(teks.length > 300 && teks.length < MAKS_INSTRUKSI, `${slug}: panjang template ${teks.length} di luar batas`);
+  assert.ok(sisaPenanda(teks).length > 0, `${slug}: template harus punya penanda [ ... ] untuk diisi pemilik`);
+  assert.equal(await bacaTemplat(slug), teks, `${slug}: bacaTemplat = siapkanTemplat(berkas)`);
+  assert.ok((await penandaTersisa(teks)).length > 0, `${slug}: template mentah ditolak saat disimpan`);
+}
+assert.deepEqual(sisaPenanda("tanpa penanda"), []);
+assert.deepEqual(await penandaTersisa("Sapa pelanggan dengan ramah."), [], "instruksi biasa lolos");
+assert.deepEqual(await penandaTersisa("Tulis [PROMO] di awal pesan promo."), [], "kurung siku milik pengguna (bukan dari template) lolos");
+assert.deepEqual(await penandaTersisa("[Contoh, ganti dengan data Anda: Cuci Rp8.000]"), ["[Contoh, ganti dengan data Anda: Cuci Rp8.000]"]);
+const langkah4 = renderLp(semua.find((i) => i.slug === "laundry"), semua, data);
+assert.ok(langkah4.includes("Pilih template AI") && !langkah4.includes("Salin template AI"), "langkah 4 LP = pilih template AI");
+
+console.log(`uji-lp: ${semua.length} industri OK, template AI ${SLUG_LP.length} OK`);

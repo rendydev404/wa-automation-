@@ -3,6 +3,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { MAKS_INSTRUKSI } from "@/lib/templat-ai-def";
+import { penandaTersisa } from "@/lib/templat-ai";
 import {
   AfiliasiError,
   COOKIE_REF,
@@ -411,10 +413,20 @@ export async function ubahNomorAction(_lalu: Hasil | null, form: FormData): Prom
   const user = await requireUser();
   const id = Number(form.get("id"));
   const label = String(form.get("label") ?? "").trim().slice(0, 60);
-  const instruksi = String(form.get("instruksi") ?? "").trim().slice(0, 2000);
+  const instruksi = String(form.get("instruksi") ?? "").trim().slice(0, MAKS_INSTRUKSI);
   const { t } = await teksPermintaan();
   if (!(await nomorUntuk(user, id))) return nomorTidakAda(t);
   if (!label) return { ok: false, pesan: t("Nama nomor wajib diisi.", "Number name is required.") };
+  // Template AI yang belum diisi: isian contoh/penanda tidak boleh sampai terbaca AI sebagai fakta usaha.
+  const penanda = await penandaTersisa(instruksi);
+  if (penanda.length)
+    return {
+      ok: false,
+      pesan: t(
+        `Masih ada ${penanda.length} bagian bertanda [ ... ] yang belum diganti, misalnya ${penanda[0]}. Ganti dengan data usaha Anda atau hapus.`,
+        `${penanda.length} part(s) marked [ ... ] haven't been replaced yet, e.g. ${penanda[0]}. Replace them with your business details or delete them.`,
+      ),
+    };
   const tungguDetik = Math.round(Number(form.get("tunggu_detik")));
   const tungguBacaDetik = Math.round(Number(form.get("tunggu_baca_detik")));
   // Lama AI diam diisi dengan satuan pilihan (detik/menit), disimpan dalam detik.
