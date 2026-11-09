@@ -78,13 +78,13 @@ export function PilihMetode({
               <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-bold tracking-wide text-muted uppercase">
                 <Ikon className="size-3.5" aria-hidden /> {grupKanal(daftar[0], b)}
               </h3>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {daftar.map((x) => {
                   const aktif = pilih === x;
                   return (
                     <label
                       key={x}
-                      className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-3 transition-colors has-focus-visible:ring-2 has-focus-visible:ring-accent ${
+                      className={`flex min-w-0 cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-3 transition-colors has-focus-visible:ring-2 has-focus-visible:ring-accent ${
                         aktif ? "border-accent bg-accent-soft" : "border-line bg-surface hover:bg-subtle"
                       }`}
                     >
@@ -92,10 +92,10 @@ export function PilihMetode({
                       <LogoKanal kanal={x} />
                       <span className="min-w-0 flex-1">
                         <span className="block text-[13.5px] font-semibold">{labelKanal(x, b, penyedia[x])}</span>
-                        <span className="block truncate text-[12px] text-muted">{infoKanal(x, b)}</span>
+                        <span className="line-clamp-2 block text-[12px] leading-snug text-muted">{infoKanal(x, b)}</span>
                         {jaminan && kanalBisaRefund(x) && (
-                          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[11px] font-semibold text-success">
-                            <ShieldCheck className="size-3" aria-hidden /> {t(`Jaminan uang kembali ${MASA_ID}`, `${MASA_EN_ADJ} money-back guarantee`)}
+                          <span className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-success">
+                            <ShieldCheck className="size-3 shrink-0" aria-hidden /> {t(`Jaminan uang kembali ${MASA_ID}`, `${MASA_EN_ADJ} money-back guarantee`)}
                           </span>
                         )}
                       </span>

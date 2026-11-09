@@ -70,7 +70,7 @@ async function Isi({ params }: { params: Promise<{ paket: string }> }) {
   const [hak, lama, pernahBayar] = await Promise.all([hakAkun(user), tagihanMenunggu(user.id, p.id), sudahPernahBayar(user.id)]);
   const perpanjang = hak.paket === p.nama;
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-[1fr_20rem]">
+    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <aside className="card p-5 sm:p-6 lg:sticky lg:top-6 lg:order-2" aria-labelledby="judul-ringkasan">
         <h2 id="judul-ringkasan" className="text-[13px] font-bold tracking-wide text-muted uppercase">
           {t("Ringkasan", "Summary")}
