@@ -103,8 +103,8 @@
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function clock(i) { var m = 14 + i; return "21." + (m < 10 ? "0" + m : m); }
   function Player(body, opts) {
-    var timers = [], self = this;
-    this.play = function (idx) {
+    var timers = [];
+    function play(idx) {
       timers.forEach(clearTimeout); timers = []; body.innerHTML = "";
       var msgs = (scenarios[idx] || {}).messages || [], t = 250;
       msgs.forEach(function (m, i) {
@@ -125,8 +125,9 @@
         }, t));
         t += isAI ? (opts.fast ? 900 : 1500) : (opts.fast ? 700 : 1000);
       });
-      if (opts.loop) timers.push(setTimeout(function () { self.play((idx + 1) % scenarios.length); }, t + 3200));
-    };
+      if (opts.loop) timers.push(setTimeout(function () { play((idx + 1) % scenarios.length); }, t + 3200));
+    }
+    this.play = play;
     function scroll() { body.scrollTop = body.scrollHeight; }
   }
 
