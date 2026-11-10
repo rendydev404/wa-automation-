@@ -9,9 +9,8 @@ import {
   ApiError,
   type Keputusan,
   ajukan,
-  beriAksesApi,
+  aturAksesApi,
   buatKunci,
-  cabutAksesApi,
   cabutSemuaKunci,
   lepasInstalasi,
   mulaiBayarApi,
@@ -270,30 +269,17 @@ export async function simpanPengaturanApiAction(_lalu: Hasil | null, form: FormD
   }
 }
 
-/** Beri akses portal /developer ke satu akun (lewat email). Hanya developer internal. */
-export async function beriAksesAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
-  const m = await tolakMesin();
-  if (m) return m;
-  const pelaku = await requireDeveloper();
-  try {
-    const email = await beriAksesApi(pelaku, String(form.get("email") ?? ""));
-    segarkanPanel();
-    return { ok: true, pesan: `${email} sekarang melihat menu Developer API.` };
-  } catch (e) {
-    return galat(e);
-  }
-}
-
-export async function cabutAksesAction(userId: number): Promise<Hasil> {
+/** Nyalakan / matikan akses portal /developer satu akun. Hanya developer internal. */
+export async function aturAksesAction(userId: number, aktif: boolean): Promise<Hasil> {
   const m = await tolakMesin();
   if (m) return m;
   const pelaku = await requireDeveloper();
   const id = idSah(userId);
-  if (!id) return { ok: false, pesan: "Akun tidak valid." };
+  if (!id || typeof aktif !== "boolean") return { ok: false, pesan: "Data tidak valid." };
   try {
-    await cabutAksesApi(pelaku, id);
-    segarkanPanel();
-    return { ok: true, pesan: "Akses dicabut. Menu Developer API hilang dari akun itu." };
+    const email = await aturAksesApi(pelaku, id, aktif);
+    revalidatePath("/admin/developer-api");
+    return { ok: true, pesan: aktif ? `${email} sekarang melihat menu Developer API.` : `Akses ${email} dicabut.` };
   } catch (e) {
     return galat(e);
   }

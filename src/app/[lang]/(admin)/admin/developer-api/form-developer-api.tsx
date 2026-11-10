@@ -1,8 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { KeyRound, UserMinus, Unplug } from "lucide-react";
-import { beriAksesAction, cabutAksesAction, cabutKunciAction, lepasInstalasiStafAction, setujuiAction, simpanPengaturanApiAction, tolakAction, ubahAplikasiAction, ubahStatusAction } from "@/app/actions-developer";
+import { KeyRound, Unplug } from "lucide-react";
+import { cabutKunciAction, lepasInstalasiStafAction, setujuiAction, simpanPengaturanApiAction, tolakAction, ubahAplikasiAction, ubahStatusAction } from "@/app/actions-developer";
 import { PilihOpsi } from "@/components/pilih-opsi";
 import { Pesan, SubmitButton, TombolKonfirmasi } from "@/components/ui";
 import { BATAS_BAWAAN, type BatasApi, type BiayaAplikasi, type BiayaEfektif, FITUR_API, type FiturApi, RENTANG_BATAS } from "@/lib/api-def";
@@ -213,70 +213,43 @@ export function FormPengaturanApi({ biaya, harga, fitur }: { biaya: BiayaEfektif
   const [pilih, setPilih] = useState<string>(biaya);
   return (
     <form action={aksi} className="space-y-4">
-      <div>
-        <label className="label">Biaya bawaan</label>
-        <PilihOpsi
-          name="biaya"
-          nilai={pilih}
-          onUbah={setPilih}
-          opsi={[
-            { id: "gratis", label: "Gratis" },
-            { id: "berbayar", label: "Berbayar" },
-          ]}
-          label="Biaya bawaan"
-        />
-        <p className="mt-1 text-[12px] text-muted">Berlaku untuk aplikasi yang biayanya &quot;ikut pengaturan umum&quot;.</p>
-      </div>
-      <div>
-        <label htmlFor="harga-bawaan-api" className="label">
-          Harga bawaan per 30 hari (Rp)
-        </label>
-        <input id="harga-bawaan-api" name="harga" type="number" min={0} step={1000} defaultValue={harga} className="field" />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="label">Biaya bawaan</label>
+          <PilihOpsi
+            name="biaya"
+            nilai={pilih}
+            onUbah={setPilih}
+            opsi={[
+              { id: "gratis", label: "Gratis" },
+              { id: "berbayar", label: "Berbayar" },
+            ]}
+            label="Biaya bawaan"
+          />
+          <p className="mt-1 text-[12px] text-muted">Untuk aplikasi yang biayanya &quot;ikut pengaturan umum&quot;.</p>
+        </div>
+        <div>
+          <label htmlFor="harga-bawaan-api" className="label">
+            Harga bawaan per 30 hari (Rp)
+          </label>
+          <input id="harga-bawaan-api" name="harga" type="number" min={0} step={1000} defaultValue={harga} className="field" />
+        </div>
       </div>
       <fieldset>
         <legend className="label">Fitur yang boleh dibuka</legend>
-        <div className="mt-1 space-y-1.5">
+        <div className="mt-1 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {FITUR_API.map((f) => (
-            <label key={f.kode} className="flex cursor-pointer items-center gap-2.5 text-[13.5px]">
+            <label key={f.kode} className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-line px-3 py-2 text-[13px] has-checked:border-accent has-checked:bg-accent-soft">
               <input type="checkbox" name="fitur" value={f.kode} defaultChecked={fitur.includes(f.kode)} className="centang" />
               {f.label}
             </label>
           ))}
         </div>
       </fieldset>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <SubmitButton>Simpan pengaturan</SubmitButton>
+      <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2 border-t border-line pt-4">
         <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
+        <SubmitButton>Simpan pengaturan</SubmitButton>
       </div>
     </form>
-  );
-}
-
-/** Tambah akun yang boleh melihat menu & portal Developer API (lewat email akun yang sudah terdaftar). */
-export function FormBeriAkses() {
-  const [hasil, aksi] = useActionState(beriAksesAction, null);
-  return (
-    <form action={aksi} className="space-y-2">
-      <label htmlFor="email-akses-api" className="label">
-        Email akun
-      </label>
-      <div className="flex gap-2">
-        <input id="email-akses-api" name="email" type="email" required autoComplete="off" placeholder="nama@contoh.com" className="field min-w-0 flex-1" />
-        <SubmitButton>Beri akses</SubmitButton>
-      </div>
-      <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
-    </form>
-  );
-}
-
-export function TombolCabutAkses({ userId, email }: { userId: number; email: string }) {
-  return (
-    <TombolKonfirmasi
-      label="Cabut"
-      tanya={`Cabut akses ${email}?`}
-      className="btn btn-ghost border border-line"
-      ikon={<UserMinus className="size-4" aria-hidden />}
-      aksi={() => cabutAksesAction(userId)}
-    />
   );
 }

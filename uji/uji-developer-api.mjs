@@ -332,24 +332,36 @@ await cek("verifikasi lisensi & cek key di mesin: < 1 ms per panggilan", async (
   assert.ok(msKunci < 1 && msVerif < 1);
 });
 
-await cek("akses portal: bawaan kosong (admin pun tidak), developer memilih akun lewat email, bisa dicabut", async () => {
+await cek("akses portal: bawaan kosong (admin pun tidak), developer menyalakan/mematikan per akun, cari langsung", async () => {
   const Dv = { id: dev.id, email: "dev@uji.test", nama: "Dev", peran: "developer" };
   await sql`UPDATE users SET akses_api = false`;
-  assert.deepEqual(await D.daftarAksesApi(), []);
-  const [{ a: aksesAdmin }] = await sql`SELECT akses_api AS a FROM users WHERE id = ${admin.id}`;
-  assert.equal(aksesAdmin, false);
-  assert.equal(await D.beriAksesApi(Dv, "  BUDI@uji.test "), "budi@uji.test");
-  assert.deepEqual((await D.daftarAksesApi()).map((u) => u.email), ["budi@uji.test"]);
-  await assert.rejects(D.beriAksesApi(Dv, "budi@uji.test"), galat("isian_tidak_sah"));
-  await assert.rejects(D.beriAksesApi(Dv, "tidak-ada@uji.test"), galat("isian_tidak_sah"));
-  await assert.rejects(D.beriAksesApi(Dv, "bukan email"), galat("isian_tidak_sah"));
-  await D.cabutAksesApi(Dv, budi.id);
-  assert.deepEqual(await D.daftarAksesApi(), []);
-  await assert.rejects(D.cabutAksesApi(Dv, budi.id), galat("isian_tidak_sah"));
-  const [log] = await sql`SELECT aksi, sasaran FROM admin_log WHERE aksi LIKE 'developer_api.%akses' ORDER BY id DESC LIMIT 1`;
-  assert.deepEqual({ ...log }, { aksi: "developer_api.cabut_akses", sasaran: "budi@uji.test" });
-  const rencana = (await sql`EXPLAIN SELECT id, email, nama, peran FROM users WHERE akses_api ORDER BY id LIMIT 200`.simple()).map((r) => r["QUERY PLAN"]).join(" ");
-  console.log(`      rencana daftarAksesApi: ${rencana.slice(0, 120)}`);
+  let h = await D.cariAkunAkses({ hanyaAkses: true });
+  assert.deepEqual(h, { daftar: [], jumlahAkses: 0 });
+  assert.equal(await D.aturAksesApi(Dv, budi.id, true), "budi@uji.test");
+  assert.equal(await D.aturAksesApi(Dv, budi.id, true), "budi@uji.test"); // idempoten, tidak dobel log
+  h = await D.cariAkunAkses();
+  assert.equal(h.jumlahAkses, 1);
+  assert.equal(h.daftar[0].email, "budi@uji.test", "yang punya akses di atas");
+  assert.deepEqual((await D.cariAkunAkses({ cari: "BUD" })).daftar.map((u) => u.email), ["budi@uji.test"]);
+  assert.deepEqual((await D.cariAkunAkses({ cari: "%" })).daftar, [], "wildcard LIKE di-escape");
+  assert.deepEqual((await D.cariAkunAkses({ cari: "admin", hanyaAkses: true })).daftar, []);
+  await assert.rejects(D.aturAksesApi(Dv, 999999, true), galat("isian_tidak_sah"));
+  await D.aturAksesApi(Dv, budi.id, false);
+  assert.equal((await D.cariAkunAkses()).jumlahAkses, 0);
+  const log = await sql`SELECT aksi FROM admin_log WHERE aksi LIKE 'developer_api.%akses' ORDER BY id`;
+  assert.deepEqual(log.map((r) => r.aksi), ["developer_api.beri_akses", "developer_api.cabut_akses"]);
+  // Kecepatan pada 20 rb akun: cari langsung & daftar awal.
+  await sql`INSERT INTO users (email, password_hash, peran, nama, created_at) SELECT 'u' || g || '@banyak.test', 'x', 'user', 'Pengguna ' || g, 0 FROM generate_series(1, 20000) g`;
+  await sql`UPDATE users SET akses_api = true WHERE email IN ('u5@banyak.test', 'u777@banyak.test')`;
+  await sql`ANALYZE users`;
+  const ukur = async (o) => {
+    await D.cariAkunAkses(o);
+    const t0 = performance.now();
+    for (let i = 0; i < 20; i++) await D.cariAkunAkses(o);
+    return ((performance.now() - t0) / 20).toFixed(2);
+  };
+  console.log(`      cariAkunAkses (20 rb akun): awal ${await ukur({})} ms · "pengguna 1999" ${await ukur({ cari: "pengguna 1999" })} ms · "zzz" ${await ukur({ cari: "zzz" })} ms · punya akses ${await ukur({ hanyaAkses: true })} ms`);
+  await sql`DELETE FROM users WHERE email LIKE '%@banyak.test'`;
 });
 
 server.close();

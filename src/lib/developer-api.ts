@@ -225,38 +225,49 @@ export interface AkunAksesApi {
   email: string;
   nama: string;
   peran: string;
+  akses_api: boolean;
 }
 
 export const MAKS_AKSES_API = 200;
+export const BATAS_CARI_AKSES = 30;
 
-/** Akun yang boleh membuka portal /developer. Lewat indeks parsial users_akses_api_idx (hanya baris akses_api). */
-export async function daftarAksesApi(): Promise<AkunAksesApi[]> {
+/**
+ * Pemilih akses portal: akun yang cocok dengan kata kunci (email / nama), yang sudah punya akses di atas.
+ * `hanyaAkses` lewat indeks parsial users_akses_api_idx. Tanpa kata kunci = akun dengan akses lalu akun terbaru.
+ */
+export async function cariAkunAkses(o: { cari?: string; hanyaAkses?: boolean } = {}): Promise<{ daftar: AkunAksesApi[]; jumlahAkses: number }> {
+  const cari = String(o.cari ?? "").trim().toLowerCase().slice(0, 100);
+  const pola = `%${cari.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const hanya = !!o.hanyaAkses;
   const sql = await db();
-  return [...(await sql<AkunAksesApi[]>`SELECT id, email, nama, peran FROM users WHERE akses_api ORDER BY id LIMIT ${MAKS_AKSES_API}`)];
+  const [daftar, [{ n }]] = await Promise.all([
+    sql<AkunAksesApi[]>`
+      SELECT id, email, nama, peran, akses_api FROM users
+       WHERE (${cari} = '' OR email LIKE ${pola} OR lower(nama) LIKE ${pola})
+         AND (${!hanya} OR akses_api)
+       ORDER BY akses_api DESC, id DESC
+       LIMIT ${BATAS_CARI_AKSES}`,
+    sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM users WHERE akses_api`,
+  ]);
+  return { daftar: [...daftar], jumlahAkses: n };
 }
 
-/** Beri akses portal ke satu akun lewat email. Mengembalikan email akun itu. */
-export async function beriAksesApi(pelaku: User, emailMasuk: string): Promise<string> {
-  const email = String(emailMasuk ?? "").trim().toLowerCase().slice(0, 254);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ApiError("isian_tidak_sah", "Email tidak valid.");
-  const sql = await db();
-  const [{ n }] = await sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM users WHERE akses_api`;
-  if (n >= MAKS_AKSES_API) throw new ApiError("isian_tidak_sah", `Maksimal ${MAKS_AKSES_API} akun.`);
-  const [u] = await sql<{ id: number; akses_api: boolean }[]>`SELECT id, akses_api FROM users WHERE email = ${email}`;
-  if (!u) throw new ApiError("isian_tidak_sah", "Akun dengan email itu belum terdaftar.");
-  if (u.akses_api) throw new ApiError("isian_tidak_sah", "Akun ini sudah punya akses.");
-  await sql`UPDATE users SET akses_api = true WHERE id = ${u.id}`;
-  await catatLog(pelaku, "developer_api.beri_akses", email);
-  return email;
-}
-
-/** Cabut akses portal. Aplikasi yang sudah disetujui tetap berjalan; tangguhkan dari panel bila perlu. */
-export async function cabutAksesApi(pelaku: User, userId: number): Promise<void> {
+/** Nyalakan / matikan akses portal satu akun. Mengembalikan email akun itu. */
+export async function aturAksesApi(pelaku: User, userId: number, aktif: boolean): Promise<string> {
   if (!Number.isInteger(userId) || userId <= 0) throw new ApiError("isian_tidak_sah", "Akun tidak valid.");
   const sql = await db();
-  const [u] = await sql<{ email: string }[]>`UPDATE users SET akses_api = false WHERE id = ${userId} AND akses_api RETURNING email`;
-  if (!u) throw new ApiError("isian_tidak_sah", "Akun ini tidak punya akses.");
-  await catatLog(pelaku, "developer_api.cabut_akses", u.email);
+  if (aktif) {
+    const [{ n }] = await sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM users WHERE akses_api`;
+    if (n >= MAKS_AKSES_API) throw new ApiError("isian_tidak_sah", `Maksimal ${MAKS_AKSES_API} akun.`);
+  }
+  const [u] = await sql<{ email: string }[]>`UPDATE users SET akses_api = ${aktif} WHERE id = ${userId} AND akses_api <> ${aktif} RETURNING email`;
+  if (!u) {
+    const [ada] = await sql<{ email: string }[]>`SELECT email FROM users WHERE id = ${userId}`;
+    if (!ada) throw new ApiError("isian_tidak_sah", "Akun tidak ditemukan.");
+    return ada.email; // sudah dalam keadaan yang diminta
+  }
+  await catatLog(pelaku, aktif ? "developer_api.beri_akses" : "developer_api.cabut_akses", u.email);
+  return u.email;
 }
 
 /** Aplikasi milik satu akun (portal developer luar), terbaru dulu. */
