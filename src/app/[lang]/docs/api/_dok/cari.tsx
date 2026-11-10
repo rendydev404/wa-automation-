@@ -36,7 +36,8 @@ export function CariDok() {
     const f = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setBuka((x) => !x);
+        if (buka) tutup();
+        else setBuka(true);
       } else if (e.key === "/" && !buka && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
         e.preventDefault();
         setBuka(true);
@@ -44,17 +45,19 @@ export function CariDok() {
     };
     window.addEventListener("keydown", f);
     return () => window.removeEventListener("keydown", f);
-  }, [buka]);
+  });
   useEffect(() => {
-    if (buka) {
-      setQ("");
-      setPilih(0);
-      setTimeout(() => input.current?.focus(), 10);
-    }
+    if (buka) setTimeout(() => input.current?.focus(), 10);
   }, [buka]);
 
-  const pergi = (h: Hasil) => {
+  /** Tutup & kosongkan isian, supaya dibuka lagi mulai dari awal (tanpa setState di effect). */
+  function tutup() {
     setBuka(false);
+    setQ("");
+    setPilih(0);
+  }
+  const pergi = (h: Hasil) => {
+    tutup();
     router.push(h.href);
   };
   const IKON = { halaman: FileText, endpoint: Zap, event: Webhook, galat: TriangleAlert };
@@ -73,7 +76,7 @@ export function CariDok() {
       </button>
       {buka && (
         <div className="fixed inset-0 z-[60] flex items-start justify-center px-3 pt-[12vh]" role="dialog" aria-modal="true" aria-label={t("Cari dokumentasi", "Search docs")}>
-          <button type="button" aria-label={t("Tutup", "Close")} className="absolute inset-0 bg-ink/60" onClick={() => setBuka(false)} />
+          <button type="button" aria-label={t("Tutup", "Close")} className="absolute inset-0 bg-ink/60" onClick={tutup} />
           <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-line bg-canvas text-fg shadow-2xl">
             <div className="flex items-center gap-2 border-b border-line px-4">
               <Search className="size-4 text-muted" aria-hidden />
@@ -85,7 +88,7 @@ export function CariDok() {
                   setPilih(0);
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Escape") setBuka(false);
+                  if (e.key === "Escape") tutup();
                   else if (e.key === "ArrowDown") {
                     e.preventDefault();
                     setPilih((p) => Math.min(p + 1, hasil.length - 1));

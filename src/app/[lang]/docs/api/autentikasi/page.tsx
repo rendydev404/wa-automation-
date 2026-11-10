@@ -1,3 +1,4 @@
+import Link from "@/components/link";
 import { teksHalaman } from "@/lib/bahasa-halaman";
 import { Bagian, Catatan, JudulHalaman, K, Tabel, metaDok } from "../_dok/kerangka";
 import { Kode } from "../_dok/kode";
@@ -62,9 +63,9 @@ export default async function Autentikasi() {
         <Kode judul="JSON">{JSON.stringify({ galat: { kode: "fitur_tidak_dibuka", pesan: "Fitur 'knowledge' belum dibuka untuk aplikasi ini.", id_permintaan: "req_9f2a..." } }, null, 2)}</Kode>
         <p className="text-[13.5px] text-muted">
           {t("Kode 429 & 503 boleh dicoba ulang. Daftar lengkap ada di halaman ", "429 & 503 may be retried. The full list is on the ")}
-          <a href="/docs/api/galat" className="font-semibold text-accent hover:underline">
+          <Link href="/docs/api/galat" className="font-semibold text-accent hover:underline">
             {t("Kode galat", "Error codes")}
-          </a>
+          </Link>
           {t(".", " page.")}
         </p>
       </Bagian>
