@@ -25,6 +25,8 @@ export type FilterPercakapan = "semua" | "bot" | "manusia";
 
 export interface ItemPercakapan {
   id: number;
+  /** Id tetap chat (sama dengan `kunci` di event webhook). */
+  kunci: string;
   telepon: string | null;
   nama: string | null;
   cuplikan: string;
@@ -158,7 +160,7 @@ export async function daftarPercakapan(
   if (!cari && filter === "semua" && !adaKursor) {
     // Jalur paling sering (buka halaman pertama tanpa filter): murni Index Scan berurutan pada percakapan_nomor_waktu_idx.
     baris = await sql<ItemPercakapan[]>`
-      SELECT p.id, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir,
+      SELECT p.id, p.kunci, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir,
              p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, p.spam, p.spam_alasan, p.prospek, p.prospek_alasan,
              COALESCE(cs.jeda_sampai, 0) AS jeda_sampai
         FROM percakapan p
@@ -171,7 +173,7 @@ export async function daftarPercakapan(
     const digit = cari.replace(/\D/g, "");
     const polaDigit = digit ? `%${digit}%` : pola;
     baris = await sql<ItemPercakapan[]>`
-      SELECT p.id, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir,
+      SELECT p.id, p.kunci, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir,
              p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, p.spam, p.spam_alasan, p.prospek, p.prospek_alasan,
              COALESCE(cs.jeda_sampai, 0) AS jeda_sampai
         FROM percakapan p
@@ -205,7 +207,7 @@ export async function ambilPesanPercakapan(
 ): Promise<{ percakapan: ItemPercakapan; pesan: ItemPesan[]; adaSebelumnya: boolean } | null> {
   const sql = await db();
   const [percakapan] = await sql<ItemPercakapan[]>`
-    SELECT p.id, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir,
+    SELECT p.id, p.kunci, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir,
            p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, p.spam, p.spam_alasan, p.prospek, p.prospek_alasan,
            COALESCE(cs.jeda_sampai, 0) AS jeda_sampai
       FROM percakapan p

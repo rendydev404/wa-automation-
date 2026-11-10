@@ -252,6 +252,9 @@ async function KartuSandbox() {
                 <a href={`/api/developer/${sb.id}/berkas?nama=docker-compose.yml`} className="btn btn-ghost border border-line" download>
                   <Download className="size-4" aria-hidden /> docker-compose.yml
                 </a>
+                <a href="/api/developer/starter" className="btn btn-ghost border border-line" download>
+                  <Download className="size-4" aria-hidden /> {t("SDK + contoh UI", "SDK + sample UI")}
+                </a>
               </div>
             ) : null}
             <div>

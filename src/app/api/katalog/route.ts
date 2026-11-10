@@ -1,3 +1,4 @@
+import { fiturBoleh } from "@/lib/mesin/lisensi";
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { nomorUntuk } from "@/lib/akses";
@@ -14,6 +15,7 @@ const galat = (pesan: string, status = 400) => NextResponse.json({ error: pesan 
  * langganan aktif (admin selalu boleh). Foto sudah diperkecil di browser; jenisnya dicek dari isi berkas di katalog.ts.
  */
 export async function POST(req: Request) {
+  if (!fiturBoleh("katalog")) return Response.json({ error: "Fitur ini dinonaktifkan oleh ChatGerCep." }, { status: 403 });
   const [user, { b, t }] = await Promise.all([getUser(), teksPermintaan()]);
   if (!user) return galat(t("Sesi berakhir. Silakan login kembali.", "Your session has ended. Please sign in again."), 401);
   if (Number(req.headers.get("content-length") ?? 0) > BATAS_KATALOG.fotoByte + 64 * 1024) return galat(t("Foto terlalu besar (maksimal 1,5 MB).", "Photo is too large (max 1.5 MB)."), 413);

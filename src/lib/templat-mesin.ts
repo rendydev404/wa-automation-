@@ -95,6 +95,8 @@ AI_MODEL=gpt-4o-mini
 # STT_API_KEY=
 MAKS_NOMOR=${o.sandbox ? 1 : 50}
 ${o.sandbox ? `# Port dashboard mesin di komputer ini: buka http://localhost:${o.port ?? 1975} (Nomor -> Tambah nomor -> scan QR nomor bot).\nPORT_MESIN=${o.port ?? 1975}` : "# Port dashboard mesin di server ini (bawaan 3230).\n# PORT_MESIN=3230"}
+# Dashboard bawaan mesin: aktif (bawaan) atau mati = mesin murni API (pakai UI aplikasi Anda sendiri).
+# DASHBOARD_MESIN=aktif
 # Versi image (stable = rilis stabil terbaru; atau nomor versi, mis. 1.0.0).
 VERSI_MESIN=stable
 

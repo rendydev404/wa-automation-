@@ -81,7 +81,7 @@ export function FormKeputusan({
   return (
     <form action={aksi} className="space-y-5">
       <input type="hidden" name="id" value={id} />
-      <CentangFitur dipilih={fitur} diminta={diminta} global={global} />
+      <CentangFitur dipilih={mode === "setujui" && !fitur.includes("dashboard") ? [...fitur, "dashboard"] : fitur} diminta={diminta} global={global} />
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label">Biaya</label>

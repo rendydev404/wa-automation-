@@ -16,7 +16,7 @@ import { JALUR_LP_PUBLIK } from "@/lib/lp/def";
 // tanda tangan cookie sesi, ukuran, dan batas laju).
 const BERKAS_STATIS = /\.(?:png|jpe?g|webp|avif|gif|svg|ico|mp4|webm|woff2?)$/i;
 // Landing page per industri (/laundry, /bengkel, ...), /garansi, dan /sitemap-lp.xml: halaman iklan, tanpa login.
-const PUBLIK = new Set([...JALUR_LP_PUBLIK, "/", "/program-afiliasi", "/panduan", "/api/health", "/api/pendaftar", "/api/sinkron", "/api/auth/google", "/api/auth/google/callback", "/api/midtrans/notifikasi", "/api/ipaymu/notifikasi", "/api/analitik", "/api/lp/event"]);
+const PUBLIK = new Set([...JALUR_LP_PUBLIK, "/", "/program-afiliasi", "/panduan", "/api/health", "/api/pendaftar", "/api/sinkron", "/api/auth/google", "/api/auth/google/callback", "/api/midtrans/notifikasi", "/api/ipaymu/notifikasi", "/api/analitik", "/api/lp/event", "/mode-api"]);
 
 /**
  * Developer API: diautentikasi di handler masing-masing, bukan cookie. /api/v1/* = API mesin self-host (Bearer key);
@@ -98,6 +98,12 @@ export async function proxy(request: NextRequest) {
   };
 
   if (publikDeveloperApi(pathname)) return lanjut();
+  // Mesin self-host dengan DASHBOARD_MESIN=mati: murni API. Semua halaman ke /mode-api (status lisensi); route dashboard
+  // (sesi cookie) ditolak. Blokir dari lisensi pusat ditangani di getUser/requireUser (proxy tidak membaca lisensi).
+  if (modeMesin() && (process.env.DASHBOARD_MESIN ?? "").trim().toLowerCase() === "mati" && pathname !== "/mode-api" && pathname !== "/api/health" && !BERKAS_STATIS.test(pathname) && !pathname.startsWith("/_next")) {
+    if (isApi) return NextResponse.json({ error: "Dashboard mesin dimatikan (DASHBOARD_MESIN=mati). Gunakan /api/v1." }, { status: 404 });
+    return NextResponse.redirect(new URL(href("/mode-api"), request.url));
+  }
   if (modeMesin() && !isApi && halamanPusat(pathname)) return NextResponse.redirect(new URL(href("/dashboard"), request.url));
   if (modeMesin() && !isApi && panelPusat(pathname)) return NextResponse.redirect(new URL(href("/admin"), request.url));
   if (PUBLIK.has(pathname)) return pasangRef(lanjut());

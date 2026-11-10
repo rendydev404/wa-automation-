@@ -5,6 +5,8 @@ import { modeMesin } from "../mode";
 import { nomorBySesi } from "../numbers";
 import { type Peristiwa, dengar } from "../peristiwa";
 import { lisensiSekarang, sandboxAktif } from "./lisensi";
+import { pngQr } from "./png";
+import { qr } from "../wa";
 
 /**
  * Webhook dari mesin ke aplikasi developer: satu tujuan per mesin, antrean keluar (outbox) di database supaya event
@@ -21,6 +23,9 @@ export const EVENT_WEBHOOK = [
   "pesan.status",
   "nomor.terhubung",
   "nomor.terputus",
+  "nomor.qr",
+  "nomor.status",
+  "nomor.pairing",
   "lisensi.peringatan",
 ] as const;
 export type EventWebhook = (typeof EVENT_WEBHOOK)[number];
@@ -296,6 +301,13 @@ export async function kirimUlangGagal(idEventSatu?: string): Promise<number> {
 
 const STATUS_ACK: Record<number, string> = { 0: "gagal", 1: "antre", 2: "terkirim", 3: "diterima", 4: "dibaca", 5: "dibaca" };
 
+/** Ada tujuan webhook aktif yang berlangganan event ini (tanpa query setelah tujuan dimuat). */
+async function berlangganan(jenis: EventWebhook): Promise<boolean> {
+  if (!boleh(jenis)) return false;
+  const t = await muatTujuan();
+  return !!t && t.aktif && t.event.includes(jenis);
+}
+
 async function nomorIdSesi(sesi: string): Promise<number | null> {
   return (await nomorBySesi(sesi))?.id ?? null;
 }
@@ -311,10 +323,27 @@ async function petakan(p: Peristiwa): Promise<void> {
     case "pesan.status":
       // Status pesan API (antrean.ts) dikirim dari sana beserta id_pesan; di sini hanya status mentah lain bila dilanggan.
       return;
-    case "nomor.terhubung":
-      return antrekanEvent("nomor.terhubung", await nomorIdSesi(p.sesi), { wa_id: p.waId, nama: p.nama });
-    case "nomor.terputus":
-      return antrekanEvent("nomor.terputus", await nomorIdSesi(p.sesi), { kode: p.kode, keluar: p.keluar });
+    case "nomor.terhubung": {
+      const id = await nomorIdSesi(p.sesi);
+      await antrekanEvent("nomor.status", id, { status: "terhubung" });
+      return antrekanEvent("nomor.terhubung", id, { wa_id: p.waId, nama: p.nama });
+    }
+    case "nomor.terputus": {
+      const id = await nomorIdSesi(p.sesi);
+      await antrekanEvent("nomor.status", id, { status: "terputus" });
+      return antrekanEvent("nomor.terputus", id, { kode: p.kode, keluar: p.keluar });
+    }
+    case "nomor.qr": {
+      // QR baru (±20 dtk sekali, hanya selama menunggu scan). PNG hanya dibuat bila ada tujuan yang berlangganan.
+      if (!(await berlangganan("nomor.qr")) && !(await berlangganan("nomor.status"))) return;
+      const id = await nomorIdSesi(p.sesi);
+      await antrekanEvent("nomor.status", id, { status: "menunggu_qr" });
+      if (!(await berlangganan("nomor.qr"))) return;
+      const bit = await qr(p.sesi).catch(() => null);
+      return antrekanEvent("nomor.qr", id, { qr: p.qr, png: bit ? pngQr(bit.kode).toString("base64") : null });
+    }
+    case "nomor.pairing":
+      return antrekanEvent("nomor.pairing", await nomorIdSesi(p.sesi), { kode: p.kode });
     case "lisensi.peringatan":
       return antrekanEvent("lisensi.peringatan", null, { sisa_detik: p.sisaDetik, berlaku_sampai: p.berlakuSampai, status: p.status });
   }

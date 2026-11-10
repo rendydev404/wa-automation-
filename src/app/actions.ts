@@ -1,5 +1,7 @@
 "use server";
 
+import type { FiturApi } from "@/lib/api-def";
+import { fiturBoleh } from "@/lib/mesin/lisensi";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -352,7 +354,15 @@ async function pesanGalatAfiliasi(e: unknown, b: Bahasa): Promise<string> {
   return pesanGalat(e, b);
 }
 
+/** Mesin self-host: fitur yang dimatikan dari pusat ikut terkunci di dashboard (pusat: selalu boleh, tanpa query). */
+async function fiturTerkunci(kode: FiturApi): Promise<Hasil | null> {
+  if (fiturBoleh(kode)) return null;
+  const { t } = await teksPermintaan();
+  return { ok: false, pesan: t("Fitur ini dinonaktifkan oleh ChatGerCep.", "This feature has been disabled by ChatGerCep.") };
+}
+
 export async function hubungkanWaAction(id: number): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("nomor"); if (kunci) return kunci; }
   const user = await requireUser();
   const nomor = await nomorUntuk(user, id);
   const { b, t } = await teksPermintaan();
@@ -367,6 +377,7 @@ export async function hubungkanWaAction(id: number): Promise<Hasil> {
 }
 
 export async function kodePairingWaAction(id: number, telepon: string): Promise<Hasil & { kode?: string }> {
+  { const kunci = await fiturTerkunci("nomor"); if (kunci) return kunci; }
   const user = await requireUser();
   const nomor = await nomorUntuk(user, id);
   const { b, t } = await teksPermintaan();
@@ -381,6 +392,7 @@ export async function kodePairingWaAction(id: number, telepon: string): Promise<
 }
 
 export async function logoutWaAction(id: number): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("nomor"); if (kunci) return kunci; }
   const user = await requireUser();
   const nomor = await nomorUntuk(user, id);
   const { b, t } = await teksPermintaan();
@@ -401,6 +413,7 @@ const MAKS_NOMOR = Math.max(1, Number(process.env.MAKS_NOMOR) || 250);
 
 /** Tambah nomor (dalam kuota akun): buat jalurnya, nyalakan sesi WhatsApp-nya, lalu buka halamannya (QR langsung tampil). */
 export async function tambahNomorAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("nomor"); if (kunci) return kunci; }
   const user = await requireUser();
   const { t, href } = await teksPermintaan();
   const label = String(form.get("label") ?? "").trim().slice(0, 60);
@@ -435,6 +448,7 @@ export async function tambahNomorAction(_lalu: Hasil | null, form: FormData): Pr
 }
 
 export async function ubahNomorAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("bot"); if (kunci) return kunci; }
   const user = await requireUser();
   const id = Number(form.get("id"));
   const label = String(form.get("label") ?? "").trim().slice(0, 60);
@@ -488,6 +502,7 @@ export async function ubahNomorAction(_lalu: Hasil | null, form: FormData): Prom
 }
 
 export async function setBotAktifAction(id: number, aktif: boolean): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("bot"); if (kunci) return kunci; }
   const user = await requireUser();
   const nomor = await nomorUntuk(user, id);
   const { t } = await teksPermintaan();
@@ -527,6 +542,7 @@ export async function setSinkronCgAction(id: number, aktif: boolean): Promise<Ha
 }
 
 export async function hapusNomorAction(id: number): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("nomor"); if (kunci) return kunci; }
   const user = await requireUser();
   const nomor = await nomorUntuk(user, id);
   const { b, t, href } = await teksPermintaan();
@@ -558,6 +574,7 @@ async function produkMilik(numberId: number, tulis: boolean): Promise<{ id: numb
 const katalogTerkunci = (t: T): Hasil => ({ ok: false, pesan: t("Katalog tidak bisa diubah.", "The catalog can't be changed.") });
 
 export async function hapusProdukAction(numberId: number, id: number): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("katalog"); if (kunci) return kunci; }
   const n = await produkMilik(numberId, false); // menghapus tetap boleh walau paket sudah habis
   const { t } = await teksPermintaan();
   if (!n || !Number.isInteger(id)) return { ok: false, pesan: t("Produk tidak ditemukan.", "Product not found.") };
@@ -568,6 +585,7 @@ export async function hapusProdukAction(numberId: number, id: number): Promise<H
 }
 
 export async function tersediaProdukAction(numberId: number, id: number, tersedia: boolean): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("katalog"); if (kunci) return kunci; }
   const n = await produkMilik(numberId, true);
   if (!n || !Number.isInteger(id)) return katalogTerkunci((await teksPermintaan()).t);
   await setTersedia(n.id, id, tersedia);
@@ -577,6 +595,7 @@ export async function tersediaProdukAction(numberId: number, id: number, tersedi
 }
 
 export async function geserProdukAction(numberId: number, id: number, arah: -1 | 1): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("katalog"); if (kunci) return kunci; }
   const n = await produkMilik(numberId, true);
   if (!n || !Number.isInteger(id) || (arah !== -1 && arah !== 1)) return katalogTerkunci((await teksPermintaan()).t);
   await geserProduk(n.id, id, arah);
@@ -588,6 +607,7 @@ export async function geserProdukAction(numberId: number, id: number, arah: -1 |
 // ---------- Base knowledge ----------
 
 export async function tambahTeksAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("knowledge"); if (kunci) return kunci; }
   const numberId = Number(form.get("number_id"));
   const user = await requireUser();
   const { b, t } = await teksPermintaan();
@@ -609,6 +629,7 @@ export async function tambahTeksAction(_lalu: Hasil | null, form: FormData): Pro
 }
 
 export async function hapusDokumenAction(id: number, numberId: number): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("knowledge"); if (kunci) return kunci; }
   const user = await requireUser();
   if (!(await nomorUntuk(user, numberId))) return nomorTidakAda((await teksPermintaan()).t);
   await hapusDokumen(id, numberId, staf(user.peran));
@@ -622,6 +643,7 @@ export async function hapusDokumenAction(id: number, numberId: number): Promise<
 
 /** Hapus satu percakapan (`percakapanId`) atau seluruh histori percakapan sebuah nomor. */
 export async function hapusPercakapanAction(numberId: number, percakapanId?: number): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("percakapan"); if (kunci) return kunci; }
   const user = await requireUser();
   const { t } = await teksPermintaan();
   if (!(await nomorUntuk(user, numberId))) return nomorTidakAda(t);
@@ -635,6 +657,7 @@ export async function hapusPercakapanAction(numberId: number, percakapanId?: num
 
 /** Pemilik menandai sebuah chat "bukan spam": AI tidak menyaring chat itu lagi (berlaku di pesan berikutnya). */
 export async function bukanSpamAction(numberId: number, percakapanId: number): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("percakapan"); if (kunci) return kunci; }
   const user = await requireUser();
   const { t } = await teksPermintaan();
   if (!(await nomorUntuk(user, numberId))) return nomorTidakAda(t);
@@ -646,6 +669,7 @@ export async function bukanSpamAction(numberId: number, percakapanId: number): P
 
 /** Chat yang dibisukan penyaring prospek dilayani AI lagi mulai pesan berikutnya (opsional; penyaring belajar dari ini). */
 export async function bangunkanChatAction(numberId: number, percakapanId: number): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("percakapan"); if (kunci) return kunci; }
   const user = await requireUser();
   const { t } = await teksPermintaan();
   if (!(await nomorUntuk(user, numberId))) return nomorTidakAda(t);
@@ -658,6 +682,7 @@ export async function bangunkanChatAction(numberId: number, percakapanId: number
 }
 
 export async function setSaringProspekAction(id: number, aktif: boolean): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("bot"); if (kunci) return kunci; }
   const user = await requireUser();
   if (!(await nomorUntuk(user, id))) return nomorTidakAda((await teksPermintaan()).t);
   await setSaringProspek(id, aktif);
@@ -667,6 +692,7 @@ export async function setSaringProspekAction(id: number, aktif: boolean): Promis
 }
 
 export async function setSaringSpamAction(id: number, aktif: boolean): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("bot"); if (kunci) return kunci; }
   const user = await requireUser();
   if (!(await nomorUntuk(user, id))) return nomorTidakAda((await teksPermintaan()).t);
   await setSaringSpam(id, aktif);
@@ -678,6 +704,7 @@ export async function setSaringSpamAction(id: number, aktif: boolean): Promise<H
 // ---------- Belajar dari balasan manusia ----------
 
 export async function setBelajarAction(id: number, aktif: boolean): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("bot"); if (kunci) return kunci; }
   const user = await requireUser();
   if (!(await nomorUntuk(user, id))) return nomorTidakAda((await teksPermintaan()).t);
   await setBelajar(id, aktif);
@@ -688,12 +715,14 @@ export async function setBelajarAction(id: number, aktif: boolean): Promise<Hasi
 
 /** Halaman berikutnya daftar pelajaran (kursor dari baris terakhir yang sudah tampil). */
 export async function muatPelajaranAction(numberId: number, waktu: number, id: number): Promise<{ daftar: ItemPelajaran[]; adaLagi: boolean }> {
+  if (!fiturBoleh("pelajaran")) return { daftar: [], adaLagi: false };
   if (!(await nomorUntuk(await requireUser(), numberId)) || !Number.isInteger(waktu) || !Number.isInteger(id)) return { daftar: [], adaLagi: false };
   return daftarPelajaran(numberId, { waktu, id });
 }
 
 /** Hapus satu pelajaran (`id`) atau semua pelajaran sebuah nomor. */
 export async function hapusPelajaranAction(numberId: number, id?: number): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("pelajaran"); if (kunci) return kunci; }
   const user = await requireUser();
   const { t } = await teksPermintaan();
   if (!(await nomorUntuk(user, numberId))) return nomorTidakAda(t);
@@ -705,6 +734,7 @@ export async function hapusPelajaranAction(numberId: number, id?: number): Promi
 }
 
 export async function pratinjauAction(id: number, numberId: number): Promise<string | null> {
+  if (!fiturBoleh("knowledge")) return null;
   const user = await requireUser();
   if (!(await nomorUntuk(user, numberId))) return null;
   const isi = await pratinjauDokumen(id, numberId, staf(user.peran));

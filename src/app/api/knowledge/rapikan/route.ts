@@ -1,3 +1,4 @@
+import { fiturBoleh } from "@/lib/mesin/lisensi";
 import { NextResponse } from "next/server";
 import { nomorUntuk } from "@/lib/akses";
 import { catatFitur } from "@/lib/analitik";
@@ -17,6 +18,7 @@ const galat = (pesan: string, status = 400) => NextResponse.json({ error: pesan 
  * setelah diperiksa. Galat mesin AI tidak diteruskan apa adanya (nama mesin tidak boleh terlihat pengguna).
  */
 export async function POST(req: Request) {
+  if (!fiturBoleh("ai.rapikan")) return Response.json({ error: "Fitur ini dinonaktifkan oleh ChatGerCep." }, { status: 403 });
   const [user, { b: bahasa, t }] = await Promise.all([getUser(), teksPermintaan()]);
   if (!user) return galat(t("Sesi berakhir. Silakan login kembali.", "Your session has ended. Please sign in again."), 401);
   const b = (await req.json().catch(() => null)) as { numberId?: number; teks?: string; dokumenId?: number; jenis?: string } | null;

@@ -19,7 +19,7 @@ import { sttTerkonfigurasi, transkripsi } from "./stt";
 import type { Foto } from "./types";
 import type { WAMessage } from "baileys";
 import { type EventWa, digitWa, kirimGambar, kirimTeks, mengetik, padaEvent, tandaiDibaca } from "./wa";
-import { layananBoleh, lawanNomorUji, sandboxAktif, verifikasiNomorUjiKePusat } from "./mesin/lisensi";
+import { botBoleh, lawanNomorUji, sandboxAktif, verifikasiNomorUjiKePusat } from "./mesin/lisensi";
 import { POLA_PESAN_UJI } from "./api-def";
 
 /**
@@ -473,7 +473,7 @@ async function proses(kunci: string): Promise<void> {
       console.warn(`[bridge] nomor ${nomor.id} belum punya product knowledge: AI tidak membalas`);
     }
     // Mesin self-host dalam mode terbatas (lisensi habis/ditangguhkan): AI diam, koneksi WA tetap. Pusat: selalu true.
-    if (!nomor || !nomor.bot_aktif || !nomor.pemilik_aktif || habis || tanpaKnowledge || !layananBoleh()) {
+    if (!nomor || !nomor.bot_aktif || !nomor.pemilik_aktif || habis || tanpaKnowledge || !botBoleh()) {
       a.teks.length = 0;
       a.foto.length = 0;
       a.siap = null;
@@ -821,6 +821,27 @@ async function saringProspek(kunci: string, a: Antrean, nomor: Nomor, teks: stri
  * Pemilik meminta chat yang dibisukan dilayani lagi (tombol di histori). Bila chat sedang aktif di memori, keadaannya
  * diubah di sana (acuan); bila tidak, langsung di database. Pesan yang tadi dilewati dipelajari sebagai kesalahan.
  */
+/**
+ * Jeda bot untuk satu chat sampai `sampai` (detik epoch; 0 = lanjutkan sekarang). Dipakai API percakapan (ambil alih
+ * manual). Chat yang sedang aktif di memori diubah di sana (acuan); bila tidak, langsung di database.
+ */
+export async function aturJedaChat(kunci: string, sampai: number): Promise<void> {
+  const a = st.antre.get(kunci);
+  if (a) {
+    a.chat = { ...(a.chat ?? chatBaru(sekarang())), jeda_sampai: sampai };
+    simpanChat(kunci, a.chat);
+    await tulisTuntas(); // API membaca dari database sesudahnya: tunggu tulisan latar selesai
+    return;
+  }
+  await st.tulis;
+  const sql = await db();
+  const t = sekarang();
+  await sql`
+    INSERT INTO chat_state(kunci, sesi_ke, last_at, jeda_sampai, jendela_awal, jendela_n, prospek, strike, bisu_sampai)
+    VALUES (${kunci}, 1, ${t}, ${sampai}, 0, 0, 0, 0, 0)
+    ON CONFLICT (kunci) DO UPDATE SET jeda_sampai = EXCLUDED.jeda_sampai`;
+}
+
 export async function bangunkanChat(numberId: number, kunci: string): Promise<void> {
   const a = st.antre.get(kunci);
   if (a) {
@@ -1012,7 +1033,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   statistik(nomor.id, "masuk");
   if (teksLog) tulisLatar(() => catatPesan({ numberId: nomor.id, kunci, peran: 0, teks: teksLog, waktu: ev.waktu || sekarang(), telepon, nama: ev.namaPengirim ?? null, alamat: ev.alamat }));
   // Bot dimatikan atau pemilik diblokir admin: pesan tetap tercatat, tapi AI tidak membalas.
-  if (!nomor.bot_aktif || !nomor.pemilik_aktif || !layananBoleh()) return;
+  if (!nomor.bot_aktif || !nomor.pemilik_aktif || !botBoleh()) return;
   // Pesan dari nomor CS ChatGerCep (follow-up) ke nomor pelanggan: dicatat, tidak dibalas AI nomor ini. Tanpa ini dua
   // bot bisa saling membalas tanpa henti; pemilik nomor tetap membacanya dan membalas sendiri dari HP.
   const cs = st.kaitCs?.nomorCs();

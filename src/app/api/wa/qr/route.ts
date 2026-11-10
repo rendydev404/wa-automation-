@@ -1,3 +1,4 @@
+import { fiturBoleh } from "@/lib/mesin/lisensi";
 import { NextResponse } from "next/server";
 import { sesiDanNomor } from "@/lib/akses";
 import type { QrWa } from "@/lib/types";
@@ -6,6 +7,7 @@ import { teksPermintaan } from "@/lib/bahasa-server";
 
 /** QR untuk satu nomor. Matriksnya (±0,7 KB) hanya dikirim bila berubah, supaya polling tetap ringan. */
 export async function GET(req: Request) {
+  if (!fiturBoleh("nomor")) return Response.json({ error: "Fitur ini dinonaktifkan oleh ChatGerCep." }, { status: 403 });
   const url = new URL(req.url);
   const { user, nomor } = await sesiDanNomor(url.searchParams.get("id"));
   // Bahasa hanya dibaca di jalur galat: polling QR tetap ringan.

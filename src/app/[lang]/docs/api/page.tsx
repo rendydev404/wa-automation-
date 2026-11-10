@@ -115,6 +115,7 @@ function webhookSah(body, header, rahasia) {
   const daftarIsi = [
     ["cara-kerja", t("Cara kerja", "How it works")],
     ["sandbox", "Sandbox"],
+    ["ui-sendiri", t("Bangun UI sendiri", "Build your own UI")],
     ["pasang", t("Pasang mesin", "Install the engine")],
     ["autentikasi", t("Autentikasi", "Authentication")],
     ["endpoint", "Endpoint"],
@@ -237,6 +238,35 @@ function webhookSah(body, header, rahasia) {
               {t(", amplop webhook berisi ", ", webhook envelopes include ")}
               <code>&quot;mode&quot;: &quot;sandbox&quot;</code>
               {t(", dan GET /status menampilkan mode, nomor penguji. Sandbox tidak diperpanjang lewat webhook: setelah perpanjang di portal, klik Perbarui lisensi di dashboard mesin atau nyalakan ulang mesin.", ", and GET /status shows the mode, tester number. The sandbox isn't renewed via webhook: after extending in the portal, click Refresh license in the engine dashboard or restart the engine.")}
+            </p>
+          </Bagian>
+
+          <Bagian id="ui-sendiri" judul={t("Bangun UI sendiri (headless)", "Build your own UI (headless)")}>
+            <p>
+              {t(
+                "Seperti Core API: mesin ChatGerCep menyediakan fitur & logika inti, tampilannya milik aplikasi Anda. Dashboard bawaan tetap ada, tapi boleh dimatikan dan diganti UI Anda sendiri.",
+                "Like a Core API: the ChatGerCep engine provides the core features & logic, the UI belongs to your app. The built-in dashboard is still there, but you can turn it off and use your own UI.",
+              )}
+            </p>
+            <ol className="list-decimal space-y-1.5 pl-5">
+              <li>
+                {t("Matikan dashboard bawaan (opsional): isi ", "Turn off the built-in dashboard (optional): set ")}
+                <code>DASHBOARD_MESIN=mati</code>
+                {t(" di .env mesin. Mesin jadi murni API; halaman / hanya menampilkan status lisensi.", " in the engine's .env. The engine becomes API-only; / only shows the license status.")}
+              </li>
+              <li>
+                {t("Daftarkan webhook aplikasi Anda (PUT /webhook) dan berlangganan event ", "Register your app's webhook (PUT /webhook) and subscribe to ")}
+                <code>nomor.qr</code>, <code>nomor.status</code>, <code>pesan.masuk</code>, <code>pesan.dibalas_ai</code>
+                {t(": QR & status koneksi tampil realtime di halaman Anda tanpa polling.", ": the QR & connection status show up in real time on your page, no polling.")}
+              </li>
+              <li>{t("Bangun halaman Anda di atas endpoint yang sama: nomor & QR, Informasi Usaha, katalog, kirim pesan, inbox (riwayat percakapan + balas manual + jeda bot).", "Build your pages on the same endpoints: numbers & QR, Business Info, catalog, send messages, inbox (conversation history + manual reply + pause bot).")}</li>
+              <li>{t("Unduh SDK TypeScript + contoh aplikasi starter (Next.js) dari portal Developer, lalu ubah tampilannya sesuka Anda.", "Download the TypeScript SDK + starter sample app (Next.js) from the Developer portal, then restyle it however you like.")}</li>
+            </ol>
+            <p className="rounded-xl border border-line bg-surface p-4 text-[13.5px]">
+              {t(
+                "Fitur yang dibuka ditentukan lisensi aplikasi Anda. Fitur yang dimatikan ChatGerCep berhenti di semua jalur sekaligus: API (403 fitur_tidak_dibuka), dashboard bawaan, dan bot WhatsApp. Koneksi WhatsApp tidak pernah diputus.",
+                "Enabled features are set by your app's license. A feature turned off by ChatGerCep stops on every path at once: the API (403 fitur_tidak_dibuka), the built-in dashboard, and the WhatsApp bot. The WhatsApp connection is never cut.",
+              )}
             </p>
           </Bagian>
 

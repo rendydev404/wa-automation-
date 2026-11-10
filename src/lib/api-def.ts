@@ -9,6 +9,7 @@ export const GRUP_FITUR = [
   { kode: "ai", label: "Bot AI", keterangan: "Jawaban AI, pengaturan bot, dan alat AI" },
   { kode: "data", label: "Data usaha", keterangan: "Bahan yang dipakai AI untuk menjawab" },
   { kode: "laporan", label: "Laporan & alat", keterangan: "Angka harian dan alat bantu tanpa AI" },
+  { kode: "mesin", label: "Mesin", keterangan: "Dashboard bawaan di mesin self-host" },
 ] as const;
 export type GrupFitur = (typeof GRUP_FITUR)[number]["kode"];
 
@@ -23,6 +24,7 @@ export const FITUR_API = [
   { kode: "pesan.terima", grup: "wa", label: "Webhook pesan masuk", keterangan: "Pesan masuk, balasan AI, status pesan, nomor terhubung/terputus" },
   { kode: "kontak.cek", grup: "wa", label: "Cek nomor WhatsApp", keterangan: "Cek nomor HP terdaftar di WhatsApp sebelum mengirim (maks 20 per panggilan)" },
   { kode: "profil", grup: "wa", label: "Profil WhatsApp", keterangan: "Nama & foto profil nomor yang terhubung" },
+  { kode: "percakapan", grup: "wa", label: "Riwayat percakapan", keterangan: "Daftar chat & isi pesan, balas manual, jeda/lanjutkan bot per chat (API + halaman Percakapan di dashboard mesin)" },
   { kode: "ai", grup: "ai", label: "Tanya AI", keterangan: "Jawaban bot berdasarkan Informasi Usaha nomor, tanpa lewat WhatsApp" },
   { kode: "bot", grup: "ai", label: "Pengaturan bot", keterangan: "Bot nyala/mati, instruksi, waktu tunggu, saring spam & prospek, belajar dari admin" },
   { kode: "templat", grup: "ai", label: "Template instruksi industri", keterangan: "Template instruksi bot siap pakai per jenis usaha (laundry, klinik, travel, dll.)" },
@@ -33,9 +35,32 @@ export const FITUR_API = [
   { kode: "katalog", grup: "data", label: "Katalog produk", keterangan: "Tambah, ubah, hapus produk + foto; AI mengirim foto produk ke pelanggan" },
   { kode: "statistik", grup: "laporan", label: "Statistik harian", keterangan: "Pesan masuk & dibalas bot per hari per nomor (maks 90 hari)" },
   { kode: "spam.cek", grup: "laporan", label: "Cek spam judi", keterangan: "Periksa teks: promosi judi online atau bukan, tanpa AI" },
+  { kode: "dashboard", grup: "mesin", label: "Dashboard bawaan", keterangan: "Dashboard ChatGerCep di mesin. Dimatikan = mesin murni API (developer memakai UI aplikasinya sendiri)" },
 ] as const satisfies readonly { kode: string; grup: GrupFitur; label: string; keterangan: string }[];
 
 export type FiturApi = (typeof FITUR_API)[number]["kode"];
+/** Fitur yang tidak punya endpoint API (berlaku di mesin saja); dikecualikan dari aturan "tiap fitur punya endpoint". */
+export const FITUR_TANPA_ENDPOINT: readonly FiturApi[] = ["dashboard"];
+/** Jalur yang ikut berhenti saat fitur dimatikan (ditampilkan di panel developer internal). */
+export const DAMPAK_FITUR: Record<FiturApi, string> = {
+  nomor: "API nomor/QR/pairing/logout + tab Koneksi & tambah/hapus nomor di dashboard",
+  "pesan.kirim": "API kirim pesan; antrean berhenti mengirim (pesan tertahan, tidak dibuang)",
+  "pesan.terima": "Semua webhook ke aplikasi",
+  "kontak.cek": "API cek nomor WhatsApp",
+  profil: "API profil WhatsApp",
+  percakapan: "API riwayat percakapan + tab Percakapan di dashboard",
+  ai: "API tanya AI + Uji bot di dashboard",
+  bot: "Bot WhatsApp berhenti membalas otomatis + pengaturan bot (API & dashboard)",
+  templat: "API & pilihan template instruksi",
+  "ai.rapikan": "API & tombol Rapikan tulisan",
+  "ai.transkripsi": "API transkripsi suara",
+  pelajaran: "API & panel pelajaran dari admin",
+  knowledge: "API & tab Informasi Usaha (bot tetap memakai data yang sudah ada)",
+  katalog: "API & tab Katalog (bot tetap memakai data yang sudah ada)",
+  statistik: "API statistik harian",
+  "spam.cek": "API cek spam judi",
+  dashboard: "Seluruh dashboard bawaan mesin (mesin jadi murni API)",
+};
 export const KODE_FITUR: readonly FiturApi[] = FITUR_API.map((f) => f.kode);
 export const fiturSah = (v: unknown): v is FiturApi => typeof v === "string" && (KODE_FITUR as readonly string[]).includes(v);
 export const labelFitur = (k: string): string => FITUR_API.find((f) => f.kode === k)?.label ?? k;

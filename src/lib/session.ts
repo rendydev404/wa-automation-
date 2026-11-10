@@ -1,3 +1,5 @@
+import { modeMesin } from "./mode";
+import { dashboardMesinBoleh } from "./mesin/lisensi";
 import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
@@ -76,7 +78,12 @@ export function findUserByEmail(email: string): Promise<UserRow | undefined> {
  * Di-memo per permintaan: layout (sidebar) dan halaman memeriksanya bersamaan dengan satu query.
  */
 export const getUser = cache(async (): Promise<User | null> => {
-  const payload = await verifySessionToken((await cookies()).get(SESSION_COOKIE)?.value);
+  // Mesin self-host: dashboard bawaan bisa dimatikan (.env / blokir fitur `dashboard` dari pusat). Semua halaman, server
+  // action, dan route dashboard memakai sesi ini, jadi cukup ditutup di sini. Server pusat: tanpa biaya (cek env saja).
+  // Cookie dibaca lebih dulu: akses dinamis sebelum gerbang membaca jam/lisensi (aturan prerender Next.js).
+  const kue = await cookies();
+  if (modeMesin() && !(await dashboardMesinBoleh())) return null;
+  const payload = await verifySessionToken(kue.get(SESSION_COOKIE)?.value);
   if (!payload) return null;
   const sql = await db();
   const [row] = await sql<UserRow[]>`SELECT ${sql.unsafe(KOLOM_ROW)} FROM users WHERE id = ${payload.uid}`;
@@ -87,7 +94,7 @@ export const getUser = cache(async (): Promise<User | null> => {
 
 export async function requireUser(): Promise<User> {
   const user = await getUser();
-  if (!user) await alihkanPermintaan("/login");
+  if (!user) await alihkanPermintaan(modeMesin() && !(await dashboardMesinBoleh()) ? "/mode-api" : "/login");
   return user!;
 }
 

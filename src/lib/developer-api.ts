@@ -70,12 +70,13 @@ export interface PengaturanApi {
 export const MAKS_HARGA_API = 100_000_000;
 
 export async function pengaturanApi(): Promise<PengaturanApi> {
-  const [b, h, f] = await Promise.all([getSetting("api_biaya_bawaan"), getSetting("api_harga_bawaan"), getSetting("api_fitur_global")]);
+  const [b, h, f, kenal] = await Promise.all([getSetting("api_biaya_bawaan"), getSetting("api_harga_bawaan"), getSetting("api_fitur_global"), getSetting("api_fitur_dashboard_kenal")]);
   let fitur: FiturApi[] = [...KODE_FITUR];
   if (f !== null) {
     try {
       const x = JSON.parse(f);
-      if (Array.isArray(x)) fitur = KODE_FITUR.filter((k) => x.includes(k));
+      // Daftar yang disimpan sebelum fitur `dashboard` ada: dashboard bawaan tetap menyala (tidak tiba-tiba tertutup).
+      if (Array.isArray(x)) fitur = KODE_FITUR.filter((k) => x.includes(k) || (k === "dashboard" && kenal === null));
     } catch {}
   }
   const harga = Number(h);
@@ -89,7 +90,10 @@ export async function simpanPengaturanApi(pelaku: User, p: Omit<PengaturanApi, "
   const fitur = p.fitur && KODE_FITUR.filter((k) => p.fitur!.includes(k));
   await setSetting("api_biaya_bawaan", p.biaya);
   await setSetting("api_harga_bawaan", String(p.harga));
-  if (fitur) await setSetting("api_fitur_global", JSON.stringify(fitur));
+  if (fitur) {
+    await setSetting("api_fitur_global", JSON.stringify(fitur));
+    await setSetting("api_fitur_dashboard_kenal", "1");
+  }
   await catatLog(pelaku, "ubah pengaturan Developer API", null, `biaya bawaan ${p.biaya}, harga Rp${p.harga.toLocaleString("id-ID")}${fitur ? `, fitur ${fitur.join(", ") || "-"}` : ""}`);
   // Biaya/fitur umum bisa mengubah lisensi semua aplikasi aktif: kirim ulang.
   await jadwalkanSemua();
@@ -104,6 +108,7 @@ export async function simpanFiturGlobal(pelaku: User, masukan: readonly string[]
   const fitur = KODE_FITUR.filter((k) => masukan.includes(k));
   const lama = (await pengaturanApi()).fitur;
   await setSetting("api_fitur_global", JSON.stringify(fitur));
+  await setSetting("api_fitur_dashboard_kenal", "1");
   const nyala = fitur.filter((f) => !lama.includes(f));
   const mati = lama.filter((f) => !fitur.includes(f));
   await catatLog(pelaku, "ubah fitur Developer API", null, `dibagikan ${fitur.length}/${KODE_FITUR.length}${nyala.length ? ` · nyala ${nyala.join(", ")}` : ""}${mati.length ? ` · mati ${mati.join(", ")}` : ""}`);

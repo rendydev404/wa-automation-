@@ -1,3 +1,4 @@
+import { fiturBoleh } from "@/lib/mesin/lisensi";
 import { NextResponse } from "next/server";
 import { formatWa } from "@/lib/bridge";
 import { tanpaIngatan, tanyaAiTerjaga } from "@/lib/ai";
@@ -25,6 +26,7 @@ function kirimanUji(katalog: Produk[], tag: KirimProduk | null, jawaban: string)
 
 /** Uji bot dari dashboard: jalur yang sama dengan WhatsApp (knowledge nomor + penyedia AI aktif), tanpa mengirim WA. */
 export async function POST(req: Request) {
+  if (!fiturBoleh("ai")) return Response.json({ error: "Fitur ini dinonaktifkan oleh ChatGerCep." }, { status: 403 });
   const b = (await req.json().catch(() => null)) as {
     numberId?: number;
     pesan?: string;

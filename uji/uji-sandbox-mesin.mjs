@@ -70,6 +70,10 @@ const ML = await lib("src/lib/mesin/lisensi.ts");
 const AN = await lib("src/lib/mesin/antrean.ts");
 const WH = await lib("src/lib/mesin/webhook.ts");
 const rute = {
+  percakapan: await lib("src/app/api/v1/nomor/[id]/percakapan/route.ts"),
+  percakapanPesan: await lib("src/app/api/v1/nomor/[id]/percakapan/[pid]/pesan/route.ts"),
+  percakapanBalas: await lib("src/app/api/v1/nomor/[id]/percakapan/[pid]/balas/route.ts"),
+  percakapanId: await lib("src/app/api/v1/nomor/[id]/percakapan/[pid]/route.ts"),
   status: await lib("src/app/api/v1/status/route.ts"),
   pesan: await lib("src/app/api/v1/pesan/route.ts"),
   webhook: await lib("src/app/api/v1/webhook/route.ts"),
@@ -181,7 +185,7 @@ function token(id, isi = {}) {
       nama_aplikasi: "Sandbox",
       id_instalasi: id,
       status: pusat.status,
-      fitur: ["nomor", "pesan.kirim", "pesan.terima", "kontak.cek", "ai", "knowledge"],
+      fitur: ["nomor", "pesan.kirim", "pesan.terima", "kontak.cek", "ai", "knowledge", "bot", "percakapan", "dashboard"],
       batas: { nomor: 1, pesan_menit: 20, kontak_baru_hari: 50, instalasi: 1 },
       biaya: "gratis",
       dibayar_sampai: null,
@@ -410,7 +414,92 @@ await cek("chat dari nomor penguji: dicatat, webhook pesan.masuk (mode sandbox),
   assert.ok((await jumlahChat(UJI_TEL)) >= 1);
 });
 
-bagian("C. Batas nomor, kedaluwarsa, ganti key");
+bagian("C. Core API headless: penegakan fitur, riwayat percakapan, event realtime");
+const FITUR_PENUH = ["nomor", "pesan.kirim", "pesan.terima", "kontak.cek", "ai", "knowledge", "bot", "percakapan", "dashboard"];
+const pakaiFitur = async (fitur) => ML.terimaLisensi(token(await ML.idInstalasi(), { fitur }));
+const ctxP = (pid) => ({ params: Promise.resolve({ id: String(N.id), pid: String(pid) }) });
+
+await cek("fitur dimatikan berlaku di semua jalur: API 403, fiturBoleh false (dashboard/aksi), bot berhenti; WA tidak putus", async () => {
+  await pakaiFitur(FITUR_PENUH.filter((f) => f !== "percakapan" && f !== "bot"));
+  assert.equal(ML.fiturBoleh("percakapan"), false);
+  assert.equal(ML.botBoleh(), false);
+  const r = await json(await rute.percakapan.GET(minta(`/nomor/${N.id}/percakapan`), { params: Promise.resolve({ id: String(N.id) }) }));
+  assert.equal(r.status, 403);
+  assert.equal(r.j.galat.kode, "fitur_tidak_dibuka");
+  const awal = SK.terkirim.length;
+  const awalAi = aiDipanggil;
+  pesanDari(SK, UJI_TEL, "jam buka? (bot dimatikan)");
+  await tidur(2500);
+  assert.equal(SK.terkirim.length, awal); // bot diam
+  assert.equal(aiDipanggil, awalAi);
+  assert.equal(SK.keluar + SK.ditutup, 0);
+  await pakaiFitur(FITUR_PENUH);
+  assert.equal(ML.fiturBoleh("percakapan"), true);
+  assert.equal(ML.botBoleh(), true);
+});
+
+await cek("dashboard bawaan: .env DASHBOARD_MESIN=mati atau fitur `dashboard` tidak dibuka -> tertutup; dibuka lagi -> terbuka", async () => {
+  assert.equal(await ML.dashboardMesinBoleh(), true);
+  process.env.DASHBOARD_MESIN = "mati";
+  assert.equal(await ML.dashboardMesinBoleh(), false);
+  delete process.env.DASHBOARD_MESIN;
+  await pakaiFitur(FITUR_PENUH.filter((f) => f !== "dashboard"));
+  assert.equal(await ML.dashboardMesinBoleh(), false); // blokir dari pusat mengalahkan .env
+  await pakaiFitur(FITUR_PENUH);
+  assert.equal(await ML.dashboardMesinBoleh(), true);
+});
+
+let pidUji;
+await cek("riwayat percakapan: daftar berkursor, isi pesan, jeda/lanjut bot, balas manual (antrean + bot dijeda), hapus", async () => {
+  const d = await json(await rute.percakapan.GET(minta(`/nomor/${N.id}/percakapan?batas=1`), { params: Promise.resolve({ id: String(N.id) }) }));
+  assert.equal(d.status, 200);
+  assert.equal(d.j.data.length, 1);
+  const c = d.j.data[0];
+  assert.equal(c.telepon, UJI_TEL);
+  assert.ok(c.kunci && typeof c.id === "string" && ["aktif", "dijeda", "dibisukan"].includes(c.bot));
+  pidUji = c.id;
+  const m = await json(await rute.percakapanPesan.GET(minta(`/nomor/${N.id}/percakapan/${pidUji}/pesan?batas=50`), ctxP(pidUji)));
+  assert.equal(m.status, 200);
+  assert.ok(m.j.data.length >= 1 && m.j.data.every((x) => ["pelanggan", "ai", "manusia"].includes(x.peran)));
+  const j = await json(await rute.percakapanId.PATCH(minta(`/nomor/${N.id}/percakapan/${pidUji}`, { metode: "PATCH", body: { bot: "jeda", menit: 30 } }), ctxP(pidUji)));
+  assert.equal(j.status, 200);
+  assert.equal(j.j.bot, "dijeda");
+  const l = await json(await rute.percakapanId.PATCH(minta(`/nomor/${N.id}/percakapan/${pidUji}`, { metode: "PATCH", body: { bot: "lanjut" } }), ctxP(pidUji)));
+  assert.equal(l.j.bot, "aktif");
+  const salah = await json(await rute.percakapanId.PATCH(minta(`/nomor/${N.id}/percakapan/${pidUji}`, { metode: "PATCH", body: { bot: "tidur" } }), ctxP(pidUji)));
+  assert.equal(salah.status, 400);
+  const b = await json(await rute.percakapanBalas.POST(minta(`/nomor/${N.id}/percakapan/${pidUji}/balas`, { metode: "POST", body: { teks: "Halo kak, saya bantu manual ya" } }), ctxP(pidUji)));
+  assert.equal(b.status, 202, JSON.stringify(b.j));
+  await tunggu(() => SK.terkirim.some((x) => x.isi.text === "Halo kak, saya bantu manual ya"), 4000, "balasan manual terkirim");
+  const s2 = await json(await rute.percakapanPesan.GET(minta(`/nomor/${N.id}/percakapan/${pidUji}/pesan`), ctxP(pidUji)));
+  assert.equal(s2.j.percakapan.bot, "dijeda"); // bot mundur setelah balasan manual
+  assert.ok(s2.j.data.some((x) => x.peran === "manusia" && x.teks === "Halo kak, saya bantu manual ya"));
+  const tak = await json(await rute.percakapanPesan.GET(minta(`/nomor/${N.id}/percakapan/999999/pesan`), ctxP(999999)));
+  assert.equal(tak.status, 404);
+});
+
+await cek("event realtime: QR baru -> nomor.status menunggu_qr + nomor.qr (teks + PNG); pairing -> nomor.pairing", async () => {
+  await rute.webhook.PUT(minta("/webhook", { metode: "PUT", body: { url: `http://127.0.0.1:${portWh}/wh`, event: ["nomor.qr", "nomor.status", "nomor.pairing", "pesan.masuk"] } }));
+  const awal = diterimaWh.length;
+  const { pancarkan } = await lib("src/lib/peristiwa.ts");
+  pancarkan({ jenis: "nomor.qr", sesi: N.sesi, qr: "2@uji-qr,aaa,bbb,ccc,1" });
+  pancarkan({ jenis: "nomor.pairing", sesi: N.sesi, kode: "ABCD1234" });
+  await tunggu(async () => (await kirimWh(), ["nomor.qr", "nomor.status", "nomor.pairing"].every((j) => diterimaWh.slice(awal).some((x) => x.jenis === j))), 6000, "event realtime");
+  const q = diterimaWh.slice(awal).find((x) => x.jenis === "nomor.qr");
+  assert.equal(q.data.qr, "2@uji-qr,aaa,bbb,ccc,1");
+  assert.equal(diterimaWh.slice(awal).find((x) => x.jenis === "nomor.status").data.status, "menunggu_qr");
+  assert.equal(diterimaWh.slice(awal).find((x) => x.jenis === "nomor.pairing").data.kode, "ABCD1234");
+});
+
+await cek("fiturBoleh: cek di memori <= 0,01 ms (tanpa query)", async () => {
+  const t0 = performance.now();
+  for (let i = 0; i < 100000; i++) ML.fiturBoleh(i % 2 ? "bot" : "percakapan");
+  const per = (performance.now() - t0) / 100000;
+  console.log(`      fiturBoleh: ${(per * 1000).toFixed(2)} µs/cek`);
+  assert.ok(per < 0.01);
+});
+
+bagian("D. Batas nomor, kedaluwarsa, ganti key");
 await cek("sandbox kedaluwarsa: API 402 sandbox_kedaluwarsa, bot diam, WA tetap tersambung", async () => {
   await ML.terimaLisensi(token(await ML.idInstalasi(), { berlaku_sampai: kini() - 1 }));
   const r = await json(await rute.status.GET(minta("/status")));

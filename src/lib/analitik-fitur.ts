@@ -141,6 +141,7 @@ const DAFTAR_FITUR = {
   "developer.buat_tagihan": "Buat tagihan Developer API",
   "developer.buat_sandbox": "Buat key sandbox Developer API",
   "developer.ganti_key_sandbox": "Ganti key sandbox Developer API",
+  "developer.unduh_starter": "Unduh SDK & contoh aplikasi starter",
   "admin.developer_setujui": "Setujui aplikasi Developer API",
   "admin.developer_ubah": "Ubah aplikasi Developer API",
   "admin.developer_tolak": "Tolak aplikasi Developer API",

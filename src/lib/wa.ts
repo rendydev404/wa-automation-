@@ -915,6 +915,7 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
     s.qrBit = null;
     s.status = "SCAN_QR_CODE";
     lepasTunggu(s);
+    pancarkan({ jenis: "nomor.qr", sesi: s.nama, qr: u.qr });
   }
   if (u.isNewLogin) {
     s.terpasang = true;
@@ -1121,6 +1122,7 @@ export async function mintaKodePairing(nama: string, nomorHp: string): Promise<s
     .toUpperCase();
   if (kode.length !== 8) throw new WaError("Gagal mendapatkan kode 8 karakter dari WhatsApp. Coba lagi.", "Couldn't get the 8-character code from WhatsApp. Please try again.");
   s.kodePairing = kode;
+  pancarkan({ jenis: "nomor.pairing", sesi: s.nama, kode });
   return kode;
 }
 

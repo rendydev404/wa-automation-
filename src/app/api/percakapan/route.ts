@@ -1,3 +1,4 @@
+import { fiturBoleh } from "@/lib/mesin/lisensi";
 import { NextResponse } from "next/server";
 import { sesiDanNomor } from "@/lib/akses";
 import { teksPermintaan } from "@/lib/bahasa-server";
@@ -10,6 +11,7 @@ const FILTER_SAH = new Set<FilterPercakapan>(["semua", "bot", "manusia"]);
  * Mendukung paginasi berbasis kursor (`sebelum_waktu` + `sebelum_id` atau `sebelum_id` / `setelah_id`).
  */
 export async function GET(req: Request) {
+  if (!fiturBoleh("percakapan")) return Response.json({ error: "Fitur ini dinonaktifkan oleh ChatGerCep." }, { status: 403 });
   const u = new URL(req.url);
   const { user, nomor } = await sesiDanNomor(u.searchParams.get("number_id"));
   // Bahasa hanya dibaca di jalur galat.

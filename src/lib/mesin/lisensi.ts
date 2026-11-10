@@ -1,4 +1,5 @@
 import "server-only";
+import { connection } from "next/server";
 import { randomUUID } from "node:crypto";
 import {
   type IsiLisensi,
@@ -6,6 +7,7 @@ import {
   JALUR_KONDISI,
   JALUR_NOMOR_UJI,
   type KodeGalat,
+  type FiturApi,
   type ModeApi,
   type NomorUji,
   type PermintaanAktivasi,
@@ -83,6 +85,42 @@ export async function idInstalasi(): Promise<string> {
 
 /** Lisensi yang sedang dipegang (sudah diverifikasi tanda tangannya); null = belum ada. */
 export const lisensiSekarang = (): IsiLisensi | null => st.isi;
+
+/** Lisensi ada, status aktif, dan belum habis (tanpa syarat jumlah nomor sandbox, supaya nomor lebih tetap bisa dihapus). */
+function lisensiAktif(kini = sekarang()): boolean {
+  const i = st.isi;
+  return !!i && i.status === "aktif" && i.berlaku_sampai > kini;
+}
+
+/**
+ * Fitur boleh dipakai di mesin? Satu pengecekan untuk SEMUA jalur: API, dashboard mesin (server action, halaman,
+ * route), bot WhatsApp, dan antrean. Membaca lisensi di memori (0 query). Di server pusat selalu true.
+ */
+export function fiturBoleh(kode: FiturApi): boolean {
+  if (!modeMesin()) return true;
+  return lisensiAktif() && !!st.isi?.fitur.includes(kode);
+}
+
+/** Bot WhatsApp boleh membalas otomatis: layanan aktif + fitur `bot` dibuka. Pusat: sama dengan layananBoleh (true). */
+export const botBoleh = (kini = sekarang()): boolean => layananBoleh(kini) && (!modeMesin() || !!st.isi?.fitur.includes("bot"));
+
+/**
+ * Dashboard bawaan mesin boleh dibuka? Mati bila `.env DASHBOARD_MESIN=mati`, atau lisensi sudah ada tetapi fitur
+ * `dashboard` tidak dibuka / layanan ditangguhkan, dicabut, habis (blokir dari pusat mengalahkan `.env`). Belum ada
+ * lisensi sama sekali = tetap boleh (pemilik perlu melihat status aktivasi).
+ */
+export async function dashboardMesinBoleh(): Promise<boolean> {
+  if (!modeMesin()) return true;
+  // Membaca jam (masa berlaku lisensi) hanya boleh saat permintaan berjalan, bukan saat prerender (aturan Next.js).
+  // Di luar konteks permintaan (uji, pekerja latar) connection() melempar: diabaikan.
+  try {
+    await connection();
+  } catch {}
+  if ((process.env.DASHBOARD_MESIN ?? "").trim().toLowerCase() === "mati") return false;
+  await muatLisensi().catch(() => {});
+  if (!st.isi) return true;
+  return lisensiAktif() && st.isi.fitur.includes("dashboard");
+}
 
 /** Mesin sedang berjalan sebagai sandbox (menurut lisensi yang dipegang). Sinkron, hanya membaca memori. */
 export const sandboxAktif = (): boolean => modeMesin() && (st.isi ? modeLisensi(st.isi) === "sandbox" : modeKunci() === "sandbox");

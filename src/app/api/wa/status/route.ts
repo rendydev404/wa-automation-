@@ -1,3 +1,4 @@
+import { fiturBoleh } from "@/lib/mesin/lisensi";
 import { NextResponse } from "next/server";
 import { ringkasAktivitas } from "@/lib/aktivitas";
 import { getSetting, sekarang } from "@/lib/db";
@@ -34,6 +35,7 @@ async function aiCache(): Promise<boolean> {
  * daftar nomor, status koneksi, dan galat terakhir semuanya dibaca dari memori.
  */
 export async function GET() {
+  if (!fiturBoleh("nomor")) return Response.json({ error: "Fitur ini dinonaktifkan oleh ChatGerCep." }, { status: 403 });
   const user = await getUser();
   if (!user) return NextResponse.json({ error: (await teksPermintaan()).t("Sesi berakhir.", "Your session has ended.") }, { status: 401 });
 

@@ -1,3 +1,4 @@
+import { fiturBoleh } from "@/lib/mesin/lisensi";
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { catatFitur } from "@/lib/analitik";
@@ -13,6 +14,7 @@ const galat = (pesan: string, status = 400) => NextResponse.json({ error: pesan 
 
 /** Unggah PDF / berkas teks ke base knowledge sebuah nomor. Hanya teksnya yang disimpan. */
 export async function POST(req: Request) {
+  if (!fiturBoleh("knowledge")) return Response.json({ error: "Fitur ini dinonaktifkan oleh ChatGerCep." }, { status: 403 });
   const [user, { b, t }] = await Promise.all([getUser(), teksPermintaan()]);
   if (!user) return galat(t("Sesi berakhir. Silakan login kembali.", "Your session has ended. Please sign in again."), 401);
   const terlaluBesar = () => galat(t("Berkas terlalu besar (maksimal 10 MB).", "File is too large (max 10 MB)."), 413);

@@ -376,7 +376,7 @@ await cek("katalog: kode unik & tiap fitur punya grup + endpoint terdokumentasi"
   assert.ok(def.KODE_FITUR.length >= 15, `katalog baru ${def.KODE_FITUR.length} fitur`);
   for (const f of def.FITUR_API) {
     assert.ok(def.GRUP_FITUR.some((g) => g.kode === f.grup), `grup ${f.grup} tidak dikenal`);
-    assert.ok(dok.ENDPOINT_DOK.some((e) => e.fitur === f.kode), `fitur ${f.kode} belum punya endpoint di api-dok`);
+    if (!def.FITUR_TANPA_ENDPOINT.includes(f.kode)) assert.ok(dok.ENDPOINT_DOK.some((e) => e.fitur === f.kode), `fitur ${f.kode} belum punya endpoint di api-dok`);
   }
   assert.equal(def.fiturPerGrup().flatMap((g) => g.fitur).length, def.KODE_FITUR.length);
   assert.deepEqual(def.fiturPerGrup(["katalog"]).map((g) => g.kode), ["data"]);

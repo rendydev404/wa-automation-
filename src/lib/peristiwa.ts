@@ -10,6 +10,8 @@ export type Peristiwa =
   | { jenis: "pesan.status"; sesi: string; waId: string; status: number }
   | { jenis: "nomor.terhubung"; sesi: string; waId: string; nama: string | null }
   | { jenis: "nomor.terputus"; sesi: string; kode: number | null; keluar: boolean }
+  | { jenis: "nomor.qr"; sesi: string; qr: string }
+  | { jenis: "nomor.pairing"; sesi: string; kode: string }
   | { jenis: "lisensi.peringatan"; sisaDetik: number; berlakuSampai: number; status: string };
 
 type Pendengar = (p: Peristiwa) => void | Promise<void>;

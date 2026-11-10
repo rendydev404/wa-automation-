@@ -9,6 +9,7 @@ export const NAMA_HALAMAN: Record<PolaHalaman, string> = {
   "/login": "Masuk",
   "/daftar": "Daftar akun",
   "/lupa-password": "Lupa password",
+  "/mode-api": "Mode API (mesin)",
   "/program-afiliasi": "Info program afiliasi",
   "/panduan": "Panduan cara pakai (bergambar)",
   "/docs/api": "Dokumentasi Developer API",

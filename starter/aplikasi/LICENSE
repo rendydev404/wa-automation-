@@ -1,0 +1,26 @@
+Lisensi Contoh Kode ChatGerCep Starter
+
+Hak cipta (c) PT. SUKA PROFIT BERKAH
+
+Contoh kode di folder ini ("Starter", termasuk SDK di lib/chatgercep-sdk.ts) boleh Anda pakai dengan ketentuan berikut.
+
+Yang boleh:
+1. Menyalin, mengubah, dan menggabungkan Starter ke dalam aplikasi Anda sendiri.
+2. Memakai hasilnya, termasuk untuk keperluan komersial, selama aplikasi itu terhubung ke mesin ChatGerCep yang
+   berlisensi sah.
+
+Yang tidak boleh:
+1. Menjual ulang atau mendistribusikan Starter secara terpisah, baik utuh maupun yang sudah diubah, sebagai produk,
+   templat, atau pustaka tersendiri.
+2. Memakai Starter untuk terhubung ke mesin ChatGerCep tanpa lisensi yang sah, atau untuk mengakali pembatasan
+   lisensi.
+3. Memakai nama, logo, atau merek ChatGerCep seolah-olah aplikasi Anda adalah produk resmi ChatGerCep.
+
+Kepemilikan:
+Mesin ChatGerCep beserta seluruh logika intinya tetap milik PT. SUKA PROFIT BERKAH dan diatur oleh perjanjian lisensi
+mesin yang terpisah. Lisensi ini hanya mencakup contoh kode di folder ini dan tidak memberikan hak apa pun atas mesin.
+Perubahan yang Anda buat pada Starter menjadi milik Anda.
+
+Tanpa jaminan:
+Starter disediakan "apa adanya", tanpa jaminan apa pun. PT. SUKA PROFIT BERKAH tidak bertanggung jawab atas kerugian
+yang timbul dari pemakaian Starter.

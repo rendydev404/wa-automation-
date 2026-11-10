@@ -1,3 +1,4 @@
+import { fiturBoleh } from "@/lib/mesin/lisensi";
 import type { NextRequest } from "next/server";
 import { bacaTemplat } from "@/lib/templat-ai";
 import { slugTemplatSah } from "@/lib/templat-ai-def";
@@ -8,6 +9,7 @@ import { slugTemplatSah } from "@/lib/templat-ai-def";
  * saat deploy: dibaca dari disk sekali per proses, browser boleh menyimpannya sejam.
  */
 export async function GET(req: NextRequest): Promise<Response> {
+  if (!fiturBoleh("templat")) return Response.json({ error: "Fitur ini dinonaktifkan oleh ChatGerCep." }, { status: 403 });
   const jenis = req.nextUrl.searchParams.get("jenis");
   if (!slugTemplatSah(jenis)) return Response.json({ error: "Jenis usaha tidak dikenal." }, { status: 404 });
   return Response.json({ teks: await bacaTemplat(jenis) }, { headers: { "Cache-Control": "private, max-age=3600" } });

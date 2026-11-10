@@ -1,4 +1,7 @@
-import { Suspense } from "react";
+import { type ReactNode, Suspense } from "react";
+import { Lock } from "lucide-react";
+import type { FiturApi } from "@/lib/api-def";
+import { fiturBoleh } from "@/lib/mesin/lisensi";
 import Link from "@/components/link";
 import { notFound } from "next/navigation";
 import { BookOpenText, Bot, ChevronRight, FileText, FlaskConical, Lightbulb, MessageCircleMore, MessagesSquare, Package, Settings2, Smartphone, Users } from "lucide-react";
@@ -101,6 +104,16 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
       <SaklarSinkron jenis="ss" id={nomor.id} aktif={sinkronIds.includes(nomor.id)} siap={!!konfigurasiSinkron()} keterangan={statusSs ? teksStatusSinkron(statusSs) : ""} />
     </aside>
   );
+  // Mesin self-host: fitur yang dimatikan dari pusat tampil terkunci (pusat: selalu terbuka).
+  const kunci = (kode: FiturApi, isi: ReactNode): ReactNode =>
+    fiturBoleh(kode) ? (
+      isi
+    ) : (
+      <div className="card flex items-center gap-3 p-6 text-[13.5px] text-muted">
+        <Lock className="size-5 shrink-0 text-faint" aria-hidden />
+        {t("Fitur ini dinonaktifkan oleh ChatGerCep.", "This feature has been disabled by ChatGerCep.")}
+      </div>
+    );
   const knowledge = (
     <KnowledgePanel
       numberId={nomor.id}
@@ -188,12 +201,14 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             ),
             tur: ["koneksi"],
             isi: (
+              kunci("nomor", 
               <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
                 <div className="min-w-0" data-tur="koneksi">
                   <ConnectionCard id={nomor.id} />
                 </div>
                 <LangkahMulai id={nomor.id} adaKnowledge={total > 0} botAktif={!!nomor.bot_aktif && total > 0} />
               </div>
+              )
             ),
           },
           {
@@ -203,6 +218,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             hitung: dokumen.length,
             tur: ["knowledge"],
             isi: (
+              kunci("knowledge", 
               <div className="space-y-6">
                 {admin ? (
                   <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -224,6 +240,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                   kini={sekarang()}
                 />
               </div>
+              )
             ),
           },
           {
@@ -232,6 +249,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             ikon: <FlaskConical aria-hidden />,
             tur: ["uji"],
             isi: (
+              kunci("ai", 
               <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
                 <div className="min-w-0" data-tur="uji">
                   <TestChat numberId={nomor.id} />
@@ -248,6 +266,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                   <p className="mt-4 rounded-lg bg-subtle px-3 py-2 text-[12px] text-muted">{t("Uji bot tidak mengirim pesan ke WhatsApp mana pun.", "Test bot never sends a message to any WhatsApp.")}</p>
                 </aside>
               </div>
+              )
             ),
           },
           {
@@ -257,6 +276,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             hitung: ringkasanChat.total_percakapan,
             tur: ["histori"],
             isi: (
+              kunci("percakapan", 
               <div data-tur="histori">
                 <HistoriPercakapan
                   numberId={nomor.id}
@@ -268,6 +288,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                   kiniAwal={sekarang()}
                 />
               </div>
+              )
             ),
           },
           {
@@ -275,7 +296,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             label: { id: "Katalog", en: "Catalog" },
             ikon: <Package aria-hidden />,
             hitung: produk.length,
-            isi: <PanelKatalog numberId={nomor.id} produk={produk} boleh={katalogAktif} />,
+            isi: kunci("katalog", <PanelKatalog numberId={nomor.id} produk={produk} boleh={katalogAktif} />),
           },
           {
             id: "pengaturan",
@@ -283,6 +304,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             ikon: <Settings2 aria-hidden />,
             tur: ["pengaturan"],
             isi: (
+              kunci("bot", 
               <div className="mx-auto max-w-3xl space-y-6">
                 <div data-tur="pengaturan">
                   <NumberSettings
@@ -299,6 +321,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                 </div>
                 <HapusNomor id={nomor.id} />
               </div>
+              )
             ),
           },
         ]}

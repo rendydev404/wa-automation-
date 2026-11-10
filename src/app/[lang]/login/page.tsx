@@ -7,6 +7,8 @@ import { TombolGoogle } from "@/components/tombol-google";
 import { bahasaSah, pembuatT } from "@/lib/bahasa";
 import { alihkanHalaman, teksHalaman } from "@/lib/bahasa-halaman";
 import { getUser, halamanAwal } from "@/lib/session";
+import { modeMesin } from "@/lib/mode";
+import { dashboardMesinBoleh } from "@/lib/mesin/lisensi";
 import { LoginForm } from "./login-form";
 import { jalurLanjut } from "@/lib/lanjut";
 import { MEREK } from "@/lib/merek";
@@ -21,6 +23,8 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/login">): 
 /** Sudah login (sesi benar-benar sah di database)? Langsung ke tujuan ?lanjut= atau halaman awalnya (admin: panel admin). */
 async function SudahMasuk({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await getUser();
+  // Mesin self-host dengan dashboard bawaan ditutup (lisensi / .env): login tidak berguna, tampilkan status mode API.
+  if (!user && modeMesin() && !(await dashboardMesinBoleh())) await alihkanHalaman("/mode-api");
   if (!user) return null;
   const lanjut = staf(user.peran) ? null : jalurLanjut((await searchParams).lanjut);
   await alihkanHalaman(lanjut ?? halamanAwal(user.peran));

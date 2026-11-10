@@ -6,7 +6,7 @@ import { type Nomor, nomorById } from "../numbers";
 import { dengar } from "../peristiwa";
 import { tandaiKirimanSistem } from "../bridge";
 import { WaError, infoSesi, kirimGambar, kirimTeks } from "../wa";
-import { layananBoleh, lisensiSekarang, nomorUji, sandboxAktif, tujuanNomorUji } from "./lisensi";
+import { fiturBoleh, layananBoleh, lisensiSekarang, nomorUji, sandboxAktif, tujuanNomorUji } from "./lisensi";
 import { antrekanEvent } from "./webhook";
 
 /**
@@ -146,7 +146,7 @@ export async function putaranAntrean(): Promise<number> {
       UPDATE pesan_keluar SET status = 'gagal', alasan = 'tidak terkirim dalam 24 jam (nomor tidak terhubung / layanan nonaktif)', berubah = ${kini}
        WHERE status = 'antre' AND dibuat < ${kini - UMUR_ANTRE_MAKS} RETURNING id, number_id`;
     for (const b of basi) void antrekanEvent("pesan.status", b.number_id, { id_pesan: String(b.id), status: "gagal" });
-    if (!layananBoleh()) return 0;
+    if (!layananBoleh() || !fiturBoleh("pesan.kirim")) return 0; // fitur dimatikan: pesan tertahan di antrean, tidak dibuang
     const maks = lisensiSekarang()?.batas.pesan_menit ?? 20;
     const nomor = await sql<{ number_id: number }[]>`SELECT DISTINCT number_id FROM pesan_keluar WHERE status = 'antre'`;
     const kiniMs = Date.now();

@@ -834,6 +834,16 @@ const KUNCI_MIGRASI = 7272740001;
  * Aman dipindah ke MIGRASI kelak (pakai ADD COLUMN IF NOT EXISTS).
  */
 const KOLOM_PASTI: readonly { tabel: string; kolom: string; sql: string }[] = [
+  // Fitur katalog `dashboard` (Core API headless): aplikasi yang sudah ada mendapatkannya sekali, supaya dashboard bawaan
+  // mesin mereka tidak tiba-tiba tertutup. Kolom penanda = jalankan sekali.
+  {
+    tabel: "api_aplikasi",
+    kolom: "fitur_dashboard_v1",
+    sql: `
+      ALTER TABLE api_aplikasi ADD COLUMN IF NOT EXISTS fitur_dashboard_v1 boolean NOT NULL DEFAULT true;
+      UPDATE api_aplikasi SET fitur = array_append(fitur, 'dashboard') WHERE status <> 'menunggu' AND NOT ('dashboard' = ANY(fitur));
+    `,
+  },
   // Nomor bot (WA yang terhubung di mesin) yang dilaporkan mesin saat menyala / nomor terhubung: tampil di portal Developer.
   { tabel: "api_instalasi", kolom: "nomor_bot", sql: "ALTER TABLE api_instalasi ADD COLUMN IF NOT EXISTS nomor_bot text" },
   // Mode sandbox Developer API (docs/plans/2026-11-10-sandbox-developer-api.md). Pusat: sandbox = baris api_aplikasi

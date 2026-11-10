@@ -1,3 +1,4 @@
+import { fiturBoleh } from "@/lib/mesin/lisensi";
 import { NextResponse } from "next/server";
 import { catatFitur } from "@/lib/analitik";
 import { teksDokumen } from "@/lib/knowledge";
@@ -7,6 +8,7 @@ import { staf } from "@/lib/peran";
 
 /** Unduh isi satu dokumen base knowledge sebagai berkas .txt. Query: ?id=<dokumen>&nomor=<number_id>. */
 export async function GET(req: Request) {
+  if (!fiturBoleh("knowledge")) return Response.json({ error: "Fitur ini dinonaktifkan oleh ChatGerCep." }, { status: 403 });
   const q = new URL(req.url).searchParams;
   const [{ user, nomor }, { t }] = await Promise.all([sesiDanNomor(q.get("nomor")), teksPermintaan()]);
   if (!user) return NextResponse.json({ error: t("Sesi berakhir. Silakan login kembali.", "Your session has ended. Please sign in again.") }, { status: 401 });

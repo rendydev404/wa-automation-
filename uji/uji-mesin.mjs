@@ -208,7 +208,7 @@ const K2 = L.buatKunciApi(); // key kedua (uji batas laju terpisah)
 const pusat = {
   versi: 0,
   status: "aktif",
-  fitur: ["nomor", "pesan.kirim", "pesan.terima", "knowledge"],
+  fitur: ["nomor", "pesan.kirim", "pesan.terima", "knowledge", "bot"],
   batas: { nomor: 50, pesan_menit: 20, kontak_baru_hari: 2, instalasi: 1 },
   instalasi: new Map(), // id -> alamat
   tantangan: [],
@@ -601,7 +601,6 @@ const FITUR_BARU = ["kontak.cek", "profil", "bot", "templat", "ai.rapikan", "ai.
 await cek("fitur baru tertutup sampai dibuka lisensi: 403 fitur_tidak_dibuka", async () => {
   const id = String(N1.id);
   const r = [
-    await rute.bot.GET(minta(`/nomor/${id}/bot`), ctx({ id })),
     await rute.produk.GET(minta(`/nomor/${id}/produk`), ctx({ id })),
     await rute.cekSpam.POST(minta("/alat/cek-spam", { metode: "POST", body: { teks: "halo" } })),
     await rute.templat.GET(minta("/templat-ai")),

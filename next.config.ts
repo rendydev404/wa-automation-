@@ -22,6 +22,8 @@ const nextConfig: NextConfig = {
   // Pustaka native onnxruntime dimuat lewat require dinamis (tidak terlacak): Linux untuk server, Windows x64 untuk uji
   // build lokal. Paket deploy membuang biner selain Linux (deploy.yml, deploy.sh).
   outputFileTracingIncludes: {
+    // SDK + contoh aplikasi starter untuk unduhan portal Developer (src/app/api/developer/starter).
+    "/api/developer/starter": ["./starter/**/*"],
     "/**": [
       "./hermes/SOUL-cs.md",
       // CSS & skrip landing page industri, dibaca saat jalan (src/lib/lp/halaman.ts).

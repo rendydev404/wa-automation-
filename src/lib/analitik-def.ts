@@ -43,6 +43,7 @@ export const POLA_HALAMAN = [
   "/login",
   "/daftar",
   "/lupa-password",
+  "/mode-api",
   "/program-afiliasi",
   "/panduan",
   "/docs/api",

@@ -146,6 +146,9 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                       <a href={`/api/developer/${a.id}/berkas?nama=docker-compose.yml`} className="btn btn-ghost border border-line" download>
                         <Download className="size-4" aria-hidden /> docker-compose.yml
                       </a>
+                      <a href="/api/developer/starter" className="btn btn-ghost border border-line" download>
+                        <Download className="size-4" aria-hidden /> {t("SDK + contoh UI", "SDK + sample UI")}
+                      </a>
                       <a href={`/api/developer/${a.id}/berkas?nama=.env.contoh`} className="btn btn-ghost border border-line" download>
                         <Download className="size-4" aria-hidden /> .env.contoh
                       </a>

@@ -102,7 +102,7 @@ async function nyalakan(app, port, envTambah) {
   throw new Error(`server ${port} tidak siap`);
 }
 await nyalakan(appPusat, portPusat, { LISENSI_KUNCI_PRIVAT: PRIV });
-await nyalakan(appMesin, portMesin, {
+const envMesin = {
   MODE: "mesin",
   DATABASE_URL: urlMesin,
   DATA_DIR: path.join(tmp, "data-mesin"),
@@ -118,7 +118,8 @@ await nyalakan(appMesin, portMesin, {
   AI_API_URL: "http://127.0.0.1:9/v1",
   AI_API_KEY: "x",
   AI_MODEL: "model-uji",
-});
+};
+await nyalakan(appMesin, portMesin, envMesin);
 
 // ---------- Chrome headless lewat CDP ----------
 const portCdp = await portBebas();
@@ -338,6 +339,24 @@ try {
   await buka(await evaluasi("location.pathname"));
   await tutupTur();
   await foto("17-mesin-banner-sandbox-hp", { penuh: false });
+
+  // ===== Mesin dengan dashboard dimatikan (DASHBOARD_MESIN=mati): mode API =====
+  const pm = proses.pop();
+  pm.kill();
+  await new Promise((r) => pm.once("exit", r));
+  await nyalakan(appMesin, portMesin, { ...envMesin, DASHBOARD_MESIN: "mati" });
+  await ukuran(1440, false);
+  await buka("/dashboard");
+  await foto("18-mesin-mode-api-desktop", { penuh: false });
+  await ukuran(390, true);
+  await buka("/mode-api");
+  await foto("19-mesin-mode-api-hp", { penuh: true });
+
+  // ===== Docs: Bangun UI sendiri =====
+  dasar = dasarPusat;
+  await ukuran(1440, false);
+  await buka("/docs/api");
+  await foto("20-docs-bangun-ui-sendiri-desktop", { pilih: `document.getElementById("ui-sendiri")` });
 } finally {
   for (const p of proses) p.kill();
   chrome.kill();
