@@ -82,7 +82,7 @@ const isian = (o = {}) => ({
   pemilik: "PT Kasir Maju",
   kontak_wa: "081234567890",
   perkiraan_nomor: "20",
-  alamat_mesin: "",
+  alamat_mesin: "kasirku.id",
   fitur: ["nomor", "pesan.kirim", "ai"],
   setuju: true,
   ...o,
@@ -90,7 +90,7 @@ const isian = (o = {}) => ({
 
 console.log("== pengajuan & tinjauan ==");
 let appId;
-await cek("pengajuan divalidasi (nama, kegunaan, kontak, fitur, setuju, alamat https) lalu masuk antrean", async () => {
+await cek("pengajuan divalidasi (nama, kegunaan, kontak, fitur, setuju, domain aplikasi wajib, https) lalu masuk antrean", async () => {
   await assert.rejects(D.ajukan(B, isian({ nama: "X" })), galat("isian_tidak_sah"));
   await assert.rejects(D.ajukan(B, isian({ kegunaan: "pendek" })), galat("isian_tidak_sah"));
   await assert.rejects(D.ajukan(B, isian({ kontak_wa: "12" })), galat("isian_tidak_sah"));
@@ -98,6 +98,10 @@ await cek("pengajuan divalidasi (nama, kegunaan, kontak, fitur, setuju, alamat h
   await assert.rejects(D.ajukan(B, isian({ setuju: false })), galat("isian_tidak_sah"));
   delete process.env.LISENSI_IZINKAN_HTTP;
   await assert.rejects(D.ajukan(B, isian({ alamat_mesin: "http://wa.contoh.test" })), galat("alamat_tidak_sah"));
+  await assert.rejects(D.ajukan(B, isian({ alamat_mesin: "" })), galat("alamat_tidak_sah")); // domain aplikasi wajib
+  await assert.rejects(D.ajukan(B, isian({ alamat_mesin: "203.0.113.7" })), galat("alamat_tidak_sah")); // IP bukan domain
+  assert.equal(D.rapikanAlamatMesin("Wa.KasirKu.id/", "Domain aplikasi", true), "https://wa.kasirku.id");
+  assert.equal(D.rapikanAlamatMesin("https://kasirku.id/app/", "Domain aplikasi", true), "https://kasirku.id/app");
   process.env.LISENSI_IZINKAN_HTTP = "1";
   appId = await D.ajukan(B, isian());
   const a = await D.aplikasiMilikById(budi.id, appId);
@@ -362,6 +366,44 @@ await cek("akses portal: bawaan kosong (admin pun tidak), developer menyalakan/m
   };
   console.log(`      cariAkunAkses (20 rb akun): awal ${await ukur({})} ms · "pengguna 1999" ${await ukur({ cari: "pengguna 1999" })} ms · "zzz" ${await ukur({ cari: "zzz" })} ms · punya akses ${await ukur({ hanyaAkses: true })} ms`);
   await sql`DELETE FROM users WHERE email LIKE '%@banyak.test'`;
+});
+
+console.log("== katalog fitur ==");
+await cek("katalog: kode unik & tiap fitur punya grup + endpoint terdokumentasi", async () => {
+  const def = await lib("src/lib/api-def.ts");
+  const dok = await lib("src/lib/api-dok.ts");
+  assert.equal(new Set(def.KODE_FITUR).size, def.KODE_FITUR.length);
+  assert.ok(def.KODE_FITUR.length >= 15, `katalog baru ${def.KODE_FITUR.length} fitur`);
+  for (const f of def.FITUR_API) {
+    assert.ok(def.GRUP_FITUR.some((g) => g.kode === f.grup), `grup ${f.grup} tidak dikenal`);
+    assert.ok(dok.ENDPOINT_DOK.some((e) => e.fitur === f.kode), `fitur ${f.kode} belum punya endpoint di api-dok`);
+  }
+  assert.equal(def.fiturPerGrup().flatMap((g) => g.fitur).length, def.KODE_FITUR.length);
+  assert.deepEqual(def.fiturPerGrup(["katalog"]).map((g) => g.kode), ["data"]);
+});
+
+await cek("fitur dibagikan: hanya yang dicentang bisa diajukan & dibuka; pemakaian dihitung agregat (20 rb aplikasi)", async () => {
+  const [c] = await sql`INSERT INTO users (email, password_hash, peran, nama, created_at, akses_api) VALUES ('citra@uji.test', 'x', 'user', 'Citra', 0, true) RETURNING id`;
+  const C = { id: c.id, email: "citra@uji.test", nama: "Citra", peran: "user" };
+  const hasil = await D.simpanFiturGlobal(DV, ["nomor", "katalog", "tidak-ada", "ai"]);
+  assert.deepEqual(hasil, ["nomor", "ai", "katalog"]); // urut katalog, kode asing dibuang
+  assert.deepEqual((await D.pengaturanApi()).fitur, ["nomor", "ai", "katalog"]);
+  await assert.rejects(D.ajukan(C, isian({ fitur: ["statistik", "profil"] })), galat("isian_tidak_sah")); // tidak ada yang dibagikan
+  const id = await D.ajukan(C, isian({ fitur: ["katalog", "statistik", "nomor"] }));
+  const [a] = await sql`SELECT fitur_diminta FROM api_aplikasi WHERE id = ${id}`;
+  assert.deepEqual(a.fitur_diminta, ["nomor", "katalog"]);
+  // Simpan biaya tanpa `fitur` tidak menyentuh katalog.
+  await D.simpanPengaturanApi(DV, { biaya: "gratis", harga: 0 });
+  assert.deepEqual((await D.pengaturanApi()).fitur, ["nomor", "ai", "katalog"]);
+  await sql`UPDATE api_aplikasi SET fitur = CASE WHEN id % 3 = 0 THEN '{nomor,ai,katalog}'::text[] ELSE '{nomor}'::text[] END WHERE nama LIKE 'App %'`;
+  await sql`ANALYZE api_aplikasi`;
+  const t0 = performance.now();
+  const pakai = await D.pemakaianFitur();
+  const ms = performance.now() - t0;
+  const [n] = await sql`SELECT COUNT(*)::int AS n FROM api_aplikasi WHERE nama LIKE 'App %' AND status IN ('disetujui','ditangguhkan')`;
+  assert.ok(pakai.nomor >= n.n && pakai.katalog > 0 && !pakai.statistik);
+  console.log(`      pemakaianFitur (20 rb aplikasi): ${ms.toFixed(1)} ms`);
+  await D.simpanFiturGlobal(DV, (await lib("src/lib/api-def.ts")).KODE_FITUR);
 });
 
 server.close();

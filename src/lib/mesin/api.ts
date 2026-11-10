@@ -39,8 +39,8 @@ export const BATAS_PER_DETIK = Math.max(1, Number(process.env.API_BATAS_PER_DETI
 const gl = globalThis as unknown as { __waApiLaju?: Map<string, { n: number; mulai: number }> };
 const laju = (gl.__waApiLaju ??= new Map());
 
-/** Hitung satu permintaan; kembalikan sisa & waktu reset. `maks`/`jendelaMs` bisa diganti (mis. AI per menit). */
-export function hitungLaju(kunci: string, maks = BATAS_PER_DETIK, jendelaMs = 1000): { boleh: boolean; kepala: Record<string, string> } {
+/** Hitung `jumlah` (bawaan 1) permintaan; kembalikan sisa & waktu reset. `maks`/`jendelaMs` bisa diganti (mis. AI per menit). */
+export function hitungLaju(kunci: string, maks = BATAS_PER_DETIK, jendelaMs = 1000, jumlah = 1): { boleh: boolean; kepala: Record<string, string> } {
   const kini = Date.now();
   let p = laju.get(kunci);
   if (!p || kini - p.mulai >= jendelaMs) {
@@ -48,7 +48,7 @@ export function hitungLaju(kunci: string, maks = BATAS_PER_DETIK, jendelaMs = 10
     p = { n: 0, mulai: kini };
     laju.set(kunci, p);
   }
-  p.n += 1;
+  p.n += jumlah;
   const reset = Math.ceil((p.mulai + jendelaMs) / 1000);
   const kepala: Record<string, string> = {
     "X-RateLimit-Limit": String(maks),

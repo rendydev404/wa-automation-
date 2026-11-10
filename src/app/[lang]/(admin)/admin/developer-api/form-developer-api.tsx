@@ -5,7 +5,7 @@ import { KeyRound, Unplug } from "lucide-react";
 import { cabutKunciAction, lepasInstalasiStafAction, setujuiAction, simpanPengaturanApiAction, tolakAction, ubahAplikasiAction, ubahStatusAction } from "@/app/actions-developer";
 import { PilihOpsi } from "@/components/pilih-opsi";
 import { Pesan, SubmitButton, TombolKonfirmasi } from "@/components/ui";
-import { BATAS_BAWAAN, type BatasApi, type BiayaAplikasi, type BiayaEfektif, FITUR_API, type FiturApi, RENTANG_BATAS } from "@/lib/api-def";
+import { BATAS_BAWAAN, type BatasApi, type BiayaAplikasi, type BiayaEfektif, type FiturApi, RENTANG_BATAS, fiturPerGrup } from "@/lib/api-def";
 
 const PILIHAN_BIAYA = [
   { id: "ikut_umum", label: "Ikut pengaturan umum" },
@@ -13,31 +13,38 @@ const PILIHAN_BIAYA = [
   { id: "berbayar", label: "Berbayar" },
 ] as const;
 
-/** Centang fitur: yang dimatikan di pengaturan umum tampil tapi tidak bisa dicentang. */
+/** Centang fitur per aplikasi, per grup. Fitur yang tidak dibagikan (tab Fitur) tampil redup dan tidak bisa dicentang. */
 function CentangFitur({ dipilih, diminta, global }: { dipilih: FiturApi[]; diminta?: FiturApi[]; global: FiturApi[] }) {
   return (
     <fieldset>
       <legend className="label">Fitur yang dibuka</legend>
-      <div className="mt-1 grid gap-2 sm:grid-cols-2">
-        {FITUR_API.map((f) => {
-          const boleh = global.includes(f.kode);
-          return (
-            <label
-              key={f.kode}
-              className={`flex items-start gap-2.5 rounded-xl border border-line bg-surface px-3 py-2.5 has-checked:border-accent has-checked:bg-accent-soft ${boleh ? "cursor-pointer hover:bg-subtle" : "opacity-50"}`}
-            >
-              <input type="checkbox" name="fitur" value={f.kode} defaultChecked={boleh && dipilih.includes(f.kode)} disabled={!boleh} className="centang mt-0.5" />
-              <span className="min-w-0">
-                <span className="flex flex-wrap items-center gap-1.5 text-[13.5px] font-semibold">
-                  {f.label}
-                  {diminta?.includes(f.kode) && <span className="rounded bg-subtle px-1.5 py-px text-[10.5px] font-bold text-muted uppercase">diminta</span>}
-                  {!boleh && <span className="rounded bg-subtle px-1.5 py-px text-[10.5px] font-bold text-muted uppercase">mati di pengaturan umum</span>}
-                </span>
-                <span className="block text-[12px] leading-snug text-muted">{f.keterangan}</span>
-              </span>
-            </label>
-          );
-        })}
+      <div className="mt-1 space-y-3">
+        {fiturPerGrup().map((g) => (
+          <div key={g.kode}>
+            <p className="mb-1.5 text-[11.5px] font-bold tracking-wide text-faint uppercase">{g.label}</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {g.fitur.map((f) => {
+                const boleh = global.includes(f.kode);
+                return (
+                  <label
+                    key={f.kode}
+                    className={`flex items-start gap-2.5 rounded-xl border border-line bg-surface px-3 py-2.5 has-checked:border-accent has-checked:bg-accent-soft ${boleh ? "cursor-pointer hover:bg-subtle" : "opacity-50"}`}
+                  >
+                    <input type="checkbox" name="fitur" value={f.kode} defaultChecked={boleh && dipilih.includes(f.kode)} disabled={!boleh} className="centang mt-0.5" />
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-1.5 text-[13.5px] font-semibold">
+                        {f.label}
+                        {diminta?.includes(f.kode) && <span className="rounded bg-subtle px-1.5 py-px text-[10.5px] font-bold text-muted uppercase">diminta</span>}
+                        {!boleh && <span className="rounded bg-subtle px-1.5 py-px text-[10.5px] font-bold text-muted uppercase">tidak dibagikan</span>}
+                      </span>
+                      <span className="block text-[12px] leading-snug text-muted">{f.keterangan}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </fieldset>
   );
@@ -207,8 +214,8 @@ export function TombolLepasStaf({ id, instalasiId }: { id: number; instalasiId: 
   );
 }
 
-/** Sakelar umum: biaya bawaan, harga bawaan, fitur yang boleh dibuka sama sekali. */
-export function FormPengaturanApi({ biaya, harga, fitur }: { biaya: BiayaEfektif; harga: number; fitur: FiturApi[] }) {
+/** Sakelar umum: biaya & harga bawaan. Fitur yang dibagikan diatur di tab Fitur (fitur-global.tsx). */
+export function FormPengaturanApi({ biaya, harga }: { biaya: BiayaEfektif; harga: number }) {
   const [hasil, aksi] = useActionState(simpanPengaturanApiAction, null);
   const [pilih, setPilih] = useState<string>(biaya);
   return (
@@ -235,17 +242,6 @@ export function FormPengaturanApi({ biaya, harga, fitur }: { biaya: BiayaEfektif
           <input id="harga-bawaan-api" name="harga" type="number" min={0} step={1000} defaultValue={harga} className="field" />
         </div>
       </div>
-      <fieldset>
-        <legend className="label">Fitur yang boleh dibuka</legend>
-        <div className="mt-1 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {FITUR_API.map((f) => (
-            <label key={f.kode} className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-line px-3 py-2 text-[13px] has-checked:border-accent has-checked:bg-accent-soft">
-              <input type="checkbox" name="fitur" value={f.kode} defaultChecked={fitur.includes(f.kode)} className="centang" />
-              {f.label}
-            </label>
-          ))}
-        </div>
-      </fieldset>
       <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2 border-t border-line pt-4">
         <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
         <SubmitButton>Simpan pengaturan</SubmitButton>

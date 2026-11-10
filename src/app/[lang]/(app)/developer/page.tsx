@@ -5,7 +5,7 @@ import { ChevronRight, Code2, Server, ShieldCheck, Wallet } from "lucide-react";
 import Link from "@/components/link";
 import { labelFitur } from "@/lib/api-def";
 import { teksHalaman } from "@/lib/bahasa-halaman";
-import { aplikasiMilik } from "@/lib/developer-api";
+import { aplikasiMilik, pengaturanApi } from "@/lib/developer-api";
 import { tanggal } from "@/lib/format";
 import { MEREK } from "@/lib/merek";
 import { modeMesin } from "@/lib/mode";
@@ -66,7 +66,9 @@ export default async function HalamanDeveloper() {
             {t("Tim kami meninjau setiap pengajuan dan membuka fitur yang sesuai.", "Our team reviews every application and opens the matching features.")}
           </p>
           <div className="mt-5">
-            <FormAjukan />
+            <Suspense fallback={<div aria-hidden className="h-96 animate-denyut rounded-xl bg-subtle" />}>
+              <Ajukan />
+            </Suspense>
           </div>
         </section>
         <Suspense fallback={<div aria-hidden className="card h-64 animate-denyut" />}>
@@ -75,6 +77,12 @@ export default async function HalamanDeveloper() {
       </div>
     </div>
   );
+}
+
+/** Formulir pengajuan dengan fitur yang sedang dibagikan developer internal (getSetting dimemo: tanpa query tambahan). */
+async function Ajukan() {
+  await requireAksesApi();
+  return <FormAjukan fitur={(await pengaturanApi()).fitur} />;
 }
 
 async function DaftarAplikasi() {

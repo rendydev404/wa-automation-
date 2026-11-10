@@ -175,11 +175,11 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                 </dd>
               </div>
               <div>
-                <dt className="text-muted">Situs</dt>
+                <dt className="text-muted">Domain aplikasi</dt>
                 <dd className="truncate font-semibold">
-                  {a.situs ? (
-                    <a href={a.situs} target="_blank" rel="noopener noreferrer nofollow" className="text-accent hover:underline">
-                      {a.situs}
+                  {a.alamat_mesin ? (
+                    <a href={a.alamat_mesin} target="_blank" rel="noopener noreferrer nofollow" className="text-accent hover:underline">
+                      {a.alamat_mesin}
                     </a>
                   ) : (
                     "-"
@@ -190,10 +190,17 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                 <dt className="text-muted">Perkiraan nomor</dt>
                 <dd className="font-semibold">{a.perkiraan_nomor !== null ? angka(a.perkiraan_nomor) : "-"}</dd>
               </div>
-              <div>
-                <dt className="text-muted">Alamat mesin</dt>
-                <dd className="truncate font-semibold">{a.alamat_mesin ?? "-"}</dd>
-              </div>
+              {/* Kolom situs tidak ditanyakan lagi (diganti domain aplikasi); hanya tampil untuk pengajuan lama. */}
+              {a.situs && (
+                <div>
+                  <dt className="text-muted">Situs</dt>
+                  <dd className="truncate font-semibold">
+                    <a href={a.situs} target="_blank" rel="noopener noreferrer nofollow" className="text-accent hover:underline">
+                      {a.situs}
+                    </a>
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt className="text-muted">Fitur diminta</dt>
                 <dd className="font-semibold">{a.fitur_diminta.map(labelFitur).join(", ") || "-"}</dd>

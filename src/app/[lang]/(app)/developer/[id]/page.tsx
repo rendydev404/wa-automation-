@@ -224,7 +224,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               )}
               {a.alamat_mesin && (
                 <div className="flex justify-between gap-3">
-                  <dt className="text-muted">{t("Alamat mesin", "Engine address")}</dt>
+                  <dt className="text-muted">{t("Domain aplikasi", "App domain")}</dt>
                   <dd className="truncate font-semibold">{a.alamat_mesin}</dd>
                 </div>
               )}

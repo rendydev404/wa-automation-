@@ -96,6 +96,10 @@ export interface PermintaanAi {
   paksa?: Partial<PengaturanAi>;
   /** Claude API gagal (setelah model cadangan): jawab dengan Hermes alih-alih tidak membalas. Dipakai mode per_paket. */
   cadanganHermes?: boolean;
+  /** Batas token keluaran untuk tugas panjang (mis. merapikan dokumen); bawaan = aturan maks_token_balasan. */
+  maksToken?: number;
+  /** Tugas di luar membalas pelanggan: aturan umum bot (SOUL) tidak disertakan. Anthropic & kompatibel OpenAI saja. */
+  tanpaSoul?: boolean;
 }
 
 /** Penyedia tanpa ingatan sesi: pemanggil wajib menyertakan riwayat chat lengkap di pesan sistem. */
@@ -196,10 +200,10 @@ async function panggilAnthropic(kunci: string, model: string, r: PermintaanAi) {
     body: JSON.stringify({
       model,
       // Balasan WhatsApp pendek; max_tokens = pagar biaya bila model "kebablasan" (aturan admin, bawaan 700).
-      ...opsiPenalaran(model, await aturan("maks_token_balasan")),
+      ...opsiPenalaran(model, r.maksToken ?? (await aturan("maks_token_balasan"))),
       // SOUL selalu sama persis di setiap panggilan: di-cache Anthropic (input yang di-cache 10x lebih murah).
       system: [
-        { type: "text", text: teksSoul(), cache_control: { type: "ephemeral" } },
+        ...(r.tanpaSoul ? [] : [{ type: "text", text: teksSoul(), cache_control: { type: "ephemeral" } }]),
         { type: "text", text: r.sistem.toWellFormed() },
       ],
       messages: [
@@ -294,9 +298,9 @@ async function tanyaOpenAi(r: PermintaanAi): Promise<JawabanAi> {
     headers: { authorization: `Bearer ${c.kunci}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: c.model,
-      max_tokens: await aturan("maks_token_balasan"),
+      max_tokens: r.maksToken ?? (await aturan("maks_token_balasan")),
       messages: [
-        { role: "system", content: `${teksSoul()}\n\n${r.sistem.toWellFormed()}` },
+        { role: "system", content: r.tanpaSoul ? r.sistem.toWellFormed() : `${teksSoul()}\n\n${r.sistem.toWellFormed()}` },
         { role: "user", content: isiUser },
       ],
     }),

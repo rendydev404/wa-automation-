@@ -15,6 +15,7 @@ import {
   lepasInstalasi,
   mulaiBayarApi,
   setujui,
+  simpanFiturGlobal,
   simpanPengaturanApi,
   tolak,
   ubahAplikasi,
@@ -260,10 +261,25 @@ export async function simpanPengaturanApiAction(_lalu: Hasil | null, form: FormD
   const biaya: BiayaEfektif = form.get("biaya") === "berbayar" ? "berbayar" : "gratis";
   const harga = Number(String(form.get("harga") ?? "0").replace(/[.\s]/g, "") || 0);
   try {
-    await simpanPengaturanApi(pelaku, { biaya, harga, fitur: form.getAll("fitur").map(String).filter(fiturSah) });
+    await simpanPengaturanApi(pelaku, { biaya, harga });
     segarkanPanel();
     catatFitur(pelaku.id, "admin.developer_pengaturan");
     return { ok: true, pesan: "Pengaturan tersimpan dan dikirim ke semua mesin aktif." };
+  } catch (e) {
+    return galat(e);
+  }
+}
+
+/** Katalog fitur yang dibagikan ke developer luar (tab Fitur). Hanya developer internal. */
+export async function simpanFiturGlobalAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const m = await tolakMesin();
+  if (m) return m;
+  const pelaku = await requireDeveloper();
+  try {
+    const fitur = await simpanFiturGlobal(pelaku, form.getAll("fitur").map(String).filter(fiturSah));
+    segarkanPanel();
+    catatFitur(pelaku.id, "admin.developer_pengaturan");
+    return { ok: true, pesan: `${fitur.length} fitur dibagikan. Lisensi semua mesin aktif diperbarui.` };
   } catch (e) {
     return galat(e);
   }

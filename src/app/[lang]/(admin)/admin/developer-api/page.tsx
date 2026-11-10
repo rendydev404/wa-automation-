@@ -3,18 +3,20 @@ import { notFound } from "next/navigation";
 import { ChevronRight, Inbox } from "lucide-react";
 import Link from "@/components/link";
 import { Pill } from "@/components/ui";
-import { LABEL_STATUS_APLIKASI, labelFitur } from "@/lib/api-def";
-import { type FilterAplikasi, biayaEfektif, cariAkunAkses, daftarAplikasi, hitungAplikasi, pengaturanApi } from "@/lib/developer-api";
+import { FITUR_API, type FiturApi, LABEL_STATUS_APLIKASI, labelFitur } from "@/lib/api-def";
+import { ENDPOINT_DOK } from "@/lib/api-dok";
+import { type FilterAplikasi, biayaEfektif, cariAkunAkses, daftarAplikasi, hitungAplikasi, pemakaianFitur, pengaturanApi } from "@/lib/developer-api";
 import { tanggal } from "@/lib/format";
 import { modeMesin } from "@/lib/mode";
 import { requireDeveloper } from "@/lib/session";
 import { AksesPengguna } from "./akses-pengguna";
 import { CariLangsung } from "./cari-langsung";
+import { type EndpointRingkas, FormFiturGlobal } from "./fitur-global";
 import { FormPengaturanApi } from "./form-developer-api";
 import { NADA_STATUS } from "./umum";
 
 type SP = Record<string, string | string[] | undefined>;
-type Tab = "aplikasi" | "akses" | "pengaturan";
+type Tab = "aplikasi" | "fitur" | "akses" | "pengaturan";
 
 const FILTER: { nilai: FilterAplikasi; label: string }[] = [
   { nilai: "menunggu", label: "Menunggu" },
@@ -23,7 +25,7 @@ const FILTER: { nilai: FilterAplikasi; label: string }[] = [
   { nilai: "semua", label: "Semua" },
 ];
 
-const tabDari = (sp: SP): Tab => (sp.tab === "akses" || sp.tab === "pengaturan" ? sp.tab : "aplikasi");
+const tabDari = (sp: SP): Tab => (sp.tab === "fitur" || sp.tab === "akses" || sp.tab === "pengaturan" ? sp.tab : "aplikasi");
 
 /** Panel developer internal (hanya peran developer): pengajuan & aplikasi, akses portal per akun, pengaturan umum. */
 export default function HalamanDeveloperApi(props: { searchParams: Promise<SP> }) {
@@ -32,7 +34,7 @@ export default function HalamanDeveloperApi(props: { searchParams: Promise<SP> }
     <div className="space-y-5">
       <header>
         <h1 className="text-2xl font-bold tracking-tight">Developer API</h1>
-        <p className="mt-0.5 text-[13.5px] text-muted">Tinjau pengajuan, pilih akun yang boleh memakai portal, dan atur lisensi mesin self-host.</p>
+        <p className="mt-0.5 text-[13.5px] text-muted">Tinjau pengajuan, centang fitur yang dibagikan, pilih akun yang boleh memakai portal, dan atur lisensi mesin self-host.</p>
       </header>
       <Suspense fallback={<Kerangka />}>
         <Panel searchParams={props.searchParams} />
@@ -54,9 +56,10 @@ async function Panel({ searchParams }: { searchParams: Promise<SP> }) {
   await requireDeveloper();
   const sp = await searchParams;
   const tab = tabDari(sp);
-  const [jumlah, akses] = await Promise.all([hitungAplikasi(), cariAkunAkses()]);
-  const TAB: { nilai: Tab; label: string; hitung?: number; sorot?: boolean }[] = [
+  const [jumlah, akses, umum] = await Promise.all([hitungAplikasi(), cariAkunAkses(), pengaturanApi()]);
+  const TAB: { nilai: Tab; label: string; hitung?: number | string; sorot?: boolean }[] = [
     { nilai: "aplikasi", label: "Aplikasi", hitung: jumlah.menunggu, sorot: jumlah.menunggu > 0 },
+    { nilai: "fitur", label: "Fitur", hitung: `${umum.fitur.length}/${FITUR_API.length}` },
     { nilai: "akses", label: "Akses pengguna", hitung: akses.jumlahAkses },
     { nilai: "pengaturan", label: "Pengaturan" },
   ];
@@ -75,14 +78,16 @@ async function Panel({ searchParams }: { searchParams: Promise<SP> }) {
               {t.label}
               {t.hitung !== undefined && (
                 <span className={`rounded-full px-1.5 py-px text-[11px] font-bold tabular-nums ${t.sorot ? "bg-warning-soft text-warning" : "bg-subtle text-muted"}`}>
-                  {t.hitung.toLocaleString("id-ID")}
+                  {typeof t.hitung === "number" ? t.hitung.toLocaleString("id-ID") : t.hitung}
                 </span>
               )}
             </Link>
           );
         })}
       </nav>
-      {tab === "akses" ? (
+      {tab === "fitur" ? (
+        <Fitur dibagikan={umum.fitur} />
+      ) : tab === "akses" ? (
         <AksesPengguna awal={akses.daftar} jumlahAwal={akses.jumlahAkses} />
       ) : tab === "pengaturan" ? (
         <Pengaturan />
@@ -183,14 +188,29 @@ async function Aplikasi({ sp, jumlah }: { sp: SP; jumlah: Record<FilterAplikasi,
   );
 }
 
+/** Endpoint per fitur dari sumber dokumentasi yang sama dengan /docs/api (murni, dihitung sekali per proses). */
+const ENDPOINT_PER_FITUR: Record<string, EndpointRingkas[]> = {};
+for (const e of ENDPOINT_DOK) if (e.fitur) (ENDPOINT_PER_FITUR[e.fitur] ??= []).push({ metode: e.metode, jalur: e.jalur });
+
+async function Fitur({ dibagikan }: { dibagikan: FiturApi[] }) {
+  const pemakaian = await pemakaianFitur();
+  return <FormFiturGlobal dibagikan={dibagikan} pemakaian={pemakaian} endpoint={ENDPOINT_PER_FITUR} />;
+}
+
 async function Pengaturan() {
   const umum = await pengaturanApi();
   return (
     <section className="card max-w-3xl p-4 sm:p-5">
       <h2 className="text-[15px] font-bold">Pengaturan umum</h2>
-      <p className="text-[12.5px] text-muted">Bawaan untuk semua aplikasi; pengaturan per aplikasi mengalahkannya. Perubahan dikirim ke semua mesin aktif.</p>
+      <p className="text-[12.5px] text-muted">
+        Biaya bawaan untuk semua aplikasi; pengaturan per aplikasi mengalahkannya. Fitur yang dibagikan diatur di tab{" "}
+        <Link href="/admin/developer-api?tab=fitur" className="font-semibold text-accent hover:underline">
+          Fitur
+        </Link>
+        .
+      </p>
       <div className="mt-4">
-        <FormPengaturanApi biaya={umum.biaya} harga={umum.harga} fitur={umum.fitur} />
+        <FormPengaturanApi biaya={umum.biaya} harga={umum.harga} />
       </div>
     </section>
   );

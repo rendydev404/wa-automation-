@@ -1,5 +1,6 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
+import { type Penyedia, tanyaAi } from "./ai";
 import { tanyaHermes } from "./hermes";
 import { periksaJawaban } from "./pemeriksa";
 import { JENIS_USAHA, type KunciUsaha, bersihkanKerangka, infoUsaha } from "./templat-usaha";
@@ -100,7 +101,11 @@ export function angkaBaru(hasil: string, asli: string): string[] {
   return p ? p.kutipan.split(", ").slice(0, 8).map((x) => x.replace(/^nominal /, "Rp").replace(/^(nomor|tautan|akun\/situs) /, "")) : [];
 }
 
-export async function rapikanKnowledge(o: { teks: string; jenis: KunciUsaha | null; userId: number }): Promise<HasilRapikan> {
+/**
+ * `penyedia` (mesin self-host, Developer API): pakai penyedia AI pemilik mesin (Claude API / kompatibel OpenAI / Hermes)
+ * tanpa aturan bot CS. Tanpa `penyedia` = Hermes seperti di dashboard pusat.
+ */
+export async function rapikanKnowledge(o: { teks: string; jenis: KunciUsaha | null; userId: number; penyedia?: Penyedia }): Promise<HasilRapikan> {
   const asli = bersihkanKerangka(o.teks);
   if (infoUsaha(asli).length < BATAS_RAPIKAN.min)
     throw new GalatRapikan(
@@ -113,12 +118,13 @@ export async function rapikanKnowledge(o: { teks: string; jenis: KunciUsaha | nu
       `The text is too long to tidy up at once (max ${BATAS_RAPIKAN.maks.toLocaleString("en-US")} characters). Split it into several documents.`
     );
   // Sesi baru tiap permintaan: tulisan pengguna tidak tercampur dengan riwayat percakapan mana pun.
-  const j = await tanyaHermes({
+  const minta = {
     sessionId: `rapikan-${o.userId}-${randomBytes(6).toString("hex")}`,
     sistem: sistemRapikan(o.jenis),
     pesan: `Catatan pemilik usaha (rapikan sesuai aturan):\n"""\n${asli}\n"""`,
     timeoutMs: 110_000,
-  });
+  };
+  const j = o.penyedia ? await tanyaAi({ ...minta, paksa: { penyedia: o.penyedia }, maksToken: 6000, tanpaSoul: true }) : await tanyaHermes(minta);
   const u = uraiRapikan(j.teks);
   if (!u) throw new GalatRapikan("AI belum berhasil merapikan tulisan ini. Coba lagi.", "The AI couldn't tidy up this text yet. Please try again.");
   return { asli, ...u, peringatan: angkaBaru(u.teks, asli) };

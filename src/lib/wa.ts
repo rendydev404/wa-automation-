@@ -1305,3 +1305,32 @@ export async function kirimGambar(nama: string, alamat: string, gambar: Buffer, 
   await denganBatas(sock.sendMessage(alamat, { image: gambar, mimetype: mime, caption }, { messageId: id }), 45_000, "mengirim foto");
   return id;
 }
+
+/**
+ * Cek nomor HP terdaftar di WhatsApp (Developer API `kontak.cek`). Satu permintaan usync untuk semua nomor sekaligus;
+ * pemanggil membatasi jumlahnya (cek massal = pola yang dicurigai WhatsApp). `digit` = nomor berawalan kode negara.
+ */
+export async function cekTerdaftar(nama: string, digit: string[]): Promise<Map<string, string | null>> {
+  const { sock } = aktif(nama);
+  const hasil = new Map<string, string | null>(digit.map((d) => [d, null]));
+  if (!digit.length) return hasil;
+  const r = await denganBatas(sock.onWhatsApp(...digit.map((d) => `${d}@s.whatsapp.net`)), 20_000, "mengecek nomor");
+  for (const x of r ?? []) {
+    const d = digitWa(x.jid);
+    if (x.exists && hasil.has(d)) hasil.set(d, d);
+  }
+  return hasil;
+}
+
+/** Foto profil nomor yang terhubung (URL sementara dari WhatsApp), null bila tidak ada / disembunyikan. */
+export async function fotoProfilSendiri(nama: string): Promise<string | null> {
+  const { sock } = aktif(nama);
+  const jid = sock.user?.id;
+  if (!jid) return null;
+  try {
+    return (await denganBatas(sock.profilePictureUrl(`${digitWa(jid)}@s.whatsapp.net`, "image"), 15_000, "mengambil foto profil")) ?? null;
+  } catch (e) {
+    if (e instanceof WaError) throw e;
+    return null; // 404/401 dari WhatsApp = tidak punya foto atau privasi
+  }
+}

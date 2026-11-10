@@ -16,6 +16,9 @@ export interface EndpointDok {
   status?: number;
 }
 
+const BOT = { nomor_id: "12", bot_aktif: true, instruksi: "Jawab singkat dan ramah.", tunggu_detik: 5, tunggu_baca_detik: 45, jeda_detik: 1800, saring_spam: true, saring_prospek: false, belajar: true };
+const PRODUK = { id: "44", nama: "Paket Hemat", harga: 25000, deskripsi: "Nasi + ayam + es teh", tersedia: true, ada_foto: true, urutan: 1, diubah: 1794200000 };
+
 const NOMOR = { id: "12", label: "CS Toko", status: "terhubung", wa_id: "6281234567890", nama_wa: "Toko Maju", bot_aktif: true, dibuat: 1794200000 };
 
 export const ENDPOINT_DOK: EndpointDok[] = [
@@ -81,6 +84,66 @@ export const ENDPOINT_DOK: EndpointDok[] = [
   },
   { metode: "GET", jalur: "/nomor/{id}/knowledge/{dok}", fitur: "knowledge", ringkas: { id: "Isi satu dokumen", en: "Get one document" }, jawab: { id: "5", judul: "Menu & harga", teks: "Paket Hemat Rp25.000: ..." } },
   { metode: "DELETE", jalur: "/nomor/{id}/knowledge/{dok}", fitur: "knowledge", ringkas: { id: "Hapus dokumen", en: "Delete a document" }, jawab: { ok: true } },
+  {
+    metode: "POST",
+    jalur: "/kontak/cek",
+    fitur: "kontak.cek",
+    ringkas: { id: "Cek nomor HP terdaftar di WhatsApp (maks 20 per panggilan)", en: "Check phone numbers are on WhatsApp (max 20 per call)" },
+    minta: { nomor_id: "12", nomor: ["081234567890", "6289876543210"] },
+    jawab: { data: [{ nomor: "6281234567890", sah: true, terdaftar: true }, { nomor: "6289876543210", sah: true, terdaftar: false }] },
+  },
+  { metode: "GET", jalur: "/nomor/{id}/profil", fitur: "profil", ringkas: { id: "Nama & foto profil nomor yang terhubung", en: "Name & profile photo of a connected number" }, jawab: { wa_id: "6281234567890", nama_wa: "Toko Maju", status: "terhubung", foto_url: "https://pps.whatsapp.net/..." } },
+  { metode: "GET", jalur: "/nomor/{id}/bot", fitur: "bot", ringkas: { id: "Pengaturan bot AI nomor", en: "A number's AI bot settings" }, jawab: BOT },
+  {
+    metode: "PATCH",
+    jalur: "/nomor/{id}/bot",
+    fitur: "bot",
+    ringkas: { id: "Ubah pengaturan bot (hanya kolom yang dikirim)", en: "Update bot settings (only the fields sent)" },
+    minta: { bot_aktif: true, saring_spam: true, saring_prospek: false, belajar: true, tunggu_detik: 5 },
+    jawab: BOT,
+  },
+  { metode: "GET", jalur: "/templat-ai", fitur: "templat", ringkas: { id: "Daftar template instruksi per jenis usaha", en: "List instruction templates per business type" }, jawab: { data: [{ slug: "laundry", nama: "Laundry", nama_en: "Laundry" }] } },
+  { metode: "GET", jalur: "/templat-ai/{slug}", fitur: "templat", ringkas: { id: "Isi satu template (ganti penanda [ ... ] lalu pasang ke instruksi bot)", en: "One template's text (replace [ ... ] markers, then set as bot instructions)" }, jawab: { slug: "laundry", nama: "Laundry", teks: "Kamu adalah CS [Nama Laundry]..." } },
+  {
+    metode: "POST",
+    jalur: "/ai/rapikan",
+    fitur: "ai.rapikan",
+    ringkas: { id: "Rapikan tulisan usaha jadi dokumen siap pakai (tidak menyimpan)", en: "Tidy business notes into a ready-to-use document (not saved)" },
+    minta: { teks: "jual ayam geprek 15rb, buka 10-21, antar area kota" },
+    jawab: { teks: "## Produk & harga\n- Ayam geprek: Rp15.000\n...", kurang: ["Cara bayar apa saja?"], peringatan: [] },
+  },
+  {
+    metode: "POST",
+    jalur: "/ai/transkripsi",
+    fitur: "ai.transkripsi",
+    ringkas: { id: "Suara jadi teks (JSON base64 atau multipart `berkas`, maks 10 MB)", en: "Speech to text (JSON base64 or multipart `berkas`, max 10 MB)" },
+    minta: { audio_base64: "T2dnUwACAAAAAAAA...", mime: "audio/ogg" },
+    jawab: { teks: "Kak, besok buka jam berapa ya?", ms: 820 },
+  },
+  { metode: "GET", jalur: "/nomor/{id}/pelajaran", fitur: "pelajaran", ringkas: { id: "Jawaban admin yang dipelajari AI (kursor ?setelah)", en: "Owner replies learned by the AI (cursor ?setelah)" }, jawab: { data: [{ id: "31", pertanyaan: "Bisa COD?", jawaban: "Bisa kak, area kota saja", dipakai: 4, terakhir: 1794200000 }], total: 1, berikutnya: null } },
+  { metode: "DELETE", jalur: "/nomor/{id}/pelajaran/{pid}", fitur: "pelajaran", ringkas: { id: "Hapus satu pelajaran", en: "Delete one lesson" }, jawab: { ok: true } },
+  { metode: "DELETE", jalur: "/nomor/{id}/pelajaran", fitur: "pelajaran", ringkas: { id: "Hapus semua pelajaran nomor", en: "Delete all of a number's lessons" }, jawab: { dihapus: 12 } },
+  { metode: "GET", jalur: "/nomor/{id}/produk", fitur: "katalog", ringkas: { id: "Katalog produk nomor", en: "A number's product catalog" }, jawab: { data: [PRODUK] } },
+  {
+    metode: "POST",
+    jalur: "/nomor/{id}/produk",
+    fitur: "katalog",
+    ringkas: { id: "Tambah produk (+ foto base64 JPG/PNG/WebP, maks 1,5 MB)", en: "Add a product (+ base64 JPG/PNG/WebP photo, max 1.5 MB)" },
+    minta: { nama: "Paket Hemat", harga: 25000, deskripsi: "Nasi + ayam + es teh", tersedia: true, foto_base64: "/9j/4AAQ..." },
+    jawab: PRODUK,
+    status: 201,
+  },
+  { metode: "GET", jalur: "/nomor/{id}/produk/{pid}", fitur: "katalog", ringkas: { id: "Satu produk (?foto=1 menyertakan foto_base64)", en: "One product (?foto=1 includes foto_base64)" }, jawab: PRODUK },
+  { metode: "PATCH", jalur: "/nomor/{id}/produk/{pid}", fitur: "katalog", ringkas: { id: "Ubah produk (foto_base64: null = hapus foto)", en: "Update a product (foto_base64: null removes the photo)" }, minta: { harga: 27000, tersedia: false }, jawab: { ...PRODUK, harga: 27000, tersedia: false } },
+  { metode: "DELETE", jalur: "/nomor/{id}/produk/{pid}", fitur: "katalog", ringkas: { id: "Hapus produk", en: "Delete a product" }, jawab: { ok: true } },
+  {
+    metode: "GET",
+    jalur: "/nomor/{id}/statistik",
+    fitur: "statistik",
+    ringkas: { id: "Pesan masuk & dibalas bot per hari (?hari=1–90)", en: "Incoming & bot-replied messages per day (?hari=1–90)" },
+    jawab: { nomor_id: "12", dari: "2026-11-04", sampai: "2026-11-10", total: { masuk: 412, dibalas: 380 }, data: [{ tanggal: "2026-11-10", masuk: 61, dibalas: 57 }] },
+  },
+  { metode: "POST", jalur: "/alat/cek-spam", fitur: "spam.cek", ringkas: { id: "Cek teks promosi judi online (tanpa AI)", en: "Check text for online gambling promos (no AI)" }, minta: { teks: "Slot gacor maxwin, depo 10rb..." }, jawab: { spam: true, skor: 7, alasan: "Promosi judi online (slot, gacor, maxwin, depo)" } },
 ];
 
 export const EVENT_DOK: { jenis: string; ket: { id: string; en: string }; data: unknown }[] = [

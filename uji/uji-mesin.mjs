@@ -90,6 +90,19 @@ const rute = {
   webhook: await lib("src/app/api/v1/webhook/route.ts"),
   webhookUji: await lib("src/app/api/v1/webhook/uji/route.ts"),
   ai: await lib("src/app/api/v1/ai/jawab/route.ts"),
+  kontakCek: await lib("src/app/api/v1/kontak/cek/route.ts"),
+  profil: await lib("src/app/api/v1/nomor/[id]/profil/route.ts"),
+  bot: await lib("src/app/api/v1/nomor/[id]/bot/route.ts"),
+  pelajaran: await lib("src/app/api/v1/nomor/[id]/pelajaran/route.ts"),
+  pelajaranId: await lib("src/app/api/v1/nomor/[id]/pelajaran/[pid]/route.ts"),
+  produk: await lib("src/app/api/v1/nomor/[id]/produk/route.ts"),
+  produkId: await lib("src/app/api/v1/nomor/[id]/produk/[pid]/route.ts"),
+  statistik: await lib("src/app/api/v1/nomor/[id]/statistik/route.ts"),
+  rapikan: await lib("src/app/api/v1/ai/rapikan/route.ts"),
+  transkripsi: await lib("src/app/api/v1/ai/transkripsi/route.ts"),
+  templat: await lib("src/app/api/v1/templat-ai/route.ts"),
+  templatSlug: await lib("src/app/api/v1/templat-ai/[slug]/route.ts"),
+  cekSpam: await lib("src/app/api/v1/alat/cek-spam/route.ts"),
 };
 const sql = await db();
 
@@ -115,6 +128,13 @@ function buatSoket(config) {
       return { key: { id: opsi.messageId } };
     },
     async readMessages() {},
+    async onWhatsApp(...jid) {
+      s.dicek = (s.dicek ?? 0) + jid.length;
+      return jid.map((j) => ({ jid: j, exists: !j.startsWith("62899") }));
+    },
+    async profilePictureUrl(jid) {
+      return `https://pps.whatsapp.net/uji/${jid.split("@")[0]}.jpg`;
+    },
     async sendPresenceUpdate() {},
     async resyncAppState() {},
     async logout() {
@@ -155,6 +175,7 @@ async function nomorTerhubung(label, waId) {
 
 // ---------- server AI tiruan (kompatibel OpenAI) ----------
 let aiDipanggil = 0;
+let aiRapikan = null;
 const serverAi = http.createServer((req, res) => {
   let b = "";
   req.on("data", (c) => (b += c));
@@ -162,6 +183,10 @@ const serverAi = http.createServer((req, res) => {
     aiDipanggil += 1;
     res.setHeader("content-type", "application/json");
     if (req.url.endsWith("/models")) return res.end(JSON.stringify({ data: [] }));
+    if (b.includes("Catatan pemilik usaha")) {
+      aiRapikan = JSON.parse(b);
+      return res.end(JSON.stringify({ model: "model-uji", choices: [{ message: { content: "<knowledge>\n# PRODUK & HARGA\n- Ayam geprek: Rp15.000\n</knowledge>\n<kurang>\n- Cara bayar apa saja?\n</kurang>" } }], usage: { prompt_tokens: 300, completion_tokens: 40 } }));
+    }
     res.end(JSON.stringify({ model: "model-uji", choices: [{ message: { content: "Toko kami buka pukul 09.00 sampai 21.00 kak." } }], usage: { prompt_tokens: 120, completion_tokens: 12 } }));
   });
 });
@@ -567,6 +592,132 @@ await cek("knowledge: POST JSON & multipart, GET daftar & isi, DELETE", async ()
   assert.match(isi.j.teks, /nasi goreng/);
   assert.deepEqual((await json(await rute.dok.DELETE(minta(`/nomor/${id}/knowledge/${t.j.id}`, { metode: "DELETE" }), ctx({ id, dok: t.j.id })))).j, { ok: true });
   assert.equal((await rute.dok.GET(minta(`/nomor/${id}/knowledge/${t.j.id}`), ctx({ id, dok: t.j.id }))).status, 404);
+});
+
+bagian("D2. Fitur tambahan katalog (scope per fitur)");
+
+const FITUR_BARU = ["kontak.cek", "profil", "bot", "templat", "ai.rapikan", "ai.transkripsi", "pelajaran", "katalog", "statistik", "spam.cek"];
+
+await cek("fitur baru tertutup sampai dibuka lisensi: 403 fitur_tidak_dibuka", async () => {
+  const id = String(N1.id);
+  const r = [
+    await rute.bot.GET(minta(`/nomor/${id}/bot`), ctx({ id })),
+    await rute.produk.GET(minta(`/nomor/${id}/produk`), ctx({ id })),
+    await rute.cekSpam.POST(minta("/alat/cek-spam", { metode: "POST", body: { teks: "halo" } })),
+    await rute.templat.GET(minta("/templat-ai")),
+  ];
+  for (const x of r) assert.equal((await json(x)).j.galat.kode, "fitur_tidak_dibuka");
+  pusat.fitur = [...new Set([...pusat.fitur, ...FITUR_BARU])];
+  await kirimLisensi(tokenPusat(idMesin));
+});
+
+await cek("bot: GET & PATCH sebagian (sakelar saring/belajar, validasi angka & tipe)", async () => {
+  const id = String(N1.id);
+  const awal = await json(await rute.bot.GET(minta(`/nomor/${id}/bot`), ctx({ id })));
+  assert.equal(awal.status, 200, JSON.stringify(awal.j));
+  const u = await json(await rute.bot.PATCH(minta(`/nomor/${id}/bot`, { metode: "PATCH", body: { saring_spam: !awal.j.saring_spam, belajar: false, tunggu_detik: 9 } }), ctx({ id })));
+  assert.equal(u.status, 200, JSON.stringify(u.j));
+  assert.equal(u.j.saring_spam, !awal.j.saring_spam);
+  assert.equal(u.j.belajar, false);
+  assert.equal(u.j.tunggu_detik, 9);
+  assert.equal(u.j.instruksi, awal.j.instruksi); // tidak dikirim = tetap
+  assert.equal((await nomorById(N1.id)).saring_spam, !awal.j.saring_spam);
+  for (const body of [{ bot_aktif: "ya" }, { tunggu_detik: 9999 }, { instruksi: 5 }]) {
+    const s = await json(await rute.bot.PATCH(minta(`/nomor/${id}/bot`, { metode: "PATCH", body }), ctx({ id })));
+    assert.equal(s.status, 400, JSON.stringify(body));
+  }
+});
+
+await cek("katalog: POST (foto base64), GET daftar & ?foto=1, PATCH sebagian, hapus foto, DELETE", async () => {
+  const id = String(N1.id);
+  const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  const p = await json(await rute.produk.POST(minta(`/nomor/${id}/produk`, { metode: "POST", body: { nama: "Paket Hemat", harga: 25000, foto_base64: png } }), ctx({ id })));
+  assert.equal(p.status, 201, JSON.stringify(p.j));
+  assert.equal(p.j.ada_foto, true);
+  assert.equal(p.j.tersedia, true);
+  const d = await json(await rute.produk.GET(minta(`/nomor/${id}/produk`), ctx({ id })));
+  assert.equal(d.j.data.length, 1);
+  assert.equal(d.j.data[0].foto_base64, undefined); // daftar tanpa data foto
+  const pid = p.j.id;
+  const f = await json(await rute.produkId.GET(minta(`/nomor/${id}/produk/${pid}?foto=1`), ctx({ id, pid })));
+  assert.equal(f.j.foto_mime, "image/png");
+  assert.equal(f.j.foto_base64, png);
+  const u = await json(await rute.produkId.PATCH(minta(`/nomor/${id}/produk/${pid}`, { metode: "PATCH", body: { harga: 27000, tersedia: false, foto_base64: null } }), ctx({ id, pid })));
+  assert.equal(u.status, 200, JSON.stringify(u.j));
+  assert.deepEqual([u.j.nama, u.j.harga, u.j.tersedia, u.j.ada_foto], ["Paket Hemat", 27000, false, false]);
+  for (const body of [{ nama: "" }, { harga: -1 }, { foto_base64: "bukan base64!" }]) {
+    const s = await json(await rute.produkId.PATCH(minta(`/nomor/${id}/produk/${pid}`, { metode: "PATCH", body }), ctx({ id, pid })));
+    assert.equal(s.status, 400, JSON.stringify(body));
+  }
+  assert.deepEqual((await json(await rute.produkId.DELETE(minta(`/nomor/${id}/produk/${pid}`, { metode: "DELETE" }), ctx({ id, pid })))).j, { ok: true });
+  assert.equal((await rute.produkId.GET(minta(`/nomor/${id}/produk/${pid}`), ctx({ id, pid }))).status, 404);
+});
+
+await cek("pelajaran: daftar berkursor, hapus satu & semua; statistik harian terisi 0 untuk hari kosong", async () => {
+  const id = String(N1.id);
+  const sql = await db();
+  await sql`INSERT INTO pelajaran (number_id, sidik, pertanyaan, jawaban, terakhir_pada)
+            SELECT ${N1.id}, 'uji' || g, 'tanya ' || g, 'jawab ' || g, ${kini()} - g FROM generate_series(1, 25) g`;
+  const h1 = await json(await rute.pelajaran.GET(minta(`/nomor/${id}/pelajaran`), ctx({ id })));
+  assert.equal(h1.status, 200, JSON.stringify(h1.j));
+  assert.equal(h1.j.total, 25);
+  assert.equal(h1.j.data.length, 20);
+  const h2 = await json(await rute.pelajaran.GET(minta(`/nomor/${id}/pelajaran?setelah=${h1.j.berikutnya}`), ctx({ id })));
+  assert.equal(h2.j.data.length, 5);
+  assert.equal(h2.j.berikutnya, null);
+  const pid = h2.j.data[0].id;
+  assert.equal((await rute.pelajaranId.DELETE(minta(`/nomor/${id}/pelajaran/${pid}`, { metode: "DELETE" }), ctx({ id, pid }))).status, 200);
+  assert.equal((await rute.pelajaranId.DELETE(minta(`/nomor/${id}/pelajaran/${pid}`, { metode: "DELETE" }), ctx({ id, pid }))).status, 404);
+  assert.equal((await json(await rute.pelajaran.DELETE(minta(`/nomor/${id}/pelajaran`, { metode: "DELETE" }), ctx({ id })))).j.dihapus, 24);
+  const st = await json(await rute.statistik.GET(minta(`/nomor/${id}/statistik?hari=7`), ctx({ id })));
+  assert.equal(st.status, 200, JSON.stringify(st.j));
+  assert.equal(st.j.data.length, 7);
+  assert.equal(st.j.total.masuk, st.j.data.reduce((a, d) => a + d.masuk, 0));
+  assert.equal((await json(await rute.statistik.GET(minta(`/nomor/${id}/statistik?hari=999`), ctx({ id })))).j.data.length, 90);
+});
+
+await cek("kontak.cek (maks 20, nomor tak sah ditandai) & profil lewat soket WA; nomor belum terhubung = 409", async () => {
+  const r = await json(await rute.kontakCek.POST(minta("/kontak/cek", { metode: "POST", body: { nomor_id: String(N1.id), nomor: ["081234567890", "6289912345678", "abc"] } })));
+  assert.equal(r.status, 200, JSON.stringify(r.j));
+  assert.deepEqual(r.j.data, [
+    { nomor: "6281234567890", sah: true, terdaftar: true },
+    { nomor: "6289912345678", sah: true, terdaftar: false },
+    { nomor: "abc", sah: false, terdaftar: false },
+  ]);
+  assert.equal(soket.reduce((a, x) => a + (x.dicek ?? 0), 0), 2); // satu permintaan berisi 2 nomor sah
+  const banyak = Array.from({ length: 21 }, (_, i) => `6281234567${String(i).padStart(3, "0")}`);
+  assert.equal((await rute.kontakCek.POST(minta("/kontak/cek", { metode: "POST", body: { nomor_id: String(N1.id), nomor: banyak } }))).status, 400);
+  const id = String(N1.id);
+  const p = await json(await rute.profil.GET(minta(`/nomor/${id}/profil`), ctx({ id })));
+  assert.equal(p.status, 200, JSON.stringify(p.j));
+  assert.match(p.j.foto_url, /^https:\/\/pps\.whatsapp\.net\//);
+  const baru = await tambahNomor("Belum tersambung", null);
+  const b = String(baru.id);
+  assert.equal((await json(await rute.profil.GET(minta(`/nomor/${b}/profil`), ctx({ id: b })))).j.galat.kode, "nomor_belum_terhubung");
+  const k = await json(await rute.kontakCek.POST(minta("/kontak/cek", { metode: "POST", body: { nomor_id: b, nomor: ["081234567890"] } })));
+  assert.equal(k.j.galat.kode, "nomor_belum_terhubung");
+});
+
+await cek("templat, cek spam, rapikan (penyedia mesin tanpa SOUL, token panjang), transkripsi tanpa STT_API_KEY = 503", async () => {
+  const t = await json(await rute.templat.GET(minta("/templat-ai")));
+  assert.ok(t.j.data.length >= 10);
+  const slug = t.j.data[0].slug;
+  const isi = await json(await rute.templatSlug.GET(minta(`/templat-ai/${slug}`), ctx({ slug })));
+  assert.equal(isi.status, 200, JSON.stringify(isi.j));
+  assert.ok(isi.j.teks.length > 200);
+  assert.equal((await rute.templatSlug.GET(minta("/templat-ai/tidak-ada"), ctx({ slug: "tidak-ada" }))).status, 404);
+  const sp = await json(await rute.cekSpam.POST(minta("/alat/cek-spam", { metode: "POST", body: { teks: "SLOT GACOR hari ini maxwin! Depo 10rb wd berapapun dibayar, daftar di link bio" } })));
+  assert.equal(sp.j.spam, true, JSON.stringify(sp.j));
+  assert.equal((await json(await rute.cekSpam.POST(minta("/alat/cek-spam", { metode: "POST", body: { teks: "Kak, ayam geprek masih ada?" } })))).j.spam, false);
+  const r = await json(await rute.rapikan.POST(minta("/ai/rapikan", { metode: "POST", body: { teks: "jual ayam geprek 15rb, buka jam 10 sampai 21, antar area kota, bayar transfer" } })));
+  assert.equal(r.status, 200, JSON.stringify(r.j));
+  assert.match(r.j.teks, /Ayam geprek/);
+  assert.deepEqual(r.j.kurang, ["Cara bayar apa saja?"]);
+  assert.equal(aiRapikan.max_tokens, 6000);
+  assert.doesNotMatch(aiRapikan.messages[0].content, /Kamu membalas chat WhatsApp atas nama/); // SOUL bot CS tidak ikut
+  const s = await json(await rute.transkripsi.POST(minta("/ai/transkripsi", { metode: "POST", body: { audio_base64: "T2dnUw==", mime: "audio/ogg" } })));
+  assert.equal(s.status, 503);
+  assert.equal(s.j.galat.kode, "ai_tidak_tersedia");
 });
 
 bagian("E. Antrean pesan keluar + anti-blokir + idempotensi");

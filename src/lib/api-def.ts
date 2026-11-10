@@ -3,19 +3,46 @@
  * Rencana lengkap: docs/plans/2026-11-09-developer-api.md.
  */
 
-/** Fitur (scope) yang bisa dibuka per aplikasi. Urutan = urutan tampil di UI. */
-export const FITUR_API = [
-  { kode: "nomor", label: "Nomor & QR", keterangan: "Tambah nomor, QR / kode pairing, status, atur bot, logout" },
-  { kode: "pesan.kirim", label: "Kirim pesan", keterangan: "Kirim teks & gambar lewat antrean anti-blokir, cek status" },
-  { kode: "pesan.terima", label: "Webhook pesan masuk", keterangan: "Pesan masuk, balasan AI, status pesan, nomor terhubung/terputus" },
-  { kode: "ai", label: "Tanya AI", keterangan: "Jawaban bot berdasarkan product knowledge nomor, tanpa lewat WhatsApp" },
-  { kode: "knowledge", label: "Product knowledge", keterangan: "Tambah, lihat, dan hapus product knowledge (teks, PDF, berkas)" },
+/** Grup fitur di katalog (urutan = urutan tampil). */
+export const GRUP_FITUR = [
+  { kode: "wa", label: "WhatsApp", keterangan: "Sambungkan nomor, kirim & terima pesan" },
+  { kode: "ai", label: "Bot AI", keterangan: "Jawaban AI, pengaturan bot, dan alat AI" },
+  { kode: "data", label: "Data usaha", keterangan: "Bahan yang dipakai AI untuk menjawab" },
+  { kode: "laporan", label: "Laporan & alat", keterangan: "Angka harian dan alat bantu tanpa AI" },
 ] as const;
+export type GrupFitur = (typeof GRUP_FITUR)[number]["kode"];
+
+/**
+ * Fitur (scope) yang bisa dibagikan ke developer luar. Developer internal mencentang mana yang dibagikan (pengaturan
+ * umum), lalu memilih per aplikasi saat menyetujui. Urutan = urutan tampil di UI. Kode yang sudah terbit tidak boleh
+ * diganti (tersimpan di aplikasi & lisensi mesin).
+ */
+export const FITUR_API = [
+  { kode: "nomor", grup: "wa", label: "Nomor & QR", keterangan: "Tambah nomor, QR / kode pairing, status, logout" },
+  { kode: "pesan.kirim", grup: "wa", label: "Kirim pesan", keterangan: "Kirim teks & gambar lewat antrean anti-blokir, cek status" },
+  { kode: "pesan.terima", grup: "wa", label: "Webhook pesan masuk", keterangan: "Pesan masuk, balasan AI, status pesan, nomor terhubung/terputus" },
+  { kode: "kontak.cek", grup: "wa", label: "Cek nomor WhatsApp", keterangan: "Cek nomor HP terdaftar di WhatsApp sebelum mengirim (maks 20 per panggilan)" },
+  { kode: "profil", grup: "wa", label: "Profil WhatsApp", keterangan: "Nama & foto profil nomor yang terhubung" },
+  { kode: "ai", grup: "ai", label: "Tanya AI", keterangan: "Jawaban bot berdasarkan Informasi Usaha nomor, tanpa lewat WhatsApp" },
+  { kode: "bot", grup: "ai", label: "Pengaturan bot", keterangan: "Bot nyala/mati, instruksi, waktu tunggu, saring spam & prospek, belajar dari admin" },
+  { kode: "templat", grup: "ai", label: "Template instruksi industri", keterangan: "Template instruksi bot siap pakai per jenis usaha (laundry, klinik, travel, dll.)" },
+  { kode: "ai.rapikan", grup: "ai", label: "Rapikan tulisan usaha", keterangan: "Tulisan bebas pemilik usaha disusun AI jadi dokumen siap pakai + daftar info yang kurang" },
+  { kode: "ai.transkripsi", grup: "ai", label: "Transkripsi suara", keterangan: "Rekaman suara (maks 10 MB) jadi teks, memakai kunci STT di mesin" },
+  { kode: "pelajaran", grup: "ai", label: "Pelajaran dari admin", keterangan: "Lihat & hapus jawaban admin yang dipelajari AI" },
+  { kode: "knowledge", grup: "data", label: "Product knowledge", keterangan: "Tambah, lihat, dan hapus product knowledge (teks, PDF, berkas)" },
+  { kode: "katalog", grup: "data", label: "Katalog produk", keterangan: "Tambah, ubah, hapus produk + foto; AI mengirim foto produk ke pelanggan" },
+  { kode: "statistik", grup: "laporan", label: "Statistik harian", keterangan: "Pesan masuk & dibalas bot per hari per nomor (maks 90 hari)" },
+  { kode: "spam.cek", grup: "laporan", label: "Cek spam judi", keterangan: "Periksa teks: promosi judi online atau bukan, tanpa AI" },
+] as const satisfies readonly { kode: string; grup: GrupFitur; label: string; keterangan: string }[];
 
 export type FiturApi = (typeof FITUR_API)[number]["kode"];
 export const KODE_FITUR: readonly FiturApi[] = FITUR_API.map((f) => f.kode);
 export const fiturSah = (v: unknown): v is FiturApi => typeof v === "string" && (KODE_FITUR as readonly string[]).includes(v);
 export const labelFitur = (k: string): string => FITUR_API.find((f) => f.kode === k)?.label ?? k;
+/** Fitur per grup, urut seperti katalog (grup kosong dibuang). `saring` = hanya kode ini (mis. yang dibagikan). */
+export function fiturPerGrup(saring?: readonly string[]) {
+  return GRUP_FITUR.map((g) => ({ ...g, fitur: FITUR_API.filter((f) => f.grup === g.kode && (!saring || saring.includes(f.kode))) })).filter((g) => g.fitur.length);
+}
 
 export type StatusAplikasi = "menunggu" | "disetujui" | "ditolak" | "ditangguhkan" | "dicabut";
 export const LABEL_STATUS_APLIKASI: Record<StatusAplikasi, string> = {

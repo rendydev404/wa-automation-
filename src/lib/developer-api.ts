@@ -75,16 +75,42 @@ export async function pengaturanApi(): Promise<PengaturanApi> {
   return { biaya: b === "berbayar" ? "berbayar" : "gratis", harga: Number.isInteger(harga) && harga >= 0 ? harga : 0, fitur };
 }
 
-export async function simpanPengaturanApi(pelaku: User, p: PengaturanApi): Promise<void> {
+/** Simpan biaya & harga bawaan (dan fitur bila dikirim). Lisensi semua aplikasi aktif dikirim ulang. */
+export async function simpanPengaturanApi(pelaku: User, p: Omit<PengaturanApi, "fitur"> & { fitur?: FiturApi[] }): Promise<void> {
   if (!Number.isInteger(p.harga) || p.harga < 0 || p.harga > MAKS_HARGA_API) throw new ApiError("isian_tidak_sah", "Harga bawaan tidak valid.");
   if (p.biaya === "berbayar" && p.harga < 1000) throw new ApiError("isian_tidak_sah", "Harga bawaan minimal Rp1.000 bila biaya bawaan berbayar.");
-  const fitur = KODE_FITUR.filter((k) => p.fitur.includes(k));
+  const fitur = p.fitur && KODE_FITUR.filter((k) => p.fitur!.includes(k));
   await setSetting("api_biaya_bawaan", p.biaya);
   await setSetting("api_harga_bawaan", String(p.harga));
-  await setSetting("api_fitur_global", JSON.stringify(fitur));
-  await catatLog(pelaku, "ubah pengaturan Developer API", null, `biaya bawaan ${p.biaya}, harga Rp${p.harga.toLocaleString("id-ID")}, fitur ${fitur.join(", ") || "-"}`);
+  if (fitur) await setSetting("api_fitur_global", JSON.stringify(fitur));
+  await catatLog(pelaku, "ubah pengaturan Developer API", null, `biaya bawaan ${p.biaya}, harga Rp${p.harga.toLocaleString("id-ID")}${fitur ? `, fitur ${fitur.join(", ") || "-"}` : ""}`);
   // Biaya/fitur umum bisa mengubah lisensi semua aplikasi aktif: kirim ulang.
   await jadwalkanSemua();
+}
+
+/**
+ * Katalog fitur yang dibagikan ke developer luar (centang di tab Fitur). Fitur yang dimatikan langsung hilang dari
+ * lisensi semua mesin (dikirim ulang lewat webhook) dan dari formulir pengajuan; pilihan per aplikasi tetap tersimpan,
+ * jadi menyalakannya lagi memulihkan akses tanpa menyetujui ulang.
+ */
+export async function simpanFiturGlobal(pelaku: User, masukan: readonly string[]): Promise<FiturApi[]> {
+  const fitur = KODE_FITUR.filter((k) => masukan.includes(k));
+  const lama = (await pengaturanApi()).fitur;
+  await setSetting("api_fitur_global", JSON.stringify(fitur));
+  const nyala = fitur.filter((f) => !lama.includes(f));
+  const mati = lama.filter((f) => !fitur.includes(f));
+  await catatLog(pelaku, "ubah fitur Developer API", null, `dibagikan ${fitur.length}/${KODE_FITUR.length}${nyala.length ? ` · nyala ${nyala.join(", ")}` : ""}${mati.length ? ` · mati ${mati.join(", ")}` : ""}`);
+  if (nyala.length || mati.length) await jadwalkanSemua();
+  return fitur;
+}
+
+/** Jumlah aplikasi aktif/ditangguhkan yang memakai tiap fitur: satu query agregat (unnest), bukan baris mentah. */
+export async function pemakaianFitur(): Promise<Record<string, number>> {
+  const sql = await db();
+  const baris = await sql<{ f: string; n: number }[]>`
+    SELECT f, COUNT(*)::int AS n FROM api_aplikasi, unnest(fitur) AS f
+     WHERE status IN ('disetujui', 'ditangguhkan') GROUP BY f`;
+  return Object.fromEntries(baris.map((b) => [b.f, b.n]));
 }
 
 // ---------- Aplikasi ----------
@@ -168,18 +194,25 @@ function periksaSitus(v: string): string | null {
 }
 
 /** Alamat mesin: https://domain[:port][/awalan] tanpa kredensial/query. Belum dicek DNS-nya di sini (lihat periksaAlamatMesin). */
-export function rapikanAlamatMesin(v: string): string | null {
-  const s = bersih(v, 300);
+/**
+ * Rapikan alamat HTTPS publik. Boleh domain saja ("kasirku.id") atau URL lengkap; hasilnya selalu https://host[/jalur].
+ * `nama` = sebutan kolom di pesan galat; `wajibDomain` = tolak alamat IP (formulir pengajuan: "Domain aplikasi"). Aktivasi mesin tetap menerima IP publik.
+ */
+export function rapikanAlamatMesin(v: string, nama = "Alamat mesin", wajibDomain = false): string | null {
+  let s = bersih(v, 300);
   if (!s) return null;
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) s = `https://${s}`;
   let u: URL;
   try {
     u = new URL(s);
   } catch {
-    throw new ApiError("alamat_tidak_sah", "Alamat mesin harus berupa URL lengkap, mis. https://wa.domain-anda.com");
+    throw new ApiError("alamat_tidak_sah", `${nama} tidak sah, mis. kasirku.id`);
   }
   const http = process.env.LISENSI_IZINKAN_HTTP === "1";
-  if (u.protocol !== "https:" && !(http && u.protocol === "http:")) throw new ApiError("alamat_tidak_sah", "Alamat mesin wajib memakai HTTPS.");
-  if (u.username || u.password || u.search || u.hash) throw new ApiError("alamat_tidak_sah", "Alamat mesin tidak boleh berisi kredensial, query, atau tanda #.");
+  if (u.protocol !== "https:" && !(http && u.protocol === "http:")) throw new ApiError("alamat_tidak_sah", `${nama} wajib memakai HTTPS.`);
+  if (u.username || u.password || u.search || u.hash) throw new ApiError("alamat_tidak_sah", `${nama} tidak boleh berisi kredensial, query, atau tanda #.`);
+  if (wajibDomain && !http && !/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(u.hostname))
+    throw new ApiError("alamat_tidak_sah", `${nama} harus domain publik, mis. kasirku.id`);
   return `${u.protocol}//${u.host}${u.pathname.replace(/\/+$/, "")}`;
 }
 
@@ -189,7 +222,9 @@ export async function ajukan(user: User, i: IsianPengajuan): Promise<number> {
   const pemilik = bersih(i.pemilik, 120);
   const kontak = String(i.kontak_wa ?? "").replace(/\D/g, "").replace(/^0/, "62").slice(0, 15);
   const perkiraan = String(i.perkiraan_nomor ?? "").trim() === "" ? null : Number(i.perkiraan_nomor);
-  const fitur = KODE_FITUR.filter((k) => (i.fitur ?? []).includes(k));
+  // Hanya fitur yang sedang dibagikan (tab Fitur di panel developer internal) yang bisa diajukan.
+  const dibagikan = (await pengaturanApi()).fitur;
+  const fitur = dibagikan.filter((k) => (i.fitur ?? []).includes(k));
   if (nama.length < 3) throw new ApiError("isian_tidak_sah", "Nama aplikasi minimal 3 karakter.");
   if (kegunaan.length < 20) throw new ApiError("isian_tidak_sah", "Ceritakan kegunaan aplikasi minimal 20 karakter.");
   if (pemilik.length < 2) throw new ApiError("isian_tidak_sah", "Isi nama pemilik (perusahaan atau perorangan).");
@@ -198,7 +233,8 @@ export async function ajukan(user: User, i: IsianPengajuan): Promise<number> {
   if (!fitur.length) throw new ApiError("isian_tidak_sah", "Pilih minimal satu fitur.");
   if (!i.setuju) throw new ApiError("isian_tidak_sah", "Setujui syarat pemakaian dulu.");
   const situs = periksaSitus(bersih(i.situs, 300));
-  const alamat = rapikanAlamatMesin(i.alamat_mesin);
+  const alamat = rapikanAlamatMesin(i.alamat_mesin, "Domain aplikasi", true);
+  if (!alamat) throw new ApiError("alamat_tidak_sah", "Isi domain aplikasi Anda, mis. kasirku.id");
   const id = await transaksi(async (tx) => {
     await tx`SELECT pg_advisory_xact_lock(72727410, ${user.id})`;
     const [{ n }] = await tx<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM api_aplikasi WHERE user_id = ${user.id} AND status = 'menunggu'`;

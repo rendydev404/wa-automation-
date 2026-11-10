@@ -5,14 +5,16 @@ import { AlertTriangle, KeyRound, Loader2, Unplug } from "lucide-react";
 import { ajukanAction, buatKunciAction, lepasInstalasiAction } from "@/app/actions-developer";
 import { useBahasa, useRouterBahasa } from "@/components/bahasa";
 import { TombolSalin } from "@/components/tombol-salin";
-import { Pesan, SubmitButton, TombolKonfirmasi } from "@/components/ui";
-import { FITUR_API } from "@/lib/api-def";
+import { Pesan, TombolKonfirmasi } from "@/components/ui";
+import { type FiturApi, fiturPerGrup } from "@/lib/api-def";
 
-/** Formulir pengajuan aplikasi Developer API (portal developer luar). */
-export function FormAjukan() {
+/** Formulir pengajuan aplikasi Developer API (portal developer luar). `fitur` = fitur yang sedang dibagikan. */
+export function FormAjukan({ fitur }: { fitur: FiturApi[] }) {
   const { t } = useBahasa();
+  const grup = fiturPerGrup(fitur);
   const router = useRouterBahasa();
-  const [hasil, aksi] = useActionState(ajukanAction, null);
+  const [hasil, aksi, mengirim] = useActionState(ajukanAction, null);
+  const [, mulai] = useTransition();
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (hasil?.ok && hasil.id) {
@@ -21,7 +23,17 @@ export function FormAjukan() {
     }
   }, [hasil, router]);
   return (
-    <form ref={ref} action={aksi} className="space-y-4">
+    // Dikirim manual (bukan `action={aksi}`): React me-reset form setelah setiap action, termasuk yang ditolak server,
+    // sehingga semua isian hilang hanya karena satu kolom salah. Form dikosongkan hanya saat berhasil (di atas).
+    <form
+      ref={ref}
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        mulai(() => aksi(fd));
+      }}
+      className="space-y-4"
+    >
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="dev-nama" className="label">
@@ -53,10 +65,24 @@ export function FormAjukan() {
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="dev-situs" className="label">
-            {t("Situs aplikasi (opsional)", "App website (optional)")}
+          <label htmlFor="dev-alamat" className="label">
+            {t("Domain aplikasi Anda", "Your app domain")}
           </label>
-          <input id="dev-situs" name="situs" maxLength={300} inputMode="url" placeholder="https://" className="field" />
+          <input
+            id="dev-alamat"
+            name="alamat_mesin"
+            required
+            maxLength={300}
+            inputMode="url"
+            autoCapitalize="none"
+            spellCheck={false}
+            placeholder={t("mis. kasirku.id", "e.g. kasirku.id")}
+            aria-describedby="dev-alamat-bantu"
+            className="field"
+          />
+          <p id="dev-alamat-bantu" className="mt-1 text-[12px] text-muted">
+            {t("Cukup domainnya, tanpa https://. Wajib HTTPS.", "Just the domain, no https://. HTTPS required.")}
+          </p>
         </div>
         <div>
           <label htmlFor="dev-kontak" className="label">
@@ -70,26 +96,33 @@ export function FormAjukan() {
           </label>
           <input id="dev-perkiraan" name="perkiraan_nomor" type="number" min={1} max={100000} className="field" />
         </div>
-        <div>
-          <label htmlFor="dev-alamat" className="label">
-            {t("Alamat publik mesin (opsional)", "Engine public address (optional)")}
-          </label>
-          <input id="dev-alamat" name="alamat_mesin" maxLength={300} inputMode="url" placeholder="https://wa.domain-anda.com" className="field" />
-        </div>
       </div>
       <fieldset>
         <legend className="label">{t("Fitur yang dibutuhkan", "Features you need")}</legend>
-        <div className="mt-1 grid gap-2 sm:grid-cols-2">
-          {FITUR_API.map((f) => (
-            <label key={f.kode} className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-line bg-surface px-3 py-2.5 transition-colors hover:bg-subtle has-checked:border-accent has-checked:bg-accent-soft">
-              <input type="checkbox" name="fitur" value={f.kode} defaultChecked className="centang mt-0.5" />
-              <span className="min-w-0">
-                <span className="block text-[13.5px] font-semibold">{f.label}</span>
-                <span className="block text-[12px] leading-snug text-muted">{f.keterangan}</span>
-              </span>
-            </label>
-          ))}
-        </div>
+        {grup.length ? (
+          <div className="mt-1 space-y-3">
+            {grup.map((g) => (
+              <div key={g.kode}>
+                <p className="mb-1.5 text-[11.5px] font-bold tracking-wide text-faint uppercase">{g.label}</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {g.fitur.map((f) => (
+                    <label key={f.kode} className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-line bg-surface px-3 py-2.5 transition-colors hover:bg-subtle has-checked:border-accent has-checked:bg-accent-soft">
+                      <input type="checkbox" name="fitur" value={f.kode} defaultChecked className="centang mt-0.5" />
+                      <span className="min-w-0">
+                        <span className="block text-[13.5px] font-semibold">{f.label}</span>
+                        <span className="block text-[12px] leading-snug text-muted">{f.keterangan}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-1 rounded-xl border border-line bg-subtle/50 px-3 py-3 text-[13px] text-muted">
+            {t("Belum ada fitur yang dibuka untuk pengajuan. Coba lagi nanti.", "No features are open for applications yet. Please check back later.")}
+          </p>
+        )}
       </fieldset>
       <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-line bg-subtle/50 px-3 py-3 text-[13px]">
         <input type="checkbox" name="setuju" required className="centang mt-0.5" />
@@ -101,7 +134,10 @@ export function FormAjukan() {
         </span>
       </label>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <SubmitButton>{t("Kirim pengajuan", "Submit application")}</SubmitButton>
+        <button type="submit" disabled={mengirim} className="btn btn-primary">
+          {mengirim && <Loader2 className="size-4 animate-spin" aria-hidden />}
+          {t("Kirim pengajuan", "Submit application")}
+        </button>
         <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
       </div>
     </form>
