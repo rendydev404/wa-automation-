@@ -2,6 +2,7 @@ import "server-only";
 import { bersihkanAntrean, mulaiAntreanMesin } from "./antrean";
 import { bersihkanIdempoten } from "./api";
 import { mulaiLisensiMesin } from "./lisensi";
+import { cetakSpanduk } from "./spanduk";
 import { bersihkanWebhook, mulaiWebhookMesin } from "./webhook";
 
 const g = globalThis as unknown as { __waMesinMulai?: boolean };
@@ -15,6 +16,7 @@ const g = globalThis as unknown as { __waMesinMulai?: boolean };
 export function mulaiMesin(): void {
   if (g.__waMesinMulai) return;
   g.__waMesinMulai = true;
+  cetakSpanduk();
   mulaiLisensiMesin();
   mulaiWebhookMesin();
   mulaiAntreanMesin();
