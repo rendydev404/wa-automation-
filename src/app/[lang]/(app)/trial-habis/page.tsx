@@ -80,8 +80,8 @@ async function Isi() {
     {
       q: t("“Takut AI jawab ngawur.”", "“What if the AI makes things up?”"),
       a: t(
-        "AI hanya menjawab dari product knowledge yang kamu isi (menu, harga, FAQ). Kalau tidak tahu, AI bilang terus terang dan bisa meneruskannya ke WhatsApp pribadimu.",
-        "The AI only answers from the product knowledge you provide (menu, prices, FAQ). If it doesn't know, it says so and can forward the chat to your personal WhatsApp.",
+        "AI hanya menjawab dari Informasi Usaha yang kamu isi (menu, harga, FAQ). Kalau tidak tahu, AI bilang terus terang dan bisa meneruskannya ke WhatsApp pribadimu.",
+        "The AI only answers from the Business Info you provide (menu, prices, FAQ). If it doesn't know, it says so and can forward the chat to your personal WhatsApp.",
       ),
     },
     {

@@ -40,13 +40,13 @@ const DAFTAR_FITUR = {
   "belajar.hapus_semua": "Hapus semua pelajaran",
 
   // ---------- Product knowledge ----------
-  "knowledge.tulis": "Tulis teks product knowledge",
-  "knowledge.perbarui": "Perbarui dokumen product knowledge",
+  "knowledge.tulis": "Tulis teks Informasi Usaha",
+  "knowledge.perbarui": "Perbarui dokumen Informasi Usaha",
   "knowledge.unggah_pdf": "Unggah PDF ke product knowledge",
   "knowledge.unggah_berkas": "Unggah berkas teks ke product knowledge",
   "knowledge.rapikan_ai": "Rapikan tulisan dengan AI",
   "knowledge.sempurnakan_ai": "Sempurnakan dokumen dengan AI",
-  "knowledge.pratinjau": "Lihat isi dokumen knowledge",
+  "knowledge.pratinjau": "Lihat isi dokumen Informasi Usaha",
   "knowledge.unduh": "Unduh dokumen knowledge (.txt)",
   "knowledge.hapus": "Hapus dokumen knowledge",
 
@@ -88,8 +88,8 @@ const DAFTAR_FITUR = {
   // ---------- Sinkron data otomatis (khusus admin) ----------
   "sinkron.kasir_nyalakan": "Nyalakan sinkron data kasir",
   "sinkron.kasir_matikan": "Matikan sinkron data kasir",
-  "sinkron.cg_nyalakan": "Nyalakan knowledge otomatis ChatGerCep",
-  "sinkron.cg_matikan": "Matikan knowledge otomatis ChatGerCep",
+  "sinkron.cg_nyalakan": "Nyalakan Informasi Usaha otomatis ChatGerCep",
+  "sinkron.cg_matikan": "Matikan Informasi Usaha otomatis ChatGerCep",
 
   // ---------- Panel admin ----------
   "admin.ubah_kuota": "Ubah kuota nomor pengguna",
@@ -162,7 +162,7 @@ export const GRUP_FITUR: Record<string, string> = {
   bot: "Balasan AI",
   penyaring: "Penyaring chat",
   belajar: "Belajar dari balasan manusia",
-  knowledge: "Product knowledge",
+  knowledge: "Informasi Usaha",
   katalog: "Katalog produk",
   percakapan: "Histori percakapan",
   uji: "Uji bot",

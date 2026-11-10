@@ -76,11 +76,11 @@
   ],
   "faq": [
     { "q": "Apakah AI tahu unit mana yang sedang kosong?", "a": "Tidak. ChatGerCep tidak terhubung ke jadwal armada Anda. AI mengumpulkan detail pemesanan, lalu Anda atau admin yang mengecek ketersediaan dan mengonfirmasi." },
-    { "q": "Bisa menjelaskan tarif dengan sopir dan lepas kunci?", "a": "Bisa, selama tarif, biaya sopir, BBM, tol, overtime, dan aturan lepas kunci sudah Anda isi di knowledge." },
+    { "q": "Bisa menjelaskan tarif dengan sopir dan lepas kunci?", "a": "Bisa, selama tarif, biaya sopir, BBM, tol, overtime, dan aturan lepas kunci sudah Anda isi di Informasi Usaha." },
     { "q": "Apakah AI bisa menerima DP atau memastikan booking?", "a": "Tidak. AI tidak memproses pembayaran dan tidak memastikan booking. Konfirmasi unit dan DP tetap oleh Anda." },
     { "q": "Pelanggan kirim foto KTP atau SIM. Aman?", "a": "Foto tersimpan di WhatsApp Anda seperti biasa. Histori percakapan di ChatGerCep hanya tampil di akun Anda dan terhapus otomatis setelah 30 hari. Sebaiknya verifikasi dokumen tetap dilakukan langsung oleh Anda." },
     { "q": "Apakah nomor WhatsApp lama tetap bisa dipakai?", "a": "Bisa, lewat scan QR sebagai perangkat tertaut. HP tetap bisa dipakai seperti biasa. Nomor tidak boleh terdaftar di WhatsApp Business API." },
-    { "q": "Bagaimana kalau ada pertanyaan yang tidak ada di knowledge?", "a": "AI dilarang menebak. AI berkata terus terang dan meneruskan ke Anda." },
+    { "q": "Bagaimana kalau ada pertanyaan yang tidak ada di Informasi Usaha?", "a": "AI dilarang menebak. AI berkata terus terang dan meneruskan ke Anda." },
     { "q": "Rental saya punya beberapa admin. Paket apa yang cocok?", "a": "Paket Bisnis mendukung 3 nomor dan 4.000 balasan AI per 30 hari." }
   ],
   "image_assets": { "hero": null, "hero_alt": "Customer service rental mobil menyerahkan kunci kepada penyewa", "brief": "Mobil MPV rental bersih di depan kantor rental Indonesia, CS menyerahkan kunci ke penyewa, tablet/HP reservasi." },

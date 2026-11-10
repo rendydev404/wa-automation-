@@ -27,7 +27,7 @@
     { "title": "Banyak yang bertanya, sedikit yang datang", "body": "Calon pasien butuh info jelas soal harga, durasi, dan langkah reservasi sebelum memutuskan." }
   ],
   "solutions": [
-    { "pain": "Chat dari iklan", "answer": "Harga treatment dan detail promo diisi ke knowledge. Setiap calon pasien langsung mendapat jawaban yang sama jelasnya." },
+    { "pain": "Chat dari iklan", "answer": "Harga treatment dan detail promo diisi ke Informasi Usaha. Setiap calon pasien langsung mendapat jawaban yang sama jelasnya." },
     { "pain": "Resepsionis sibuk", "answer": "AI melayani chat selagi tim fokus ke pasien di klinik. Resepsionis bisa mengambil alih chat kapan saja." },
     { "pain": "Chat malam", "answer": "Calon pasien yang chat di luar jam praktik tetap mendapat jawaban saat itu juga." },
     { "pain": "Pertanyaan medis", "answer": "AI diarahkan untuk tidak mendiagnosis atau merekomendasikan treatment pribadi, dan menyarankan konsultasi dengan dokter." },
@@ -76,11 +76,11 @@
   "faq": [
     { "q": "Apakah AI bisa memberi diagnosis atau rekomendasi treatment?", "a": "Tidak, dan memang tidak seharusnya. Template klinik mengarahkan AI untuk tidak mendiagnosis atau merekomendasikan treatment pribadi, dan menyarankan konsultasi dengan dokter." },
     { "q": "Apakah AI bisa booking jadwal otomatis?", "a": "Tidak. ChatGerCep tidak terhubung ke sistem reservasi klinik. AI menjelaskan jadwal praktik yang Anda isi dan mengumpulkan nama serta waktu yang diinginkan, lalu resepsionis mengonfirmasi slot." },
-    { "q": "Bagaimana kalau promo berubah?", "a": "Perbarui informasi promo di knowledge. AI menjawab sesuai data terbaru yang Anda isi, termasuk periode dan syaratnya." },
+    { "q": "Bagaimana kalau promo berubah?", "a": "Perbarui informasi promo di Informasi Usaha. AI menjawab sesuai data terbaru yang Anda isi, termasuk periode dan syaratnya." },
     { "q": "Pasien kirim foto kulit. Apa yang dilakukan AI?", "a": "AI bisa melihat foto, tetapi template klinik mengarahkannya untuk tidak menilai kondisi kulit dan menyarankan konsultasi dokter." },
     { "q": "Apakah chat pasien aman?", "a": "Setiap akun terpisah. Histori percakapan hanya tampil di akun Anda dan terhapus otomatis setelah 30 hari." },
     { "q": "Apakah nomor WhatsApp klinik yang lama tetap bisa dipakai?", "a": "Bisa, lewat scan QR sebagai perangkat tertaut. Nomor tidak boleh terdaftar di WhatsApp Business API atau terhubung ke auto-reply lain." },
-    { "q": "Klinik kami punya beberapa cabang. Bisa?", "a": "Bisa. Paket Bisnis mendukung 3 nomor, paket Pro 5 nomor. Knowledge tiap nomor bisa disesuaikan dengan cabangnya." }
+    { "q": "Klinik kami punya beberapa cabang. Bisa?", "a": "Bisa. Paket Bisnis mendukung 3 nomor, paket Pro 5 nomor. Informasi Usaha tiap nomor bisa disesuaikan dengan cabangnya." }
   ],
   "image_assets": {
     "hero": null,

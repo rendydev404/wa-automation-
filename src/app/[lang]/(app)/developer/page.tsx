@@ -29,7 +29,7 @@ export default async function HalamanDeveloper() {
       judul: t("Jalan di server Anda", "Runs on your server"),
       isi: t("Mesin ChatGerCep dipasang di server Anda (Docker). Server, nomor WA, database, dan kunci AI milik Anda.", "The ChatGerCep engine runs on your server (Docker). Server, WhatsApp numbers, database, and AI keys are yours."),
     },
-    { ikon: ShieldCheck, judul: t("Data tetap di Anda", "Your data stays with you"), isi: t("Isi chat & product knowledge tidak pernah dikirim ke server kami.", "Chats & product knowledge are never sent to our servers.") },
+    { ikon: ShieldCheck, judul: t("Data tetap di Anda", "Your data stays with you"), isi: t("Isi chat & Informasi Usaha tidak pernah dikirim ke server kami.", "Chats & Business Info are never sent to our servers.") },
     { ikon: Wallet, judul: t("Gratis secara bawaan", "Free by default"), isi: t("Biaya (bila ada) ditentukan saat pengajuan disetujui.", "Pricing (if any) is set when your application is approved.") },
   ];
   return (
@@ -38,8 +38,8 @@ export default async function HalamanDeveloper() {
         <h1 className="text-2xl font-bold tracking-tight sm:text-[28px]">Developer API</h1>
         <p className="mt-1 max-w-2xl text-muted">
           {t(
-            "Pakai fitur ChatGerCep (WhatsApp, bot AI, product knowledge) di aplikasi Anda sendiri tanpa membangun dari nol.",
-            "Use ChatGerCep features (WhatsApp, AI bot, product knowledge) in your own app without building them from scratch.",
+            "Pakai fitur ChatGerCep (WhatsApp, bot AI, Informasi Usaha) di aplikasi Anda sendiri tanpa membangun dari nol.",
+            "Use ChatGerCep features (WhatsApp, AI bot, Business Info) in your own app without building them from scratch.",
           )}{" "}
           <Link href="/docs/api" className="font-semibold text-accent hover:underline">
             {t("Baca dokumentasi", "Read the docs")}

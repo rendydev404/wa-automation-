@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     const pertanyaan = typeof b.data.pertanyaan === "string" ? b.data.pertanyaan.trim() : "";
     if (!pertanyaan || pertanyaan.length > 4000) return salah("`pertanyaan` wajib diisi (maks 4.000 karakter).");
     const sesi = typeof b.data.id_sesi === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(b.data.id_sesi) ? b.data.id_sesi : "umum";
-    if (!(await adaKnowledge(nomor.id))) return salah("Isi product knowledge nomor ini dulu (POST /nomor/{id}/knowledge).");
+    if (!(await adaKnowledge(nomor.id))) return salah("Isi Informasi Usaha nomor ini dulu (POST /nomor/{id}/knowledge).");
     const riwayat = Array.isArray(b.data.riwayat)
       ? (b.data.riwayat as { ai?: unknown; teks?: unknown }[]).slice(-12).map((m) => `${m?.ai ? "Kamu (AI)" : "Pelanggan"}: ${String(m?.teks ?? "").replace(/\s*\n\s*/g, " / ").slice(0, 500)}`)
       : [];

@@ -32,7 +32,7 @@ export default async function LoginPage(props: PageProps<"/[lang]/login">) {
   return (
     <KartuAuth
       judul={t("Masuk ke akun", "Sign in to your account")}
-      sub={t("Kelola nomor WhatsApp dan base knowledge AI Anda.", "Manage your WhatsApp numbers and your AI's product knowledge.")}
+      sub={t("Kelola nomor WhatsApp dan Informasi Usaha AI Anda.", "Manage your WhatsApp numbers and your AI's Business Info.")}
       kaki={
         <>
           {t("Belum punya akun?", "Don't have an account?")}{" "}

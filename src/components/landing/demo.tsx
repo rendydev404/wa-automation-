@@ -155,7 +155,7 @@ const langkah = (t: T) => [
   },
   {
     ikon: Upload,
-    judul: t("Isi pengetahuan", "Add your knowledge"),
+    judul: t("Isi Informasi Usaha", "Add your Business Info"),
     teks: t("Unggah menu, harga, FAQ, atau kebijakan. AI hanya menjawab dari yang Anda berikan.", "Upload your menu, prices, FAQs, or policies. The AI answers only from what you give it."),
   },
   {

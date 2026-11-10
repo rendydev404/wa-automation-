@@ -9,7 +9,7 @@ import { FormAturan } from "./form-aturan";
 
 /** Aturan yang ditanam di kode dan tidak bisa dimatikan (src/lib/pemeriksa.ts, penjaga.ts): ditampilkan supaya admin tahu batasnya. */
 const ATURAN_TETAP = [
-  "AI hanya memakai fakta dari base knowledge, instruksi nomor, dan isi chat; harga, nomor, tautan, dan rekening di luar itu ditolak pemeriksa lalu ditulis ulang.",
+  "AI hanya memakai fakta dari Informasi Usaha, instruksi nomor, dan isi chat; harga, nomor, tautan, dan rekening di luar itu ditolak pemeriksa lalu ditulis ulang.",
   "AI tidak mengaku manusia, tidak menyebut dirinya model/perusahaan AI tertentu, dan tidak mengaku sebagai pemilik nomor.",
   "AI tidak menjanjikan tindakan yang tidak bisa ia lakukan (mengirim barang, mengecek stok langsung); untuk hal itu ia bilang tim akan membalas langsung di chat yang sama.",
   "Bot hanya membalas chat yang masuk: tidak pernah mengirim pesan duluan ke nomor mana pun, supaya nomor tidak diblokir WhatsApp.",

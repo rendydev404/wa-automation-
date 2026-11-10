@@ -42,19 +42,19 @@ export async function BannerAkun() {
           </h2>
           <p className="mt-1 text-base font-semibold text-fg">
             {kosong.length === 1
-              ? t(`Nomor ${kosong[0].label} belum memiliki base knowledge.`, `Number ${kosong[0].label} does not have product knowledge yet.`)
-              : t(`${kosong.length} nomor WhatsApp Anda belum memiliki base knowledge.`, `${kosong.length} of your WhatsApp numbers do not have product knowledge yet.`)}
+              ? t(`Nomor ${kosong[0].label} belum memiliki Informasi Usaha.`, `Number ${kosong[0].label} does not have Business Info yet.`)
+              : t(`${kosong.length} nomor WhatsApp Anda belum memiliki Informasi Usaha.`, `${kosong.length} of your WhatsApp numbers do not have Business Info yet.`)}
           </p>
           <p className="mt-1 text-sm text-muted">
             {t(
-              "Isi base knowledge agar AI tahu informasi usaha yang benar. Sampai diisi, pesan pelanggan tetap tercatat tetapi AI tidak membalas.",
-              "Add product knowledge so the AI knows the correct facts about your business. Until then, customer messages are recorded but the AI will not reply.",
+              "Isi Informasi Usaha agar AI tahu fakta usaha Anda yang benar. Sampai diisi, pesan pelanggan tetap tercatat tetapi AI tidak membalas.",
+              "Add Business Info so the AI knows the correct facts about your business. Until then, customer messages are recorded but the AI will not reply.",
             )}
           </p>
         </div>
       </div>
       <Link href={`/nomor/${kosong[0].id}#knowledge`} data-analitik="Banner: isi knowledge" className="btn btn-primary w-full shrink-0 sm:w-auto">
-        {t("Isi base knowledge sekarang", "Add product knowledge now")}
+        {t("Isi Informasi Usaha sekarang", "Add Business Info now")}
       </Link>
     </div>
   );

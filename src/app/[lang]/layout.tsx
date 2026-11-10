@@ -31,7 +31,7 @@ export async function generateMetadata({ params }: LayoutProps<"/[lang]">): Prom
   const t = pembuatT(bahasaSah(lang) ? lang : "id");
   return {
     title: MEREK,
-    description: t("Kelola nomor WhatsApp dan base knowledge asisten AI-nya.", "Manage your WhatsApp numbers and your AI assistant's product knowledge."),
+    description: t("Kelola nomor WhatsApp dan Informasi Usaha asisten AI-nya.", "Manage your WhatsApp numbers and your AI assistant's Business Info."),
     robots: { index: false, follow: false },
   };
 }

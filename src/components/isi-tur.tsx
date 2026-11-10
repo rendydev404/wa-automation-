@@ -18,7 +18,7 @@ export const TUR_DASHBOARD: IsiTur = (t) => [
         </p>
         <p>
           {t(
-            "Cukup 3 langkah: sambungkan nomor WhatsApp, isi pengetahuan tentang usahamu, lalu biarkan AI bekerja.",
+            "Cukup 3 langkah: sambungkan nomor WhatsApp, isi Informasi Usaha, lalu biarkan AI bekerja.",
             "Just 3 steps: connect a WhatsApp number, fill in what the AI should know about your business, then let the AI do the work."
           )}
         </p>
@@ -55,8 +55,8 @@ export const TUR_DASHBOARD: IsiTur = (t) => [
     isi: (
       <p>
         {t(
-          "Klik nama nomor di daftar ini untuk mengisi pengetahuan AI, mencoba AI, dan mengatur kapan AI membalas.",
-          "Click a number's name in this list to fill in the AI's knowledge, try the AI out, and choose when the AI replies."
+          "Klik nama nomor di daftar ini untuk mengisi Informasi Usaha, mencoba AI, dan mengatur kapan AI membalas.",
+          "Click a number's name in this list to fill in the AI's Business Info, try the AI out, and choose when the AI replies."
         )}
       </p>
     ),
@@ -98,13 +98,13 @@ export const TUR_NOMOR: IsiTur = (t) => [
   },
   {
     sasaran: "knowledge",
-    judul: t("2. Isi base knowledge (paling penting)", "2. Fill in your product knowledge (most important)"),
+    judul: t("2. Isi Informasi Usaha (paling penting)", "2. Fill in your Business Info (most important)"),
     isi: (
       <>
         <p>
           {t("Bayangkan AI ini ", "Think of this AI as a ")}
           <b className="text-fg">{t("karyawan baru", "new employee")}</b>
-          {t(". Base knowledge adalah ", ". Product knowledge is the ")}
+          {t(". Informasi Usaha adalah ", ". Business Info is the ")}
           <b className="text-fg">{t("buku catatan", "notebook")}</b>
           {t(
             " yang kamu berikan kepadanya: siapa usahamu, apa yang dijual, harganya, jam buka, alamat, dan cara pesan.",

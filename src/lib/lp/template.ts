@@ -146,7 +146,7 @@ export function renderLp(ind: IndustriLp, semua: IndustriLp[], d: DataLp): strin
   const flow = (
     [
       ["chat", "Pelanggan mengirim chat"],
-      ["book", "AI membaca knowledge usaha Anda"],
+      ["book", "AI membaca Informasi Usaha Anda"],
       ["reply", "AI memberikan jawaban"],
       ["repeat", "Pelanggan melanjutkan percakapan"],
       ["user", "Admin mengambil alih bila diperlukan"],
@@ -176,7 +176,7 @@ export function renderLp(ind: IndustriLp, semua: IndustriLp[], d: DataLp): strin
     [`Isi info ${ind.industry_short}`, "Katalog, daftar harga, FAQ, jam buka, dan aturan usaha Anda."],
     // Pemilih template di pengaturan nomor (src/components/instruksi-nomor.tsx), isi dari lp/prompt/<slug>.md.
     [`Pilih template AI ${ind.industry_name}`, "Gaya bicara, pertanyaan kualifikasi, dan batasan sudah disiapkan untuk industri Anda."],
-    ["Uji percakapan", "Coba tanya seperti pelanggan, lalu rapikan knowledge sampai jawabannya pas."],
+    ["Uji percakapan", "Coba tanya seperti pelanggan, lalu rapikan Informasi Usaha sampai jawabannya pas."],
     ["Aktifkan AI", "AI mulai membantu melayani pelanggan. Anda bisa mengambil alih kapan saja."],
   ]
     .map(([h, p]) => `<div class="step rv"><div><h3>${esc(h)}</h3><p>${esc(p)}</p></div></div>`)
@@ -190,7 +190,7 @@ export function renderLp(ind: IndustriLp, semua: IndustriLp[], d: DataLp): strin
       const poin = [
         `${fmt(p.kuota_nomor)} nomor WhatsApp`,
         `${fmt(p.kuota_balasan)} balasan AI/${p.durasi_hari} hari`,
-        "Product knowledge & belajar dari balasanmu",
+        "Informasi Usaha & belajar dari balasanmu",
         `Histori percakapan ${UMUR_HISTORI_HARI} hari & statistik`,
       ];
       return `
@@ -348,7 +348,7 @@ ${kepalaFont}
       <p class="lead" style="margin-bottom:26px">Pilih skenario. Contoh ini memakai usaha fiktif <b>${esc(ind.demo_conversations.business_name)}</b> dengan data harga contoh.</p>
       <div class="tabs" role="tablist" aria-label="Skenario demo">${tabs}
       </div>
-      <p class="demo-note">${IKON.info}<span>Simulasi untuk ilustrasi, bukan percakapan pelanggan sungguhan. Jawaban AI di akun Anda mengikuti knowledge yang Anda isi.</span></p>
+      <p class="demo-note">${IKON.info}<span>Simulasi untuk ilustrasi, bukan percakapan pelanggan sungguhan. Jawaban AI di akun Anda mengikuti Informasi Usaha yang Anda isi.</span></p>
     </div>
     <div style="text-align:center">
       ${phone("demo-wa", "Demo simulasi percakapan WhatsApp")}
@@ -398,7 +398,7 @@ ${
 <section class="s final" aria-labelledby="h-final">
   <div class="wrap">
     <h2 id="h-final">Jangan Biarkan Calon Pelanggan Menunggu Balasan WhatsApp Lagi.</h2>
-    <p>Daftar dalam satu menit, sambungkan nomor ${esc(ind.industry_short)} Anda, isi knowledge, dan biarkan AI membantu menjawab 24 jam.</p>
+    <p>Daftar dalam satu menit, sambungkan nomor ${esc(ind.industry_short)} Anda, isi Informasi Usaha, dan biarkan AI membantu menjawab 24 jam.</p>
     <a class="btn btn-primary" href="${reg}" data-cta="final">Aktifkan ${MEREK} Sekarang ${IKON.arrow}</a>
     <p class="other-ind">${MEREK} juga untuk: ${lain}</p>
   </div>

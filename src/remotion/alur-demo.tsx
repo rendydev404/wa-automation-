@@ -225,9 +225,9 @@ function BabakKnowledge({ t, b, awal }: { t: T; b: Bahasa; awal: number }) {
   const detak = docs.reduce((n, _, i) => n + [0, 1, 2, 3, 4].filter((k) => { const u = (f - berangkatTitik(i, k)) / 46; return u > 0.92 && u < 1.05; }).length, 0);
   return (
     <AbsoluteFill>
-      <Judul f={f} no={2} t={t} teks={t("Beri pengetahuan", "Add your knowledge")} sub={t("Unggah PDF atau tulis teks. AI hanya menjawab dari sini.", "Upload PDFs or type it in. The AI answers only from this.")} />
+      <Judul f={f} no={2} t={t} teks={t("Isi Informasi Usaha", "Add your Business Info")} sub={t("Unggah PDF atau tulis teks. AI hanya menjawab dari sini.", "Upload PDFs or type it in. The AI answers only from this.")} />
       <Jendela left={70} top={236} width={600} height={384} alamat={t("chatgercep.com/nomor/1#knowledge", "chatgercep.com/nomor/1#knowledge")}>
-        <div style={{ position: "absolute", left: 24, top: 20, color: "#101814", fontSize: 20, fontWeight: 800 }}>Product knowledge</div>
+        <div style={{ position: "absolute", left: 24, top: 20, color: "#101814", fontSize: 20, fontWeight: 800 }}>{t("Informasi Usaha", "Business Info")}</div>
         <div style={{ position: "absolute", left: 24, right: 24, top: 56, height: 46, borderRadius: 14, border: "2px dashed #c9d3cd", color: "#6b7a72", fontSize: 14.5, fontWeight: 600, display: "grid", placeItems: "center", background: f > 26 && f < 130 ? "#f0faf5" : "transparent" }}>
           {t("Tarik file ke sini atau klik untuk mengunggah", "Drag files here or click to upload")}
         </div>

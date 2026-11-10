@@ -191,8 +191,8 @@ export function ConnectionCard({ id }: { id: number }) {
           <h2 className="text-[15px] font-bold tracking-tight">{t("Koneksi WhatsApp", "WhatsApp connection")}</h2>
           <p className="hint mt-0.5">
             {t(
-              "Nomor ini bisa di-logout dan diganti nomor lain kapan saja; base knowledge-nya tetap.",
-              "You can log out this number and link a different one at any time; its product knowledge stays.",
+              "Nomor ini bisa di-logout dan diganti nomor lain kapan saja; Informasi Usaha-nya tetap.",
+              "You can log out this number and link a different one at any time; its Business Info stays.",
             )}
           </p>
         </div>

@@ -6,7 +6,7 @@ import { Pesan, SubmitButton } from "@/components/ui";
 import { ATURAN_ANGKA, type AturanSistem, type KunciAngka, MAKS_ATURAN_GLOBAL } from "@/lib/aturan-def";
 
 const CONTOH_GLOBAL = [
-  "Jangan pernah menjanjikan diskon atau gratis ongkir kecuali tertulis di base knowledge.",
+  "Jangan pernah menjanjikan diskon atau gratis ongkir kecuali tertulis di Informasi Usaha.",
   "Jangan membahas politik, agama, atau SARA; arahkan kembali ke produk dengan sopan.",
   "Bila pelanggan marah atau mengancam, minta maaf singkat dan bilang tim kami akan membalas langsung di chat ini.",
   "Selalu tutup jawaban yang berisi harga dengan ajakan memesan.",
@@ -15,7 +15,7 @@ const CONTOH_GLOBAL = [
 /** Kelompok tampilan; urutan sama dengan formulir. */
 const KELOMPOK: { judul: string; ket: string; angka: KunciAngka[] }[] = [
   { judul: "Biaya & panjang balasan", ket: "Pagar biaya per balasan di Claude API.", angka: ["maks_token_balasan"] },
-  { judul: "Peringatan di workspace pengguna", ket: "Peringatan base knowledge selalu tampil selama ada nomor yang belum diisi; ambang peringatan kuota tetap bisa diatur.", angka: ["peringatan_kuota_persen"] },
+  { judul: "Peringatan di workspace pengguna", ket: "Peringatan Informasi Usaha selalu tampil selama ada nomor yang belum diisi; ambang peringatan kuota tetap bisa diatur.", angka: ["peringatan_kuota_persen"] },
 ];
 
 export function FormAturan({ nilai }: { nilai: AturanSistem }) {

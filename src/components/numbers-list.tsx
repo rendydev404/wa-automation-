@@ -38,8 +38,8 @@ export function NumbersList({ nomor }: { nomor: KartuNomor[] }) {
           </h2>
           <p className="hint mt-0.5 max-w-2xl">
             {t(
-              "Tiap nomor punya koneksi dan base knowledge sendiri. AI menjawab memakai knowledge nomor yang menerima chat.",
-              "Each number has its own connection and product knowledge. The AI answers using the knowledge of the number that receives the chat."
+              "Tiap nomor punya koneksi dan Informasi Usaha sendiri. AI menjawab memakai Informasi Usaha nomor yang menerima chat.",
+              "Each number has its own connection and Business Info. The AI answers using the Business Info of the number that receives the chat."
             )}
           </p>
         </div>
@@ -52,7 +52,7 @@ export function NumbersList({ nomor }: { nomor: KartuNomor[] }) {
           </span>
           <p className="text-[15px] font-bold">{t("Belum ada nomor", "No numbers yet")}</p>
           <p className="hint mt-1 mb-5 max-w-sm">
-            {t("Tambah nomor, pindai kode QR-nya dari HP, lalu isi base knowledge-nya.", "Add a number, scan its QR code with your phone, then fill in its product knowledge.")}
+            {t("Tambah nomor, pindai kode QR-nya dari HP, lalu isi Informasi Usaha-nya.", "Add a number, scan its QR code with your phone, then fill in its Business Info.")}
           </p>
           <TombolTambahNomor />
         </div>
@@ -116,7 +116,7 @@ function Kartu({ n }: { n: KartuNomor }) {
                   `${n.jumlah_dokumen} dokumen · ${angka(n.jumlah_karakter)} karakter`,
                   `${n.jumlah_dokumen} ${n.jumlah_dokumen === 1 ? "document" : "documents"} · ${angka(n.jumlah_karakter, b)} characters`
                 )
-              : t("Knowledge kosong", "No knowledge yet")}</span>
+              : t("Informasi Usaha kosong", "No Business Info yet")}</span>
         </p>
         <div className="flex shrink-0 items-center gap-2" title={t("Pesan masuk 7 hari terakhir", "Incoming messages, last 7 days")}>
           <span className="text-[11px] text-faint">{t("7 hari", "7 days")}</span>
@@ -127,7 +127,7 @@ function Kartu({ n }: { n: KartuNomor }) {
       <div data-analitik-privat className="mt-auto flex items-center justify-between gap-3 border-t border-line bg-subtle/40 px-5 py-3">
         {n.jumlah_karakter === 0 ? (
           <Link href={`/nomor/${n.id}#knowledge`} data-analitik="Kartu nomor: isi knowledge" className="flex items-center gap-1.5 text-[13px] font-semibold text-warning hover:underline">
-            {t("Isi product knowledge dulu", "Add product knowledge first")}
+            {t("Isi Informasi Usaha dulu", "Add Business Info first")}
           </Link>
         ) : perluScan ? (
           <Link href={`/nomor/${n.id}`} data-analitik="Kartu nomor: scan QR" className="flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline">

@@ -494,7 +494,7 @@ export async function setBotAktifAction(id: number, aktif: boolean): Promise<Has
   if (!nomor) return nomorTidakAda(t);
   // Aturan pakai: balasan otomatis hanya bisa dinyalakan setelah product knowledge diisi.
   if (aktif && !(await adaKnowledge(id))) {
-    return { ok: false, pesan: t("Isi product knowledge dulu supaya AI tahu apa yang harus dijawab.", "Add your product knowledge first so the AI knows what to answer.") };
+    return { ok: false, pesan: t("Isi Informasi Usaha dulu supaya AI tahu apa yang harus dijawab.", "Add your Business Info first so the AI knows what to answer.") };
   }
   await setBotAktif(id, aktif);
   revalidatePath("/dashboard");
@@ -605,7 +605,7 @@ export async function tambahTeksAction(_lalu: Hasil | null, form: FormData): Pro
   revalidatePath("/dashboard");
   revalidatePath(`/nomor/${numberId}`);
   catatFitur(user.id, gantiId > 0 ? "knowledge.perbarui" : "knowledge.tulis");
-  return { ok: true, pesan: gantiId > 0 ? t("Dokumen diperbarui.", "Document updated.") : t("Tersimpan ke base knowledge.", "Saved to product knowledge.") };
+  return { ok: true, pesan: gantiId > 0 ? t("Dokumen diperbarui.", "Document updated.") : t("Tersimpan ke Informasi Usaha.", "Saved to Business Info.") };
 }
 
 export async function hapusDokumenAction(id: number, numberId: number): Promise<Hasil> {

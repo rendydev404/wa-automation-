@@ -199,7 +199,7 @@ function teksKomisi(jenis: Paket["komisi_jenis"], nilai: number, harga: number |
 function teksPercobaan(d: DataCg): string {
   const p = d.percobaan;
   if (p.balasan === 0)
-    return `- *Tanpa free trial*: daftar akun gratis, bisa menyambungkan ${angka(d.nomorGratis)} nomor WhatsApp, mengisi product knowledge, dan mencoba bot di menu Uji bot, tetapi AI baru membalas pelanggan sungguhan setelah berlangganan paket berbayar. Sebagai gantinya ada jaminan uang kembali ${MASA_ID}.`;
+    return `- *Tanpa free trial*: daftar akun gratis, bisa menyambungkan ${angka(d.nomorGratis)} nomor WhatsApp, mengisi Informasi Usaha, dan mencoba bot di menu Uji bot, tetapi AI baru membalas pelanggan sungguhan setelah berlangganan paket berbayar. Sebagai gantinya ada jaminan uang kembali ${MASA_ID}.`;
   const masa = p.ulang === "bulanan" ? "per bulan, diperbarui tiap awal bulan" : p.hari > 0 ? `sekali pakai, berlaku ${p.hari} hari sejak akun dibuat` : "sekali pakai, tanpa batas waktu";
   return `- *Gratis (percobaan)*: Rp0, ${angka(d.nomorGratis)} nomor WhatsApp, ${angka(p.balasan)} balasan AI (${masa}). Tanpa kartu kredit; cukup daftar akun.`;
 }
@@ -343,17 +343,17 @@ export function susunTeksCg(d: DataCg, per: string): string {
       `Fitur ${MEREK}`,
       [catatan, `${MEREK} adalah asisten AI yang membalas chat WhatsApp bisnis otomatis 24 jam berdasarkan informasi usaha yang diisi pemilik akun.`],
       [
-        "- Nomor WhatsApp disambungkan dengan scan QR (perangkat tertaut); nomor tetap bisa dipakai seperti biasa di HP. Satu akun bisa mengelola beberapa nomor sesuai paket, masing-masing dengan knowledge sendiri.",
-        `- Base knowledge: ketik teks atau unggah PDF/teks (maks 10 MB per berkas, ${angka(BATAS_DOKUMEN_KARAKTER)} karakter per dokumen, ${angka(BATAS_NOMOR_KARAKTER)} karakter per nomor). Perubahan langsung berlaku.`,
-        "- Setiap jawaban AI diperiksa otomatis sebelum dikirim; angka, tautan, atau janji yang tidak ada di knowledge ditolak supaya AI tidak mengarang.",
+        "- Nomor WhatsApp disambungkan dengan scan QR (perangkat tertaut); nomor tetap bisa dipakai seperti biasa di HP. Satu akun bisa mengelola beberapa nomor sesuai paket, masing-masing dengan Informasi Usaha sendiri.",
+        `- Informasi Usaha: ketik teks atau unggah PDF/teks (maks 10 MB per berkas, ${angka(BATAS_DOKUMEN_KARAKTER)} karakter per dokumen, ${angka(BATAS_NOMOR_KARAKTER)} karakter per nomor). Perubahan langsung berlaku.`,
+        "- Setiap jawaban AI diperiksa otomatis sebelum dikirim; angka, tautan, atau janji yang tidak ada di Informasi Usaha ditolak supaya AI tidak mengarang.",
         "- Bila pemilik membalas sendiri dari HP, AI otomatis diam sementara di chat itu (lama jedanya bisa diatur per nomor). AI juga belajar dari balasan manusia.",
         `- Katalog produk berfoto (maks ${angka(BATAS_KATALOG.produk)} produk, paket berbayar): AI mengirim foto, nama, dan harga produk saat diminta.`,
         "- AI hanya membalas chat yang masuk dan tidak pernah mengirim pesan duluan ke nomor lain. Untuk pesanan, bukti bayar, atau keluhan, AI merapikan datanya di chat itu lalu pemilik membalas langsung dari HP.",
         "- AI bisa melihat foto dari pelanggan dan menyaring spam (spam tidak memotong kuota). Ada juga penyaring prospek yang bisa dinyalakan per nomor supaya kuota tidak habis untuk chat iseng.",
         `- Histori percakapan tampil di dashboard dan disimpan ${UMUR_HISTORI_HARI} hari. Ada menu Uji bot untuk mencoba jawaban AI sebelum dipakai.`,
-        "- Data tiap akun terpisah: nomor, knowledge, katalog, dan histori tidak bisa dilihat akun lain.",
+        "- Data tiap akun terpisah: nomor, Informasi Usaha, katalog, dan histori tidak bisa dilihat akun lain.",
       ],
-      "fitur, bisa apa, kelebihan, cara kerja, scan qr, sambung nomor, banyak nomor, knowledge, pdf, upload, katalog, foto produk, pesanan, notifikasi, histori, riwayat chat, uji bot, spam, belajar, 24 jam, keamanan, data aman"
+      "fitur, bisa apa, kelebihan, cara kerja, scan qr, sambung nomor, banyak nomor, informasi usaha, knowledge, pdf, upload, katalog, foto produk, pesanan, notifikasi, histori, riwayat chat, uji bot, spam, belajar, 24 jam, keamanan, data aman"
     )
   );
 
@@ -376,7 +376,7 @@ function kartuPanduan(): string[] {
     [`Panduan bergambar lengkap ada di ${URL_PANDUAN} (boleh dibagikan ke pelanggan).`],
     [
       `- Urutan bagian panduan: ${urutan}. Bagian 2 dan 3 adalah dua cara menyambungkan WhatsApp; pilih salah satu (bagian 3 bila pelanggan hanya punya satu HP / tidak bisa scan QR).`,
-      "- Bila pelanggan bertanya cara melakukan sesuatu (cara daftar, sambung WA, scan QR, isi knowledge, uji bot, bayar, nyalakan AI, dan sejenisnya), jelaskan HANYA bagian yang relevan dengan langkah bernomor singkat, lalu kirim semua gambar bagian itu (item katalog yang namanya diawali \"" + AWALAN_PANDUAN + "N ·\") lewat tag <kirim_produk>.",
+      "- Bila pelanggan bertanya cara melakukan sesuatu (cara daftar, sambung WA, scan QR, isi Informasi Usaha, uji bot, bayar, nyalakan AI, dan sejenisnya), jelaskan HANYA bagian yang relevan dengan langkah bernomor singkat, lalu kirim semua gambar bagian itu (item katalog yang namanya diawali \"" + AWALAN_PANDUAN + "N ·\") lewat tag <kirim_produk>.",
       "- Jangan pernah mengirim lebih dari satu bagian dalam satu balasan, dan jangan mengirim seluruh panduan sekaligus. Setelah satu bagian, tawarkan bagian berikutnya (sebut namanya) dan kirim hanya bila pelanggan mau.",
       `- Pertanyaan umum tanpa topik jelas ("cara pakainya gimana?", "mulai dari mana?"): mulai dari bagian 1, atau tanya dulu pelanggan sudah sampai langkah mana. Pelanggan yang ingin membaca sendiri semuanya: berikan link ${URL_PANDUAN}.`,
     ],

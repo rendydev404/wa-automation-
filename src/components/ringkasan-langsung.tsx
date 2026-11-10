@@ -105,7 +105,7 @@ export function PanelSistem({ botAktif, total, dokumen, karakter }: { botAktif: 
         />
         <Baris
           ikon={<BookOpen className="size-4" aria-hidden />}
-          judul={t("Base knowledge", "Product knowledge")}
+          judul={t("Informasi Usaha", "Business Info")}
           keterangan={
             dokumen === 0
               ? t("Belum ada dokumen", "No documents yet")

@@ -123,8 +123,8 @@ export function PanelPelajaran({
         )}
         <p className="hint mt-3">
           {t(
-            "AI memakai fakta umum dari balasan ini (rekening, prosedur, kebijakan) dan meniru cara Anda menjawab, tetapi tidak menyebut detail milik pelanggan lain. Bila bertentangan dengan base knowledge, base knowledge yang diikuti. Hapus balasan yang tidak boleh ditiru.",
-            "The AI uses general facts from these replies (bank details, procedures, policies) and mimics how you answer, but never mentions details belonging to other customers. If they conflict with your product knowledge, the product knowledge wins. Delete any reply that shouldn't be copied."
+            "AI memakai fakta umum dari balasan ini (rekening, prosedur, kebijakan) dan meniru cara Anda menjawab, tetapi tidak menyebut detail milik pelanggan lain. Bila bertentangan dengan Informasi Usaha, Informasi Usaha yang diikuti. Hapus balasan yang tidak boleh ditiru.",
+            "The AI uses general facts from these replies (bank details, procedures, policies) and mimics how you answer, but never mentions details belonging to other customers. If they conflict with your Business Info, the Business Info wins. Delete any reply that shouldn't be copied."
           )}
         </p>
       </div>

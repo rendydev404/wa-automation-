@@ -32,7 +32,7 @@ export function SaklarBot({ id, aktif: awal, label, adaKnowledge = true }: { id:
           <span className="block font-semibold text-fg">{t("Balasan otomatis", "Auto-reply")}</span>
           <span className={`block text-xs ${adaKnowledge ? "text-muted" : "text-warning"}`}>
             {!adaKnowledge
-              ? t("Belum bisa aktif: product knowledge kosong", "Can't turn on yet: no product knowledge")
+              ? t("Belum bisa aktif: Informasi Usaha kosong", "Can't turn on yet: no Business Info")
               : aktif
                 ? t("AI membalas chat masuk", "AI replies to incoming chats")
                 : t("AI tidak membalas", "AI doesn't reply")}
@@ -55,7 +55,7 @@ export function SaklarBot({ id, aktif: awal, label, adaKnowledge = true }: { id:
       </label>
       {!adaKnowledge && (
         <button type="button" onClick={() => bukaTabNomor("knowledge")} className="mt-1.5 text-[12px] font-semibold text-accent hover:underline">
-          {t("Isi product knowledge →", "Add product knowledge →")}
+          {t("Isi Informasi Usaha →", "Add Business Info →")}
         </button>
       )}
       {galat && <p className="mt-1.5 text-[12px] font-semibold text-danger">{galat}</p>}
@@ -336,14 +336,14 @@ export function HapusNomor({ id }: { id: number }) {
         <p className="text-[13.5px] font-semibold">{t("Hapus nomor ini", "Delete this number")}</p>
         <p className="hint">
           {t(
-            "Koneksi WhatsApp-nya diputus dan seluruh base knowledge-nya terhapus. Tidak bisa dikembalikan.",
-            "Its WhatsApp connection is cut and all of its product knowledge is deleted. This can't be undone.",
+            "Koneksi WhatsApp-nya diputus dan seluruh Informasi Usaha-nya terhapus. Tidak bisa dikembalikan.",
+            "Its WhatsApp connection is cut and all of its Business Info is deleted. This can't be undone.",
           )}
         </p>
       </div>
       <TombolKonfirmasi
         label={t("Hapus nomor", "Delete number")}
-        tanya={t("Hapus nomor beserta knowledge-nya?", "Delete the number and its product knowledge?")}
+        tanya={t("Hapus nomor beserta Informasi Usaha-nya?", "Delete the number and its Business Info?")}
         ya={t("Ya, hapus", "Yes, delete")}
         aksi={() => hapusNomorAction(id)}
         ikon={<Trash2 className="size-4" aria-hidden />}

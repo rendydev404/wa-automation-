@@ -182,10 +182,10 @@ function masalahPengguna(d: DataPengguna, l: Langsung, t: T): Pesan[] {
         pose: "knowledge",
         nada: "waspada",
         teks: t(
-          `Saya belum punya catatan usaha untuk "${n.label}". Isi base knowledge-nya supaya saya bisa menjawab dengan benar, tanpa mengarang.`,
-          `I don't have any business notes for "${n.label}" yet. Add its product knowledge so I can answer correctly, without making things up.`,
+          `Saya belum punya catatan usaha untuk "${n.label}". Isi Informasi Usaha-nya supaya saya bisa menjawab dengan benar, tanpa mengarang.`,
+          `I don't have any business notes for "${n.label}" yet. Add its Business Info so I can answer correctly, without making things up.`,
         ),
-        aksi: { label: t("Isi knowledge", "Add knowledge"), href: `/nomor/${n.id}#knowledge` },
+        aksi: { label: t("Isi Informasi Usaha", "Add Business Info"), href: `/nomor/${n.id}#knowledge` },
       });
   for (const n of d.nomor)
     if (!n.botAktif)
@@ -237,10 +237,10 @@ const TIPS_PENGGUNA = (t: T, d: DataPengguna): Pesan[] => {
       pose: "knowledge",
       nada: "info",
       teks: t(
-        "Tips: tulis harga, jam buka, alamat, dan cara pesan di base knowledge. Makin lengkap catatannya, makin jarang saya bilang \"belum tahu\".",
-        "Tip: put prices, opening hours, address, and how to order in your product knowledge. The more complete it is, the less I have to say \"I don't know yet\".",
+        "Tips: tulis harga, jam buka, alamat, dan cara pesan di Informasi Usaha. Makin lengkap catatannya, makin jarang saya bilang \"belum tahu\".",
+        "Tip: put prices, opening hours, address, and how to order in your Business Info. The more complete it is, the less I have to say \"I don't know yet\".",
       ),
-      aksi: n ? { label: t("Buka knowledge", "Open knowledge"), href: `/nomor/${n.id}#knowledge` } : undefined,
+      aksi: n ? { label: t("Buka Informasi Usaha", "Open Business Info"), href: `/nomor/${n.id}#knowledge` } : undefined,
     },
     {
       id: "tip-uji",
@@ -415,7 +415,7 @@ export function jawab(topik: Topik, d: DataMaskot, l: Langsung, t: T, b: Bahasa,
           id: "aman",
           pose: "jempol",
           nada: "baik",
-          teks: t(`Semua aman! ${ok} nomor tersambung, base knowledge terisi, dan saya siap membalas 24 jam.`, `All good! ${ok} ${ok === 1 ? "number" : "numbers"} connected, knowledge filled in, and I'm ready to reply 24/7.`),
+          teks: t(`Semua aman! ${ok} nomor tersambung, Informasi Usaha terisi, dan saya siap membalas 24 jam.`, `All good! ${ok} ${ok === 1 ? "number" : "numbers"} connected, Business Info filled in, and I'm ready to reply 24/7.`),
         },
       ];
     }

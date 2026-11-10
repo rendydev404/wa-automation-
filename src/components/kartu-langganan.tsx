@@ -31,8 +31,8 @@ export async function KartuLangganan({ tautan = false }: { tautan?: boolean }) {
           <p className="mt-1 text-2xl font-bold">{t("Belum ada paket aktif", "No active plan")}</p>
           <p className="mt-1 text-[13px] text-muted">
             {t(
-              `AI belum membalas pelanggan. Sambungkan nomor, isi product knowledge, lalu pilih paket supaya AI mulai membalas. Pembayaran pertama lewat GoPay, ShopeePay, atau QRIS dilindungi jaminan uang kembali ${MASA_ID}.`,
-              `The AI isn't replying to customers yet. Connect your number, add product knowledge, then pick a plan so the AI starts replying. A first payment with GoPay, ShopeePay, or QRIS is covered by a ${MASA_EN_ADJ} money-back guarantee.`,
+              `AI belum membalas pelanggan. Sambungkan nomor, isi Informasi Usaha, lalu pilih paket supaya AI mulai membalas. Pembayaran pertama lewat GoPay, ShopeePay, atau QRIS dilindungi jaminan uang kembali ${MASA_ID}.`,
+              `The AI isn't replying to customers yet. Connect your number, add Business Info, then pick a plan so the AI starts replying. A first payment with GoPay, ShopeePay, or QRIS is covered by a ${MASA_EN_ADJ} money-back guarantee.`,
             )}
           </p>
         </div>

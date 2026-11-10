@@ -74,7 +74,7 @@
   ],
   "faq": [
     { "q": "Apakah AI tahu kuota kelas yang masih kosong?", "a": "Tidak. ChatGerCep tidak terhubung ke sistem jadwal Anda. AI mencatat minat calon siswa dan tim Anda yang mengonfirmasi kuota." },
-    { "q": "Bisa menjawab biaya per jenjang dan mata pelajaran?", "a": "Bisa, selama daftar program dan biaya sudah Anda isi di knowledge." },
+    { "q": "Bisa menjawab biaya per jenjang dan mata pelajaran?", "a": "Bisa, selama daftar program dan biaya sudah Anda isi di Informasi Usaha." },
     { "q": "Apakah AI menjanjikan nilai atau kelulusan?", "a": "Tidak. Template kursus melarang AI menjanjikan nilai, ranking, atau kelulusan." },
     { "q": "Apakah AI bisa memproses pendaftaran dan pembayaran?", "a": "Tidak. AI mengumpulkan data dan menjelaskan langkah pendaftaran. Pembayaran tetap melalui tim Anda." },
     { "q": "Apakah nomor WhatsApp lembaga yang lama bisa dipakai?", "a": "Bisa, lewat scan QR sebagai perangkat tertaut. HP tetap bisa dipakai seperti biasa." },

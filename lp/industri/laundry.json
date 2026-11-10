@@ -75,8 +75,8 @@
     { "title": "Admin tetap pegang kendali", "body": "Balas manual kapan saja, AI otomatis diam di chat itu." }
   ],
   "faq": [
-    { "q": "Apakah AI bisa menjawab harga laundry kiloan?", "a": "Bisa. Isikan daftar harga kiloan, satuan, dan minimal berat ke knowledge. AI menjawab sesuai angka yang Anda isi dan tidak mengarang harga." },
-    { "q": "Apakah AI bisa menjelaskan layanan express?", "a": "Bisa, selama info express (harga, estimasi selesai, batas jam masuk) sudah Anda isikan ke knowledge." },
+    { "q": "Apakah AI bisa menjawab harga laundry kiloan?", "a": "Bisa. Isikan daftar harga kiloan, satuan, dan minimal berat ke Informasi Usaha. AI menjawab sesuai angka yang Anda isi dan tidak mengarang harga." },
+    { "q": "Apakah AI bisa menjelaskan layanan express?", "a": "Bisa, selama info express (harga, estimasi selesai, batas jam masuk) sudah Anda isikan ke Informasi Usaha." },
     { "q": "Apakah AI bisa menerima permintaan pickup?", "a": "AI bisa diarahkan menanyakan nama, alamat, patokan, perkiraan berat, dan jam jemput sampai lengkap di chat. Penjadwalan kurir tetap dikonfirmasi oleh Anda atau admin. ChatGerCep tidak menjadwalkan kurir otomatis." },
     { "q": "Apakah AI tahu status cucian pelanggan?", "a": "Tidak. ChatGerCep tidak terhubung ke aplikasi kasir laundry. Kalau pelanggan menanyakan status, AI bisa diarahkan untuk meminta nomor nota lalu meneruskan ke admin." },
     { "q": "Apakah nomor WhatsApp lama tetap bisa digunakan?", "a": "Bisa. Nomor disambungkan lewat scan QR sebagai perangkat tertaut. Matikan dulu Pesan salam dan Pesan tidak di tempat di WhatsApp Business supaya pelanggan tidak menerima balasan ganda." },

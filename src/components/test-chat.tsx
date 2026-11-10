@@ -15,8 +15,8 @@ interface Gelembung {
 const sesiBaru = () => Math.random().toString(36).slice(2, 14).padEnd(8, "0");
 
 const MODE = {
-  kosong: { id: "tanpa knowledge", en: "no knowledge" },
-  utuh: { id: "knowledge utuh", en: "full knowledge" },
+  kosong: { id: "tanpa Informasi Usaha", en: "no Business Info" },
+  utuh: { id: "Informasi Usaha utuh", en: "full Business Info" },
   relevan: { id: "potongan relevan", en: "relevant excerpts" },
 } as const;
 /** Penilaian AI atas pesan uji (penyaring prospek). */
@@ -160,7 +160,7 @@ export function TestChat({ numberId }: { numberId: number }) {
 
       <div data-analitik-privat className="flex h-[26rem] flex-col gap-2 overflow-y-auto bg-subtle/40 px-4 py-4 lg:h-[30rem]" aria-live="polite">
         {pesan.length === 0 && !tunggu && <p className="m-auto max-w-56 text-center text-[13px] text-faint">
-            {t("Coba tanyakan sesuatu yang ada di base knowledge, lalu yang tidak ada.", "Ask something that's in your product knowledge, then something that isn't.")}
+            {t("Coba tanyakan sesuatu yang ada di Informasi Usaha, lalu yang tidak ada.", "Ask something that's in your Business Info, then something that isn't.")}
           </p>}
         {pesan.map((g, i) => (
           <div key={i} className={`max-w-[85%] animate-masuk ${g.dari === "saya" ? "self-end" : "self-start"}`}>

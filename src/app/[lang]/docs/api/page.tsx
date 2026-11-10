@@ -21,8 +21,8 @@ export async function generateMetadata({ params }: { params: Promise<{ lang: str
   return {
     title: t(`Dokumentasi Developer API · ${MEREK}`, `Developer API docs · ${MEREK}`),
     description: t(
-      "Pasang mesin ChatGerCep di server Anda dan pakai WhatsApp, bot AI, dan product knowledge lewat satu API key.",
-      "Install the ChatGerCep engine on your server and use WhatsApp, the AI bot, and product knowledge with one API key.",
+      "Pasang mesin ChatGerCep di server Anda dan pakai WhatsApp, bot AI, dan Informasi Usaha lewat satu API key.",
+      "Install the ChatGerCep engine on your server and use WhatsApp, the AI bot, and Business Info with one API key.",
     ),
     alternates: { canonical: "/docs/api", languages: { id: "/docs/api", en: "/eng/docs/api" } },
     // Developer API belum dibuka umum: dokumentasi tidak diindeks mesin pencari.
@@ -396,7 +396,7 @@ AI_MODEL=gpt-4o-mini`}</Kode>
                 {t("Migrasi database otomatis; WhatsApp ditutup rapi dan tersambung lagi sendiri.", "Database migrations run automatically; WhatsApp shuts down cleanly and reconnects by itself.")}
               </li>
               <li>{t("Cadangkan database secara berkala (pg_dump). Kehilangan database = semua nomor harus scan ulang.", "Back up the database regularly (pg_dump). Losing it means every number must be rescanned.")}</li>
-              <li>{t("Isi chat, kontak, dan knowledge tidak pernah dikirim ke server kami.", "Chats, contacts, and knowledge are never sent to our servers.")}</li>
+              <li>{t("Isi chat, kontak, dan Informasi Usaha tidak pernah dikirim ke server kami.", "Chats, contacts, and Business Info are never sent to our servers.")}</li>
             </ul>
           </Bagian>
         </div>

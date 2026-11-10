@@ -30,8 +30,8 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/panduan">)
   const t = pembuatT(b);
   const judul = t(`Panduan Mudah ${MEREK}: dari daftar sampai AI membalas pelanggan`, `${MEREK} Easy Guide: from sign-up to AI replying to your customers`);
   const deskripsi = t(
-    `${PANDUAN.length} langkah bergambar: daftar akun, sambungkan WhatsApp (scan QR atau kode dari HP), isi product knowledge, uji bot, bayar langganan, lalu AI membalas pelanggan 24 jam.`,
-    `${PANDUAN.length} illustrated steps: sign up, connect WhatsApp (QR scan or a code on your phone), add your product knowledge, test the bot, pay for a plan, and let the AI reply 24/7.`,
+    `${PANDUAN.length} langkah bergambar: daftar akun, sambungkan WhatsApp (scan QR atau kode dari HP), isi Informasi Usaha, uji bot, bayar langganan, lalu AI membalas pelanggan 24 jam.`,
+    `${PANDUAN.length} illustrated steps: sign up, connect WhatsApp (QR scan or a code on your phone), add your Business Info, test the bot, pay for a plan, and let the AI reply 24/7.`,
   );
   const url = b === "en" ? "/eng/panduan" : "/panduan";
   return {
@@ -58,7 +58,7 @@ const LABEL_PENDEK: Record<string, { id: string; en: string }> = {
   daftar: { id: "Daftar", en: "Sign up" },
   "sambung-qr": { id: "Sambung WA (QR)", en: "Connect (QR)" },
   "sambung-kode": { id: "Sambung WA (1 HP)", en: "Connect (phone only)" },
-  knowledge: { id: "Product knowledge", en: "Product knowledge" },
+  knowledge: { id: "Informasi Usaha", en: "Business Info" },
   "uji-bot": { id: "Uji bot", en: "Test bot" },
   bayar: { id: "Bayar", en: "Pay" },
   nyalakan: { id: "Nyalakan AI", en: "Turn on AI" },

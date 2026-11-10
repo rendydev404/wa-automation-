@@ -26,7 +26,7 @@
     { "title": "Chat malam dari keluarga yang berdiskusi", "body": "Keputusan umrah sering dibicarakan bersama keluarga malam hari, saat kantor travel tutup." }
   ],
   "solutions": [
-    { "pain": "Pertanyaan paket", "answer": "Isi brosur paket ke knowledge. AI menjelaskan harga, hotel, maskapai, dan fasilitas sesuai data Anda." },
+    { "pain": "Pertanyaan paket", "answer": "Isi brosur paket ke Informasi Usaha. AI menjelaskan harga, hotel, maskapai, dan fasilitas sesuai data Anda." },
     { "pain": "Membangun kepercayaan", "answer": "AI menjawab dengan sopan dan cepat, lalu menyerahkan ke tim untuk percakapan yang lebih personal." },
     { "pain": "Persyaratan dokumen", "answer": "Daftar dokumen dan ketentuannya dijelaskan konsisten sesuai yang Anda tetapkan." },
     { "pain": "Chat malam", "answer": "Keluarga yang berdiskusi malam hari tetap mendapat jawaban saat itu juga." }
@@ -76,7 +76,7 @@
     { "q": "Apakah AI bisa menjamin visa atau tanggal keberangkatan?", "a": "Tidak. Template travel melarang AI menjanjikan visa, seat, atau keberangkatan. Semua itu dikonfirmasi oleh tim Anda." },
     { "q": "Apakah AI tahu sisa seat?", "a": "Tidak. ChatGerCep tidak terhubung ke sistem manifest. AI mencatat minat calon jamaah dan tim Anda yang mengonfirmasi seat." },
     { "q": "Bisa menjawab dengan salam dan bahasa yang sopan?", "a": "Bisa. Nada bicara diatur dalam template, termasuk menjawab salam dan memanggil Bapak/Ibu." },
-    { "q": "Bagaimana kalau harga atau jadwal berubah?", "a": "Perbarui knowledge. AI menjawab sesuai data terbaru yang Anda isi." },
+    { "q": "Bagaimana kalau harga atau jadwal berubah?", "a": "Perbarui Informasi Usaha. AI menjawab sesuai data terbaru yang Anda isi." },
     { "q": "Apakah AI menerima pembayaran DP?", "a": "Tidak. AI tidak memproses pembayaran. Proses DP dan pendaftaran tetap melalui tim Anda." },
     { "q": "Apakah nomor WhatsApp travel lama bisa dipakai?", "a": "Bisa, lewat scan QR sebagai perangkat tertaut. Nomor tidak boleh terdaftar di WhatsApp Business API." },
     { "q": "Kami punya beberapa agen/cabang. Bisa?", "a": "Bisa. Paket Bisnis mendukung 3 nomor, Pro 5 nomor, dan tersedia paket Custom." }

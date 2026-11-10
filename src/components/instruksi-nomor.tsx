@@ -140,8 +140,8 @@ export function InstruksiNomor({ awal }: { awal: string }) {
       <div className="mt-1.5 flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
         <p className="hint">
           {t(
-            "Gaya bicara, alur, dan batasan khusus nomor ini. Data lengkap (katalog, harga, jadwal) tetap taruh juga di base knowledge.",
-            "Tone, flows, and limits for this number. Keep the full facts (catalog, prices, schedule) in product knowledge too.",
+            "Gaya bicara, alur, dan batasan khusus nomor ini. Data lengkap (katalog, harga, jadwal) tetap taruh juga di Informasi Usaha.",
+            "Tone, flows, and limits for this number. Keep the full facts (catalog, prices, schedule) in Business Info too.",
           )}
         </p>
         <p className="hint shrink-0 tabular-nums">

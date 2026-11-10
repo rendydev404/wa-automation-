@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: PageProps<"/[lang]">): Promis
     metadataBase: new URL(ASAL),
     title: t(`${MEREK} · AI yang membalas pelanggan Anda 24/7`, `${MEREK} · AI that replies to your customers 24/7`),
     description: t(
-      "Sambungkan WhatsApp dengan scan QR, beri pengetahuan usaha Anda, dan biarkan AI membalas pelanggan dalam hitungan detik.",
+      "Sambungkan WhatsApp dengan scan QR, isi Informasi Usaha Anda, dan biarkan AI membalas pelanggan dalam hitungan detik.",
       "Connect WhatsApp with a quick QR scan, teach the AI about your business, and let it answer customers in seconds.",
     ),
     robots: { index: true, follow: true },
@@ -44,7 +44,7 @@ export async function generateMetadata({ params }: PageProps<"/[lang]">): Promis
 const fitur = (t: T) => [
   {
     ikon: BookOpenText,
-    judul: t("Jawab dari base knowledge", "Answers from your product knowledge"),
+    judul: t("Jawab dari Informasi Usaha", "Answers from your Business Info"),
     teks: t(
       "Unggah PDF, menu, harga, atau FAQ. AI hanya menyampaikan fakta yang Anda berikan dan tidak mengarang.",
       "Upload PDFs, menus, price lists, or FAQs. The AI only shares the facts you give it and never makes things up.",
@@ -132,8 +132,8 @@ const faq = (t: T) => [
   {
     t: t("Bagaimana kalau AI tidak tahu jawabannya?", "What if the AI doesn't know the answer?"),
     j: t(
-      "AI dilarang menebak. Bila informasinya tidak ada di base knowledge, AI berkata terus terang dan meneruskan ke Anda.",
-      "The AI isn't allowed to guess. If the answer isn't in your product knowledge, it says so honestly and hands the chat over to you.",
+      "AI dilarang menebak. Bila informasinya tidak ada di Informasi Usaha, AI berkata terus terang dan meneruskan ke Anda.",
+      "The AI isn't allowed to guess. If the answer isn't in your Business Info, it says so honestly and hands the chat over to you.",
     ),
   },
   {
@@ -440,8 +440,8 @@ export default async function Landing() {
             <h2 className="mt-5 text-3xl font-extrabold tracking-tight">{t("Data usaha Anda hanya milik Anda.", "Your business data belongs to you.")}</h2>
             <p className="mt-3 text-[16px] text-muted">
               {t(
-                "Setiap akun terpisah sepenuhnya: nomor, knowledge, dan histori percakapan tidak bisa dilihat pengguna lain.",
-                "Every account is fully isolated: your numbers, knowledge, and chat history are never visible to other users.",
+                "Setiap akun terpisah sepenuhnya: nomor, Informasi Usaha, dan histori percakapan tidak bisa dilihat pengguna lain.",
+                "Every account is fully isolated: your numbers, Business Info, and chat history are never visible to other users.",
               )}
             </p>
           </div>

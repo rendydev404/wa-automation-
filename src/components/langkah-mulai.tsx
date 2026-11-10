@@ -21,7 +21,7 @@ export function LangkahMulai({ id, adaKnowledge, botAktif }: { id: number; adaKn
       tab: "koneksi",
     },
     {
-      judul: t("Isi pengetahuan usaha", "Add your business knowledge"),
+      judul: t("Isi Informasi Usaha", "Add your Business Info"),
       teks: t("Produk, harga, jam buka, cara pesan.", "Products, prices, opening hours, how to order."),
       selesai: adaKnowledge,
       tab: "knowledge",

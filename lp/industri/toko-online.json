@@ -69,18 +69,18 @@
   "benefits": [
     { "title": "Balas dalam hitungan detik", "body": "Pembeli yang dijawab cepat lebih kecil kemungkinannya pindah ke toko sebelah." },
     { "title": "Toko tetap “buka” 24 jam", "body": "Jam berapa pun pembeli bertanya, ada yang menjawab." },
-    { "title": "Bebas dari pertanyaan berulang", "body": "Harga, varian, ukuran, cara order: cukup diisi sekali di knowledge." },
+    { "title": "Bebas dari pertanyaan berulang", "body": "Harga, varian, ukuran, cara order: cukup diisi sekali di Informasi Usaha." },
     { "title": "Pembeli dapat info lengkap", "body": "AI menjelaskan bahan, ukuran, dan cara perawatan sesuai katalog Anda, tanpa mengarang." },
     { "title": "Bantu arahkan ke pesanan", "body": "AI bisa diarahkan merekap pesanan dan meminta data pengiriman, lalu admin mengonfirmasi." },
     { "title": "Admin ambil alih kapan saja", "body": "Balas sendiri dari HP, AI otomatis diam di chat itu." }
   ],
   "faq": [
-    { "q": "Apakah AI bisa menjawab stok secara real-time?", "a": "Tidak. ChatGerCep belum terhubung ke sistem stok atau marketplace. AI menjawab dari katalog dan info stok yang Anda isi di knowledge. Kalau stok sering berubah, perbarui knowledge atau arahkan AI agar meminta pembeli menunggu konfirmasi admin." },
-    { "q": "Apakah AI bisa menghitung ongkir?", "a": "AI tidak terhubung ke sistem ekspedisi. Kalau Anda punya tabel ongkir tetap (misalnya per kota), isikan ke knowledge. Kalau tidak, AI bisa diarahkan untuk meminta alamat lalu admin yang menghitung." },
+    { "q": "Apakah AI bisa menjawab stok secara real-time?", "a": "Tidak. ChatGerCep belum terhubung ke sistem stok atau marketplace. AI menjawab dari katalog dan info stok yang Anda isi di Informasi Usaha. Kalau stok sering berubah, perbarui Informasi Usaha atau arahkan AI agar meminta pembeli menunggu konfirmasi admin." },
+    { "q": "Apakah AI bisa menghitung ongkir?", "a": "AI tidak terhubung ke sistem ekspedisi. Kalau Anda punya tabel ongkir tetap (misalnya per kota), isikan ke Informasi Usaha. Kalau tidak, AI bisa diarahkan untuk meminta alamat lalu admin yang menghitung." },
     { "q": "Bisa memeriksa bukti transfer?", "a": "AI bisa melihat foto yang dikirim pembeli, termasuk bukti transfer, dan menanggapinya. Tapi AI tidak bisa mengecek mutasi rekening, jadi verifikasi pembayaran tetap oleh Anda." },
     { "q": "Apakah nomor WhatsApp toko yang lama tetap bisa dipakai?", "a": "Bisa. Nomor disambungkan lewat scan QR sebagai perangkat tertaut, seperti WhatsApp Web. HP tetap bisa dipakai seperti biasa. Nomor tidak boleh sedang terhubung ke WhatsApp Business API atau auto-reply lain." },
     { "q": "Bisa dipakai untuk chat dari Shopee atau TikTok Shop?", "a": "Tidak. ChatGerCep membalas chat WhatsApp. Chat di dalam aplikasi marketplace tidak ikut dibalas." },
-    { "q": "Kalau pembeli tanya yang tidak ada di katalog?", "a": "AI dilarang menebak. Kalau informasinya tidak ada di knowledge, AI berkata terus terang dan meneruskan ke Anda." },
+    { "q": "Kalau pembeli tanya yang tidak ada di katalog?", "a": "AI dilarang menebak. Kalau informasinya tidak ada di Informasi Usaha, AI berkata terus terang dan meneruskan ke Anda." },
     { "q": "Bolehkah dipakai untuk broadcast promo?", "a": "Tidak. ChatGerCep hanya untuk membalas pembeli yang menghubungi Anda. Akun yang dipakai untuk spam akan diblokir." },
     { "q": "Saya punya 2 admin dan 3 nomor. Paket apa yang cocok?", "a": "Paket Bisnis mendukung 3 nomor dan 4.000 balasan AI per 30 hari. Admin tetap bisa membalas manual di nomor mana pun." }
   ],

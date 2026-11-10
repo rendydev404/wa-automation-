@@ -74,7 +74,7 @@
   ],
   "faq": [
     { "q": "Apakah AI bisa mendiagnosis kerusakan mobil?", "a": "Tidak. Template bengkel mengarahkan AI untuk tidak menebak kerusakan dan menyarankan pemeriksaan langsung oleh mekanik." },
-    { "q": "Apakah AI tahu harga part dan stoknya?", "a": "AI hanya tahu harga dan stok part yang Anda isi di knowledge. ChatGerCep tidak terhubung ke sistem stok bengkel." },
+    { "q": "Apakah AI tahu harga part dan stoknya?", "a": "AI hanya tahu harga dan stok part yang Anda isi di Informasi Usaha. ChatGerCep tidak terhubung ke sistem stok bengkel." },
     { "q": "Bisa mencatat janji servis?", "a": "AI bisa mengumpulkan nama, kendaraan, keluhan, dan jam datang di chat. Konfirmasi slot tetap oleh Anda. Tidak ada penjadwalan otomatis." },
     { "q": "Pelanggan kirim foto kerusakan. Apa yang dilakukan AI?", "a": "AI bisa melihat foto, tetapi tidak akan menyimpulkan kerusakan atau memberi estimasi biaya perbaikan dari foto. AI meneruskan ke mekanik." },
     { "q": "Apakah nomor WhatsApp bengkel lama tetap bisa dipakai?", "a": "Bisa, lewat scan QR sebagai perangkat tertaut. HP tetap bisa dipakai seperti biasa." },

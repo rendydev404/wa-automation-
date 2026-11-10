@@ -74,7 +74,7 @@
   ],
   "faq": [
     { "q": "Apakah AI bisa memastikan kapasitas dapur untuk tanggal tertentu?", "a": "Tidak. ChatGerCep tidak terhubung ke jadwal produksi Anda. AI mencatat pesanan dan Anda yang mengonfirmasi." },
-    { "q": "Apakah AI bisa menjawab menu dan harga per porsi?", "a": "Bisa. Isi daftar menu, isi paket, harga, dan minimal order ke knowledge." },
+    { "q": "Apakah AI bisa menjawab menu dan harga per porsi?", "a": "Bisa. Isi daftar menu, isi paket, harga, dan minimal order ke Informasi Usaha." },
     { "q": "Bagaimana dengan pertanyaan alergi?", "a": "Template catering mengarahkan AI untuk tidak menjamin bebas alergen dan meneruskan ke Anda untuk memastikan bahan." },
     { "q": "Apakah AI bisa menerima DP?", "a": "AI bisa menjelaskan aturan DP dan melihat foto bukti transfer, tetapi tidak mengecek mutasi. Verifikasi pembayaran tetap oleh Anda." },
     { "q": "Apakah nomor WhatsApp catering lama bisa dipakai?", "a": "Bisa, lewat scan QR sebagai perangkat tertaut. HP tetap bisa dipakai seperti biasa." },

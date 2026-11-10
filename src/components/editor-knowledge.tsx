@@ -118,7 +118,7 @@ export function EditorKnowledge({ numberId, edit, tutup }: { numberId: number; e
     return (
       <div className="rounded-2xl border border-success/30 bg-success-soft/50 p-5">
         <p className="flex items-center gap-2 text-[14px] font-bold text-success">
-          <Check className="size-4" aria-hidden /> {edit ? t("Dokumen diperbarui", "Document updated") : t("Tersimpan ke base knowledge", "Saved to product knowledge")}
+          <Check className="size-4" aria-hidden /> {edit ? t("Dokumen diperbarui", "Document updated") : t("Tersimpan ke Informasi Usaha", "Saved to Business Info")}
         </p>
         <p className="mt-1 text-[13px] text-muted">
           {t(
@@ -235,7 +235,7 @@ export function EditorKnowledge({ numberId, edit, tutup }: { numberId: number; e
           {hasil && (
             <button type="button" disabled={menyimpan || !hasil.teks.trim()} onClick={() => simpanTeks(hasil.teks, judul)} className="btn btn-primary">
               {menyimpan ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Check className="size-4" aria-hidden />}
-              {edit ? t("Simpan perubahan", "Save changes") : t("Simpan ke base knowledge", "Save to product knowledge")}
+              {edit ? t("Simpan perubahan", "Save changes") : t("Simpan ke Informasi Usaha", "Save to Business Info")}
             </button>
           )}
           <button type="button" onClick={() => setTahap("tulis")} className="btn btn-ghost border border-line">

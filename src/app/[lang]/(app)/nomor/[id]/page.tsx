@@ -166,7 +166,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
           )}
         />
         <KartuStat
-          label={t("Dokumen knowledge", "Knowledge documents")}
+          label={t("Dokumen Informasi Usaha", "Business Info documents")}
           nilai={angka(dokumen.length, b)}
           ikon={<FileText className="size-4" aria-hidden />}
           keterangan={total === 0 ? t("Belum ada isi", "Empty so far") : t(`${angka(total)} karakter`, `${angka(total, b)} characters`)}
@@ -198,7 +198,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
           },
           {
             id: "knowledge",
-            label: { id: "Knowledge", en: "Knowledge" },
+            label: { id: "Informasi Usaha", en: "Business Info" },
             ikon: <BookOpenText aria-hidden />,
             hitung: dokumen.length,
             tur: ["knowledge"],
@@ -242,8 +242,8 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                   </h2>
                   <ul className="mt-3 list-disc space-y-2.5 pl-4 text-[13px] text-muted marker:text-faint">
                     <li>{t("Tanyakan seperti pelanggan sungguhan, mis. “harganya berapa?” atau “buka jam berapa?”.", "Ask like a real customer, e.g. “how much is it?” or “what time do you open?”.")}</li>
-                    <li>{t("Coba juga hal yang tidak ada di knowledge: AI harus menjawab tidak tahu, bukan mengarang.", "Also ask about something that isn’t in your knowledge: the AI should say it doesn’t know, not make things up.")}</li>
-                    <li>{t("Jawaban kurang pas? Perbaiki di tab Knowledge, lalu tanya lagi.", "Answer not quite right? Fix it in the Knowledge tab, then ask again.")}</li>
+                    <li>{t("Coba juga hal yang tidak ada di Informasi Usaha: AI harus menjawab tidak tahu, bukan mengarang.", "Also ask about something that isn’t in your Business Info: the AI should say it doesn’t know, not make things up.")}</li>
+                    <li>{t("Jawaban kurang pas? Perbaiki di tab Informasi Usaha, lalu tanya lagi.", "Answer not quite right? Fix it in the Business Info tab, then ask again.")}</li>
                   </ul>
                   <p className="mt-4 rounded-lg bg-subtle px-3 py-2 text-[12px] text-muted">{t("Uji bot tidak mengirim pesan ke WhatsApp mana pun.", "Test bot never sends a message to any WhatsApp.")}</p>
                 </aside>

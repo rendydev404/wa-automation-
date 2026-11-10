@@ -43,7 +43,7 @@ export async function POST(req: Request) {
   // Aturan pakai: AI hanya bisa dipakai setelah product knowledge nomor ini diisi.
   if (!(await adaKnowledge(nomor.id))) {
     return NextResponse.json(
-      { error: t("Isi product knowledge dulu di tab Knowledge, lalu coba lagi di sini.", "Add your product knowledge in the Knowledge tab first, then try again here.") },
+      { error: t("Isi dulu tab Informasi Usaha, lalu coba lagi di sini.", "Fill in the Business Info tab first, then try again here.") },
       { status: 409 },
     );
   }

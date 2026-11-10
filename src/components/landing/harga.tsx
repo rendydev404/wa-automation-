@@ -79,7 +79,7 @@ export async function HargaLanding() {
               {[
                 t(`${angka(p.kuota_nomor, b)} nomor WhatsApp`, `${angka(p.kuota_nomor, b)} WhatsApp ${p.kuota_nomor === 1 ? "number" : "numbers"}`),
                 t(`${angka(p.kuota_balasan, b)} balasan AI/${p.durasi_hari} hari`, `${angka(p.kuota_balasan, b)} AI replies/${p.durasi_hari} days`),
-                t("Product knowledge & belajar dari balasanmu", "Product knowledge & learns from your replies"),
+                t("Informasi Usaha & belajar dari balasanmu", "Business Info & learns from your replies"),
                 t(`Histori percakapan ${UMUR_HISTORI_HARI} hari & statistik`, `${UMUR_HISTORI_HARI}-day chat history & stats`),
               ].map((x) => (
                 <li key={x} className="flex gap-3">

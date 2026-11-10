@@ -201,7 +201,7 @@ async function Paket() {
               {[
                 t(`${angka(p.kuota_nomor)} nomor WhatsApp`, `${angka(p.kuota_nomor, b)} WhatsApp ${p.kuota_nomor === 1 ? "number" : "numbers"}`),
                 t(`${angka(p.kuota_balasan)} balasan AI`, `${angka(p.kuota_balasan, b)} AI ${p.kuota_balasan === 1 ? "reply" : "replies"}`),
-                t("Base knowledge & belajar dari balasanmu", "Product knowledge & learns from your replies"),
+                t("Informasi Usaha & belajar dari balasanmu", "Business Info & learns from your replies"),
                 t(`Histori percakapan ${UMUR_HISTORI_HARI} hari`, `${UMUR_HISTORI_HARI}-day chat history`),
               ].map((x) => (
                 <li key={x} className="flex gap-2">

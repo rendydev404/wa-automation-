@@ -27,7 +27,7 @@
   ],
   "solutions": [
     { "pain": "Lead belum serius", "answer": "AI menjawab pertanyaan dasar dan menanyakan kategori, jumlah, serta anggaran, sehingga sales tahu siapa yang perlu diprioritaskan." },
-    { "pain": "Alur panjang", "answer": "Alur maklon, MOQ, dan estimasi waktu diisi sekali di knowledge, lalu dijelaskan konsisten ke setiap calon klien." },
+    { "pain": "Alur panjang", "answer": "Alur maklon, MOQ, dan estimasi waktu diisi sekali di Informasi Usaha, lalu dijelaskan konsisten ke setiap calon klien." },
     { "pain": "Lead di luar jam kerja", "answer": "Calon brand owner yang chat malam atau akhir pekan tetap mendapat jawaban saat itu juga." },
     { "pain": "Data tidak lengkap", "answer": "AI merangkum kebutuhan calon klien di chat, lalu sales mengambil alih untuk konsultasi dan penawaran." }
   ],
@@ -73,7 +73,7 @@
     { "title": "Sales ambil alih kapan saja", "body": "Balas manual dari HP, AI otomatis diam di chat itu." }
   ],
   "faq": [
-    { "q": "Apakah AI bisa membuat penawaran harga resmi?", "a": "Tidak. AI hanya menyampaikan kisaran atau informasi harga yang Anda isi di knowledge. Penawaran resmi tetap dibuat tim Anda." },
+    { "q": "Apakah AI bisa membuat penawaran harga resmi?", "a": "Tidak. AI hanya menyampaikan kisaran atau informasi harga yang Anda isi di Informasi Usaha. Penawaran resmi tetap dibuat tim Anda." },
     { "q": "Apakah AI bisa menjamin produk lolos BPOM?", "a": "Tidak, dan template maklon melarang AI menjanjikannya. AI menjelaskan bahwa hasil dan lama proses mengikuti BPOM." },
     { "q": "Bisa menanyakan anggaran calon klien?", "a": "Bisa. Pertanyaan kualifikasi seperti kategori produk, jumlah, anggaran, dan target launching sudah ada di template dan bisa Anda ubah." },
     { "q": "Bagaimana dengan pertanyaan teknis formulasi?", "a": "AI menjawab sebatas informasi yang Anda isi. Pertanyaan teknis yang lebih dalam diteruskan ke tim formulator." },

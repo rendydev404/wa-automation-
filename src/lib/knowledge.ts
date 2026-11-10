@@ -136,7 +136,7 @@ export async function tambahDokumen(d: {
       `Document is too large (${teks.length.toLocaleString("en-US")} characters, max ${BATAS_DOKUMEN_KARAKTER.toLocaleString("en-US")}).`
     );
   if ((await totalKarakter(d.numberId)) + teks.length > BATAS_NOMOR_KARAKTER)
-    throw new KnowledgeError("Total base knowledge nomor ini sudah mencapai batas 1 juta karakter.", "This number's product knowledge has reached the 1 million character limit.");
+    throw new KnowledgeError("Total Informasi Usaha nomor ini sudah mencapai batas 1 juta karakter.", "This number's Business Info has reached the 1 million character limit.");
 
   const potongan = potong(teks);
   return transaksi(async (tx) => {

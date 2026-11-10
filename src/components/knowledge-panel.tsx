@@ -39,7 +39,7 @@ export function KnowledgePanel({ numberId, dokumen, total, batasUtuh }: { number
   return (
     <section className="card">
       <div className="border-b border-line px-5 py-4 sm:px-6">
-        <h2 className="text-[15px] font-bold tracking-tight">{t("Base knowledge", "Product knowledge")}</h2>
+        <h2 className="text-[15px] font-bold tracking-tight">{t("Informasi Usaha", "Business Info")}</h2>
         <p className="hint mt-0.5">
           {total === 0
             ? t(
@@ -56,7 +56,7 @@ export function KnowledgePanel({ numberId, dokumen, total, batasUtuh }: { number
       </div>
 
       <div ref={editor} className="scroll-mt-20 px-5 pt-5 sm:px-6">
-        <div role="tablist" aria-label={t("Cara mengisi knowledge", "How to add product knowledge")} className="grid grid-cols-2 gap-1 rounded-xl bg-subtle p-1 sm:inline-grid">
+        <div role="tablist" aria-label={t("Cara mengisi Informasi Usaha", "How to add Business Info")} className="grid grid-cols-2 gap-1 rounded-xl bg-subtle p-1 sm:inline-grid">
           {(
             [
               ["tulis", t("Tulis", "Write"), t("dengan bantuan AI", "with AI help"), Sparkles],
@@ -172,7 +172,7 @@ function Unggah({ numberId }: { numberId: number }) {
       <input
         ref={input}
         type="file"
-        aria-label={t("Pilih berkas knowledge", "Choose product knowledge files")}
+        aria-label={t("Pilih berkas Informasi Usaha", "Choose Business Info files")}
         tabIndex={-1}
         multiple
         accept=".pdf,.txt,.md,.csv,application/pdf,text/plain,text/markdown,text/csv"

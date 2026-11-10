@@ -23,7 +23,7 @@ export async function KartuAuth({ judul, sub, children, kaki }: { judul: string;
           </p>
           <ul className="mt-6 space-y-3 text-[14px] text-ink-muted">
             <li>• {t("Sambungkan WhatsApp cukup dengan scan QR", "Connect WhatsApp by simply scanning a QR code")}</li>
-            <li>• {t("AI menjawab dari base knowledge usaha Anda", "AI answers from your business's product knowledge")}</li>
+            <li>• {t("AI menjawab dari Informasi Usaha Anda", "AI answers from your Business Info")}</li>
             <li>• {t("Anda tetap bisa membalas sendiri kapan saja", "You can still reply yourself at any time")}</li>
           </ul>
         </div>

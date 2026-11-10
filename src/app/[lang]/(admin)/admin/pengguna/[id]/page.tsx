@@ -303,7 +303,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
           {!diriSendiri && !terkunci && (
             <section className="card border-danger/30 p-4 sm:p-6">
               <h2 className="text-[15px] font-bold text-danger">Hapus akun</h2>
-              <p className="mt-0.5 text-[13px] text-muted">Semua nomor, knowledge, dan histori percakapannya ikut terhapus permanen.</p>
+              <p className="mt-0.5 text-[13px] text-muted">Semua nomor, Informasi Usaha, dan histori percakapannya ikut terhapus permanen.</p>
               <div className="mt-4">
                 <HapusAkun id={u.id} nama={u.nama} email={u.email} jumlahNomor={nomor.length} />
               </div>

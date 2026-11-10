@@ -74,7 +74,7 @@
   ],
   "faq": [
     { "q": "Apakah AI tahu stok gudang secara real-time?", "a": "Tidak. ChatGerCep tidak terhubung ke sistem gudang. AI menjawab dari info yang Anda isi, dan ketersediaan stok dikonfirmasi tim Anda." },
-    { "q": "Bisa membedakan harga per jumlah order?", "a": "Bisa, selama tier harga ditulis jelas di knowledge, misalnya 1–9 karton dan 10+ karton." },
+    { "q": "Bisa membedakan harga per jumlah order?", "a": "Bisa, selama tier harga ditulis jelas di Informasi Usaha, misalnya 1–9 karton dan 10+ karton." },
     { "q": "Bisa memberi harga khusus agen?", "a": "Bisa bila Anda mengisinya. Kalau harga agen hanya untuk mitra terverifikasi, arahkan AI untuk meneruskan ke sales." },
     { "q": "Apakah AI membuat invoice?", "a": "Tidak. AI hanya merekap order di chat. Invoice dan pembayaran tetap diproses tim Anda." },
     { "q": "Bisa dipakai untuk broadcast promo ke reseller?", "a": "Tidak. ChatGerCep hanya membalas chat yang masuk. Akun yang dipakai untuk spam akan diblokir." },

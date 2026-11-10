@@ -109,21 +109,21 @@ export const PANDUAN: KategoriPanduan[] = [
   },
   {
     id: "knowledge",
-    judul: { id: "Isi product knowledge", en: "Add your product knowledge" },
+    judul: { id: "Isi Informasi Usaha", en: "Add your Business Info" },
     ringkas: { id: "Ajari AI tentang usaha Anda: produk, harga, jam buka, cara pesan.", en: "Teach the AI about your business: products, prices, hours, how to order." },
-    kataKunci: "cara isi knowledge, product knowledge, base knowledge, isi info usaha, ajari ai, harga produk, menu, upload pdf, unggah pdf, daftar harga, rapikan dengan ai",
+    kataKunci: "cara isi informasi usaha, informasi usaha, isi info usaha, cara isi knowledge, product knowledge, base knowledge, ajari ai, harga produk, menu, upload pdf, unggah pdf, daftar harga, rapikan dengan ai",
     langkah: [
-      D("09-buka-knowledge", 937, { id: "Buka tab Knowledge", en: "Open the Knowledge tab" }, {
-        id: "Di halaman nomor Anda, klik tab Knowledge lalu pilih Tulis dengan bantuan AI.",
-        en: "On your number's page, click the Knowledge tab and choose Write with AI.",
+      D("09-buka-knowledge", 937, { id: "Buka tab Informasi Usaha", en: "Open the Business Info tab" }, {
+        id: "Di halaman nomor Anda, klik tab Informasi Usaha lalu pilih Tulis dengan bantuan AI.",
+        en: "On your number's page, click the Business Info tab and choose Write with AI.",
       }),
       D("10-tulis-info-usaha", 937, { id: "Tulis info usaha seperti chat biasa", en: "Write your business info like a normal chat" }, {
         id: "Tulis apa yang dijual, harga, jam buka, alamat, cara pesan, dan cara bayar. Tidak perlu rapi. Lalu klik Rapikan dengan AI.",
         en: "Write what you sell, prices, opening hours, address, how to order, and how to pay. It doesn't need to be neat. Then click Tidy up with AI.",
       }),
       D("11-periksa-lalu-simpan", 1288, { id: "Periksa, lalu simpan", en: "Check it, then save" }, {
-        id: "AI merapikan tulisan Anda. Pastikan harga dan jam buka sudah benar (boleh diubah langsung), lalu klik Simpan ke base knowledge.",
-        en: "The AI tidies up your text. Make sure prices and hours are right (you can edit directly), then click Save to product knowledge.",
+        id: "AI merapikan tulisan Anda. Pastikan harga dan jam buka sudah benar (boleh diubah langsung), lalu klik Simpan ke Informasi Usaha.",
+        en: "The AI tidies up your text. Make sure prices and hours are right (you can edit directly), then click Save to Business Info.",
       }),
       D("12-tersimpan", 937, { id: "Tersimpan", en: "Saved" }, {
         id: "Muncul tulisan hijau Tersimpan. AI hanya menjawab dari catatan ini dan tidak mengarang. Ada perubahan harga? Perbarui kapan saja.",
@@ -142,8 +142,8 @@ export const PANDUAN: KategoriPanduan[] = [
     kataKunci: "uji bot, test bot, coba bot, coba ai, simulasi, tes jawaban, jawaban ai salah, cek jawaban",
     langkah: [
       D("15-uji-bot", 937, { id: "Tanya seperti pelanggan", en: "Ask like a customer" }, {
-        id: "Klik tab Uji bot, ketik pertanyaan seperti pelanggan (misalnya harganya berapa?), lalu kirim. Uji bot tidak mengirim pesan ke WhatsApp siapa pun. Jawaban kurang pas? Perbaiki di tab Knowledge.",
-        en: "Click the Test bot tab, type a question like a customer would (e.g. how much is it?) and send. Test bot never messages anyone on WhatsApp. Answer not quite right? Fix it in the Knowledge tab.",
+        id: "Klik tab Uji bot, ketik pertanyaan seperti pelanggan (misalnya harganya berapa?), lalu kirim. Uji bot tidak mengirim pesan ke WhatsApp siapa pun. Jawaban kurang pas? Perbaiki di tab Informasi Usaha.",
+        en: "Click the Test bot tab, type a question like a customer would (e.g. how much is it?) and send. Test bot never messages anyone on WhatsApp. Answer not quite right? Fix it in the Business Info tab.",
       }),
     ],
   },
