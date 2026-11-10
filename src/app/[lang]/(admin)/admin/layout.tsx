@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { BannerSandbox } from "@/components/banner-sandbox";
 import type { Metadata, Viewport } from "next";
 import { LogOut } from "lucide-react";
 import { logoutAction } from "@/app/actions";
@@ -69,6 +70,9 @@ export default function LayoutAdmin({ children }: LayoutProps<"/[lang]/admin">) 
       <main className="mx-auto w-full max-w-[1320px] px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 lg:px-10 lg:pt-10 lg:pb-16">
         <Suspense fallback={null}>
           <Penjaga />
+        </Suspense>
+        <Suspense fallback={null}>
+          <BannerSandbox />
         </Suspense>
         {children}
       </main>

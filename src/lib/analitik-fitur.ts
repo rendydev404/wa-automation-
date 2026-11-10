@@ -139,6 +139,8 @@ const DAFTAR_FITUR = {
   "developer.buat_key": "Buat API key",
   "developer.ganti_key": "Ganti API key",
   "developer.buat_tagihan": "Buat tagihan Developer API",
+  "developer.buat_sandbox": "Buat key sandbox Developer API",
+  "developer.ganti_key_sandbox": "Ganti key sandbox Developer API",
   "admin.developer_setujui": "Setujui aplikasi Developer API",
   "admin.developer_ubah": "Ubah aplikasi Developer API",
   "admin.developer_tolak": "Tolak aplikasi Developer API",
@@ -146,6 +148,7 @@ const DAFTAR_FITUR = {
   "admin.developer_aktifkan": "Aktifkan lagi aplikasi Developer API",
   "admin.developer_cabut": "Cabut aplikasi Developer API",
   "admin.developer_pengaturan": "Ubah pengaturan Developer API",
+  "admin.developer_sandbox": "Ubah pengaturan sandbox Developer API",
 } as const;
 
 /** Semua kode fitur yang dicatat server. */

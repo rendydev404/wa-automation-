@@ -11,14 +11,19 @@ import {
   ajukan,
   aturAksesApi,
   buatKunci,
+  buatSandbox,
   cabutSemuaKunci,
   lepasInstalasi,
   mulaiBayarApi,
+  mulaiNomorUji,
+  perpanjangSandbox,
   setujui,
   simpanFiturGlobal,
   simpanPengaturanApi,
+  simpanPengaturanSandbox,
   tolak,
   ubahAplikasi,
+  ubahSandbox,
   ubahStatus,
 } from "@/lib/developer-api";
 import { adapter, penyediaKanal } from "@/lib/gateway";
@@ -108,6 +113,56 @@ export async function lepasInstalasiAction(aplikasiId: number, instalasiId: stri
     await lepasInstalasi(user, id, instalasiId, false);
     revalidatePath(`/developer/${id}`);
     return { ok: true, pesan: t("Instalasi dilepas. Mesin itu berhenti menerima perpanjangan lisensi.", "Installation released. That engine no longer receives license renewals.") };
+  } catch (e) {
+    return galat(e);
+  }
+}
+
+// ---------- Sandbox (portal) ----------
+
+/** Buat sandbox + key cg_test_ (atau ganti key sandbox yang ada). Key tampil sekali. */
+export async function buatSandboxAction(): Promise<Hasil & { key?: string; baru?: boolean }> {
+  const m = await tolakMesin();
+  if (m) return m;
+  const user = await requireAksesApi();
+  const { t } = await teksPermintaan();
+  if (terlaluSering(`devapi-sandbox:${user.id}`, 10, 60 * 60_000)) return { ok: false, pesan: t("Terlalu sering membuat key. Coba lagi nanti.", "Too many keys created. Please try again later.") };
+  try {
+    const r = await buatSandbox(user);
+    revalidatePath("/developer");
+    catatFitur(user.id, r.baru ? "developer.buat_sandbox" : "developer.ganti_key_sandbox");
+    return { ok: true, key: r.key, baru: r.baru };
+  } catch (e) {
+    return galat(e);
+  }
+}
+
+export async function perpanjangSandboxAction(): Promise<Hasil> {
+  const m = await tolakMesin();
+  if (m) return m;
+  const user = await requireAksesApi();
+  const { t } = await teksPermintaan();
+  if (terlaluSering(`devapi-perpanjang:${user.id}`, 10, 60 * 60_000)) return { ok: false, pesan: t("Terlalu sering. Coba lagi nanti.", "Too many attempts. Please try again later.") };
+  try {
+    await perpanjangSandbox(user);
+    revalidatePath("/developer");
+    return { ok: true, pesan: t("Diperpanjang. Klik Perbarui lisensi di dashboard mesin (atau nyalakan ulang mesin) supaya berlaku.", "Extended. Click Refresh license in the engine dashboard (or restart the engine) to apply it.") };
+  } catch (e) {
+    return galat(e);
+  }
+}
+
+/** Kode verifikasi nomor uji (6 angka, 10 menit). */
+export async function mulaiNomorUjiAction(): Promise<Hasil & { kode?: string; sampai?: number }> {
+  const m = await tolakMesin();
+  if (m) return m;
+  const user = await requireAksesApi();
+  const { t } = await teksPermintaan();
+  if (terlaluSering(`devapi-kode-uji:${user.id}`, 10, 60 * 60_000)) return { ok: false, pesan: t("Terlalu sering membuat kode. Coba lagi nanti.", "Too many codes requested. Please try again later.") };
+  try {
+    const r = await mulaiNomorUji(user);
+    revalidatePath("/developer");
+    return { ok: true, kode: r.kode, sampai: r.sampai };
   } catch (e) {
     return galat(e);
   }
@@ -296,6 +351,43 @@ export async function aturAksesAction(userId: number, aktif: boolean): Promise<H
     const email = await aturAksesApi(pelaku, id, aktif);
     revalidatePath("/admin/developer-api");
     return { ok: true, pesan: aktif ? `${email} sekarang melihat menu Developer API.` : `Akses ${email} dicabut.` };
+  } catch (e) {
+    return galat(e);
+  }
+}
+
+// ---------- Sandbox (panel developer internal) ----------
+
+export async function simpanPengaturanSandboxAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const m = await tolakMesin();
+  if (m) return m;
+  const pelaku = await requireDeveloper();
+  try {
+    await simpanPengaturanSandbox(pelaku, {
+      aktif: form.get("aktif") === "on",
+      hari: Number(String(form.get("hari") ?? "").trim()),
+      ai_hari: Number(String(form.get("ai_hari") ?? "").replace(/[.\s]/g, "").trim()),
+    });
+    segarkanPanel();
+    catatFitur(pelaku.id, "admin.developer_sandbox");
+    return { ok: true, pesan: "Pengaturan sandbox tersimpan. Berlaku di mesin sandbox saat menyala / Perbarui lisensi." };
+  } catch (e) {
+    return galat(e);
+  }
+}
+
+/** Ubah limit AI khusus (0 = ikut bawaan) dan/atau perpanjang satu sandbox. */
+export async function ubahSandboxAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const m = await tolakMesin();
+  if (m) return m;
+  const pelaku = await requireDeveloper();
+  const id = idSah(form.get("id"));
+  if (!id) return { ok: false, pesan: "Sandbox tidak valid." };
+  const aiTeks = String(form.get("ai_hari") ?? "").replace(/[.\s]/g, "").trim();
+  try {
+    await ubahSandbox(pelaku, id, { ai_hari: aiTeks === "" ? undefined : Number(aiTeks), perpanjang: form.get("perpanjang") === "1" });
+    segarkanPanel();
+    return { ok: true, pesan: form.get("perpanjang") === "1" ? "Sandbox diperpanjang." : "Limit AI tersimpan." };
   } catch (e) {
     return galat(e);
   }

@@ -4,7 +4,7 @@ import { db, sekarang } from "../db";
 import { modeMesin } from "../mode";
 import { nomorBySesi } from "../numbers";
 import { type Peristiwa, dengar } from "../peristiwa";
-import { lisensiSekarang } from "./lisensi";
+import { lisensiSekarang, sandboxAktif } from "./lisensi";
 
 /**
  * Webhook dari mesin ke aplikasi developer: satu tujuan per mesin, antrean keluar (outbox) di database supaya event
@@ -178,9 +178,12 @@ export async function tulisBuffer(): Promise<number> {
   const t = await muatTujuan();
   if (!t) return 0;
   const kini = sekarang();
+  const sb = sandboxAktif();
   const baris = daftar.map((e) => {
     const id_event = idEvent();
-    return { tujuan_id: t.id, id_event, jenis: e.jenis, isi: { id_event, jenis: e.jenis, waktu: kini, nomor_id: e.nomorId === null ? null : String(e.nomorId), data: e.data }, berikut_pada: kini, dibuat: kini };
+    // Sandbox: amplop event ditandai "mode": "sandbox" supaya aplikasi bisa memisahkannya dari event production.
+    const isi = { id_event, jenis: e.jenis, waktu: kini, nomor_id: e.nomorId === null ? null : String(e.nomorId), data: e.data, ...(sb ? { mode: "sandbox" } : {}) };
+    return { tujuan_id: t.id, id_event, jenis: e.jenis, isi, berikut_pada: kini, dibuat: kini };
   });
   const sql = await db();
   await sql`INSERT INTO webhook_antrean ${sql(
@@ -275,7 +278,7 @@ export async function kirimUji(): Promise<{ ok: boolean; status: number; galat?:
   const t = await muatTujuan();
   if (!t) throw new WebhookError("webhook belum diatur (PUT /api/v1/webhook)");
   const id_event = idEvent();
-  const body = JSON.stringify({ id_event, jenis: "webhook.uji", waktu: sekarang(), nomor_id: null, data: { pesan: "Event uji dari mesin ChatGerCep." } });
+  const body = JSON.stringify({ id_event, jenis: "webhook.uji", waktu: sekarang(), nomor_id: null, data: { pesan: "Event uji dari mesin ChatGerCep." }, ...(sandboxAktif() ? { mode: "sandbox" } : {}) });
   return { ...(await kirimKe(t.url, dekripsi(t.rahasia), body)), id_event };
 }
 

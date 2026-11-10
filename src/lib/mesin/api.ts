@@ -1,13 +1,14 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
-import { type FiturApi, KODE_GALAT, type KodeGalat } from "../api-def";
+import { type FiturApi, KODE_GALAT, type KodeGalat, modeLisensi } from "../api-def";
 import { db, sekarang } from "../db";
 import { kunciCocok, uraiKunciApi } from "../lisensi-def";
 import { modeMesin } from "../mode";
 import { type Nomor, nomorById } from "../numbers";
 import type { StatusSesiWa } from "../types";
 import { alasanTerbatas, lisensiSekarang, muatLisensi } from "./lisensi";
+import { ambilJatahAi, batasAiHarian } from "./kuota-ai";
 
 /**
  * Pembantu route API v1 di mesin self-host (src/app/api/v1/**). Autentikasi dicocokkan dengan daftar key di lisensi
@@ -74,15 +75,18 @@ export async function otorisasi(req: Request, scope: FiturApi | null, opsi: { iz
   const m = /^Bearer\s+(\S+)$/i.exec(req.headers.get("authorization") ?? "");
   const kunci = m?.[1] ?? "";
   const urai = uraiKunciApi(kunci);
-  if (!urai) return galat("key_tidak_sah", "Sertakan header Authorization: Bearer cg_live_… yang sah.", id);
+  if (!urai) return galat("key_tidak_sah", "Sertakan header Authorization: Bearer cg_live_… (atau cg_test_… untuk sandbox) yang sah.", id);
   await muatLisensi();
   const l = lisensiSekarang();
   if (!l) {
     const a = alasanTerbatas();
     return galat(a?.kode ?? "lisensi_kedaluwarsa", a?.pesan ?? "Mesin belum diaktifkan.", id);
   }
-  if (!kunciCocok(kunci, l.kunci)) return galat("key_tidak_sah", "API key tidak sah, sudah dicabut, atau masa rotasinya habis.", id);
+  // Jenis key harus sama dengan jenis lisensi mesin (cg_test_ hanya di mesin sandbox, cg_live_ hanya di production).
+  const mode = modeLisensi(l);
+  if (!kunciCocok(kunci, l.kunci, undefined, mode)) return galat("key_tidak_sah", "API key tidak sah, sudah dicabut, atau masa rotasinya habis.", id);
   const r = hitungLaju(`api:${urai.awalan}`);
+  r.kepala["X-ChatGerCep-Mode"] = mode === "sandbox" ? "sandbox" : "production";
   if (!r.boleh) return galat("terlalu_sering", `Terlalu banyak permintaan (maks ${BATAS_PER_DETIK}/detik per key).`, id, r.kepala);
   if (!opsi.izinkanTerbatas) {
     const a = alasanTerbatas();
@@ -93,6 +97,16 @@ export async function otorisasi(req: Request, scope: FiturApi | null, opsi: { iz
 }
 
 export const bukanKonteks = (x: Konteks | NextResponse): x is NextResponse => x instanceof NextResponse;
+
+/**
+ * Ambil satu jatah balasan AI (limit batas.ai_hari). null = boleh lanjut; selain itu jawaban 429 batas_ai_harian.
+ * Tanpa limit: nol query.
+ */
+export async function jatahAi(k: Konteks): Promise<NextResponse | null> {
+  if (await ambilJatahAi()) return null;
+  const batas = batasAiHarian();
+  return galat("batas_ai_harian", `Batas ${batas.toLocaleString("id-ID")} balasan AI per hari untuk mesin ini sudah habis. Jatahnya kembali jam 00.00 WIB.`, k.id, k.kepala);
+}
 
 // ---------- Isi permintaan ----------
 

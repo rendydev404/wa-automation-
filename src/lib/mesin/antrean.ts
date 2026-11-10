@@ -6,7 +6,7 @@ import { type Nomor, nomorById } from "../numbers";
 import { dengar } from "../peristiwa";
 import { tandaiKirimanSistem } from "../bridge";
 import { WaError, infoSesi, kirimGambar, kirimTeks } from "../wa";
-import { layananBoleh, lisensiSekarang } from "./lisensi";
+import { layananBoleh, lisensiSekarang, nomorUji, sandboxAktif, tujuanNomorUji } from "./lisensi";
 import { antrekanEvent } from "./webhook";
 
 /**
@@ -24,7 +24,7 @@ const MIME_GAMBAR = new Set(["image/jpeg", "image/png", "image/webp"]);
 const UMUR_ANTRE_MAKS = 24 * 3600;
 
 export class AntreanError extends Error {
-  kode: "isian_tidak_sah" | "ditolak_anti_blokir" | "tidak_ditemukan";
+  kode: "isian_tidak_sah" | "ditolak_anti_blokir" | "tidak_ditemukan" | "bukan_nomor_uji" | "nomor_uji_belum_ada";
   constructor(kode: AntreanError["kode"], pesan: string) {
     super(pesan);
     this.kode = kode;
@@ -67,6 +67,11 @@ export async function masukkanPesan(i: IsianPesan): Promise<PesanKeluar> {
     gambar = { data, mime, caption };
   }
   if (!teks && !gambar) throw new AntreanError("isian_tidak_sah", "Isi `teks` atau `gambar`.");
+  // Sandbox: hanya boleh mengirim ke SATU nomor uji yang sudah diverifikasi (cek memori, tanpa query).
+  if (sandboxAktif()) {
+    if (!nomorUji()) throw new AntreanError("nomor_uji_belum_ada", "Sandbox: daftarkan nomor uji dulu di portal Developer (kirim WA berisi UJI <kode> ke nomor sandbox).");
+    if (!tujuanNomorUji(ke)) throw new AntreanError("bukan_nomor_uji", "Sandbox hanya boleh mengirim ke nomor uji yang terverifikasi.");
+  }
   const batas = lisensiSekarang()?.batas;
   const maksBaru = batas?.kontak_baru_hari ?? 50;
   const kini = sekarang();

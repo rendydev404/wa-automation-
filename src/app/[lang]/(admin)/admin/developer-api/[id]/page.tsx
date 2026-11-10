@@ -45,7 +45,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   await requireDeveloper();
   const id = Number((await params).id);
   const a = await aplikasiById(id);
-  if (!a) notFound();
+  if (!a || a.mode === "sandbox") notFound(); // sandbox dikelola di kartu Sandbox / tab Sandbox
   const aktif = a.status === "disetujui" || a.status === "ditangguhkan";
   const [umum, kunci, instalasi] = await Promise.all([pengaturanApi(), aktif || a.status === "dicabut" ? daftarKunci(a.id) : [], aktif ? daftarInstalasi(a.id) : []]);
   const kini = sekarang();

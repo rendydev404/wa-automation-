@@ -4,20 +4,22 @@ import { ChevronRight, Inbox } from "lucide-react";
 import Link from "@/components/link";
 import LinkNiat from "@/components/link-niat";
 import { Pill } from "@/components/ui";
-import { FITUR_API, type FiturApi, LABEL_STATUS_APLIKASI, labelFitur } from "@/lib/api-def";
+import { FITUR_API, type FiturApi, LABEL_STATUS_APLIKASI, labelFitur, samarkanNomor } from "@/lib/api-def";
 import { ENDPOINT_DOK } from "@/lib/api-dok";
-import { type FilterAplikasi, biayaEfektif, cariAkunAkses, daftarAplikasi, hitungAplikasi, pemakaianFitur, pengaturanApi } from "@/lib/developer-api";
-import { tanggal } from "@/lib/format";
+import { type FilterAplikasi, biayaEfektif, cariAkunAkses, daftarAplikasi, daftarSandbox, hitungAplikasi, pemakaianFitur, pengaturanApi, pengaturanSandbox } from "@/lib/developer-api";
+import { sekarang } from "@/lib/db";
+import { jamWib, tanggal } from "@/lib/format";
 import { modeMesin } from "@/lib/mode";
 import { requireDeveloper } from "@/lib/session";
 import { AksesPengguna } from "./akses-pengguna";
 import { CariLangsung } from "./cari-langsung";
 import { type EndpointRingkas, FormFiturGlobal } from "./fitur-global";
-import { FormPengaturanApi } from "./form-developer-api";
+import { FormPengaturanApi, FormStatus } from "./form-developer-api";
+import { FormPengaturanSandbox, FormUbahSandbox } from "./sandbox-panel";
 import { NADA_STATUS } from "./umum";
 
 type SP = Record<string, string | string[] | undefined>;
-type Tab = "aplikasi" | "fitur" | "akses" | "pengaturan";
+type Tab = "aplikasi" | "sandbox" | "fitur" | "akses" | "pengaturan";
 
 const FILTER: { nilai: FilterAplikasi; label: string }[] = [
   { nilai: "menunggu", label: "Menunggu" },
@@ -26,7 +28,7 @@ const FILTER: { nilai: FilterAplikasi; label: string }[] = [
   { nilai: "semua", label: "Semua" },
 ];
 
-const tabDari = (sp: SP): Tab => (sp.tab === "fitur" || sp.tab === "akses" || sp.tab === "pengaturan" ? sp.tab : "aplikasi");
+const tabDari = (sp: SP): Tab => (sp.tab === "sandbox" || sp.tab === "fitur" || sp.tab === "akses" || sp.tab === "pengaturan" ? sp.tab : "aplikasi");
 
 /** Panel developer internal (hanya peran developer): pengajuan & aplikasi, akses portal per akun, pengaturan umum. */
 export default function HalamanDeveloperApi(props: { searchParams: Promise<SP> }) {
@@ -60,6 +62,7 @@ async function Panel({ searchParams }: { searchParams: Promise<SP> }) {
   const [jumlah, akses, umum] = await Promise.all([hitungAplikasi(), cariAkunAkses(), pengaturanApi()]);
   const TAB: { nilai: Tab; label: string; hitung?: number | string; sorot?: boolean }[] = [
     { nilai: "aplikasi", label: "Aplikasi", hitung: jumlah.menunggu, sorot: jumlah.menunggu > 0 },
+    { nilai: "sandbox", label: "Sandbox" },
     { nilai: "fitur", label: "Fitur", hitung: `${umum.fitur.length}/${FITUR_API.length}` },
     { nilai: "akses", label: "Akses pengguna", hitung: akses.jumlahAkses },
     { nilai: "pengaturan", label: "Pengaturan" },
@@ -96,6 +99,8 @@ async function Panel({ searchParams }: { searchParams: Promise<SP> }) {
         <AksesPengguna awal={akses.daftar} jumlahAwal={akses.jumlahAkses} />
       ) : tab === "pengaturan" ? (
         <Pengaturan />
+      ) : tab === "sandbox" ? (
+        <Sandbox sp={sp} />
       ) : (
         <Aplikasi sp={sp} jumlah={jumlah} />
       )}
@@ -191,6 +196,117 @@ async function Aplikasi({ sp, jumlah }: { sp: SP; jumlah: Record<FilterAplikasi,
         </div>
       )}
     </section>
+  );
+}
+
+/** Tab Sandbox: pengaturan umum + daftar sandbox (indeks parsial, kursor id, 50 per halaman). */
+async function Sandbox({ sp }: { sp: SP }) {
+  const cari = typeof sp.q === "string" ? sp.q.slice(0, 100) : "";
+  const setelah = Number(sp.setelah);
+  const [umum, { daftar, adaLagi, jumlah }] = await Promise.all([
+    pengaturanSandbox(),
+    daftarSandbox({ cari, setelah: Number.isInteger(setelah) && setelah > 0 ? setelah : undefined }),
+  ]);
+  const kini = sekarang();
+  const terakhir = daftar.at(-1);
+  const tautan = (ubah: Record<string, string | undefined>) => {
+    const q = new URLSearchParams({ tab: "sandbox" });
+    for (const [k, v] of Object.entries({ q: cari || undefined, ...ubah })) if (v) q.set(k, v);
+    return `/admin/developer-api?${q}`;
+  };
+  return (
+    <div className="space-y-5">
+      <section className="card max-w-3xl p-4 sm:p-5">
+        <h2 className="text-[15px] font-bold">Pengaturan sandbox</h2>
+        <p className="text-[12.5px] text-muted">
+          Sandbox = key <code className="font-mono">cg_test_</code> untuk mencoba API dengan WhatsApp asli: langsung aktif tanpa peninjauan, 1 nomor WA, hanya dengan 1 nomor uji
+          terverifikasi, dan dibatasi balasan AI per hari. Hanya akun yang punya akses portal.
+        </p>
+        <div className="mt-4">
+          <FormPengaturanSandbox aktif={umum.aktif} hari={umum.hari} ai={umum.ai_hari} />
+        </div>
+      </section>
+      <section className="card overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-4 sm:p-5">
+          <div>
+            <h2 className="text-[15px] font-bold">Daftar sandbox</h2>
+            <p className="text-[12.5px] text-muted">{jumlah.toLocaleString("id-ID")} akun memakai sandbox</p>
+          </div>
+          <form action="/admin/developer-api" className="w-full sm:w-72">
+            <input type="hidden" name="tab" value="sandbox" />
+            <input name="q" defaultValue={cari} placeholder="Cari email / nama akun" aria-label="Cari sandbox" className="field" />
+          </form>
+        </div>
+        {daftar.length ? (
+          <ul className="divide-y divide-line">
+            {daftar.map((s) => {
+              const habis = (s.sandbox_sampai ?? 0) <= kini;
+              return (
+                <li key={s.id}>
+                  <details className="group">
+                    <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 transition-colors hover:bg-subtle/50 sm:px-5">
+                      <span className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-4">
+                      <span className="block min-w-0 sm:flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="truncate text-[14px] font-semibold">{s.email}</span>
+                          {s.status !== "disetujui" ? (
+                            <Pill nada={NADA_STATUS[s.status]}>{LABEL_STATUS_APLIKASI[s.status]}</Pill>
+                          ) : habis ? (
+                            <Pill nada="merah">Kedaluwarsa</Pill>
+                          ) : (
+                            <Pill nada="hijau">Aktif</Pill>
+                          )}
+                        </span>
+                        <span className="mt-0.5 block text-[12.5px] text-muted">
+                          Nomor uji {s.uji_diverifikasi ? (s.uji_telepon ? samarkanNomor(s.uji_telepon) : "terverifikasi (LID)") : "belum ada"} · limit AI{" "}
+                          {s.ai_khusus > 0 ? `${s.ai_khusus.toLocaleString("id-ID")} (khusus)` : `${umum.ai_hari.toLocaleString("id-ID")} (bawaan)`}/hari
+                        </span>
+                      </span>
+                      {/* HP: di bawah email (email tidak terpotong); layar lebar: kolom kanan. */}
+                      <span className="mt-1 block text-[12px] text-muted tabular-nums sm:mt-0 sm:text-right">
+                        <span className="block">Berlaku s.d. {s.sandbox_sampai ? tanggal(s.sandbox_sampai) : "-"}</span>
+                        <span className="block text-faint">{s.terakhir_menyala ? `Mesin menyala ${tanggal(s.terakhir_menyala)} ${jamWib(s.terakhir_menyala)}` : "Mesin belum pernah menyala"}</span>
+                      </span>
+                      </span>
+                      <ChevronRight className="size-4 shrink-0 text-faint transition-transform group-open:rotate-90" aria-hidden />
+                    </summary>
+                    <div className="grid gap-5 border-t border-line bg-subtle/30 px-4 py-4 sm:px-5 lg:grid-cols-2">
+                      {s.status === "dicabut" ? (
+                        <p className="text-[13px] text-muted">Sandbox ini sudah dicabut permanen.</p>
+                      ) : (
+                        <>
+                          <FormUbahSandbox id={s.id} aiKhusus={s.ai_khusus} aiBawaan={umum.ai_hari} hari={umum.hari} />
+                          <FormStatus id={s.id} status={s.status === "ditangguhkan" ? "ditangguhkan" : "disetujui"} />
+                        </>
+                      )}
+                    </div>
+                  </details>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="flex flex-col items-center gap-2 px-5 py-12 text-center text-[13px] text-muted">
+            <Inbox className="size-6 text-faint" aria-hidden />
+            {cari ? "Tidak ada sandbox yang cocok." : "Belum ada akun yang membuat sandbox."}
+          </p>
+        )}
+        {(sp.setelah || adaLagi) && (
+          <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-2.5 sm:px-5">
+            {sp.setelah && (
+              <Link prefetch={false} href={tautan({})} className="btn btn-ghost border border-line">
+                Ke awal
+              </Link>
+            )}
+            {adaLagi && terakhir && (
+              <Link prefetch={false} href={tautan({ setelah: String(terakhir.id) })} className="btn btn-ghost border border-line">
+                Berikutnya
+              </Link>
+            )}
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 

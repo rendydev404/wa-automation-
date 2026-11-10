@@ -3,6 +3,7 @@ import type { Viewport } from "next";
 import { LogOut } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { BannerAkun } from "@/components/banner-akun";
+import { BannerSandbox } from "@/components/banner-sandbox";
 import { LoncengNotifikasi } from "@/components/notifikasi";
 import { GantiBahasa } from "@/components/ganti-bahasa";
 import { NavBawah, NavBawahKerangka, NavKerangka, NavUtama, StatusLayanan, TombolPanduanAtas } from "@/components/navigasi";
@@ -75,6 +76,9 @@ export default async function AppLayout({ children }: LayoutProps<"/[lang]">) {
         }
       >
         <main className="mx-auto w-full max-w-[1320px] px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 lg:px-10 lg:pt-10 lg:pb-16">
+          <Suspense fallback={null}>
+            <BannerSandbox />
+          </Suspense>
           <Suspense fallback={null}>
             <BannerAkun />
           </Suspense>

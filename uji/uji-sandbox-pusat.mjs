@@ -1,0 +1,286 @@
+// Uji mode sandbox Developer API di server pusat: key cg_test_ (1 per akun, tanpa peninjauan), aktivasi tanpa alamat
+// publik & tantangan, lisensi v2 (mode sandbox, 1 nomor, limit AI, berlaku = masa sandbox), nomor uji tunggal lewat kode,
+// sakelar umum, kedaluwarsa & perpanjang, limit AI khusus, pemisahan dari aplikasi production, dan rencana query.
+// PostgreSQL 15 sungguhan (uji/pg-lokal.mjs). Rencana: docs/plans/2026-11-10-sandbox-developer-api.md.
+// Pakai (dari akar proyek): node --import ./uji/loader.mjs uji/uji-sandbox-pusat.mjs
+import assert from "node:assert/strict";
+import { generateKeyPairSync, randomUUID } from "node:crypto";
+import { mkdirSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { mulaiPg } from "./pg-lokal.mjs";
+
+const akar = process.cwd();
+const tmp = path.join(os.tmpdir(), "wa-uji-sandbox-pusat");
+rmSync(tmp, { recursive: true, force: true });
+mkdirSync(tmp, { recursive: true });
+const pg = await mulaiPg({ dir: path.join(tmp, "pg"), sementara: true });
+const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+Object.assign(process.env, {
+  DATABASE_URL: pg.url,
+  DATA_DIR: path.join(tmp, "data"),
+  AUTH_SECRET: "x".repeat(40),
+  LISENSI_KUNCI_PRIVAT: privateKey.export({ format: "der", type: "pkcs8" }).toString("base64"),
+  LISENSI_MODE_UJI: "1",
+  LISENSI_KUNCI_PUBLIK: publicKey.export({ format: "der", type: "spki" }).toString("base64"),
+  LISENSI_IZINKAN_HTTP: "1",
+});
+const lib = (f) => import(pathToFileURL(path.join(akar, f)).href);
+
+const { db, sekarang, setSetting } = await lib("src/lib/db.ts");
+const P = await lib("src/lib/pengguna.ts");
+const D = await lib("src/lib/developer-api.ts");
+const L = await lib("src/lib/lisensi-def.ts");
+const API = await lib("src/lib/api-def.ts");
+const sql = await db();
+
+let lolos = 0;
+const cek = async (nama, fn) => {
+  await fn();
+  lolos += 1;
+  console.log(`  ok  ${nama}`);
+};
+const galat = (kode) => (e) => {
+  if (e?.kode !== kode) throw new Error(`diharapkan galat ${kode}, dapat ${e?.kode ?? e}: ${e?.message}`);
+  return true;
+};
+const ms = async (fn, n = 20) => {
+  await fn();
+  const t = performance.now();
+  for (let i = 0; i < n; i++) await fn();
+  return (performance.now() - t) / n;
+};
+
+const dev = await P.buatAkun({ email: "dev@uji.test", nama: "Dev", password: "rahasia-dev-0001", peran: "developer" });
+const budi = await P.buatAkun({ email: "budi@uji.test", nama: "Budi", password: "rahasia-budi-01" });
+const sari = await P.buatAkun({ email: "sari@uji.test", nama: "Sari", password: "rahasia-sari-01" });
+const DV = { id: dev.id, email: "dev@uji.test", nama: "Dev", peran: "developer" };
+const B = { id: budi.id, email: "budi@uji.test", nama: "Budi", peran: "user" };
+const S = { id: sari.id, email: "sari@uji.test", nama: "Sari", peran: "user" };
+
+console.log("== key sandbox ==");
+let sb;
+let keyB;
+await cek("buat sandbox: key cg_test_ tampil sekali, langsung aktif tanpa peninjauan, berlaku 30 hari", async () => {
+  const r = await D.buatSandbox(B);
+  assert.equal(r.baru, true);
+  assert.match(r.key, /^cg_test_[0-9A-Za-z]{8}_[0-9A-Za-z]{32}$/);
+  keyB = r.key;
+  sb = await D.sandboxMilik(budi.id);
+  assert.equal(sb.mode, "sandbox");
+  assert.equal(sb.status, "disetujui");
+  assert.ok(Math.abs(sb.sandbox_sampai - (sekarang() + 30 * 86400)) < 5);
+  const [k] = await sql`SELECT hash FROM api_kunci WHERE aplikasi_id = ${sb.id}`;
+  assert.notEqual(k.hash, keyB); // hanya hash yang disimpan
+  assert.equal(L.uraiKunciApi(keyB).mode, "sandbox");
+});
+
+await cek("sandbox terpisah dari production: tidak masuk antrean, hitungan, daftar aplikasi, atau notifikasi tinjau", async () => {
+  assert.equal((await D.aplikasiMilik(budi.id)).length, 0);
+  assert.equal(await D.jumlahMenunggu(), 0);
+  const h = await D.hitungAplikasi();
+  assert.equal(h.semua, 0);
+  assert.equal((await D.daftarAplikasi({ filter: "semua" })).daftar.length, 0);
+  const [n] = await sql`SELECT COUNT(*)::int AS n FROM notifikasi WHERE jenis = 'admin_developer_api'`;
+  assert.equal(n.n, 0);
+  // Tindakan tinjau production tidak berlaku untuk sandbox.
+  await assert.rejects(D.setujui(DV, sb.id, { fitur: ["nomor"], biaya: "gratis", harga_bulan: null, batas: {} }), galat("tidak_ditemukan"));
+});
+
+await cek("maks 1 sandbox per akun: klik lagi = ganti key (lama langsung mati, tanpa rotasi 24 jam)", async () => {
+  const r = await D.buatSandbox(B);
+  assert.equal(r.baru, false);
+  assert.equal(r.id, sb.id);
+  const [{ n }] = await sql`SELECT COUNT(*)::int AS n FROM api_aplikasi WHERE user_id = ${budi.id} AND mode = 'sandbox'`;
+  assert.equal(n, 1);
+  await assert.rejects(D.aktivasi({ key: keyB, id_instalasi: randomUUID(), alamat: "", versi: "1.0.0" }), galat("key_tidak_sah"));
+  keyB = r.key;
+  // Unique index menjaga juga dari dua permintaan serentak.
+  const hasil = await Promise.allSettled([D.buatSandbox(S), D.buatSandbox(S)]);
+  assert.ok(hasil.every((x) => x.status === "fulfilled"));
+  const [{ m }] = await sql`SELECT COUNT(*)::int AS m FROM api_aplikasi WHERE user_id = ${sari.id} AND mode = 'sandbox'`;
+  assert.equal(m, 1);
+});
+
+console.log("== aktivasi & lisensi v2 ==");
+let idA;
+let isiA;
+await cek("aktivasi sandbox tanpa alamat publik & tanpa tantangan -> lisensi v2: mode sandbox, 1 nomor, limit AI 100, berlaku = masa sandbox", async () => {
+  idA = randomUUID();
+  const t = await D.aktivasi({ key: keyB, id_instalasi: idA, alamat: "", versi: "1.0.0" });
+  isiA = L.verifikasiLisensi(t);
+  assert.equal(isiA.v, 2);
+  assert.equal(isiA.mode, "sandbox");
+  assert.equal(isiA.uji, null);
+  assert.equal(isiA.batas.nomor, 1);
+  assert.equal(isiA.batas.instalasi, 1);
+  assert.equal(isiA.batas.ai_hari, 100);
+  assert.equal(isiA.biaya, "gratis");
+  assert.equal(isiA.berlaku_sampai, (await D.sandboxMilik(budi.id)).sandbox_sampai);
+  assert.deepEqual(isiA.fitur, (await D.pengaturanApi()).fitur); // semua fitur yang dibagikan
+  assert.ok(L.kunciCocok(keyB, isiA.kunci, undefined, "sandbox"));
+  assert.ok(!L.kunciCocok(keyB, isiA.kunci, undefined, "produksi"));
+  const [i] = await sql`SELECT alamat FROM api_instalasi WHERE id = ${idA}::uuid`;
+  assert.equal(i.alamat, null);
+});
+
+await cek("mesin versi lama (hanya menerima v1) menolak token sandbox: isinya v2, bukan v1", async () => {
+  const [kepala] = (await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1.0.0" })).split(".");
+  const isi = JSON.parse(Buffer.from(kepala, "base64url").toString());
+  assert.equal(isi.v, 2);
+  // Token v2 tanpa mode sandbox ditolak verifikasi (tidak bisa dipakai menyelundupkan format baru).
+  const palsu = L.tandatanganiLisensi({ ...isi, mode: undefined }, process.env.LISENSI_KUNCI_PRIVAT);
+  assert.equal(L.verifikasiLisensi(palsu), null);
+});
+
+await cek("awalan key harus sesuai jenisnya: bagian rahasia sandbox dengan awalan cg_live_ ditolak", async () => {
+  const tukar = keyB.replace("cg_test_", "cg_live_");
+  await assert.rejects(D.kondisi({ key: tukar, id_instalasi: idA, versi: "1.0.0" }), galat("key_tidak_sah"));
+});
+
+await cek("sandbox tanpa webhook lisensi: tidak pernah masuk antrean kirim (perubahan, putaran jam, semua)", async () => {
+  await D.jadwalkanAplikasi(sb.id);
+  await D.putaranJam();
+  await D.simpanPengaturanApi(DV, { biaya: "gratis", harga: 0 });
+  const [{ n }] = await sql`SELECT COUNT(*)::int AS n FROM api_kirim_lisensi`;
+  assert.equal(n, 0);
+});
+
+await cek("1 instalasi: mesin sandbox baru melepas yang lama otomatis (pindah laptop -> server uji)", async () => {
+  const idB = randomUUID();
+  await D.aktivasi({ key: keyB, id_instalasi: idB, alamat: "", versi: "1.0.1" });
+  const baris = await sql`SELECT id::text, dilepas_pada FROM api_instalasi WHERE aplikasi_id = ${sb.id} ORDER BY dibuat`;
+  assert.equal(baris.filter((x) => !x.dilepas_pada).length, 1);
+  assert.equal(baris.find((x) => !x.dilepas_pada).id, idB);
+  await assert.rejects(D.kondisi({ key: keyB, id_instalasi: idA, versi: "1.0.0" }), galat("tidak_ditemukan"));
+  idA = idB;
+});
+
+console.log("== nomor uji ==");
+const uji = (kode, o = {}) => D.verifikasiNomorUji({ key: keyB, id_instalasi: idA, kode, telepon: "628111222333", alamat: "628111222333@s.whatsapp.net", versi: "1.0.1", ...o });
+await cek("kode 6 angka berlaku 10 menit (hanya hash disimpan); kode benar -> lisensi baru berisi nomor uji", async () => {
+  const { kode, sampai } = await D.mulaiNomorUji(B);
+  assert.match(kode, /^\d{6}$/);
+  assert.ok(Math.abs(sampai - (sekarang() + 600)) < 3);
+  const [r] = await sql`SELECT uji_kode_hash FROM api_aplikasi WHERE id = ${sb.id}`;
+  assert.notEqual(r.uji_kode_hash, kode);
+  const isi = L.verifikasiLisensi(await uji(kode));
+  assert.deepEqual(isi.uji, { telepon: "628111222333", alamat: "628111222333@s.whatsapp.net" });
+  assert.ok(isi.versi_urut > isiA.versi_urut);
+  await assert.rejects(uji(kode), galat("isian_tidak_sah")); // sekali pakai
+});
+
+await cek("kode salah dihitung; 5 kali salah = kode hangus walau yang benar dikirim; kode habis waktu ditolak", async () => {
+  const { kode } = await D.mulaiNomorUji(B);
+  const salah = kode === "000000" ? "111111" : "000000";
+  for (let i = 0; i < 5; i++) await assert.rejects(uji(salah), galat("isian_tidak_sah"));
+  await assert.rejects(uji(kode), galat("isian_tidak_sah"));
+  const k2 = await D.mulaiNomorUji(B);
+  await sql`UPDATE api_aplikasi SET uji_kode_sampai = ${sekarang() - 1} WHERE id = ${sb.id}`;
+  await assert.rejects(uji(k2.kode), galat("isian_tidak_sah"));
+  await assert.rejects(uji("12"), galat("isian_tidak_sah"));
+  await assert.rejects(uji("123456", { telepon: "abc", alamat: "x" }), galat("isian_tidak_sah"));
+});
+
+await cek("ganti nomor uji = kode baru dari HP lain; nomor lama langsung digantikan (tidak pernah dua); LID tanpa telepon diterima", async () => {
+  const { kode } = await D.mulaiNomorUji(B);
+  const isi = L.verifikasiLisensi(await uji(kode, { telepon: null, alamat: "123456789012345@lid" }));
+  assert.deepEqual(isi.uji, { telepon: null, alamat: "123456789012345@lid" });
+  const a = await D.sandboxMilik(budi.id);
+  assert.equal(a.uji_telepon, null);
+  assert.equal(a.uji_alamat, "123456789012345@lid");
+  const k2 = await D.mulaiNomorUji(B);
+  await uji(k2.kode);
+  assert.equal((await D.sandboxMilik(budi.id)).uji_telepon, "628111222333");
+});
+
+await cek("nomor uji hanya untuk instalasi sandbox milik key itu", async () => {
+  const { kode } = await D.mulaiNomorUji(B);
+  await assert.rejects(uji(kode, { id_instalasi: randomUUID() }), galat("tidak_ditemukan"));
+});
+
+console.log("== pengaturan, masa berlaku, limit AI, status ==");
+await cek("sakelar umum mati: tidak bisa buat/perpanjang, aktivasi ditolak, lisensi yang diterbitkan berstatus ditangguhkan", async () => {
+  await D.simpanPengaturanSandbox(DV, { aktif: false, hari: 30, ai_hari: 100 });
+  await assert.rejects(D.buatSandbox(B), galat("sandbox_nonaktif"));
+  await assert.rejects(D.perpanjangSandbox(B), galat("sandbox_nonaktif"));
+  await assert.rejects(D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" }), galat("sandbox_nonaktif"));
+  await D.simpanPengaturanSandbox(DV, { aktif: true, hari: 14, ai_hari: 250 });
+  const u = await D.pengaturanSandbox();
+  assert.deepEqual(u, { aktif: true, hari: 14, ai_hari: 250 });
+  await assert.rejects(D.simpanPengaturanSandbox(DV, { aktif: true, hari: 0, ai_hari: 250 }), galat("isian_tidak_sah"));
+  await assert.rejects(D.simpanPengaturanSandbox(DV, { aktif: true, hari: 30, ai_hari: 0 }), galat("isian_tidak_sah"));
+});
+
+await cek("kedaluwarsa -> sandbox_kedaluwarsa; perpanjang -> kini + masa umum (14 hari) dan berlaku lagi", async () => {
+  await sql`UPDATE api_aplikasi SET sandbox_sampai = ${sekarang() - 10} WHERE id = ${sb.id}`;
+  await assert.rejects(D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" }), galat("sandbox_kedaluwarsa"));
+  const sampai = await D.perpanjangSandbox(B);
+  assert.ok(Math.abs(sampai - (sekarang() + 14 * 86400)) < 5);
+  const isi = L.verifikasiLisensi(await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" }));
+  assert.equal(isi.berlaku_sampai, sampai);
+  assert.equal(isi.batas.ai_hari, 250); // bawaan umum yang baru
+});
+
+await cek("limit AI khusus per sandbox (0 = ikut bawaan); di luar rentang ditolak; developer internal bisa perpanjang", async () => {
+  await D.ubahSandbox(DV, sb.id, { ai_hari: 7 });
+  assert.equal(L.verifikasiLisensi(await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" })).batas.ai_hari, 7);
+  await assert.rejects(D.ubahSandbox(DV, sb.id, { ai_hari: 10_001 }), galat("isian_tidak_sah"));
+  await assert.rejects(D.ubahSandbox(DV, sb.id, { ai_hari: -1 }), galat("isian_tidak_sah"));
+  await D.ubahSandbox(DV, sb.id, { ai_hari: 0, perpanjang: true });
+  assert.equal(L.verifikasiLisensi(await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" })).batas.ai_hari, 250);
+  const [log] = await sql`SELECT COUNT(*)::int AS n FROM admin_log WHERE aksi = 'ubah sandbox API'`;
+  assert.equal(log.n, 2);
+});
+
+await cek("tangguhkan / aktifkan / cabut sandbox oleh developer internal; dicabut = tidak bisa dibuat lagi", async () => {
+  await D.ubahStatus(DV, sb.id, "tangguhkan", "uji penangguhan");
+  assert.equal(L.verifikasiLisensi(await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" })).status, "ditangguhkan");
+  await assert.rejects(D.mulaiNomorUji(B), galat("tidak_ditemukan"));
+  await D.ubahStatus(DV, sb.id, "aktifkan");
+  assert.equal(L.verifikasiLisensi(await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" })).status, "aktif");
+  const sid = (await D.sandboxMilik(sari.id)).id;
+  await D.ubahStatus(DV, sid, "cabut", "uji pencabutan");
+  await assert.rejects(D.buatSandbox(S), galat("aplikasi_dicabut"));
+  const [nf] = await sql`SELECT tautan FROM notifikasi WHERE user_id = ${sari.id} ORDER BY id DESC LIMIT 1`;
+  assert.equal(nf.tautan, "/developer#sandbox");
+});
+
+await cek("limit AI production: kolom batas ai_hari ikut form aplikasi (bawaan 0 = tanpa batas, maks 100 rb)", async () => {
+  assert.equal(API.rapikanBatas({}).ai_hari, 0);
+  assert.equal(API.rapikanBatas({ ai_hari: 500 }).ai_hari, 500);
+  assert.equal(API.rapikanBatas({ ai_hari: 999_999 }).ai_hari, 100_000);
+  assert.equal(API.samarkanNomor("6281234567890"), "62812****890");
+});
+
+console.log("== skala & rencana query ==");
+await cek("daftar sandbox, sandbox milik akun, verifikasi & aktivasi tetap cepat pada 20 rb sandbox", async () => {
+  await sql`
+    INSERT INTO users (email, nama, password_hash, peran, created_at)
+    SELECT 'sb' || g || '@uji.test', 'Pengguna ' || g, 'x', 'user', ${sekarang()} FROM generate_series(1, 20000) g`;
+  await sql`
+    INSERT INTO api_aplikasi (user_id, mode, nama, kegunaan, pemilik, kontak_wa, status, biaya, batas, sandbox_sampai, created_at)
+    SELECT id, 'sandbox', 'Sandbox', 'uji', nama, '', 'disetujui', 'gratis', '{}', ${sekarang() + 86400}, ${sekarang()} FROM users WHERE email LIKE 'sb%@uji.test'`;
+  await sql`ANALYZE api_aplikasi`;
+  await sql`ANALYZE users`;
+  const tDaftar = await ms(() => D.daftarSandbox());
+  const tCari = await ms(() => D.daftarSandbox({ cari: "sb19999" }));
+  const tMilik = await ms(() => D.sandboxMilik(budi.id));
+  const tKondisi = await ms(() => D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" }));
+  console.log(`      daftarSandbox: ${tDaftar.toFixed(2)} ms · cari: ${tCari.toFixed(2)} ms · sandboxMilik: ${tMilik.toFixed(2)} ms · kondisi (terbitkan + Ed25519): ${tKondisi.toFixed(2)} ms`);
+  assert.ok(tDaftar < 30 && tMilik < 5 && tKondisi < 30);
+  const rencana = (await sql`EXPLAIN SELECT a.id FROM api_aplikasi a WHERE a.mode = 'sandbox' ORDER BY a.id DESC LIMIT 51`).map((r) => r["QUERY PLAN"]).join("\n");
+  assert.doesNotMatch(rencana, /Seq Scan/); // indeks parsial sandbox atau pkey mundur (bila hampir semua baris sandbox)
+  const milik = (await sql`EXPLAIN SELECT id FROM api_aplikasi WHERE user_id = ${budi.id} AND mode = 'sandbox'`).map((r) => r["QUERY PLAN"]).join("\n");
+  assert.match(milik, /api_aplikasi_sandbox_user_uniq|api_aplikasi_user_idx/);
+  // Antrean production tetap memakai indeks parsialnya walau ada 20 rb baris sandbox.
+  const antre = (await sql`EXPLAIN SELECT id FROM api_aplikasi WHERE status = 'menunggu' AND mode = 'produksi' ORDER BY id LIMIT 26`).map((r) => r["QUERY PLAN"]).join("\n");
+  assert.doesNotMatch(antre, /Seq Scan/);
+  console.log(`      rencana daftar: ${rencana.split("\n")[1]?.trim() ?? rencana}`);
+});
+
+console.log(`\n${lolos} uji sandbox pusat lolos.`);
+await sql.end({ timeout: 2 });
+await pg.berhenti();
+process.exit(0);

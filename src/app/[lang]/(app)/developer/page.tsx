@@ -1,16 +1,20 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ChevronRight, Code2, Server, ShieldCheck, Wallet } from "lucide-react";
+import { ArrowDown, CheckCircle2, ChevronRight, Code2, Download, FlaskConical, Server, ShieldCheck, Wallet } from "lucide-react";
 import Link from "@/components/link";
-import { labelFitur } from "@/lib/api-def";
+import { Pill } from "@/components/ui";
+import { labelFitur, samarkanNomor } from "@/lib/api-def";
 import { teksHalaman } from "@/lib/bahasa-halaman";
-import { aplikasiMilik, pengaturanApi } from "@/lib/developer-api";
-import { tanggal } from "@/lib/format";
+import { aiSandbox, aplikasiMilik, daftarInstalasi, daftarKunci, pengaturanApi, pengaturanSandbox, sandboxMilik } from "@/lib/developer-api";
+import { sekarang } from "@/lib/db";
+import { angka, jamWib, tanggal } from "@/lib/format";
+import { sembunyikanKunci } from "@/lib/lisensi-def";
 import { MEREK } from "@/lib/merek";
 import { modeMesin } from "@/lib/mode";
 import { requireAksesApi } from "@/lib/session";
 import { FormAjukan } from "./form-developer";
+import { TombolKeySandbox, TombolNomorUji, TombolPerpanjangSandbox } from "./kartu-sandbox";
 import { PillStatus } from "./umum";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -59,9 +63,12 @@ export default async function HalamanDeveloper() {
           </li>
         ))}
       </ul>
+      <Suspense fallback={<div aria-hidden className="card h-56 animate-denyut" />}>
+        <KartuSandbox />
+      </Suspense>
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="card p-4 sm:p-6">
-          <h2 className="text-[15px] font-bold">{t("Ajukan akses API", "Apply for API access")}</h2>
+        <section id="ajukan" className="card scroll-mt-6 p-4 sm:p-6">
+          <h2 className="text-[15px] font-bold">{t("Ajukan akses API production", "Apply for production API access")}</h2>
           <p className="mt-0.5 text-[13px] text-muted">
             {t("Tim kami meninjau setiap pengajuan dan membuka fitur yang sesuai.", "Our team reviews every application and opens the matching features.")}
           </p>
@@ -76,6 +83,154 @@ export default async function HalamanDeveloper() {
         </Suspense>
       </div>
     </div>
+  );
+}
+
+/**
+ * Kartu Sandbox: key cg_test_ untuk mencoba API dengan WhatsApp asli sebelum production. Sandbox milik akun ini lewat
+ * indeks unik parsial; key & instalasi hanya dibaca bila sandbox ada (paling banyak 4 query kecil).
+ */
+async function KartuSandbox() {
+  const user = await requireAksesApi();
+  const { b, t } = await teksHalaman();
+  const [sb, umum] = await Promise.all([sandboxMilik(user.id), pengaturanSandbox()]);
+  const [kunci, instalasi] = sb ? await Promise.all([daftarKunci(sb.id), daftarInstalasi(sb.id)]) : [[], []];
+  const kini = sekarang();
+  const kunciAktif = kunci.find((k) => !k.dicabut_pada);
+  const mesin = instalasi[0];
+  const habis = !!sb && (sb.sandbox_sampai ?? 0) <= kini;
+  const aktif = !!sb && sb.status === "disetujui";
+  const kodeMenunggu = !!sb?.uji_kode_sampai && sb.uji_kode_sampai > kini;
+  const langkah = [
+    t("Buat key sandbox (cg_test_…) dan unduh .env sandbox.", "Create a sandbox key (cg_test_…) and download the sandbox .env."),
+    t("Jalankan mesin (docker compose up -d), boleh di laptop. Tidak perlu domain/HTTPS.", "Start the engine (docker compose up -d), even on a laptop. No domain/HTTPS needed."),
+    t("Scan QR dengan nomor WhatsApp khusus testing (1 nomor).", "Scan the QR with a WhatsApp number reserved for testing (1 number)."),
+    t("Daftarkan 1 nomor uji: kirim WA berisi kode UJI ke nomor sandbox.", "Register 1 test number: send the UJI code over WhatsApp to the sandbox number."),
+    t("Coba kirim pesan, webhook, dan bot AI antara dua nomor itu.", "Try sending messages, webhooks, and the AI bot between those two numbers."),
+  ];
+  return (
+    <section id="sandbox" className="card scroll-mt-6 overflow-hidden">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line p-4 sm:p-6">
+        <div className="flex min-w-0 gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-warning-soft text-warning">
+            <FlaskConical className="size-5" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <h2 className="flex flex-wrap items-center gap-2 text-[15px] font-bold">
+              Sandbox
+              {sb ? (
+                sb.status !== "disetujui" ? (
+                  <PillStatus status={sb.status} t={t} />
+                ) : habis ? (
+                  <Pill nada="merah">{t("Kedaluwarsa", "Expired")}</Pill>
+                ) : (
+                  <Pill nada="hijau">{t("Aktif", "Active")}</Pill>
+                )
+              ) : (
+                <Pill nada="abu">{t("Gratis, langsung aktif", "Free, instant")}</Pill>
+              )}
+            </h2>
+            <p className="mt-0.5 max-w-2xl text-[13px] text-muted">
+              {t(
+                "Coba API dengan WhatsApp asli sebelum production, tanpa menunggu pengajuan disetujui. Sandbox hanya bisa berkomunikasi dengan 1 nomor uji milik Anda.",
+                "Try the API with real WhatsApp before production, without waiting for approval. The sandbox can only talk to 1 test number of yours.",
+              )}
+            </p>
+          </div>
+        </div>
+        <Link href="#ajukan" className="btn btn-ghost shrink-0 border border-line">
+          <ArrowDown className="size-4" aria-hidden /> {t("Ajukan production", "Apply for production")}
+        </Link>
+      </div>
+
+      {!umum.aktif && !sb ? (
+        <p className="p-4 text-[13.5px] text-muted sm:p-6">{t("Sandbox sedang dimatikan oleh ChatGerCep. Coba lagi nanti.", "The sandbox is currently turned off by ChatGerCep. Please try again later.")}</p>
+      ) : (
+        <div className="grid gap-6 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="min-w-0 space-y-5">
+            <div>
+              <h3 className="text-[13px] font-bold text-muted uppercase">{t("Key sandbox", "Sandbox key")}</h3>
+              {kunciAktif && <code className="mt-1.5 block font-mono text-[13px]">{sembunyikanKunci(kunciAktif.awalan, "sandbox")}</code>}
+              <div className="mt-2.5">{(aktif || !sb) && <TombolKeySandbox ada={!!sb} />}</div>
+            </div>
+            {sb && (
+              <div>
+                <h3 className="text-[13px] font-bold text-muted uppercase">{t("Berlaku sampai", "Valid until")}</h3>
+                <p className={`mt-1 text-[14px] font-semibold ${habis ? "text-danger" : ""}`}>{sb.sandbox_sampai ? tanggal(sb.sandbox_sampai, b) : "-"}</p>
+                <p className="text-[12.5px] text-muted">
+                  {t(`Perpanjang menambah ${umum.hari} hari dari sekarang.`, `Extending adds ${umum.hari} days from now.`)}
+                </p>
+                {aktif && (
+                  <div className="mt-2.5">
+                    <TombolPerpanjangSandbox />
+                  </div>
+                )}
+              </div>
+            )}
+            {sb && (
+              <dl className="grid grid-cols-2 gap-3 text-[13px]">
+                <div className="rounded-xl bg-subtle/60 p-3">
+                  <dt className="text-[12px] text-muted">{t("Balasan AI per hari", "AI replies per day")}</dt>
+                  <dd className="mt-0.5 font-bold tabular-nums">{angka(aiSandbox(sb, umum), b)}</dd>
+                </div>
+                <div className="rounded-xl bg-subtle/60 p-3">
+                  <dt className="text-[12px] text-muted">{t("Mesin sandbox", "Sandbox engine")}</dt>
+                  <dd className="mt-0.5 font-bold">
+                    {mesin?.terakhir_sukses ? t(`Menyala ${tanggal(mesin.terakhir_sukses)} ${jamWib(mesin.terakhir_sukses)}`, `Started ${tanggal(mesin.terakhir_sukses, b)} ${jamWib(mesin.terakhir_sukses, b)}`) : t("Belum pernah menyala", "Never started")}
+                  </dd>
+                </div>
+              </dl>
+            )}
+          </div>
+
+          <div className="min-w-0 space-y-5">
+            {sb && (
+              <div>
+                <h3 className="text-[13px] font-bold text-muted uppercase">{t("Nomor uji (maks 1)", "Test number (max 1)")}</h3>
+                {sb.uji_diverifikasi ? (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-[14px] font-semibold">
+                    <CheckCircle2 className="size-4 text-success" aria-hidden />
+                    {sb.uji_telepon ? samarkanNomor(sb.uji_telepon) : t("Terverifikasi", "Verified")}
+                    <span className="text-[12px] font-normal text-muted">· {t(`sejak ${tanggal(sb.uji_diverifikasi)}`, `since ${tanggal(sb.uji_diverifikasi, b)}`)}</span>
+                  </p>
+                ) : (
+                  <p className="mt-1.5 text-[13.5px] text-muted">
+                    {kodeMenunggu ? t("Menunggu pesan kode UJI dari HP nomor uji.", "Waiting for the UJI code message from the test phone.") : t("Belum ada. Mesin sandbox belum bisa mengirim pesan ke siapa pun.", "None yet. The sandbox engine can't message anyone yet.")}
+                  </p>
+                )}
+                <p className="mt-1 text-[12.5px] text-muted">
+                  {t(
+                    "Hanya nomor ini yang boleh dikirimi pesan dan dilayani bot. Chat dari nomor lain diabaikan.",
+                    "Only this number can receive messages and be served by the bot. Chats from other numbers are ignored.",
+                  )}
+                </p>
+                <div className="mt-2.5">
+                  <TombolNomorUji ada={!!sb.uji_diverifikasi} boleh={aktif && !habis} />
+                </div>
+              </div>
+            )}
+            {sb ? (
+              <div className="flex flex-wrap gap-2">
+                <a href={`/api/developer/${sb.id}/berkas?nama=.env.contoh`} className="btn btn-ghost border border-line" download>
+                  <Download className="size-4" aria-hidden /> .env sandbox
+                </a>
+                <a href={`/api/developer/${sb.id}/berkas?nama=docker-compose.yml`} className="btn btn-ghost border border-line" download>
+                  <Download className="size-4" aria-hidden /> docker-compose.yml
+                </a>
+              </div>
+            ) : null}
+            <ol className="space-y-2 text-[13px]">
+              {langkah.map((l, i) => (
+                <li key={l} className="flex gap-2.5">
+                  <span className="grid size-5 shrink-0 place-items-center rounded-full bg-ink text-[11px] font-bold text-ink-signal">{i + 1}</span>
+                  <span className="text-muted">{l}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 

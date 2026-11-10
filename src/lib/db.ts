@@ -834,6 +834,29 @@ const KUNCI_MIGRASI = 7272740001;
  * Aman dipindah ke MIGRASI kelak (pakai ADD COLUMN IF NOT EXISTS).
  */
 const KOLOM_PASTI: readonly { tabel: string; kolom: string; sql: string }[] = [
+  // Mode sandbox Developer API (docs/plans/2026-11-10-sandbox-developer-api.md). Pusat: sandbox = baris api_aplikasi
+  // mode 'sandbox' (maks 1 per akun) + SATU nomor uji terverifikasi; instalasi sandbox tanpa alamat publik. Mesin:
+  // penghitung balasan AI per hari WIB (batas.ai_hari). Default konstan = ADD COLUMN tanpa menulis ulang tabel.
+  {
+    tabel: "api_aplikasi",
+    kolom: "mode",
+    sql: `
+      ALTER TABLE api_aplikasi ADD COLUMN IF NOT EXISTS mode text NOT NULL DEFAULT 'produksi';
+      ALTER TABLE api_aplikasi DROP CONSTRAINT IF EXISTS api_aplikasi_mode_check;
+      ALTER TABLE api_aplikasi ADD CONSTRAINT api_aplikasi_mode_check CHECK (mode IN ('produksi', 'sandbox'));
+      ALTER TABLE api_aplikasi ADD COLUMN IF NOT EXISTS sandbox_sampai   bigint;
+      ALTER TABLE api_aplikasi ADD COLUMN IF NOT EXISTS uji_telepon      text;
+      ALTER TABLE api_aplikasi ADD COLUMN IF NOT EXISTS uji_alamat       text;
+      ALTER TABLE api_aplikasi ADD COLUMN IF NOT EXISTS uji_diverifikasi bigint;
+      ALTER TABLE api_aplikasi ADD COLUMN IF NOT EXISTS uji_kode_hash    text;
+      ALTER TABLE api_aplikasi ADD COLUMN IF NOT EXISTS uji_kode_sampai  bigint;
+      ALTER TABLE api_aplikasi ADD COLUMN IF NOT EXISTS uji_kode_coba    smallint NOT NULL DEFAULT 0;
+      CREATE UNIQUE INDEX IF NOT EXISTS api_aplikasi_sandbox_user_uniq ON api_aplikasi (user_id) WHERE mode = 'sandbox';
+      CREATE INDEX IF NOT EXISTS api_aplikasi_sandbox_idx ON api_aplikasi (id DESC) WHERE mode = 'sandbox';
+      ALTER TABLE api_instalasi ALTER COLUMN alamat DROP NOT NULL;
+      CREATE TABLE IF NOT EXISTS mesin_pemakaian_ai (hari bigint PRIMARY KEY, jumlah integer NOT NULL DEFAULT 0);
+    `,
+  },
   // Asal pendaftar dari landing page industri / iklan (src/lib/asal-def.ts): industri, halaman LP, UTM + click id + paket.
   {
     tabel: "users",

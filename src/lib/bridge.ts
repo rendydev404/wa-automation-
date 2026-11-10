@@ -19,7 +19,9 @@ import { sttTerkonfigurasi, transkripsi } from "./stt";
 import type { Foto } from "./types";
 import type { WAMessage } from "baileys";
 import { type EventWa, digitWa, kirimGambar, kirimTeks, mengetik, padaEvent, tandaiDibaca } from "./wa";
-import { layananBoleh } from "./mesin/lisensi";
+import { layananBoleh, lawanNomorUji, sandboxAktif, verifikasiNomorUjiKePusat } from "./mesin/lisensi";
+import { ambilJatahAi, batasAiHarian, kembalikanJatahAi, perluBeritahuBatasAi, teksBatasAi } from "./mesin/kuota-ai";
+import { POLA_PESAN_UJI } from "./api-def";
 
 /**
  * Jembatan WhatsApp (src/lib/wa.ts) -> Hermes -> WhatsApp.
@@ -493,6 +495,14 @@ async function proses(kunci: string): Promise<void> {
     } else {
       a.siap = null;
       a.siapProduk = null;
+      // Limit balasan AI per hari (mesin self-host, batas.ai_hari; pusat & tanpa limit = tanpa query): jatah diambil
+      // sebelum AI dipanggil. Habis = bot diam (pesan tetap tercatat); nomor uji sandbox diberi tahu sekali sehari.
+      if (!(await ambilJatahAi())) {
+        a.teks.length = 0;
+        a.foto.length = 0;
+        if (sandboxAktif() && perluBeritahuBatasAi()) void kirimTeks(a.sesi, a.alamat, teksBatasAi(batasAiHarian()), (x) => ingat(st.terkirim, x, 500)).catch(() => {});
+        return;
+      }
       const tertunda = a.teks.length;
       const sesiLalu = a.chat?.sesi_ke ?? 0;
       const asli = await isiTranskrip(a.teks.splice(0), a.suara);
@@ -594,6 +604,7 @@ async function proses(kunci: string): Promise<void> {
         if (!jawaban) throw new Error("AI mengirim jawaban kosong");
       } catch (e) {
         galat(a, e);
+        void kembalikanJatahAi(); // AI gagal: jatah balasan hari ini tidak terpakai
         // Pesan dikembalikan ke antrean dan dicoba lagi, kecuali manusia sudah mengambil alih selagi menunggu.
         if (a.generasi === generasi && !sedangDijeda(a) && a.ulangAi < JEDA_ULANG_AI_MS.length) {
           a.jedaUlangMs = JEDA_ULANG_AI_MS[a.ulangAi];
@@ -844,6 +855,22 @@ function teleponDariEvent(ev: Extract<EventWa, { jenis: "pesan" }>): string | nu
   return null;
 }
 
+const ujiDibalas = new Map<string, number>();
+
+/** Teruskan "UJI ######" ke pusat lalu balas pengirimnya. Balasan gagal maks 1 per 10 menit per nomor (anti-spam). */
+async function verifikasiUjiDariWa(ev: Extract<EventWa, { jenis: "pesan" }>, kode: string, lawan: { telepon: string | null; alamat: string | null }): Promise<void> {
+  const h = await verifikasiNomorUjiKePusat(kode, lawan);
+  const k = lawan.telepon ?? lawan.alamat ?? ev.alamat;
+  if (!h.ok && Date.now() - (ujiDibalas.get(k) ?? 0) < 600_000) return;
+  if (ujiDibalas.size > 500) ujiDibalas.clear();
+  ujiDibalas.set(k, Date.now());
+  if (!h.ok) console.warn(`[bridge] verifikasi nomor uji sandbox gagal: ${h.pesan}`);
+  const teks = h.ok
+    ? "✅ Nomor ini sekarang jadi nomor uji sandbox ChatGerCep. Silakan mulai mencoba API: kirim pesan ke nomor ini atau chat ke nomor sandbox."
+    : "Kode salah atau sudah habis. Buat kode baru di portal Developer ChatGerCep, lalu kirim lagi: UJI <kode>.";
+  await kirimTeks(ev.sesi, ev.alamat, teks, (x) => ingat(st.terkirim, x, 500)).catch(() => {});
+}
+
 const besar = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 /** Teks pesan untuk histori percakapan: kutipan (bila me-reply), isi, dan keterangan media. */
@@ -923,6 +950,19 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   if (++st.hitung % 500 === 0) bersihkanChatLama();
   const telepon = teleponDariEvent(ev);
   const teksLog = teksLogPesan(ev);
+
+  // Mesin sandbox (Developer API, key cg_test_): hanya SATU nomor uji yang dilayani. "UJI ######" dari nomor mana pun
+  // memverifikasi nomor uji; chat lain dengan nomor selain nomor uji diabaikan seluruhnya (tidak dicatat, tanpa
+  // webhook, bot diam). Cek memori saja, tanpa query.
+  if (sandboxAktif()) {
+    const lawan = { telepon, alamat: ev.chat };
+    const kode = ev.dariSaya ? undefined : POLA_PESAN_UJI.exec(ev.teks)?.[1];
+    if (kode) {
+      void verifikasiUjiDariWa(ev, kode, lawan);
+      return;
+    }
+    if (!lawanNomorUji(lawan)) return;
+  }
 
   // Pesan yang tiba terlambat (menumpuk selagi offline, atau ditahan WhatsApp) tidak dijawab AI dan balasan lama
   // manusia tidak menjeda chat, TETAPI tetap tercatat di histori & statistik: pemilik melihatnya dan bisa membalas

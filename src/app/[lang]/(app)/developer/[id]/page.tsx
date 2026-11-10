@@ -52,13 +52,14 @@ const LABEL_BATAS_EN: Record<keyof BatasApi, string> = {
   pesan_menit: "Messages per minute per number",
   kontak_baru_hari: "New contacts per day per number",
   instalasi: "Max engine installations",
+  ai_hari: "AI replies per day (0 = unlimited)",
 };
 
 async function Isi({ params }: { params: Promise<{ id: string }> }) {
   const [user, { b, t }] = await Promise.all([requireAksesApi(), teksHalaman()]);
   const id = Number((await params).id);
   const a = await aplikasiMilikById(user.id, id);
-  if (!a) notFound();
+  if (!a || a.mode === "sandbox") notFound(); // sandbox dikelola di kartu Sandbox / tab Sandbox
   const disetujui = a.status === "disetujui" || a.status === "ditangguhkan";
   const [umum, kunci, instalasi] = await Promise.all([pengaturanApi(), disetujui ? daftarKunci(a.id) : [], disetujui ? daftarInstalasi(a.id) : []]);
   const kini = sekarang();
@@ -278,7 +279,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                 {(Object.keys(RENTANG_BATAS) as (keyof BatasApi)[]).map((k) => (
                   <div key={k} className="flex justify-between gap-3">
                     <dt className="text-muted">{b === "en" ? LABEL_BATAS_EN[k] : RENTANG_BATAS[k].label}</dt>
-                    <dd className="font-semibold tabular-nums">{angka(a.batas[k], b)}</dd>
+                    <dd className="font-semibold tabular-nums">{k === "ai_hari" && !a.batas[k] ? t("Tanpa batas", "Unlimited") : angka(a.batas[k], b)}</dd>
                   </div>
                 ))}
               </dl>

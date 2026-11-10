@@ -1,3 +1,4 @@
+import { KODE_GALAT, type KodeGalat } from "@/lib/api-def";
 import { nomorById } from "@/lib/numbers";
 import { aman, bacaJson, bukanKonteks, denganIdempotensi, idJalur, otorisasi } from "@/lib/mesin/api";
 import { AntreanError, masukkanPesan } from "@/lib/mesin/antrean";
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
         });
         return { status: 202, body: { id: String(p.id), status: p.status } };
       } catch (e) {
-        if (e instanceof AntreanError) return gagal(e.kode === "ditolak_anti_blokir" ? 422 : e.kode === "tidak_ditemukan" ? 404 : 400, e.kode, e.message);
+        if (e instanceof AntreanError) return gagal(KODE_GALAT[e.kode as KodeGalat] ?? 400, e.kode, e.message);
         throw e;
       }
     }),

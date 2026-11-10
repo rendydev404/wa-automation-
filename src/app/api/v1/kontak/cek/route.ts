@@ -2,6 +2,7 @@ import { rapikanNomorWa } from "@/lib/format";
 import { nomorById } from "@/lib/numbers";
 import { WaError, cekTerdaftar } from "@/lib/wa";
 import { aman, bacaJson, bukanKonteks, galat, hitungLaju, idJalur, ok, otorisasi } from "@/lib/mesin/api";
+import { sandboxAktif, tujuanNomorUji } from "@/lib/mesin/lisensi";
 
 /** Maks nomor per panggilan & per menit per key: cek massal = pola yang dicurigai WhatsApp (risiko blokir). */
 const MAKS_PER_PANGGILAN = 20;
@@ -28,6 +29,8 @@ export async function POST(req: Request) {
     const laju = hitungLaju(`cek:${k.awalan}`, MAKS_PER_MENIT, 60_000, masuk.length);
     if (!laju.boleh) return galat("terlalu_sering", `Maks ${MAKS_PER_MENIT} nomor dicek per menit per key.`, k.id, laju.kepala);
     const rapi = masuk.map((x) => ({ asli: String(x ?? "").slice(0, 40), digit: rapikanNomorWa(String(x ?? "")) }));
+    // Sandbox: hanya nomor uji (sandbox tidak boleh dipakai menyaring daftar nomor).
+    if (sandboxAktif() && rapi.some((r) => !r.digit || !tujuanNomorUji(r.digit))) return galat("bukan_nomor_uji", "Sandbox hanya boleh mengecek nomor uji yang terverifikasi.", k.id, k.kepala);
     const sah = [...new Set(rapi.map((r) => r.digit).filter((d): d is string => !!d))];
     let hasil: Map<string, string | null>;
     try {

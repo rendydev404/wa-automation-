@@ -67,14 +67,17 @@ export interface BatasApi {
   kontak_baru_hari: number;
   /** Maks instalasi mesin aktif per aplikasi. */
   instalasi: number;
+  /** Maks balasan AI per hari WIB (balasan bot WA + /ai/jawab + /ai/rapikan). 0 = tanpa batas. */
+  ai_hari: number;
 }
 
-export const BATAS_BAWAAN: BatasApi = { nomor: 50, pesan_menit: 20, kontak_baru_hari: 50, instalasi: 1 };
+export const BATAS_BAWAAN: BatasApi = { nomor: 50, pesan_menit: 20, kontak_baru_hari: 50, instalasi: 1, ai_hari: 0 };
 export const RENTANG_BATAS: Record<keyof BatasApi, { min: number; maks: number; label: string; satuan: string }> = {
   nomor: { min: 1, maks: 1000, label: "Maks nomor per mesin", satuan: "nomor" },
   pesan_menit: { min: 1, maks: 60, label: "Pesan per menit per nomor", satuan: "pesan" },
   kontak_baru_hari: { min: 0, maks: 1000, label: "Kontak baru per hari per nomor", satuan: "kontak" },
   instalasi: { min: 1, maks: 20, label: "Maks instalasi mesin", satuan: "mesin" },
+  ai_hari: { min: 0, maks: 100_000, label: "Balasan AI per hari (0 = tanpa batas)", satuan: "balasan" },
 };
 
 /** Lengkapi batas tersimpan (jsonb) dengan nilai bawaan & potong ke rentang sah. */
@@ -85,6 +88,43 @@ export function rapikanBatas(b: Partial<Record<keyof BatasApi, unknown>> | null 
     if (Number.isInteger(v)) hasil[k] = Math.min(Math.max(v, RENTANG_BATAS[k].min), RENTANG_BATAS[k].maks);
   }
   return hasil;
+}
+
+// ---------- Sandbox ----------
+
+/**
+ * Mode aplikasi. Sandbox = key `cg_test_…` untuk mencoba API dengan WhatsApp asli sebelum production: keluar tanpa
+ * peninjauan, 1 nomor WA, hanya boleh berkomunikasi dengan SATU nomor uji yang terverifikasi, limit balasan AI per hari.
+ * Rencana: docs/plans/2026-11-10-sandbox-developer-api.md.
+ */
+export type ModeApi = "produksi" | "sandbox";
+
+/** Bawaan pengaturan umum sandbox (diubah developer internal di tab Sandbox). */
+export const SANDBOX_HARI_BAWAAN = 30;
+export const SANDBOX_AI_BAWAAN = 100;
+export const RENTANG_SANDBOX = {
+  hari: { min: 1, maks: 365 },
+  ai_hari: { min: 1, maks: 10_000 },
+} as const;
+/** Batas tetap sandbox (tidak bisa diubah): 1 nomor WA, 1 instalasi. */
+export const BATAS_TETAP_SANDBOX = { nomor: 1, instalasi: 1 } as const;
+/** Kode verifikasi nomor uji: 6 angka, berlaku 10 menit. Pesan WA-nya: "UJI 123456". */
+export const MASA_KODE_UJI_DETIK = 600;
+export const POLA_PESAN_UJI = /^\s*UJI\s+(\d{6})\s*$/i;
+
+/** Nomor uji di lisensi sandbox. Gerbang mencocokkan telepon ATAU alamat WA (JID/LID), karena WA kadang hanya memberi LID. */
+export interface NomorUji {
+  /** 628… tanpa tanda +; null bila WhatsApp hanya memberi LID. */
+  telepon: string | null;
+  /** Alamat WA pengirim saat verifikasi (…@s.whatsapp.net / …@lid). */
+  alamat: string | null;
+}
+
+/** Samarkan nomor untuk tampilan: 6281234567890 -> 62812****890. */
+export function samarkanNomor(n: string | null | undefined): string {
+  const d = String(n ?? "").replace(/\D/g, "");
+  if (!d) return "-";
+  return d.length <= 7 ? `${d.slice(0, 2)}****` : `${d.slice(0, 5)}****${d.slice(-3)}`;
 }
 
 // ---------- Lisensi (pusat -> mesin) ----------
@@ -102,7 +142,8 @@ export interface KunciLisensi {
 }
 
 export interface IsiLisensi {
-  v: 1;
+  /** 1 = production (format awal). 2 = sandbox: mesin versi lama hanya menerima 1, jadi tidak pernah menjalankan sandbox tanpa gerbang. */
+  v: 1 | 2;
   /** Naik setiap ada perubahan di pusat. Mesin mengabaikan lisensi dengan nilai lebih kecil dari yang tersimpan. */
   versi_urut: number;
   aplikasi_id: number;
@@ -119,7 +160,14 @@ export interface IsiLisensi {
   diterbitkan: number;
   /** Detik epoch: lewat dari ini lisensi tidak berlaku (mode terbatas). */
   berlaku_sampai: number;
+  /** Hanya v2. Tidak ada = produksi. */
+  mode?: ModeApi;
+  /** Hanya sandbox: satu-satunya nomor yang boleh berkomunikasi dengan mesin; null = belum diverifikasi. */
+  uji?: NomorUji | null;
 }
+
+/** Mode lisensi (lisensi v1 lama selalu produksi). */
+export const modeLisensi = (i: Pick<IsiLisensi, "mode"> | null | undefined): ModeApi => (i?.mode === "sandbox" ? "sandbox" : "produksi");
 
 /** Lisensi berlaku 7 hari; pusat mengirim perpanjangan tiap 3 hari. */
 export const MASA_LISENSI_DETIK = 7 * 86_400;
@@ -130,6 +178,8 @@ export const JALUR_WEBHOOK_MESIN = "/api/lisensi/webhook";
 /** Jalur di pusat. */
 export const JALUR_AKTIVASI = "/api/lisensi/aktivasi";
 export const JALUR_KONDISI = "/api/lisensi/kondisi";
+/** Mesin sandbox -> pusat saat menerima pesan "UJI ######": verifikasi nomor uji, jawabannya lisensi baru. */
+export const JALUR_NOMOR_UJI = "/api/lisensi/nomor-uji";
 
 /**
  * Isi permintaan & jawaban antar pusat dan mesin.
@@ -151,6 +201,14 @@ export interface PermintaanKondisi {
   id_instalasi: string;
   versi: string;
 }
+export interface PermintaanNomorUji {
+  key: string;
+  id_instalasi: string;
+  kode: string;
+  telepon: string | null;
+  alamat: string | null;
+  versi: string;
+}
 export type WebhookKeMesin = { jenis: "tantangan"; nonce: string; id_instalasi: string } | { jenis: "lisensi"; lisensi: string };
 export interface JawabanLisensiMesin {
   versi_urut_diterima: number;
@@ -168,6 +226,11 @@ export const KODE_GALAT = {
   aplikasi_dicabut: 403,
   belum_bayar: 402,
   batas_nomor: 403,
+  bukan_nomor_uji: 403,
+  nomor_uji_belum_ada: 409,
+  batas_ai_harian: 429,
+  sandbox_kedaluwarsa: 402,
+  sandbox_nonaktif: 403,
   tidak_ditemukan: 404,
   nomor_belum_terhubung: 409,
   instalasi_penuh: 409,

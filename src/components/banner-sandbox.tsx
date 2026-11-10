@@ -1,0 +1,48 @@
+import { FlaskConical } from "lucide-react";
+import { teksHalaman } from "@/lib/bahasa-halaman";
+import { angka, tanggal } from "@/lib/format";
+import { modeMesin } from "@/lib/mode";
+import { requireUser } from "@/lib/session";
+import { alasanTerbatas, infoLisensi, muatLisensi, sandboxAktif } from "@/lib/mesin/lisensi";
+import { pemakaianAiHariIni } from "@/lib/mesin/kuota-ai";
+import { TombolPerbaruiLisensi } from "./tombol-perbarui-lisensi";
+
+/**
+ * Banner mesin sandbox (key cg_test_) di atas dashboard mesin self-host: nomor uji, sisa balasan AI hari ini, masa
+ * berlaku, alasan mode terbatas, dan tombol Perbarui lisensi. Di pusat & mesin production: tidak tampil, tanpa query.
+ */
+export async function BannerSandbox() {
+  if (!modeMesin()) return null;
+  // Akses dinamis (cookie sesi) lebih dulu: banner membaca jam & lisensi saat permintaan, bukan saat prerender.
+  await requireUser();
+  await muatLisensi().catch(() => {});
+  if (!sandboxAktif()) return null;
+  const { b, t } = await teksHalaman();
+  const l = infoLisensi();
+  const ai = await pemakaianAiHariIni().catch(() => ({ terpakai: 0, batas: 0, reset: 0 }));
+  const terbatas = alasanTerbatas();
+  return (
+    <div role="status" className={`mb-6 flex flex-col gap-4 rounded-2xl border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 ${terbatas ? "border-danger/40 bg-danger-soft" : "border-warning/40 bg-warning-soft"}`}>
+      <div className="flex gap-3">
+        <FlaskConical className={`mt-0.5 size-5 shrink-0 ${terbatas ? "text-danger" : "text-warning"}`} aria-hidden />
+        <div className="text-[13px]">
+          <p className="font-bold text-fg">
+            {t("Mode sandbox", "Sandbox mode")}
+            <span className="font-normal text-muted">
+              {" · "}
+              {l.nomor_uji
+                ? t(`hanya dengan nomor uji ${l.nomor_uji}`, `only with test number ${l.nomor_uji}`)
+                : t("nomor uji belum didaftarkan (kirim UJI <kode> dari HP uji)", "test number not registered yet (send UJI <code> from the test phone)")}
+            </span>
+          </p>
+          <p className="mt-0.5 text-muted">
+            {t(`Balasan AI hari ini ${angka(ai.terpakai)}/${ai.batas ? angka(ai.batas) : "∞"}`, `AI replies today ${angka(ai.terpakai, b)}/${ai.batas ? angka(ai.batas, b) : "∞"}`)}
+            {l.berlaku_sampai ? ` · ${t(`berlaku s.d. ${tanggal(l.berlaku_sampai)}`, `valid until ${tanggal(l.berlaku_sampai, b)}`)}` : ""}
+          </p>
+          {terbatas && <p className="mt-1 font-semibold text-danger">{terbatas.pesan}</p>}
+        </div>
+      </div>
+      <TombolPerbaruiLisensi />
+    </div>
+  );
+}

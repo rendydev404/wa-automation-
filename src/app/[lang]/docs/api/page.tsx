@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { BookOpen, KeyRound, Server, ShieldCheck, Webhook } from "lucide-react";
+import { BookOpen, FlaskConical, KeyRound, Server, ShieldCheck, Webhook } from "lucide-react";
 import { GantiBahasa } from "@/components/ganti-bahasa";
 import Link from "@/components/link";
 import { Logo } from "@/components/logo";
-import { BATAS_BAWAAN, FITUR_API, KODE_GALAT } from "@/lib/api-def";
+import { BATAS_BAWAAN, FITUR_API, KODE_GALAT, SANDBOX_AI_BAWAAN, SANDBOX_HARI_BAWAAN } from "@/lib/api-def";
 import { ENDPOINT_DOK, EVENT_DOK } from "@/lib/api-dok";
 import { bahasaSah, pembuatT } from "@/lib/bahasa";
 import { teksHalaman } from "@/lib/bahasa-halaman";
@@ -114,6 +114,7 @@ function webhookSah(body, header, rahasia) {
 
   const daftarIsi = [
     ["cara-kerja", t("Cara kerja", "How it works")],
+    ["sandbox", "Sandbox"],
     ["pasang", t("Pasang mesin", "Install the engine")],
     ["autentikasi", t("Autentikasi", "Authentication")],
     ["endpoint", "Endpoint"],
@@ -191,6 +192,55 @@ function webhookSah(body, header, rahasia) {
                   {i < FITUR_API.length - 1 ? " · " : ""}
                 </span>
               ))}
+            </p>
+          </Bagian>
+
+          <Bagian id="sandbox" judul={t("Sandbox: coba dulu sebelum production", "Sandbox: try before production")} ikon={<FlaskConical className="size-5 text-accent" aria-hidden />}>
+            <p>
+              {t(
+                "Key sandbox (cg_test_…) keluar langsung dari portal Developer tanpa menunggu pengajuan disetujui. Mesinnya sama dan memakai WhatsApp asli (scan QR beneran), dengan pembatas supaya aman dicoba:",
+                "A sandbox key (cg_test_…) is issued instantly in the Developer portal without waiting for approval. It's the same engine with real WhatsApp (a real QR scan), plus limits that keep testing safe:",
+              )}
+            </p>
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li>{t("Tidak perlu domain/HTTPS: ALAMAT_PUBLIK boleh kosong, mesin bisa jalan di laptop.", "No domain/HTTPS needed: ALAMAT_PUBLIK can be empty, so the engine can run on a laptop.")}</li>
+              <li>{t("1 nomor WhatsApp per mesin sandbox.", "1 WhatsApp number per sandbox engine.")}</li>
+              <li>
+                {t("Hanya 1 nomor uji. Mesin hanya boleh mengirim ke nomor itu (", "Only 1 test number. The engine may only send to that number (")}
+                <code>403 bukan_nomor_uji</code>
+                {t("), dan chat dari nomor lain diabaikan: tidak dicatat, tanpa webhook, bot diam.", "); chats from any other number are ignored: not stored, no webhook, the bot stays silent.")}
+              </li>
+              <li>
+                {t(`Limit balasan AI per hari (bawaan ${SANDBOX_AI_BAWAAN}, reset 00.00 WIB): balasan bot WA, /ai/jawab, dan /ai/rapikan. Habis = `, `Daily AI reply limit (default ${SANDBOX_AI_BAWAAN}, resets 00:00 WIB): WA bot replies, /ai/jawab, and /ai/rapikan. Once used up: `)}
+                <code>429 batas_ai_harian</code>
+                {t(" dan bot diam sampai reset.", " and the bot stays silent until the reset.")}
+              </li>
+              <li>{t(`Key berlaku ${SANDBOX_HARI_BAWAAN} hari dan bisa diperpanjang dari portal.`, `The key is valid for ${SANDBOX_HARI_BAWAAN} days and can be extended in the portal.`)}</li>
+            </ul>
+            <ol className="list-decimal space-y-1.5 pl-5">
+              <li>{t("Portal Developer → Buat key sandbox → unduh .env sandbox & docker-compose.yml.", "Developer portal → Create sandbox key → download the sandbox .env & docker-compose.yml.")}</li>
+              <li>
+                <code>docker compose up -d</code>
+                {t(", lalu scan QR (GET /nomor/{id}/qr) dengan nomor WA khusus testing.", ", then scan the QR (GET /nomor/{id}/qr) with a WhatsApp number reserved for testing.")}
+              </li>
+              <li>
+                {t("Portal → Daftarkan nomor uji → dari HP nomor uji kirim WA ", "Portal → Register test number → from the test phone send the WhatsApp message ")}
+                <code>UJI 482913</code>
+                {t(" (kode Anda) ke nomor sandbox. Nomor sandbox membalas ✅.", " (your code) to the sandbox number. The sandbox number replies ✅.")}
+              </li>
+              <li>{t("Coba kirim pesan ke nomor uji, chat dari HP uji (webhook pesan.masuk + bot AI), dan fitur lain.", "Try sending to the test number, chatting from the test phone (pesan.masuk webhook + AI bot), and other features.")}</li>
+              <li>
+                {t("Siap? Ajukan production di portal. Setelah disetujui, ganti CHATGERCEP_KEY ke ", "Ready? Apply for production in the portal. Once approved, switch CHATGERCEP_KEY to ")}
+                <code>cg_live_…</code>
+                {t(" dan isi ALAMAT_PUBLIK. Kode aplikasi tidak berubah; data mesin & koneksi WA tetap.", " and fill ALAMAT_PUBLIK. Your app code doesn't change; engine data & the WhatsApp connection stay.")}
+              </li>
+            </ol>
+            <p className="rounded-xl border border-line bg-surface p-4 text-[13.5px]">
+              {t("Cara membedakan: setiap jawaban API membawa header ", "How to tell them apart: every API response carries the header ")}
+              <code>X-ChatGerCep-Mode: sandbox</code>
+              {t(", amplop webhook berisi ", ", webhook envelopes include ")}
+              <code>&quot;mode&quot;: &quot;sandbox&quot;</code>
+              {t(", dan GET /status menampilkan mode, nomor uji, serta pemakaian AI hari ini. Sandbox tidak diperpanjang lewat webhook: setelah perpanjang di portal, klik Perbarui lisensi di dashboard mesin atau nyalakan ulang mesin.", ", and GET /status shows the mode, test number, and today's AI usage. The sandbox isn't renewed via webhook: after extending in the portal, click Refresh license in the engine dashboard or restart the engine.")}
             </p>
           </Bagian>
 

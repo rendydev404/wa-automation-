@@ -52,7 +52,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   const [user, { b, t }] = await Promise.all([requireAksesApi(), teksHalaman()]);
   const id = Number((await params).id);
   const [a, umum, penyedia, kurs] = await Promise.all([aplikasiMilikById(user.id, id), pengaturanApi(), penyediaKanal(), b === "en" ? kursUsd() : Promise.resolve(undefined)]);
-  if (!a) notFound();
+  if (!a || a.mode === "sandbox") notFound(); // sandbox dikelola di kartu Sandbox / tab Sandbox
   const harga = hargaEfektif(a, umum);
   if (a.status !== "disetujui" || biayaEfektif(a, umum) !== "berbayar" || harga < 1000) {
     return (

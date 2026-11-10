@@ -15,7 +15,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const a = await aplikasiById(Number((await ctx.params).id));
   if (!a || (a.user_id === user.id ? !user.aksesApi : user.peran !== "developer") || (a.status !== "disetujui" && a.status !== "ditangguhkan")) return tidakAda();
   const nama = new URL(req.url).searchParams.get("nama");
-  const isi = nama === "docker-compose.yml" ? composeMesin() : nama === ".env.contoh" ? envMesin({ namaAplikasi: a.nama, alamat: a.alamat_mesin }) : null;
+  const isi = nama === "docker-compose.yml" ? composeMesin() : nama === ".env.contoh" ? envMesin({ namaAplikasi: a.nama, alamat: a.alamat_mesin, sandbox: a.mode === "sandbox" }) : null;
   if (isi === null) return tidakAda();
   return new Response(isi, {
     headers: {

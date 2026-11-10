@@ -5,7 +5,7 @@
  * Token = base64url(JSON isi) + "." + base64url(tanda tangan Ed25519 atas bagian pertama).
  */
 import { createHash, createHmac, createPrivateKey, createPublicKey, randomBytes, sign, timingSafeEqual, verify } from "node:crypto";
-import type { IsiLisensi, KunciLisensi } from "./api-def";
+import type { IsiLisensi, KunciLisensi, ModeApi } from "./api-def";
 
 /**
  * Kunci publik pusat (Ed25519, SPKI DER base64). Tertanam di kode supaya pemilik mesin tidak bisa menggantinya
@@ -42,7 +42,7 @@ export function verifikasiLisensi(token: string, kunciPublikSpkiB64 = kunciPubli
     const kunci = createPublicKey({ key: Buffer.from(kunciPublikSpkiB64, "base64"), format: "der", type: "spki" });
     if (!verify(null, Buffer.from(kepala), kunci, Buffer.from(tanda, "base64url"))) return null;
     const isi = JSON.parse(Buffer.from(kepala, "base64url").toString("utf8")) as IsiLisensi;
-    return isi && isi.v === 1 && typeof isi.versi_urut === "number" && Array.isArray(isi.kunci) ? isi : null;
+    return isi && (isi.v === 1 || (isi.v === 2 && isi.mode === "sandbox")) && typeof isi.versi_urut === "number" && Array.isArray(isi.kunci) ? isi : null;
   } catch {
     return null;
   }
@@ -64,29 +64,30 @@ function base62(n: number): string {
   return s.length === n ? s : s + base62(n - s.length);
 }
 
-const POLA_KEY = /^cg_live_([0-9A-Za-z]{8})_([0-9A-Za-z]{32})$/;
+const POLA_KEY = /^cg_(live|test)_([0-9A-Za-z]{8})_([0-9A-Za-z]{32})$/;
+const awalanMode = (m: ModeApi): string => (m === "sandbox" ? "cg_test" : "cg_live");
 
-/** Key baru: `cg_live_<awalan 8>_<rahasia 32>` (±190 bit acak di bagian rahasia). */
-export function buatKunciApi(): { key: string; awalan: string; hash: string } {
+/** Key baru: `cg_live_<awalan 8>_<rahasia 32>` (production) / `cg_test_…` (sandbox); ±190 bit acak di bagian rahasia. */
+export function buatKunciApi(mode: ModeApi = "produksi"): { key: string; awalan: string; hash: string } {
   const awalan = base62(8);
   const rahasia = base62(32);
-  return { key: `cg_live_${awalan}_${rahasia}`, awalan, hash: hashRahasia(rahasia) };
+  return { key: `${awalanMode(mode)}_${awalan}_${rahasia}`, awalan, hash: hashRahasia(rahasia) };
 }
 
-export function uraiKunciApi(teks: unknown): { awalan: string; rahasia: string } | null {
+export function uraiKunciApi(teks: unknown): { awalan: string; rahasia: string; mode: ModeApi } | null {
   const m = typeof teks === "string" ? POLA_KEY.exec(teks.trim()) : null;
-  return m ? { awalan: m[1], rahasia: m[2] } : null;
+  return m ? { awalan: m[2], rahasia: m[3], mode: m[1] === "test" ? "sandbox" : "produksi" } : null;
 }
 
 export const hashRahasia = (rahasia: string): string => createHash("sha256").update(rahasia).digest("hex");
 
 /** Tampilan aman key: awalan saja, mis. "cg_live_Ab12Cd34_••••". */
-export const sembunyikanKunci = (awalan: string): string => `cg_live_${awalan}_••••••••`;
+export const sembunyikanKunci = (awalan: string, mode: ModeApi = "produksi"): string => `${awalanMode(mode)}_${awalan}_••••••••`;
 
 /** Cocokkan key dengan daftar kunci di lisensi (perbandingan waktu-tetap). `kini` dalam detik epoch. */
-export function kunciCocok(key: unknown, daftar: KunciLisensi[], kini = Math.floor(Date.now() / 1000)): boolean {
+export function kunciCocok(key: unknown, daftar: KunciLisensi[], kini = Math.floor(Date.now() / 1000), mode?: ModeApi): boolean {
   const k = uraiKunciApi(key);
-  if (!k) return false;
+  if (!k || (mode && k.mode !== mode)) return false;
   const h = Buffer.from(hashRahasia(k.rahasia), "hex");
   for (const e of daftar) {
     if (e.awalan !== k.awalan || (e.sampai !== null && e.sampai <= kini)) continue;

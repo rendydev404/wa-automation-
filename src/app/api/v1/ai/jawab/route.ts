@@ -5,7 +5,8 @@ import { adaKnowledge, susunSistem } from "@/lib/knowledge";
 import { daftarProduk } from "@/lib/katalog";
 import { nomorById } from "@/lib/numbers";
 import { TOLAK_KODE, adaKode } from "@/lib/penjaga";
-import { aman, bacaJson, bukanKonteks, galat, hitungLaju, idJalur, ok, otorisasi } from "@/lib/mesin/api";
+import { aman, bacaJson, bukanKonteks, galat, hitungLaju, idJalur, jatahAi, ok, otorisasi } from "@/lib/mesin/api";
+import { kembalikanJatahAi } from "@/lib/mesin/kuota-ai";
 
 /** Batas pemanggilan AI per key (biaya AI milik pemilik mesin, tetap dijaga dari lonjakan tak sengaja). */
 const AI_PER_MENIT = Math.max(1, Number(process.env.API_AI_PER_MENIT) || 60);
@@ -38,6 +39,8 @@ export async function POST(req: Request) {
     const [ai, katalog] = await Promise.all([aiUntukAkun(nomor.user_id), daftarProduk(nomor.id)]);
     const lengkap = tanpaIngatan(ai.penyedia);
     const { sistem } = await susunSistem(nomor, pertanyaan, { riwayat: lengkap ? riwayat : [], riwayatLengkap: lengkap, saringSpam: nomor.saring_spam, katalog });
+    const habis = await jatahAi(k);
+    if (habis) return habis;
     let j;
     try {
       j = await tanyaAiTerjaga(
@@ -46,6 +49,7 @@ export async function POST(req: Request) {
         { saringSpam: nomor.saring_spam, katalog: katalog.length > 0, gaya: true },
       );
     } catch (e) {
+      await kembalikanJatahAi();
       console.error(`[api ${k.id}] AI tidak menjawab nomor=${nomor.id}: ${e instanceof Error ? e.message : e}`);
       return galat("ai_tidak_tersedia", "AI sedang tidak bisa menjawab. Coba lagi sebentar lagi.", k.id, k.kepala);
     }

@@ -13,7 +13,7 @@ export async function tanganiLisensi<T>(req: Request, jenis: string, fn: (badan:
   if (modeMesin()) return new Response("Not found", { status: 404 });
   const ip = await ipKlien();
   // Aktivasi memicu kiriman keluar (tantangan) ke alamat mesin: dibatasi ketat per IP supaya tidak bisa dipakai menembak server lain.
-  if (terlaluSering(`lisensi:${jenis}:${ip}`, jenis === "aktivasi" ? 10 : 60, 10 * 60_000)) return galat("terlalu_sering", "Terlalu banyak permintaan. Coba lagi beberapa menit lagi.");
+  if (terlaluSering(`lisensi:${jenis}:${ip}`, jenis === "aktivasi" || jenis === "nomor-uji" ? 10 : 60, 10 * 60_000)) return galat("terlalu_sering", "Terlalu banyak permintaan. Coba lagi beberapa menit lagi.");
   if (Number(req.headers.get("content-length") ?? 0) > 8192) return galat("isian_tidak_sah", "Permintaan terlalu besar.");
   let badan: Record<string, unknown>;
   try {

@@ -4,12 +4,18 @@ import {
   type IsiLisensi,
   JALUR_AKTIVASI,
   JALUR_KONDISI,
+  JALUR_NOMOR_UJI,
   type KodeGalat,
+  type ModeApi,
+  type NomorUji,
   type PermintaanAktivasi,
   type PermintaanKondisi,
+  type PermintaanNomorUji,
+  modeLisensi,
+  samarkanNomor,
 } from "../api-def";
 import { db, sekarang } from "../db";
-import { verifikasiLisensi } from "../lisensi-def";
+import { uraiKunciApi, verifikasiLisensi } from "../lisensi-def";
 import { VERSI_APLIKASI, alamatPusat, modeMesin } from "../mode";
 import { pancarkan } from "../peristiwa";
 
@@ -38,12 +44,18 @@ interface Keadaan {
   peringatan: Set<string>;
   /** Penundaan awal sebelum menghubungi pusat (uji bisa mempercepat). */
   coba: number;
+  /** Sandbox: mesin menyimpan lebih dari 1 nomor (sandbox hanya boleh 1) -> mode terbatas. */
+  nomorLebih: boolean;
+  /** Perbarui lisensi manual terakhir (ms), untuk jeda antar-klik. */
+  perbaruiTerakhir: number;
 }
 
 const g = globalThis as unknown as { __waMesinLisensi?: Keadaan };
-const st = (g.__waMesinLisensi ??= { isi: null, idInstalasi: null, siap: null, galat: null, sinkron: false, timerUlang: null, timerPeringatan: null, peringatan: new Set(), coba: 0 });
+const st = (g.__waMesinLisensi ??= { isi: null, idInstalasi: null, siap: null, galat: null, sinkron: false, timerUlang: null, timerPeringatan: null, peringatan: new Set(), coba: 0, nomorLebih: false, perbaruiTerakhir: 0 });
 
 const kunciApi = (): string => (process.env.CHATGERCEP_KEY ?? "").trim();
+/** Mode menurut key di .env (sebelum lisensi pertama tiba): cg_test_ = sandbox. */
+const modeKunci = (): ModeApi | null => uraiKunciApi(kunciApi())?.mode ?? null;
 const alamatPublik = (): string => (process.env.ALAMAT_PUBLIK ?? "").trim().replace(/\/+$/, "");
 
 /** Muat baris mesin_lisensi (dibuat sekali dengan id_instalasi acak) dan lisensi tersimpan ke memori. */
@@ -57,6 +69,7 @@ export function muatLisensi(): Promise<void> {
     st.galat = r.galat_terakhir;
     const isi = r.lisensi ? verifikasiLisensi(r.lisensi) : null;
     st.isi = isi && isi.id_instalasi === r.id_instalasi ? isi : null;
+    await periksaNomorSandbox();
   })().catch((e) => {
     st.siap = null; // database belum siap: dicoba lagi di panggilan berikutnya
     throw e;
@@ -71,6 +84,53 @@ export async function idInstalasi(): Promise<string> {
 /** Lisensi yang sedang dipegang (sudah diverifikasi tanda tangannya); null = belum ada. */
 export const lisensiSekarang = (): IsiLisensi | null => st.isi;
 
+/** Mesin sedang berjalan sebagai sandbox (menurut lisensi yang dipegang). Sinkron, hanya membaca memori. */
+export const sandboxAktif = (): boolean => modeMesin() && (st.isi ? modeLisensi(st.isi) === "sandbox" : modeKunci() === "sandbox");
+
+/** Nomor uji lisensi sandbox; null = belum diverifikasi / bukan sandbox. */
+export const nomorUji = (): NomorUji | null => (sandboxAktif() ? (st.isi?.uji ?? null) : null);
+
+const angka = (v: string | null | undefined): string => String(v ?? "").replace(/\D/g, "");
+/** Bagian pengguna alamat WA (628…@s.whatsapp.net -> 628…); LID bukan nomor telepon. */
+const teleponDariAlamat = (a: string | null | undefined): string | null => (a && a.endsWith("@s.whatsapp.net") ? angka(a.split("@")[0].split(":")[0]) || null : null);
+
+/**
+ * Apakah lawan bicara ini nomor uji sandbox? Dicocokkan lewat telepon ATAU alamat WA (JID/LID), karena WhatsApp kadang
+ * hanya memberi LID. Bukan sandbox = selalu true (gerbang tidak berlaku).
+ */
+export function lawanNomorUji(o: { telepon?: string | null; alamat?: string | null }): boolean {
+  if (!sandboxAktif()) return true;
+  const u = st.isi?.uji;
+  if (!u) return false;
+  const tel = angka(o.telepon) || teleponDariAlamat(o.alamat);
+  const telUji = u.telepon || teleponDariAlamat(u.alamat);
+  if (tel && telUji && tel === telUji) return true;
+  return !!o.alamat && !!u.alamat && o.alamat === u.alamat;
+}
+
+/** Tujuan kirim (nomor 628…) sama dengan nomor uji? Bukan sandbox = true. */
+export function tujuanNomorUji(ke: string): boolean {
+  if (!sandboxAktif()) return true;
+  const u = st.isi?.uji;
+  const telUji = u ? u.telepon || teleponDariAlamat(u.alamat) : null;
+  return !!telUji && angka(ke) === telUji;
+}
+
+/** Sandbox hanya boleh 1 nomor. Dihitung saat lisensi dimuat/diterima/diperbarui (bukan per pesan). */
+async function periksaNomorSandbox(): Promise<void> {
+  if (modeLisensi(st.isi) !== "sandbox") {
+    st.nomorLebih = false;
+    return;
+  }
+  try {
+    const sql = await db();
+    const [{ n }] = await sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM numbers`;
+    st.nomorLebih = n > 1;
+  } catch {
+    st.nomorLebih = false;
+  }
+}
+
 /**
  * Boleh melayani (API & bot)? Sinkron, hanya membaca memori. Di mode pusat selalu true (fungsi ini dipanggil jembatan
  * WhatsApp yang sama di kedua mode).
@@ -78,7 +138,7 @@ export const lisensiSekarang = (): IsiLisensi | null => st.isi;
 export function layananBoleh(kini = sekarang()): boolean {
   if (!modeMesin()) return true;
   const i = st.isi;
-  return !!i && i.status === "aktif" && i.berlaku_sampai > kini;
+  return !!i && i.status === "aktif" && i.berlaku_sampai > kini && !(st.nomorLebih && modeLisensi(i) === "sandbox");
 }
 
 /** Alasan mode terbatas dalam bentuk galat API; null = layanan aktif. */
@@ -91,12 +151,20 @@ export function alasanTerbatas(kini = sekarang()): { kode: KodeGalat; pesan: str
   if (i.status === "ditangguhkan") return { kode: "aplikasi_ditangguhkan", pesan: "Aplikasi ini sedang ditangguhkan. Hubungi ChatGerCep." };
   if (i.status === "dicabut") return { kode: "aplikasi_dicabut", pesan: "Lisensi aplikasi ini sudah dicabut." };
   if (i.status === "belum_bayar") return { kode: "belum_bayar", pesan: "Masa bayar aplikasi ini sudah habis. Bayar di portal Developer ChatGerCep." };
+  if (modeLisensi(i) === "sandbox") {
+    if (i.berlaku_sampai <= kini) return { kode: "sandbox_kedaluwarsa", pesan: "Masa berlaku key sandbox habis. Perpanjang di portal Developer ChatGerCep, lalu klik Perbarui lisensi di dashboard mesin (atau nyalakan ulang mesin)." };
+    if (st.nomorLebih) return { kode: "batas_nomor", pesan: "Sandbox hanya boleh 1 nomor WhatsApp. Hapus nomor lain di dashboard mesin, lalu klik Perbarui lisensi." };
+    return null;
+  }
   if (i.berlaku_sampai <= kini) return { kode: "lisensi_kedaluwarsa", pesan: "Lisensi mesin kedaluwarsa: perpanjangan dari server pusat belum diterima. Pastikan ALAMAT_PUBLIK bisa diakses lewat HTTPS." };
   return null;
 }
 
 export interface InfoLisensi {
   aktif: boolean;
+  mode: ModeApi;
+  /** Sandbox: nomor uji tersamar (62812****890) / "terverifikasi" bila hanya LID; null = belum ada. */
+  nomor_uji: string | null;
   status: IsiLisensi["status"] | "belum_aktif";
   aplikasi: string | null;
   id_instalasi: string | null;
@@ -112,8 +180,11 @@ export interface InfoLisensi {
 
 export function infoLisensi(): InfoLisensi {
   const i = st.isi;
+  const u = nomorUji();
   return {
     aktif: layananBoleh(),
+    mode: i ? modeLisensi(i) : (modeKunci() ?? "produksi"),
+    nomor_uji: u ? (u.telepon ? samarkanNomor(u.telepon) : "terverifikasi (LID)") : null,
     status: i?.status ?? "belum_aktif",
     aplikasi: i?.nama_aplikasi ?? null,
     id_instalasi: st.idInstalasi,
@@ -152,6 +223,7 @@ export async function terimaLisensi(token: string): Promise<{ ok: true; versi: n
   st.isi = isi;
   st.galat = null;
   st.peringatan.clear();
+  await periksaNomorSandbox();
   return { ok: true, versi: isi.versi_urut };
 }
 
@@ -173,7 +245,7 @@ class GalatPusat extends Error {
   }
 }
 
-async function panggilPusat(jalur: string, isi: PermintaanAktivasi | PermintaanKondisi): Promise<string> {
+async function panggilPusat(jalur: string, isi: PermintaanAktivasi | PermintaanKondisi | PermintaanNomorUji): Promise<string> {
   let res: Response;
   try {
     res = await fetch(alamatPusat() + jalur, {
@@ -196,6 +268,10 @@ export async function sinkronSekali(): Promise<void> {
   await muatLisensi();
   const key = kunciApi();
   if (!key) throw new GalatPusat("tanpa_key", "CHATGERCEP_KEY belum diisi di .env mesin", 0);
+  // Key di .env berganti jenis (sandbox <-> production): instalasi baru di pusat (aplikasinya lain). Data mesin & sesi
+  // WhatsApp tidak disentuh; hanya identitas instalasi + lisensi lama yang dikosongkan.
+  const mk = modeKunci();
+  if (st.isi && mk && modeLisensi(st.isi) !== mk) await gantiInstalasi();
   const id = st.idInstalasi!;
   let token: string;
   if (st.isi) {
@@ -215,8 +291,58 @@ export async function sinkronSekali(): Promise<void> {
 
 function aktivasi(key: string, id: string): Promise<string> {
   const alamat = alamatPublik();
+  // Sandbox tidak butuh alamat publik (tanpa tantangan & webhook lisensi): bisa dijalankan di laptop.
+  if (modeKunci() === "sandbox") return panggilPusat(JALUR_AKTIVASI, { key, id_instalasi: id, alamat, versi: VERSI_APLIKASI });
   if (!alamat) throw new GalatPusat("tanpa_alamat", "ALAMAT_PUBLIK belum diisi di .env mesin (alamat HTTPS publik mesin ini)", 0);
   return panggilPusat(JALUR_AKTIVASI, { key, id_instalasi: id, alamat, versi: VERSI_APLIKASI });
+}
+
+async function gantiInstalasi(): Promise<void> {
+  const baru = randomUUID();
+  const sql = await db();
+  await sql`UPDATE mesin_lisensi SET id_instalasi = ${baru}::uuid, lisensi = NULL, versi_urut = 0, berlaku_sampai = NULL, diterima = NULL WHERE id = 1`;
+  st.idInstalasi = baru;
+  st.isi = null;
+  st.nomorLebih = false;
+  console.info("[mesin] jenis key berganti (sandbox/production): instalasi baru, data & WhatsApp tetap");
+}
+
+/**
+ * Tombol "Perbarui lisensi" di dashboard mesin (tindakan pemilik, bukan polling): sekali bertanya ke pusat. Dipakai
+ * sandbox (tanpa webhook) sesudah perpanjang / ganti nomor uji / hapus nomor lebih. Jeda 15 dtk antar-klik.
+ */
+export async function perbaruiLisensi(): Promise<{ ok: boolean; pesan: string }> {
+  if (!modeMesin()) return { ok: false, pesan: "Hanya di mesin self-host." };
+  if (Date.now() - st.perbaruiTerakhir < 15_000) return { ok: false, pesan: "Tunggu sebentar sebelum memperbarui lagi." };
+  st.perbaruiTerakhir = Date.now();
+  try {
+    await sinkronSekali();
+    await periksaNomorSandbox();
+    const a = alasanTerbatas();
+    return { ok: !a, pesan: a ? a.pesan : "Lisensi diperbarui." };
+  } catch (e) {
+    const pesan = e instanceof Error ? e.message : String(e);
+    await catatGalat(pesan);
+    return { ok: false, pesan };
+  }
+}
+
+/**
+ * Mesin sandbox menerima "UJI <kode>" (dari nomor mana pun): teruskan ke pusat; jawabannya lisensi baru berisi nomor
+ * uji. Mengembalikan true bila nomor pengirim kini nomor uji.
+ */
+export async function verifikasiNomorUjiKePusat(kode: string, pengirim: { telepon: string | null; alamat: string | null }): Promise<{ ok: boolean; pesan: string }> {
+  await muatLisensi();
+  const key = kunciApi();
+  if (!key || modeKunci() !== "sandbox") return { ok: false, pesan: "bukan mesin sandbox" };
+  try {
+    const token = await panggilPusat(JALUR_NOMOR_UJI, { key, id_instalasi: st.idInstalasi!, kode, telepon: pengirim.telepon, alamat: pengirim.alamat, versi: VERSI_APLIKASI });
+    const t = await terimaLisensi(token);
+    if (!t.ok) return { ok: false, pesan: t.alasan };
+    return { ok: lawanNomorUji(pengirim), pesan: "ok" };
+  } catch (e) {
+    return { ok: false, pesan: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /** Jeda coba ulang sinkron awal: 10 dtk, lalu dua kali lipat, maks 15 menit. */
@@ -232,7 +358,8 @@ export function mulaiLisensiMesin(tundaMs = 5_000): void {
   st.sinkron = true;
   void muatLisensi().catch((e) => console.warn("[mesin] lisensi tersimpan gagal dimuat:", e instanceof Error ? e.message : e));
   if (!kunciApi()) console.error("[mesin] CHATGERCEP_KEY belum diisi: mesin berjalan dalam mode terbatas (API & bot tidak melayani, WhatsApp tetap tersambung).");
-  if (!alamatPublik()) console.warn("[mesin] ALAMAT_PUBLIK belum diisi: aktivasi & perpanjangan lisensi dari pusat butuh alamat HTTPS publik mesin ini.");
+  if (!alamatPublik() && modeKunci() !== "sandbox") console.warn("[mesin] ALAMAT_PUBLIK belum diisi: aktivasi & perpanjangan lisensi dari pusat butuh alamat HTTPS publik mesin ini.");
+  if (modeKunci() === "sandbox") console.info("[mesin] key sandbox (cg_test_): hanya 1 nomor uji, tanpa alamat publik.");
   const jalan = async (): Promise<void> => {
     st.timerUlang = null;
     try {
@@ -260,7 +387,8 @@ export function mulaiLisensiMesin(tundaMs = 5_000): void {
 /** Pancarkan lisensi.peringatan sekali per ambang (24 jam, 6 jam) per lisensi. */
 export function periksaPeringatan(kini = sekarang()): void {
   const i = st.isi;
-  if (!i || i.status !== "aktif") return;
+  // Sandbox tidak diperpanjang otomatis (tanpa webhook): peringatan perpanjangan tidak relevan.
+  if (!i || i.status !== "aktif" || modeLisensi(i) === "sandbox") return;
   const sisa = i.berlaku_sampai - kini;
   for (const ambang of [6 * 3600, 24 * 3600]) {
     const kunci = `${i.versi_urut}:${ambang}`;
@@ -277,5 +405,5 @@ export function periksaPeringatan(kini = sekarang()): void {
 export function aturUlangLisensiUji(): void {
   if (st.timerUlang) clearTimeout(st.timerUlang);
   if (st.timerPeringatan) clearInterval(st.timerPeringatan);
-  Object.assign(st, { isi: null, idInstalasi: null, siap: null, galat: null, sinkron: false, timerUlang: null, timerPeringatan: null, peringatan: new Set(), coba: 0 });
+  Object.assign(st, { isi: null, idInstalasi: null, siap: null, galat: null, sinkron: false, timerUlang: null, timerPeringatan: null, peringatan: new Set(), coba: 0, nomorLebih: false, perbaruiTerakhir: 0 });
 }
