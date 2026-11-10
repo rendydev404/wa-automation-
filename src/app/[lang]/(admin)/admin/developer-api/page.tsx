@@ -220,10 +220,10 @@ async function Sandbox({ sp }: { sp: SP }) {
         <h2 className="text-[15px] font-bold">Pengaturan sandbox</h2>
         <p className="text-[12.5px] text-muted">
           Sandbox = key <code className="font-mono">cg_test_</code> untuk mencoba API dengan WhatsApp asli: langsung aktif tanpa peninjauan, 1 nomor WA, hanya dengan 1 nomor penguji
-          terverifikasi, dan dibatasi balasan AI per hari. Hanya akun yang punya akses portal.
+          terverifikasi. Resource &amp; kunci AI milik developer, jadi tanpa limit AI. Hanya akun yang punya akses portal.
         </p>
         <div className="mt-4">
-          <FormPengaturanSandbox aktif={umum.aktif} hari={umum.hari} ai={umum.ai_hari} />
+          <FormPengaturanSandbox aktif={umum.aktif} hari={umum.hari} port={umum.port} />
         </div>
       </section>
       <section className="card overflow-hidden">
@@ -258,8 +258,7 @@ async function Sandbox({ sp }: { sp: SP }) {
                           )}
                         </span>
                         <span className="mt-0.5 block text-[12.5px] text-muted">
-                          Nomor penguji {s.uji_diverifikasi ? (s.uji_telepon ? samarkanNomor(s.uji_telepon) : "terverifikasi (LID)") : "belum ada"} · limit AI{" "}
-                          {s.ai_khusus > 0 ? `${s.ai_khusus.toLocaleString("id-ID")} (khusus)` : `${umum.ai_hari.toLocaleString("id-ID")} (bawaan)`}/hari
+                          Nomor penguji {s.uji_diverifikasi ? (s.uji_telepon ? samarkanNomor(s.uji_telepon) : "terverifikasi (LID)") : "belum ada"}
                         </span>
                       </span>
                       {/* HP: di bawah email (email tidak terpotong); layar lebar: kolom kanan. */}
@@ -275,7 +274,7 @@ async function Sandbox({ sp }: { sp: SP }) {
                         <p className="text-[13px] text-muted">Sandbox ini sudah dicabut permanen.</p>
                       ) : (
                         <>
-                          <FormUbahSandbox id={s.id} aiKhusus={s.ai_khusus} aiBawaan={umum.ai_hari} hari={umum.hari} />
+                          <FormUbahSandbox id={s.id} hari={umum.hari} />
                           <FormStatus id={s.id} status={s.status === "ditangguhkan" ? "ditangguhkan" : "disetujui"} />
                         </>
                       )}

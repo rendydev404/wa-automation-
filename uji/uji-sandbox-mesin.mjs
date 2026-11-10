@@ -1,6 +1,6 @@
 // Uji mesin self-host dalam mode sandbox (key cg_test_): aktivasi tanpa ALAMAT_PUBLIK, gerbang SATU nomor penguji (kirim,
 // pesan masuk, bot, webhook, cek kontak), verifikasi nomor penguji lewat pesan WA "UJI <kode>", limit balasan AI per hari
-// (atomik, dikembalikan saat AI gagal, pemberitahuan sekali), header & amplop sandbox, sandbox > 1 nomor, dan ganti key
+// header & amplop sandbox, sandbox > 1 nomor, dan ganti key
 // sandbox -> production tanpa memutus WhatsApp.
 // Asli: kode src/lib & route src/app/api/v1/**, PostgreSQL 15. Tiruan: pusat, soket WhatsApp, server AI, penerima webhook.
 // Pakai (dari akar proyek): node --import ./uji/loader.mjs uji/uji-sandbox-mesin.mjs
@@ -67,7 +67,6 @@ const { tambahNomor, nomorById } = await lib("src/lib/numbers.ts");
 const { tambahDokumen } = await lib("src/lib/knowledge.ts");
 const L = await lib("src/lib/lisensi-def.ts");
 const ML = await lib("src/lib/mesin/lisensi.ts");
-const KA = await lib("src/lib/mesin/kuota-ai.ts");
 const AN = await lib("src/lib/mesin/antrean.ts");
 const WH = await lib("src/lib/mesin/webhook.ts");
 const rute = {
@@ -183,7 +182,7 @@ function token(id, isi = {}) {
       id_instalasi: id,
       status: pusat.status,
       fitur: ["nomor", "pesan.kirim", "pesan.terima", "kontak.cek", "ai", "knowledge"],
-      batas: { nomor: 1, pesan_menit: 20, kontak_baru_hari: 50, instalasi: 1, ai_hari: pusat.ai },
+      batas: { nomor: 1, pesan_menit: 20, kontak_baru_hari: 50, instalasi: 1 },
       biaya: "gratis",
       dibayar_sampai: null,
       kunci: [{ awalan: KT.awalan, hash: KT.hash, sampai: null }],
@@ -206,7 +205,7 @@ const tokenLive = (id) => {
       id_instalasi: id,
       status: "aktif",
       fitur: ["nomor", "pesan.kirim"],
-      batas: { nomor: 50, pesan_menit: 20, kontak_baru_hari: 50, instalasi: 1, ai_hari: 0 },
+      batas: { nomor: 50, pesan_menit: 20, kontak_baru_hari: 50, instalasi: 1 },
       biaya: "gratis",
       dibayar_sampai: null,
       kunci: [{ awalan: KL.awalan, hash: KL.hash, sampai: null }],
@@ -304,13 +303,21 @@ await cek("key cg_test_ tanpa ALAMAT_PUBLIK: aktivasi berhasil, lisensi v2 sandb
 const { n: N, s: SK } = await nomorTerhubung("Nomor Sandbox", "628999000999");
 await tambahDokumen({ numberId: N.id, judul: "Info", sumber: "teks", teks: "Toko Sandbox buka pukul 09.00 sampai 21.00 setiap hari." });
 
+await cek("nomor bot terhubung -> mesin melapor ke pusat SEKALI (kondisi + nomor_bot), untuk ditampilkan di portal", async () => {
+  ML.mulaiLisensiMesin(60_000); // pasang pendengar nomor.terhubung (sinkron awal ditunda jauh)
+  const awal = pusat.panggil.length;
+  const { pancarkan } = await lib("src/lib/peristiwa.ts");
+  pancarkan({ jenis: "nomor.terhubung", sesi: N.sesi, waId: "628999000999", nama: "Nomor Sandbox" });
+  await tunggu(() => pusat.panggil.slice(awal).find((p) => p.url === "/api/lisensi/kondisi" && p.isi.nomor_bot === "628999000999"), 6000, "laporan nomor bot");
+});
+
 await cek("API: header X-ChatGerCep-Mode sandbox; GET /status berisi mode, nomor penguji, pemakaian AI; key live di mesin sandbox = 401", async () => {
   const r = await json(await rute.status.GET(minta("/status")));
   assert.equal(r.status, 200);
   assert.equal(r.h.get("x-chatgercep-mode"), "sandbox");
   assert.equal(r.j.mode, "sandbox");
   assert.equal(r.j.nomor_uji, null);
-  assert.deepEqual({ terpakai: r.j.ai_hari.terpakai, batas: r.j.ai_hari.batas }, { terpakai: 0, batas: 100 });
+  assert.equal(r.j.ai_hari, undefined); // tanpa limit AI: AI memakai kunci milik developer
   const tukar = KT.key.replace("cg_test_", "cg_live_");
   assert.equal((await rute.status.GET(minta("/status", { key: tukar }))).status, 401);
 });
@@ -403,65 +410,7 @@ await cek("chat dari nomor penguji: dicatat, webhook pesan.masuk (mode sandbox),
   assert.ok((await jumlahChat(UJI_TEL)) >= 1);
 });
 
-bagian("C. Limit balasan AI per hari");
-await cek("jatah atomik: 30 permintaan serentak dengan limit 5 = tepat 5 boleh; tanpa limit = nol query", async () => {
-  await ML.terimaLisensi(token(await ML.idInstalasi(), { batas: { nomor: 1, pesan_menit: 20, kontak_baru_hari: 50, instalasi: 1, ai_hari: 5 } }));
-  await sql`DELETE FROM mesin_pemakaian_ai`;
-  const hasil = await Promise.all(Array.from({ length: 30 }, () => KA.ambilJatahAi()));
-  assert.equal(hasil.filter(Boolean).length, 5);
-  const [r] = await sql`SELECT jumlah FROM mesin_pemakaian_ai`;
-  assert.equal(r.jumlah, 5);
-  await KA.kembalikanJatahAi();
-  assert.equal((await KA.pemakaianAiHariIni()).terpakai, 4);
-  // Batas 0 (production tanpa limit): langsung boleh tanpa menyentuh tabel.
-  await ML.terimaLisensi(token(await ML.idInstalasi(), { batas: { nomor: 1, pesan_menit: 20, kontak_baru_hari: 50, instalasi: 1, ai_hari: 0 } }));
-  const sebelum = (await sql`SELECT jumlah FROM mesin_pemakaian_ai`)[0].jumlah;
-  assert.equal(await KA.ambilJatahAi(), true);
-  assert.equal((await sql`SELECT jumlah FROM mesin_pemakaian_ai`)[0].jumlah, sebelum);
-});
-
-await cek("POST /ai/jawab dihitung; habis = 429 batas_ai_harian tanpa memanggil AI; AI gagal = jatah dikembalikan", async () => {
-  pusat.ai = 2;
-  await ML.terimaLisensi(token(await ML.idInstalasi()));
-  await sql`DELETE FROM mesin_pemakaian_ai`;
-  const tanya = () => rute.ai.POST(minta("/ai/jawab", { metode: "POST", body: { nomor_id: N.id, pertanyaan: "jam buka?" } }));
-  aiGagal = true;
-  assert.equal((await tanya()).status, 503);
-  assert.equal((await KA.pemakaianAiHariIni()).terpakai, 0); // dikembalikan
-  aiGagal = false;
-  assert.equal((await tanya()).status, 200);
-  assert.equal((await tanya()).status, 200);
-  const awalAi = aiDipanggil;
-  const r = await json(await tanya());
-  assert.equal(r.status, 429);
-  assert.equal(r.j.galat.kode, "batas_ai_harian");
-  assert.equal(aiDipanggil, awalAi);
-});
-
-await cek("bot WA saat limit habis: diam, pesan tetap tercatat, nomor penguji diberi tahu SEKALI per hari", async () => {
-  const awal = SK.terkirim.length;
-  const awalAi = aiDipanggil;
-  const chatAwal = await jumlahChat(UJI_TEL);
-  pesanDari(SK, UJI_TEL, "masih buka?");
-  await tunggu(() => SK.terkirim.length > awal, 6000, "pemberitahuan limit");
-  assert.match(SK.terkirim.at(-1).isi.text, /Batas 2 balasan AI sandbox/);
-  pesanDari(SK, UJI_TEL, "halo?");
-  await tidur(2500);
-  assert.equal(SK.terkirim.length, awal + 1);
-  assert.equal(aiDipanggil, awalAi);
-  await tunggu(async () => (await jumlahChat(UJI_TEL)) >= chatAwal + 2, 3000, "pesan tetap tercatat");
-});
-
-await cek("jatah hari baru (reset 00.00 WIB) & baris > 90 hari dibuang saat hari baru dimulai", async () => {
-  const hari = KA.awalHariAi();
-  await sql`INSERT INTO mesin_pemakaian_ai (hari, jumlah) VALUES (${hari - 100 * 86400}, 9)`;
-  await sql`DELETE FROM mesin_pemakaian_ai WHERE hari = ${hari}`;
-  assert.equal(await KA.ambilJatahAi(), true); // hari "baru": jumlah 1
-  await tunggu(async () => (await sql`SELECT COUNT(*)::int AS n FROM mesin_pemakaian_ai WHERE hari < ${hari - 90 * 86400}`)[0].n === 0, 2000, "baris lama dibuang");
-  assert.equal(KA.awalHariAi(1794790800 + 3600) % 86400, 61200); // 00.00 WIB = 17.00 UTC
-});
-
-bagian("D. Batas nomor, kedaluwarsa, ganti key");
+bagian("C. Batas nomor, kedaluwarsa, ganti key");
 await cek("sandbox kedaluwarsa: API 402 sandbox_kedaluwarsa, bot diam, WA tetap tersambung", async () => {
   await ML.terimaLisensi(token(await ML.idInstalasi(), { berlaku_sampai: kini() - 1 }));
   const r = await json(await rute.status.GET(minta("/status")));
@@ -471,7 +420,6 @@ await cek("sandbox kedaluwarsa: API 402 sandbox_kedaluwarsa, bot diam, WA tetap 
   assert.equal(p.j.galat.kode, "sandbox_kedaluwarsa");
   assert.equal(SK.keluar + SK.ditutup, 0);
   pusat.sampai = kini() + 30 * 86400;
-  pusat.ai = 100;
   const h = await ML.perbaruiLisensi(); // tombol "Perbarui lisensi" (sekali ke pusat)
   assert.equal(h.ok, true, h.pesan);
   assert.equal(ML.layananBoleh(), true);
@@ -508,25 +456,15 @@ await cek("ganti CHATGERCEP_KEY sandbox -> production: instalasi baru, gerbang h
   assert.equal((await rute.status.GET(minta("/status", { key: KT.key }))).status, 401); // key sandbox tidak berlaku lagi
 });
 
-await cek("gerbang & penghitung: cek nomor penguji di memori ≤ 0,01 ms; ambil jatah AI p95 ≤ 2 ms", async () => {
+await cek("gerbang nomor penguji: cek di memori <= 0,01 ms per pesan (tanpa query)", async () => {
   process.env.CHATGERCEP_KEY = KT.key;
   delete process.env.ALAMAT_PUBLIK;
   await ML.sinkronSekali();
-  await ML.terimaLisensi(token(await ML.idInstalasi(), { batas: { nomor: 1, pesan_menit: 20, kontak_baru_hari: 50, instalasi: 1, ai_hari: 100000 } }));
   const t0 = performance.now();
   for (let i = 0; i < 100000; i++) ML.lawanNomorUji({ telepon: i % 2 ? UJI_TEL : ASING_TEL, alamat: null });
   const gerbang = (performance.now() - t0) / 100000;
-  const w = [];
-  for (let i = 0; i < 200; i++) {
-    const t = performance.now();
-    await KA.ambilJatahAi();
-    w.push(performance.now() - t);
-  }
-  w.sort((a, b) => a - b);
-  const p95 = w[Math.floor(w.length * 0.95)];
-  console.log(`      gerbang nomor penguji: ${(gerbang * 1000).toFixed(2)} µs/cek · ambil jatah AI: p50 ${w[100].toFixed(2)} ms, p95 ${p95.toFixed(2)} ms`);
+  console.log(`      gerbang nomor penguji: ${(gerbang * 1000).toFixed(2)} µs/cek`);
   assert.ok(gerbang < 0.01);
-  assert.ok(p95 < 2);
 });
 
 console.log(`\n${gagalList.length ? `ADA YANG GAGAL: ${lolos} lolos, ${gagalList.length} gagal` : `LOLOS ${lolos} uji sandbox mesin`}`);

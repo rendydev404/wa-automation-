@@ -1,6 +1,6 @@
 // Uji mode sandbox Developer API di server pusat: key cg_test_ (1 per akun, tanpa peninjauan), aktivasi tanpa alamat
-// publik & tantangan, lisensi v2 (mode sandbox, 1 nomor, limit AI, berlaku = masa sandbox), nomor penguji tunggal lewat kode,
-// sakelar umum, kedaluwarsa & perpanjang, limit AI khusus, pemisahan dari aplikasi production, dan rencana query.
+// publik & tantangan, lisensi v2 (mode sandbox, 1 nomor, berlaku = masa sandbox), nomor penguji tunggal lewat kode,
+// sakelar umum, port dashboard, kedaluwarsa & perpanjang, pemisahan dari aplikasi production, dan rencana query.
 // PostgreSQL 15 sungguhan (uji/pg-lokal.mjs). Rencana: docs/plans/2026-11-10-sandbox-developer-api.md.
 // Pakai (dari akar proyek): node --import ./uji/loader.mjs uji/uji-sandbox-pusat.mjs
 import assert from "node:assert/strict";
@@ -106,7 +106,7 @@ await cek("maks 1 sandbox per akun: klik lagi = ganti key (lama langsung mati, t
 console.log("== aktivasi & lisensi v2 ==");
 let idA;
 let isiA;
-await cek("aktivasi sandbox tanpa alamat publik & tanpa tantangan -> lisensi v2: mode sandbox, 1 nomor, limit AI 100, berlaku = masa sandbox", async () => {
+await cek("aktivasi sandbox tanpa alamat publik & tanpa tantangan -> lisensi v2: mode sandbox, 1 nomor, tanpa limit AI, berlaku = masa sandbox", async () => {
   idA = randomUUID();
   const t = await D.aktivasi({ key: keyB, id_instalasi: idA, alamat: "", versi: "1.0.0" });
   isiA = L.verifikasiLisensi(t);
@@ -115,7 +115,7 @@ await cek("aktivasi sandbox tanpa alamat publik & tanpa tantangan -> lisensi v2:
   assert.equal(isiA.uji, null);
   assert.equal(isiA.batas.nomor, 1);
   assert.equal(isiA.batas.instalasi, 1);
-  assert.equal(isiA.batas.ai_hari, 100);
+  assert.equal(isiA.batas.ai_hari, undefined); // tanpa limit AI
   assert.equal(isiA.biaya, "gratis");
   assert.equal(isiA.berlaku_sampai, (await D.sandboxMilik(budi.id)).sandbox_sampai);
   assert.deepEqual(isiA.fitur, (await D.pengaturanApi()).fitur); // semua fitur yang dibagikan
@@ -123,6 +123,15 @@ await cek("aktivasi sandbox tanpa alamat publik & tanpa tantangan -> lisensi v2:
   assert.ok(!L.kunciCocok(keyB, isiA.kunci, undefined, "produksi"));
   const [i] = await sql`SELECT alamat FROM api_instalasi WHERE id = ${idA}::uuid`;
   assert.equal(i.alamat, null);
+});
+
+await cek("laporan nomor bot dari mesin tersimpan di instalasi (tampil di portal); nilai tak sah diabaikan", async () => {
+  await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1.0.0", nomor_bot: "628999000999" });
+  assert.equal((await D.daftarInstalasi(sb.id))[0].nomor_bot, "628999000999");
+  await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1.0.0" }); // tanpa laporan = nilai lama tetap
+  assert.equal((await D.daftarInstalasi(sb.id))[0].nomor_bot, "628999000999");
+  await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1.0.0", nomor_bot: null }); // nomor dilepas
+  assert.equal((await D.daftarInstalasi(sb.id))[0].nomor_bot, null);
 });
 
 await cek("mesin versi lama (hanya menerima v1) menolak token sandbox: isinya v2, bukan v1", async () => {
@@ -200,17 +209,21 @@ await cek("nomor penguji hanya untuk instalasi sandbox milik key itu", async () 
   await assert.rejects(uji(kode, { id_instalasi: randomUUID() }), galat("tidak_ditemukan"));
 });
 
-console.log("== pengaturan, masa berlaku, limit AI, status ==");
+console.log("== pengaturan, masa berlaku, status ==");
 await cek("sakelar umum mati: tidak bisa buat/perpanjang, aktivasi ditolak, lisensi yang diterbitkan berstatus ditangguhkan", async () => {
-  await D.simpanPengaturanSandbox(DV, { aktif: false, hari: 30, ai_hari: 100 });
+  assert.equal((await D.pengaturanSandbox()).port, 1975); // bawaan
+  await D.simpanPengaturanSandbox(DV, { aktif: false, hari: 30, port: 1975 });
   await assert.rejects(D.buatSandbox(B), galat("sandbox_nonaktif"));
   await assert.rejects(D.perpanjangSandbox(B), galat("sandbox_nonaktif"));
   await assert.rejects(D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" }), galat("sandbox_nonaktif"));
-  await D.simpanPengaturanSandbox(DV, { aktif: true, hari: 14, ai_hari: 250 });
+  await D.simpanPengaturanSandbox(DV, { aktif: true, hari: 14, port: 4321 });
   const u = await D.pengaturanSandbox();
-  assert.deepEqual(u, { aktif: true, hari: 14, ai_hari: 250 });
-  await assert.rejects(D.simpanPengaturanSandbox(DV, { aktif: true, hari: 0, ai_hari: 250 }), galat("isian_tidak_sah"));
-  await assert.rejects(D.simpanPengaturanSandbox(DV, { aktif: true, hari: 30, ai_hari: 0 }), galat("isian_tidak_sah"));
+  assert.deepEqual(u, { aktif: true, hari: 14, port: 4321 });
+  await assert.rejects(D.simpanPengaturanSandbox(DV, { aktif: true, hari: 0, port: 1975 }), galat("isian_tidak_sah"));
+  await assert.rejects(D.simpanPengaturanSandbox(DV, { aktif: true, hari: 30, port: 80 }), galat("isian_tidak_sah"));
+  const { envMesin } = await lib("src/lib/templat-mesin.ts");
+  assert.match(envMesin({ namaAplikasi: "Sandbox", alamat: null, sandbox: true, port: 4321 }), /^PORT_MESIN=4321$/m);
+  assert.doesNotMatch(envMesin({ namaAplikasi: "X", alamat: null }), /^PORT_MESIN=/m);
 });
 
 await cek("kedaluwarsa -> sandbox_kedaluwarsa; perpanjang -> kini + masa umum (14 hari) dan berlaku lagi", async () => {
@@ -220,18 +233,14 @@ await cek("kedaluwarsa -> sandbox_kedaluwarsa; perpanjang -> kini + masa umum (1
   assert.ok(Math.abs(sampai - (sekarang() + 14 * 86400)) < 5);
   const isi = L.verifikasiLisensi(await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" }));
   assert.equal(isi.berlaku_sampai, sampai);
-  assert.equal(isi.batas.ai_hari, 250); // bawaan umum yang baru
 });
 
-await cek("limit AI khusus per sandbox (0 = ikut bawaan); di luar rentang ditolak; developer internal bisa perpanjang", async () => {
-  await D.ubahSandbox(DV, sb.id, { ai_hari: 7 });
-  assert.equal(L.verifikasiLisensi(await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" })).batas.ai_hari, 7);
-  await assert.rejects(D.ubahSandbox(DV, sb.id, { ai_hari: 10_001 }), galat("isian_tidak_sah"));
-  await assert.rejects(D.ubahSandbox(DV, sb.id, { ai_hari: -1 }), galat("isian_tidak_sah"));
-  await D.ubahSandbox(DV, sb.id, { ai_hari: 0, perpanjang: true });
-  assert.equal(L.verifikasiLisensi(await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" })).batas.ai_hari, 250);
+await cek("developer internal bisa perpanjang sandbox satu akun", async () => {
+  await sql`UPDATE api_aplikasi SET sandbox_sampai = ${sekarang() + 60} WHERE id = ${sb.id}`;
+  await D.ubahSandbox(DV, sb.id, { perpanjang: true });
+  assert.ok((await D.sandboxMilik(budi.id)).sandbox_sampai > sekarang() + 13 * 86400);
   const [log] = await sql`SELECT COUNT(*)::int AS n FROM admin_log WHERE aksi = 'ubah sandbox API'`;
-  assert.equal(log.n, 2);
+  assert.equal(log.n, 1);
 });
 
 await cek("tangguhkan / aktifkan / cabut sandbox oleh developer internal; dicabut = tidak bisa dibuat lagi", async () => {
@@ -247,11 +256,9 @@ await cek("tangguhkan / aktifkan / cabut sandbox oleh developer internal; dicabu
   assert.equal(nf.tautan, "/developer#sandbox");
 });
 
-await cek("limit AI production: kolom batas ai_hari ikut form aplikasi (bawaan 0 = tanpa batas, maks 100 rb)", async () => {
-  assert.equal(API.rapikanBatas({}).ai_hari, 0);
-  assert.equal(API.rapikanBatas({ ai_hari: 500 }).ai_hari, 500);
-  assert.equal(API.rapikanBatas({ ai_hari: 999_999 }).ai_hari, 100_000);
+await cek("samarkan nomor untuk tampilan", async () => {
   assert.equal(API.samarkanNomor("6281234567890"), "62812****890");
+  assert.equal("ai_hari" in API.BATAS_BAWAAN, false); // limit AI dihapus: resource & kunci AI milik developer
 });
 
 console.log("== skala & rencana query ==");

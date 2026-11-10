@@ -52,7 +52,6 @@ const LABEL_BATAS_EN: Record<keyof BatasApi, string> = {
   pesan_menit: "Messages per minute per number",
   kontak_baru_hari: "New contacts per day per number",
   instalasi: "Max engine installations",
-  ai_hari: "AI replies per day (0 = unlimited)",
 };
 
 async function Isi({ params }: { params: Promise<{ id: string }> }) {
@@ -279,7 +278,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                 {(Object.keys(RENTANG_BATAS) as (keyof BatasApi)[]).map((k) => (
                   <div key={k} className="flex justify-between gap-3">
                     <dt className="text-muted">{b === "en" ? LABEL_BATAS_EN[k] : RENTANG_BATAS[k].label}</dt>
-                    <dd className="font-semibold tabular-nums">{k === "ai_hari" && !a.batas[k] ? t("Tanpa batas", "Unlimited") : angka(a.batas[k], b)}</dd>
+                    <dd className="font-semibold tabular-nums">{angka(a.batas[k], b)}</dd>
                   </div>
                 ))}
               </dl>

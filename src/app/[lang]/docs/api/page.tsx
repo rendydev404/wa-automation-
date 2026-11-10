@@ -3,7 +3,7 @@ import { BookOpen, FlaskConical, KeyRound, Server, ShieldCheck, Webhook } from "
 import { GantiBahasa } from "@/components/ganti-bahasa";
 import Link from "@/components/link";
 import { Logo } from "@/components/logo";
-import { BATAS_BAWAAN, FITUR_API, KODE_GALAT, SANDBOX_AI_BAWAAN, SANDBOX_HARI_BAWAAN } from "@/lib/api-def";
+import { BATAS_BAWAAN, FITUR_API, KODE_GALAT, SANDBOX_HARI_BAWAAN, SANDBOX_PORT_BAWAAN } from "@/lib/api-def";
 import { ENDPOINT_DOK, EVENT_DOK } from "@/lib/api-dok";
 import { bahasaSah, pembuatT } from "@/lib/bahasa";
 import { teksHalaman } from "@/lib/bahasa-halaman";
@@ -210,11 +210,7 @@ function webhookSah(body, header, rahasia) {
                 <code>403 bukan_nomor_penguji</code>
                 {t("), dan chat dari nomor lain diabaikan: tidak dicatat, tanpa webhook, bot diam.", "); chats from any other number are ignored: not stored, no webhook, the bot stays silent.")}
               </li>
-              <li>
-                {t(`Limit balasan AI per hari (bawaan ${SANDBOX_AI_BAWAAN}, reset 00.00 WIB): balasan bot WA, /ai/jawab, dan /ai/rapikan. Habis = `, `Daily AI reply limit (default ${SANDBOX_AI_BAWAAN}, resets 00:00 WIB): WA bot replies, /ai/jawab, and /ai/rapikan. Once used up: `)}
-                <code>429 batas_ai_harian</code>
-                {t(" dan bot diam sampai reset.", " and the bot stays silent until the reset.")}
-              </li>
+              <li>{t(`Tanpa limit AI dari kami: AI memakai kunci milik Anda sendiri di mesin. Dashboard mesin sandbox: http://localhost:${SANDBOX_PORT_BAWAAN}.`, `No AI limit from us: the AI uses your own key on the engine. Sandbox engine dashboard: http://localhost:${SANDBOX_PORT_BAWAAN}.`)}</li>
               <li>{t(`Key berlaku ${SANDBOX_HARI_BAWAAN} hari dan bisa diperpanjang dari portal.`, `The key is valid for ${SANDBOX_HARI_BAWAAN} days and can be extended in the portal.`)}</li>
             </ul>
             <ol className="list-decimal space-y-1.5 pl-5">
@@ -240,7 +236,7 @@ function webhookSah(body, header, rahasia) {
               <code>X-ChatGerCep-Mode: sandbox</code>
               {t(", amplop webhook berisi ", ", webhook envelopes include ")}
               <code>&quot;mode&quot;: &quot;sandbox&quot;</code>
-              {t(", dan GET /status menampilkan mode, nomor penguji, serta pemakaian AI hari ini. Sandbox tidak diperpanjang lewat webhook: setelah perpanjang di portal, klik Perbarui lisensi di dashboard mesin atau nyalakan ulang mesin.", ", and GET /status shows the mode, tester number, and today's AI usage. The sandbox isn't renewed via webhook: after extending in the portal, click Refresh license in the engine dashboard or restart the engine.")}
+              {t(", dan GET /status menampilkan mode, nomor penguji. Sandbox tidak diperpanjang lewat webhook: setelah perpanjang di portal, klik Perbarui lisensi di dashboard mesin atau nyalakan ulang mesin.", ", and GET /status shows the mode, tester number. The sandbox isn't renewed via webhook: after extending in the portal, click Refresh license in the engine dashboard or restart the engine.")}
             </p>
           </Bagian>
 

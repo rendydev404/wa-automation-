@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { type ReactNode, Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowDown, CheckCircle2, ChevronRight, Code2, Download, FlaskConical, Server, ShieldCheck, Wallet } from "lucide-react";
@@ -6,9 +6,9 @@ import Link from "@/components/link";
 import { Pill } from "@/components/ui";
 import { labelFitur, samarkanNomor } from "@/lib/api-def";
 import { teksHalaman } from "@/lib/bahasa-halaman";
-import { aiSandbox, aplikasiMilik, daftarInstalasi, daftarKunci, pengaturanApi, pengaturanSandbox, sandboxMilik } from "@/lib/developer-api";
+import { aplikasiMilik, daftarInstalasi, daftarKunci, pengaturanApi, pengaturanSandbox, sandboxMilik } from "@/lib/developer-api";
 import { sekarang } from "@/lib/db";
-import { angka, jamWib, tanggal } from "@/lib/format";
+import { jamWib, tanggal } from "@/lib/format";
 import { sembunyikanKunci } from "@/lib/lisensi-def";
 import { MEREK } from "@/lib/merek";
 import { modeMesin } from "@/lib/mode";
@@ -101,12 +101,51 @@ async function KartuSandbox() {
   const habis = !!sb && (sb.sandbox_sampai ?? 0) <= kini;
   const aktif = !!sb && sb.status === "disetujui";
   const kodeMenunggu = !!sb?.uji_kode_sampai && sb.uji_kode_sampai > kini;
-  const langkah = [
-    t("Buat key sandbox (cg_test_…) dan unduh .env sandbox.", "Create a sandbox key (cg_test_…) and download the sandbox .env."),
-    t("Jalankan mesin (docker compose up -d), boleh di laptop. Tidak perlu domain/HTTPS.", "Start the engine (docker compose up -d), even on a laptop. No domain/HTTPS needed."),
-    t("Scan QR dengan nomor WhatsApp khusus testing (1 nomor).", "Scan the QR with a WhatsApp number reserved for testing (1 number)."),
-    t("Daftarkan 1 nomor penguji: kirim WA berisi kode UJI ke nomor bot.", "Register 1 tester number: send the UJI code over WhatsApp to the bot number."),
-    t("Coba kirim pesan, webhook, dan bot AI antara dua nomor itu.", "Try sending messages, webhooks, and the AI bot between those two numbers."),
+  // Alur lengkap dengan status nyata tiap langkah (dari data pusat: key, laporan mesin saat menyala / nomor terhubung).
+  const langkah: { judul: string; isi: ReactNode; selesai: boolean; info?: string }[] = [
+    {
+      judul: t("Buat key sandbox", "Create a sandbox key"),
+      isi: t("Klik Buat key sandbox, salin key cg_test_…, lalu unduh .env sandbox & docker-compose.yml.", "Click Create sandbox key, copy the cg_test_… key, then download the sandbox .env & docker-compose.yml."),
+      selesai: !!kunciAktif,
+    },
+    {
+      judul: t("Nyalakan mesin", "Start the engine"),
+      isi: (
+        <>
+          {t("Tempel key ke CHATGERCEP_KEY di .env, isi ADMIN_EMAIL & ADMIN_PASSWORD, lalu jalankan ", "Put the key in CHATGERCEP_KEY in .env, fill ADMIN_EMAIL & ADMIN_PASSWORD, then run ")}
+          <code className="rounded bg-subtle px-1 font-mono text-[12px]">docker compose up -d</code>
+          {t(". Boleh di laptop, tanpa domain/HTTPS.", ". A laptop is fine, no domain/HTTPS needed.")}
+        </>
+      ),
+      selesai: !!mesin?.terakhir_sukses,
+      info: mesin?.terakhir_sukses ? t(`Menyala ${tanggal(mesin.terakhir_sukses)} ${jamWib(mesin.terakhir_sukses)}`, `Started ${tanggal(mesin.terakhir_sukses, b)} ${jamWib(mesin.terakhir_sukses, b)}`) : undefined,
+    },
+    {
+      judul: t("Sambungkan nomor bot", "Connect the bot number"),
+      isi: (
+        <>
+          {t("Buka dashboard mesin di ", "Open the engine dashboard at ")}
+          <code className="rounded bg-subtle px-1 font-mono text-[12px]">http://localhost:{umum.port}</code>
+          {t(
+            " (login pakai ADMIN_EMAIL & ADMIN_PASSWORD) → Nomor → Tambah nomor. Di HP yang jadi bot: WhatsApp → Perangkat tertaut → Tautkan perangkat → scan QR. Atau lewat API: POST /api/v1/nomor lalu GET /api/v1/nomor/{id}/qr.",
+            " (log in with ADMIN_EMAIL & ADMIN_PASSWORD) → Numbers → Add number. On the bot phone: WhatsApp → Linked devices → Link a device → scan the QR. Or via the API: POST /api/v1/nomor then GET /api/v1/nomor/{id}/qr.",
+          )}
+        </>
+      ),
+      selesai: !!mesin?.nomor_bot,
+      info: mesin?.nomor_bot ? t(`Terhubung: ${samarkanNomor(mesin.nomor_bot)}`, `Connected: ${samarkanNomor(mesin.nomor_bot)}`) : undefined,
+    },
+    {
+      judul: t("Daftarkan nomor penguji", "Register the tester number"),
+      isi: t("Klik Daftarkan nomor penguji, lalu dari HP kamu kirim WA berisi kode UJI ke nomor bot. Nomor bot membalas ✅.", "Click Register tester number, then from your phone send the UJI code over WhatsApp to the bot number. The bot replies ✅."),
+      selesai: !!sb?.uji_diverifikasi,
+      info: sb?.uji_diverifikasi ? (sb.uji_telepon ? samarkanNomor(sb.uji_telepon) : t("Terverifikasi", "Verified")) : undefined,
+    },
+    {
+      judul: t("Mulai mencoba", "Start testing"),
+      isi: t("Kirim pesan lewat API ke nomor penguji, atau chat dari HP penguji ke nomor bot: webhook masuk dan bot AI menjawab.", "Send a message via the API to the tester number, or chat from the tester phone to the bot number: webhooks fire and the AI bot replies."),
+      selesai: !!sb?.uji_diverifikasi && !!mesin?.nomor_bot,
+    },
   ];
   return (
     <section id="sandbox" className="card scroll-mt-6 overflow-hidden">
@@ -168,12 +207,8 @@ async function KartuSandbox() {
               </div>
             )}
             {sb && (
-              <dl className="grid grid-cols-2 gap-3 text-[13px]">
-                <div className="rounded-xl bg-subtle/60 p-3">
-                  <dt className="text-[12px] text-muted">{t("Balasan AI per hari", "AI replies per day")}</dt>
-                  <dd className="mt-0.5 font-bold tabular-nums">{angka(aiSandbox(sb, umum), b)}</dd>
-                </div>
-                <div className="rounded-xl bg-subtle/60 p-3">
+              <dl className="grid gap-3 text-[13px]">
+                                <div className="rounded-xl bg-subtle/60 p-3">
                   <dt className="text-[12px] text-muted">{t("Mesin sandbox", "Sandbox engine")}</dt>
                   <dd className="mt-0.5 font-bold">
                     {mesin?.terakhir_sukses ? t(`Menyala ${tanggal(mesin.terakhir_sukses)} ${jamWib(mesin.terakhir_sukses)}`, `Started ${tanggal(mesin.terakhir_sukses, b)} ${jamWib(mesin.terakhir_sukses, b)}`) : t("Belum pernah menyala", "Never started")}
@@ -219,14 +254,27 @@ async function KartuSandbox() {
                 </a>
               </div>
             ) : null}
-            <ol className="space-y-2 text-[13px]">
-              {langkah.map((l, i) => (
-                <li key={l} className="flex gap-2.5">
-                  <span className="grid size-5 shrink-0 place-items-center rounded-full bg-ink text-[11px] font-bold text-ink-signal">{i + 1}</span>
-                  <span className="text-muted">{l}</span>
-                </li>
-              ))}
-            </ol>
+            <div>
+              <h3 className="text-[13px] font-bold text-muted uppercase">{t("Langkah mencoba", "Steps to try it")}</h3>
+              <ol className="mt-2 space-y-3 text-[13px]">
+                {langkah.map((l, i) => (
+                  <li key={l.judul} className="flex gap-2.5">
+                    {l.selesai ? (
+                      <CheckCircle2 className="mt-px size-5 shrink-0 text-success" aria-label={t("Selesai", "Done")} />
+                    ) : (
+                      <span className="grid size-5 shrink-0 place-items-center rounded-full bg-ink text-[11px] font-bold text-ink-signal">{i + 1}</span>
+                    )}
+                    <span className="min-w-0">
+                      <span className={`block font-semibold ${l.selesai ? "text-success" : "text-fg"}`}>
+                        {l.judul}
+                        {l.info && <span className="font-normal text-muted"> · {l.info}</span>}
+                      </span>
+                      <span className="block text-muted">{l.isi}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
           </div>
         </div>
       )}

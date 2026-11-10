@@ -61,11 +61,10 @@ const tono = await akun("tono@contoh.test", "Tono Travel");
 // Sari: sandbox aktif, nomor uji terverifikasi (kunci dipakai mesin sandbox di bawah).
 const sbSari = await D.buatSandbox(sari);
 await sql`UPDATE api_aplikasi SET uji_telepon = '6281234567890', uji_alamat = '6281234567890@s.whatsapp.net', uji_diverifikasi = ${kini - 3600} WHERE id = ${sbSari.id}`;
-// Rina: sandbox kedaluwarsa. Tono: ditangguhkan, limit AI khusus 25.
+// Rina: sandbox kedaluwarsa. Tono: ditangguhkan.
 const sbRina = await D.buatSandbox(rina);
 await sql`UPDATE api_aplikasi SET sandbox_sampai = ${kini - 86400} WHERE id = ${sbRina.id}`;
 const sbTono = await D.buatSandbox(tono);
-await D.ubahSandbox(dev, sbTono.id, { ai_hari: 25 });
 await D.ubahStatus(dev, sbTono.id, "tangguhkan", "Dipakai di luar testing");
 // Pengajuan production menunggu (form setujui menampilkan isian "Balasan AI per hari").
 process.env.LISENSI_IZINKAN_HTTP = "1";
@@ -257,6 +256,17 @@ try {
 
   // ===== Portal: sandbox aktif, nomor uji terverifikasi, mesin pernah menyala =====
   await ukuran(1440, false);
+  {
+    // Nomor bot yang dilaporkan mesin (di uji nyata: saat QR di-scan). Mesin di skrip ini tanpa WhatsApp, jadi diisi langsung.
+    const postgres = (await import(pathToFileURL(path.join(akar, "node_modules/postgres/src/index.js")).href)).default;
+    const sp = postgres(pg.url, { max: 1, onnotice: () => {} });
+    for (let i = 0; i < 40; i++) {
+      const r = await sp`UPDATE api_instalasi SET nomor_bot = '628999000999' WHERE aplikasi_id = ${sbSari.id} AND dilepas_pada IS NULL RETURNING id`;
+      if (r.length) break;
+      await tidur(500);
+    }
+    await sp.end({ timeout: 2 });
+  }
   await masuk("sari@contoh.test");
   await buka("/developer");
   await foto("07-portal-terverifikasi-desktop", { pilih: KARTU });
@@ -297,7 +307,7 @@ try {
   for (let i = 0; i < 60; i++) {
     const r = await fetch(`${dasarMesin}/api/v1/status`, { headers: { authorization: `Bearer ${sbSari.key}` } }).then((x) => x.json()).catch(() => null);
     if (r?.lisensi?.aktif) {
-      console.log(`  mesin: mode ${r.mode}, nomor uji ${r.nomor_uji}, AI ${r.ai_hari.terpakai}/${r.ai_hari.batas}`);
+      console.log(`  mesin: mode ${r.mode}, nomor uji ${r.nomor_uji}`);
       break;
     }
     await tidur(500);

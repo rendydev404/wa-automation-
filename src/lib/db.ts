@@ -834,9 +834,11 @@ const KUNCI_MIGRASI = 7272740001;
  * Aman dipindah ke MIGRASI kelak (pakai ADD COLUMN IF NOT EXISTS).
  */
 const KOLOM_PASTI: readonly { tabel: string; kolom: string; sql: string }[] = [
+  // Nomor bot (WA yang terhubung di mesin) yang dilaporkan mesin saat menyala / nomor terhubung: tampil di portal Developer.
+  { tabel: "api_instalasi", kolom: "nomor_bot", sql: "ALTER TABLE api_instalasi ADD COLUMN IF NOT EXISTS nomor_bot text" },
   // Mode sandbox Developer API (docs/plans/2026-11-10-sandbox-developer-api.md). Pusat: sandbox = baris api_aplikasi
   // mode 'sandbox' (maks 1 per akun) + SATU nomor penguji terverifikasi; instalasi sandbox tanpa alamat publik. Mesin:
-  // penghitung balasan AI per hari WIB (batas.ai_hari). Default konstan = ADD COLUMN tanpa menulis ulang tabel.
+  // Default konstan = ADD COLUMN tanpa menulis ulang tabel.
   {
     tabel: "api_aplikasi",
     kolom: "mode",
@@ -854,7 +856,6 @@ const KOLOM_PASTI: readonly { tabel: string; kolom: string; sql: string }[] = [
       CREATE UNIQUE INDEX IF NOT EXISTS api_aplikasi_sandbox_user_uniq ON api_aplikasi (user_id) WHERE mode = 'sandbox';
       CREATE INDEX IF NOT EXISTS api_aplikasi_sandbox_idx ON api_aplikasi (id DESC) WHERE mode = 'sandbox';
       ALTER TABLE api_instalasi ALTER COLUMN alamat DROP NOT NULL;
-      CREATE TABLE IF NOT EXISTS mesin_pemakaian_ai (hari bigint PRIMARY KEY, jumlah integer NOT NULL DEFAULT 0);
     `,
   },
   // Asal pendaftar dari landing page industri / iklan (src/lib/asal-def.ts): industri, halaman LP, UTM + click id + paket.

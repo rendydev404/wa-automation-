@@ -3,21 +3,19 @@ import { semuaNomor } from "@/lib/numbers";
 import { infoSesi } from "@/lib/wa";
 import { aman, bukanKonteks, ok, otorisasi } from "@/lib/mesin/api";
 import { infoLisensi } from "@/lib/mesin/lisensi";
-import { pemakaianAiHariIni } from "@/lib/mesin/kuota-ai";
 
-/** GET /api/v1/status: versi mesin, mode (sandbox/production), nomor penguji, pemakaian AI hari ini, lisensi, jumlah nomor. Tetap menjawab dalam mode terbatas (untuk tahu sebabnya). */
+/** GET /api/v1/status: versi mesin, mode (sandbox/production), nomor penguji, lisensi, jumlah nomor. Tetap menjawab dalam mode terbatas (untuk tahu sebabnya). */
 export async function GET(req: Request) {
   const k = await otorisasi(req, null, { izinkanTerbatas: true });
   if (bukanKonteks(k)) return k;
   return aman(k, async () => {
     const l = infoLisensi();
-    const [nomor, ai] = await Promise.all([semuaNomor(), pemakaianAiHariIni()]);
+    const nomor = await semuaNomor();
     return ok(
       {
         versi: VERSI_APLIKASI,
         mode: l.mode === "sandbox" ? "sandbox" : "production",
         ...(l.mode === "sandbox" ? { nomor_uji: l.nomor_uji } : {}),
-        ai_hari: { terpakai: ai.terpakai, batas: ai.batas || null, reset: ai.reset },
         lisensi: {
           status: l.status,
           aktif: l.aktif,

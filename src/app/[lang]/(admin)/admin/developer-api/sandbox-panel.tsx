@@ -5,8 +5,8 @@ import { simpanPengaturanSandboxAction, ubahSandboxAction } from "@/app/actions-
 import { Pesan, Saklar, SubmitButton } from "@/components/ui";
 import { RENTANG_SANDBOX } from "@/lib/api-def";
 
-/** Pengaturan umum sandbox: sakelar, masa key, limit balasan AI bawaan. */
-export function FormPengaturanSandbox({ aktif, hari, ai }: { aktif: boolean; hari: number; ai: number }) {
+/** Pengaturan umum sandbox: sakelar, masa key, port dashboard mesin. */
+export function FormPengaturanSandbox({ aktif, hari, port }: { aktif: boolean; hari: number; port: number }) {
   const [hasil, aksi] = useActionState(simpanPengaturanSandboxAction, null);
   const [nyala, setNyala] = useState(aktif);
   return (
@@ -28,13 +28,11 @@ export function FormPengaturanSandbox({ aktif, hari, ai }: { aktif: boolean; har
           <p className="mt-1 text-[12px] text-muted">Dipakai saat key dibuat dan setiap kali diperpanjang.</p>
         </div>
         <div>
-          <label htmlFor="sandbox-ai" className="label">
-            Limit balasan AI per hari (bawaan)
+          <label htmlFor="sandbox-port" className="label">
+            Port dashboard mesin sandbox
           </label>
-          <input id="sandbox-ai" name="ai_hari" type="number" min={RENTANG_SANDBOX.ai_hari.min} max={RENTANG_SANDBOX.ai_hari.maks} defaultValue={ai} className="field" />
-          <p className="mt-1 text-[12px] text-muted">
-            Untuk sandbox tanpa limit khusus ({RENTANG_SANDBOX.ai_hari.min}–{RENTANG_SANDBOX.ai_hari.maks.toLocaleString("id-ID")}). Dihitung: balasan bot WA, /ai/jawab, /ai/rapikan.
-          </p>
+          <input id="sandbox-port" name="port" type="number" min={RENTANG_SANDBOX.port.min} max={RENTANG_SANDBOX.port.maks} defaultValue={port} className="field" />
+          <p className="mt-1 text-[12px] text-muted">Ditulis ke .env sandbox (PORT_MESIN). Developer membuka http://localhost:{port} untuk scan QR nomor bot.</p>
         </div>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2 border-t border-line pt-4">
@@ -45,21 +43,11 @@ export function FormPengaturanSandbox({ aktif, hari, ai }: { aktif: boolean; har
   );
 }
 
-/** Limit AI khusus satu sandbox (0 = ikut bawaan) + perpanjang. */
-export function FormUbahSandbox({ id, aiKhusus, aiBawaan, hari }: { id: number; aiKhusus: number; aiBawaan: number; hari: number }) {
+/** Perpanjang masa satu sandbox. */
+export function FormUbahSandbox({ id, hari }: { id: number; hari: number }) {
   const [hasil, aksi] = useActionState(ubahSandboxAction, null);
   return (
     <div className="space-y-3">
-      <form action={aksi} className="flex flex-wrap items-end gap-2">
-        <input type="hidden" name="id" value={id} />
-        <div className="w-full max-w-72">
-          <label htmlFor={`ai-${id}`} className="text-[12.5px] font-semibold text-muted">
-            Limit AI per hari <span className="font-normal">(0 = bawaan {aiBawaan.toLocaleString("id-ID")})</span>
-          </label>
-          <input id={`ai-${id}`} name="ai_hari" type="number" min={0} max={RENTANG_SANDBOX.ai_hari.maks} defaultValue={aiKhusus} className="field mt-1" />
-        </div>
-        <SubmitButton className="btn btn-primary">Simpan limit</SubmitButton>
-      </form>
       <form action={aksi}>
         <input type="hidden" name="id" value={id} />
         <input type="hidden" name="perpanjang" value="1" />

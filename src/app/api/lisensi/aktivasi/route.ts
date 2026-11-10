@@ -7,6 +7,6 @@ import { tanganiLisensi } from "@/lib/developer-api-http";
  */
 export async function POST(req: Request) {
   return tanganiLisensi(req, "aktivasi", async (b) => ({
-    lisensi: await aktivasi({ key: String(b.key ?? ""), id_instalasi: String(b.id_instalasi ?? ""), alamat: String(b.alamat ?? ""), versi: String(b.versi ?? "") }),
+    lisensi: await aktivasi({ key: String(b.key ?? ""), id_instalasi: String(b.id_instalasi ?? ""), alamat: String(b.alamat ?? ""), versi: String(b.versi ?? ""), nomor_bot: typeof b.nomor_bot === "string" ? b.nomor_bot : null }),
   }));
 }

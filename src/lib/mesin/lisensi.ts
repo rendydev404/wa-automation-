@@ -17,7 +17,7 @@ import {
 import { db, sekarang } from "../db";
 import { uraiKunciApi, verifikasiLisensi } from "../lisensi-def";
 import { VERSI_APLIKASI, alamatPusat, modeMesin } from "../mode";
-import { pancarkan } from "../peristiwa";
+import { dengar, pancarkan } from "../peristiwa";
 
 /**
  * Lisensi di mesin self-host. Lisensi = token bertanda tangan Ed25519 dari pusat (lisensi-def.ts), disimpan di tabel
@@ -276,7 +276,7 @@ export async function sinkronSekali(): Promise<void> {
   let token: string;
   if (st.isi) {
     try {
-      token = await panggilPusat(JALUR_KONDISI, { key, id_instalasi: id, versi: VERSI_APLIKASI });
+      token = await panggilPusat(JALUR_KONDISI, { key, id_instalasi: id, versi: VERSI_APLIKASI, nomor_bot: await nomorBot() });
     } catch (e) {
       if (!(e instanceof GalatPusat) || e.kode !== "tidak_ditemukan") throw e;
       token = await aktivasi(key, id);
@@ -292,9 +292,20 @@ export async function sinkronSekali(): Promise<void> {
 function aktivasi(key: string, id: string): Promise<string> {
   const alamat = alamatPublik();
   // Sandbox tidak butuh alamat publik (tanpa tantangan & webhook lisensi): bisa dijalankan di laptop.
-  if (modeKunci() === "sandbox") return panggilPusat(JALUR_AKTIVASI, { key, id_instalasi: id, alamat, versi: VERSI_APLIKASI });
+  if (modeKunci() === "sandbox") return nomorBot().then((nomor_bot) => panggilPusat(JALUR_AKTIVASI, { key, id_instalasi: id, alamat, versi: VERSI_APLIKASI, nomor_bot }));
   if (!alamat) throw new GalatPusat("tanpa_alamat", "ALAMAT_PUBLIK belum diisi di .env mesin (alamat HTTPS publik mesin ini)", 0);
   return panggilPusat(JALUR_AKTIVASI, { key, id_instalasi: id, alamat, versi: VERSI_APLIKASI });
+}
+
+/** Nomor bot = nomor WA terhubung pertama di mesin (sandbox hanya 1 nomor); dilaporkan ke portal Developer. */
+async function nomorBot(): Promise<string | null> {
+  try {
+    const sql = await db();
+    const [r] = await sql<{ wa_id: string }[]>`SELECT wa_id FROM numbers WHERE wa_id IS NOT NULL ORDER BY id LIMIT 1`;
+    return r?.wa_id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function gantiInstalasi(): Promise<void> {
@@ -336,7 +347,7 @@ export async function verifikasiNomorUjiKePusat(kode: string, pengirim: { telepo
   const key = kunciApi();
   if (!key || modeKunci() !== "sandbox") return { ok: false, pesan: "bukan mesin sandbox" };
   try {
-    const token = await panggilPusat(JALUR_NOMOR_UJI, { key, id_instalasi: st.idInstalasi!, kode, telepon: pengirim.telepon, alamat: pengirim.alamat, versi: VERSI_APLIKASI });
+    const token = await panggilPusat(JALUR_NOMOR_UJI, { key, id_instalasi: st.idInstalasi!, kode, telepon: pengirim.telepon, alamat: pengirim.alamat, versi: VERSI_APLIKASI, nomor_bot: await nomorBot() });
     const t = await terimaLisensi(token);
     if (!t.ok) return { ok: false, pesan: t.alasan };
     return { ok: lawanNomorUji(pengirim), pesan: "ok" };
@@ -379,6 +390,12 @@ export function mulaiLisensiMesin(tundaMs = 5_000): void {
   };
   const t = setTimeout(() => void jalan(), tundaMs);
   t.unref?.();
+  // Sandbox: begitu nomor bot terhubung (scan QR), kabari pusat SEKALI supaya portal Developer menampilkannya.
+  // Berbasis kejadian (bukan polling); sekaligus mengambil lisensi terbaru.
+  dengar((p) => {
+    if (p.jenis !== "nomor.terhubung" || modeKunci() !== "sandbox") return;
+    setTimeout(() => void sinkronSekali().catch((e) => console.warn("[mesin] lapor nomor bot gagal:", e instanceof Error ? e.message : e)), 2_000).unref?.();
+  });
   // Peringatan sisa masa lisensi (24 jam & 6 jam) ke webhook aplikasi; hanya membaca memori, tidak menghubungi pusat.
   st.timerPeringatan = setInterval(() => periksaPeringatan(), 15 * 60_000);
   st.timerPeringatan.unref?.();

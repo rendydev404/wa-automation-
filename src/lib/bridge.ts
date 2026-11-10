@@ -20,7 +20,6 @@ import type { Foto } from "./types";
 import type { WAMessage } from "baileys";
 import { type EventWa, digitWa, kirimGambar, kirimTeks, mengetik, padaEvent, tandaiDibaca } from "./wa";
 import { layananBoleh, lawanNomorUji, sandboxAktif, verifikasiNomorUjiKePusat } from "./mesin/lisensi";
-import { ambilJatahAi, batasAiHarian, kembalikanJatahAi, perluBeritahuBatasAi, teksBatasAi } from "./mesin/kuota-ai";
 import { POLA_PESAN_UJI } from "./api-def";
 
 /**
@@ -495,14 +494,6 @@ async function proses(kunci: string): Promise<void> {
     } else {
       a.siap = null;
       a.siapProduk = null;
-      // Limit balasan AI per hari (mesin self-host, batas.ai_hari; pusat & tanpa limit = tanpa query): jatah diambil
-      // sebelum AI dipanggil. Habis = bot diam (pesan tetap tercatat); nomor penguji sandbox diberi tahu sekali sehari.
-      if (!(await ambilJatahAi())) {
-        a.teks.length = 0;
-        a.foto.length = 0;
-        if (sandboxAktif() && perluBeritahuBatasAi()) void kirimTeks(a.sesi, a.alamat, teksBatasAi(batasAiHarian()), (x) => ingat(st.terkirim, x, 500)).catch(() => {});
-        return;
-      }
       const tertunda = a.teks.length;
       const sesiLalu = a.chat?.sesi_ke ?? 0;
       const asli = await isiTranskrip(a.teks.splice(0), a.suara);
@@ -604,7 +595,6 @@ async function proses(kunci: string): Promise<void> {
         if (!jawaban) throw new Error("AI mengirim jawaban kosong");
       } catch (e) {
         galat(a, e);
-        void kembalikanJatahAi(); // AI gagal: jatah balasan hari ini tidak terpakai
         // Pesan dikembalikan ke antrean dan dicoba lagi, kecuali manusia sudah mengambil alih selagi menunggu.
         if (a.generasi === generasi && !sedangDijeda(a) && a.ulangAi < JEDA_ULANG_AI_MS.length) {
           a.jedaUlangMs = JEDA_ULANG_AI_MS[a.ulangAi];

@@ -67,17 +67,14 @@ export interface BatasApi {
   kontak_baru_hari: number;
   /** Maks instalasi mesin aktif per aplikasi. */
   instalasi: number;
-  /** Maks balasan AI per hari WIB (balasan bot WA + /ai/jawab + /ai/rapikan). 0 = tanpa batas. */
-  ai_hari: number;
 }
 
-export const BATAS_BAWAAN: BatasApi = { nomor: 50, pesan_menit: 20, kontak_baru_hari: 50, instalasi: 1, ai_hari: 0 };
+export const BATAS_BAWAAN: BatasApi = { nomor: 50, pesan_menit: 20, kontak_baru_hari: 50, instalasi: 1 };
 export const RENTANG_BATAS: Record<keyof BatasApi, { min: number; maks: number; label: string; satuan: string }> = {
   nomor: { min: 1, maks: 1000, label: "Maks nomor per mesin", satuan: "nomor" },
   pesan_menit: { min: 1, maks: 60, label: "Pesan per menit per nomor", satuan: "pesan" },
   kontak_baru_hari: { min: 0, maks: 1000, label: "Kontak baru per hari per nomor", satuan: "kontak" },
   instalasi: { min: 1, maks: 20, label: "Maks instalasi mesin", satuan: "mesin" },
-  ai_hari: { min: 0, maks: 100_000, label: "Balasan AI per hari (0 = tanpa batas)", satuan: "balasan" },
 };
 
 /** Lengkapi batas tersimpan (jsonb) dengan nilai bawaan & potong ke rentang sah. */
@@ -94,17 +91,19 @@ export function rapikanBatas(b: Partial<Record<keyof BatasApi, unknown>> | null 
 
 /**
  * Mode aplikasi. Sandbox = key `cg_test_…` untuk mencoba API dengan WhatsApp asli sebelum production: keluar tanpa
- * peninjauan, 1 nomor WA, hanya boleh berkomunikasi dengan SATU nomor penguji yang terverifikasi, limit balasan AI per hari.
+ * peninjauan, 1 nomor WA, hanya boleh berkomunikasi dengan SATU nomor penguji yang terverifikasi. Resource (server, WA,
+ * kunci AI) milik developer: kita hanya meminjamkan fitur & logika inti, jadi tidak ada limit AI.
  * Rencana: docs/plans/2026-11-10-sandbox-developer-api.md.
  */
 export type ModeApi = "produksi" | "sandbox";
 
 /** Bawaan pengaturan umum sandbox (diubah developer internal di tab Sandbox). */
 export const SANDBOX_HARI_BAWAAN = 30;
-export const SANDBOX_AI_BAWAAN = 100;
+/** Port dashboard mesin sandbox di komputer developer (http://localhost:<port>); masuk ke .env sandbox sebagai PORT_MESIN. */
+export const SANDBOX_PORT_BAWAAN = 1975;
 export const RENTANG_SANDBOX = {
   hari: { min: 1, maks: 365 },
-  ai_hari: { min: 1, maks: 10_000 },
+  port: { min: 1024, maks: 65_535 },
 } as const;
 /** Batas tetap sandbox (tidak bisa diubah): 1 nomor WA, 1 instalasi. */
 export const BATAS_TETAP_SANDBOX = { nomor: 1, instalasi: 1 } as const;
@@ -195,11 +194,14 @@ export interface PermintaanAktivasi {
   id_instalasi: string;
   alamat: string;
   versi: string;
+  /** Nomor bot (WA yang sedang terhubung di mesin, 628…); ditampilkan di portal Developer. */
+  nomor_bot?: string | null;
 }
 export interface PermintaanKondisi {
   key: string;
   id_instalasi: string;
   versi: string;
+  nomor_bot?: string | null;
 }
 export interface PermintaanNomorUji {
   key: string;
@@ -208,6 +210,7 @@ export interface PermintaanNomorUji {
   telepon: string | null;
   alamat: string | null;
   versi: string;
+  nomor_bot?: string | null;
 }
 export type WebhookKeMesin = { jenis: "tantangan"; nonce: string; id_instalasi: string } | { jenis: "lisensi"; lisensi: string };
 export interface JawabanLisensiMesin {
@@ -228,7 +231,6 @@ export const KODE_GALAT = {
   batas_nomor: 403,
   bukan_nomor_penguji: 403,
   nomor_penguji_belum_ada: 409,
-  batas_ai_harian: 429,
   sandbox_kedaluwarsa: 402,
   sandbox_nonaktif: 403,
   tidak_ditemukan: 404,

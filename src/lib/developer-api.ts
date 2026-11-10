@@ -22,8 +22,8 @@ import {
   type PermintaanKondisi,
   type PermintaanNomorUji,
   RENTANG_SANDBOX,
-  SANDBOX_AI_BAWAAN,
   SANDBOX_HARI_BAWAAN,
+  SANDBOX_PORT_BAWAAN,
   type StatusAplikasi,
   type StatusLisensi,
   fiturSah,
@@ -575,6 +575,8 @@ async function cariKunci(key: string): Promise<{ aplikasi_id: number; mode: Mode
 
 export interface Instalasi {
   id: string;
+  /** Nomor bot (628…) yang terakhir dilaporkan mesin; null = belum ada nomor terhubung. */
+  nomor_bot: string | null;
   /** null = mesin sandbox (tanpa alamat publik). */
   alamat: string | null;
   versi_mesin: string | null;
@@ -588,7 +590,7 @@ export interface Instalasi {
 export async function daftarInstalasi(aplikasiId: number): Promise<Instalasi[]> {
   const sql = await db();
   return [...(await sql<Instalasi[]>`
-    SELECT id, alamat, versi_mesin, jumlah_nomor, terakhir_sukses, gagal_sejak, galat_terakhir, dibuat
+    SELECT id, nomor_bot, alamat, versi_mesin, jumlah_nomor, terakhir_sukses, gagal_sejak, galat_terakhir, dibuat
       FROM api_instalasi WHERE aplikasi_id = ${aplikasiId} AND dilepas_pada IS NULL ORDER BY dibuat DESC`)];
 }
 
@@ -636,7 +638,7 @@ async function terbitkan(instalasiId: string): Promise<{ token: string; isi: Isi
   const daftarKunci = kunci.map((k) => ({ awalan: k.awalan, hash: k.hash, sampai: k.sampai }));
   const isi: IsiLisensi = sb
     ? {
-        // Sandbox: v2 (mesin lama menolaknya), semua fitur yang dibagikan, 1 nomor, limit AI, berlaku sampai masa sandbox
+        // Sandbox: v2 (mesin lama menolaknya), semua fitur yang dibagikan, 1 nomor, berlaku sampai masa sandbox
         // (tanpa webhook perpanjangan: sandbox tidak punya alamat publik).
         v: 2,
         mode: "sandbox",
@@ -646,7 +648,7 @@ async function terbitkan(instalasiId: string): Promise<{ token: string; isi: Isi
         id_instalasi: instalasiId,
         status,
         fitur: [...umum.fitur],
-        batas: { ...BATAS_BAWAAN, ...BATAS_TETAP_SANDBOX, ai_hari: aiSandbox(a, umumSb!) },
+        batas: { ...BATAS_BAWAAN, ...BATAS_TETAP_SANDBOX },
         biaya: "gratis",
         dibayar_sampai: null,
         kunci: daftarKunci,
@@ -785,7 +787,9 @@ export async function kondisi(p: PermintaanKondisi): Promise<string> {
   const sql = await db();
   const [i] = await sql<{ aplikasi_id: number }[]>`SELECT aplikasi_id FROM api_instalasi WHERE id = ${p.id_instalasi}::uuid AND dilepas_pada IS NULL`;
   if (!i || i.aplikasi_id !== a.id) throw new ApiError("tidak_ditemukan", "Instalasi belum diaktifkan atau sudah dilepas. Mesin akan mengaktivasi ulang.");
-  await sql`UPDATE api_instalasi SET versi_mesin = ${bersih(p.versi, 40) || null}, terakhir_sukses = ${sekarang()}, gagal_sejak = NULL, galat_terakhir = NULL WHERE id = ${p.id_instalasi}::uuid`;
+  const bot = teleponSah(p.nomor_bot);
+  await sql`UPDATE api_instalasi SET versi_mesin = ${bersih(p.versi, 40) || null}, terakhir_sukses = ${sekarang()}, gagal_sejak = NULL, galat_terakhir = NULL,
+                   nomor_bot = ${p.nomor_bot === undefined ? sql`nomor_bot` : bot} WHERE id = ${p.id_instalasi}::uuid`;
   const l = await terbitkan(p.id_instalasi);
   if (!l) throw new ApiError("aplikasi_dicabut", "Aplikasi tidak lagi berhak atas lisensi.");
   return l.token;
@@ -967,8 +971,8 @@ export interface PengaturanSandbox {
   aktif: boolean;
   /** Masa berlaku key sandbox (hari) saat dibuat / diperpanjang. */
   hari: number;
-  /** Limit balasan AI per hari bawaan untuk sandbox tanpa limit khusus. */
-  ai_hari: number;
+  /** Port dashboard mesin sandbox (http://localhost:<port>), ditulis ke .env sandbox sebagai PORT_MESIN. */
+  port: number;
 }
 
 const dalamRentang = (v: unknown, r: { min: number; maks: number }, bawaan: number): number => {
@@ -977,27 +981,24 @@ const dalamRentang = (v: unknown, r: { min: number; maks: number }, bawaan: numb
 };
 
 export async function pengaturanSandbox(): Promise<PengaturanSandbox> {
-  const [a, h, ai] = await Promise.all([getSetting("api_sandbox_aktif"), getSetting("api_sandbox_hari"), getSetting("api_sandbox_ai_hari")]);
+  const [a, h, pt] = await Promise.all([getSetting("api_sandbox_aktif"), getSetting("api_sandbox_hari"), getSetting("api_sandbox_port")]);
   return {
     aktif: a !== "0",
     hari: dalamRentang(h, RENTANG_SANDBOX.hari, SANDBOX_HARI_BAWAAN),
-    ai_hari: dalamRentang(ai, RENTANG_SANDBOX.ai_hari, SANDBOX_AI_BAWAAN),
+    port: dalamRentang(pt, RENTANG_SANDBOX.port, SANDBOX_PORT_BAWAAN),
   };
 }
-
-/** Limit AI sandbox: limit khusus (batas.ai_hari > 0) atau bawaan umum. */
-export const aiSandbox = (a: Pick<Aplikasi, "batas">, umum: PengaturanSandbox): number => (a.batas.ai_hari > 0 ? a.batas.ai_hari : umum.ai_hari);
 
 /** Simpan pengaturan umum sandbox. Tidak mengirim apa pun ke mesin (sandbox tanpa webhook): berlaku saat mesin menyala. */
 export async function simpanPengaturanSandbox(pelaku: User, p: PengaturanSandbox): Promise<void> {
   const hari = dalamRentang(p.hari, RENTANG_SANDBOX.hari, -1);
-  const ai = dalamRentang(p.ai_hari, RENTANG_SANDBOX.ai_hari, -1);
   if (hari < 0) throw new ApiError("isian_tidak_sah", `Masa key sandbox harus ${RENTANG_SANDBOX.hari.min}–${RENTANG_SANDBOX.hari.maks} hari.`);
-  if (ai < 0) throw new ApiError("isian_tidak_sah", `Limit AI harus ${RENTANG_SANDBOX.ai_hari.min}–${RENTANG_SANDBOX.ai_hari.maks.toLocaleString("id-ID")} balasan per hari.`);
+  const port = dalamRentang(p.port, RENTANG_SANDBOX.port, -1);
+  if (port < 0) throw new ApiError("isian_tidak_sah", `Port harus ${RENTANG_SANDBOX.port.min}–${RENTANG_SANDBOX.port.maks}.`);
   await setSetting("api_sandbox_aktif", p.aktif ? "1" : "0");
   await setSetting("api_sandbox_hari", String(hari));
-  await setSetting("api_sandbox_ai_hari", String(ai));
-  await catatLog(pelaku, "ubah pengaturan sandbox API", null, `${p.aktif ? "nyala" : "mati"}, masa ${hari} hari, limit AI ${ai}/hari`);
+  await setSetting("api_sandbox_port", String(port));
+  await catatLog(pelaku, "ubah pengaturan sandbox API", null, `${p.aktif ? "nyala" : "mati"}, masa ${hari} hari, port ${port}`);
 }
 
 /** Sandbox milik akun ini (paling banyak satu), lewat indeks unik parsial. */
@@ -1103,7 +1104,7 @@ export async function verifikasiNomorUji(p: PermintaanNomorUji): Promise<string>
       UPDATE api_aplikasi SET uji_telepon = ${telepon}, uji_alamat = ${alamat}, uji_diverifikasi = ${kini},
              uji_kode_hash = NULL, uji_kode_sampai = NULL, uji_kode_coba = 0
        WHERE id = ${a.id}`;
-    await tx`UPDATE api_instalasi SET versi_mesin = ${bersih(p.versi, 40) || null}, terakhir_sukses = ${kini} WHERE id = ${p.id_instalasi}::uuid`;
+    await tx`UPDATE api_instalasi SET versi_mesin = ${bersih(p.versi, 40) || null}, terakhir_sukses = ${kini}, nomor_bot = COALESCE(${teleponSah(p.nomor_bot)}, nomor_bot) WHERE id = ${p.id_instalasi}::uuid`;
     return true;
   });
   if (!ok) throw new ApiError("isian_tidak_sah", "Kode salah atau sudah habis. Buat kode baru di portal Developer.");
@@ -1125,9 +1126,9 @@ async function aktivasiSandbox(a: Aplikasi, p: PermintaanAktivasi): Promise<stri
     if (ada && (ada.aplikasi_id !== a.id || ada.dilepas_pada)) throw new ApiError("instalasi_penuh", "ID instalasi ini sudah dilepas atau dipakai aplikasi lain. Hapus data mesin lalu pasang ulang.");
     await tx`UPDATE api_instalasi SET dilepas_pada = ${kini} WHERE aplikasi_id = ${a.id} AND dilepas_pada IS NULL AND id <> ${p.id_instalasi}::uuid`;
     await tx`
-      INSERT INTO api_instalasi (id, aplikasi_id, alamat, versi_mesin, dibuat, terakhir_sukses)
-      VALUES (${p.id_instalasi}::uuid, ${a.id}, NULL, ${bersih(p.versi, 40) || null}, ${kini}, ${kini})
-      ON CONFLICT (id) DO UPDATE SET versi_mesin = EXCLUDED.versi_mesin, terakhir_sukses = EXCLUDED.terakhir_sukses`;
+      INSERT INTO api_instalasi (id, aplikasi_id, alamat, versi_mesin, dibuat, terakhir_sukses, nomor_bot)
+      VALUES (${p.id_instalasi}::uuid, ${a.id}, NULL, ${bersih(p.versi, 40) || null}, ${kini}, ${kini}, ${teleponSah(p.nomor_bot)})
+      ON CONFLICT (id) DO UPDATE SET versi_mesin = EXCLUDED.versi_mesin, terakhir_sukses = EXCLUDED.terakhir_sukses, nomor_bot = EXCLUDED.nomor_bot`;
   });
   const l = await terbitkan(p.id_instalasi);
   if (!l) throw new ApiError("aplikasi_dicabut", "Sandbox tidak lagi berhak atas lisensi.");
@@ -1144,7 +1145,6 @@ export interface SandboxPanel {
   uji_telepon: string | null;
   uji_alamat: string | null;
   uji_diverifikasi: number | null;
-  ai_khusus: number;
   terakhir_menyala: number | null;
   versi_mesin: string | null;
   created_at: number;
@@ -1160,7 +1160,7 @@ export async function daftarSandbox(o: { cari?: string; setelah?: number; batas?
   const [baris, [{ n }]] = await Promise.all([
     sql<SandboxPanel[]>`
       SELECT a.id, a.user_id, u.email, u.nama AS nama_akun, a.status, a.sandbox_sampai, a.uji_telepon, a.uji_alamat, a.uji_diverifikasi,
-             COALESCE((a.batas->>'ai_hari')::int, 0) AS ai_khusus, i.terakhir_sukses AS terakhir_menyala, i.versi_mesin, a.created_at
+             i.terakhir_sukses AS terakhir_menyala, i.versi_mesin, a.created_at
         FROM api_aplikasi a
         JOIN users u ON u.id = a.user_id
         LEFT JOIN LATERAL (
@@ -1174,26 +1174,16 @@ export async function daftarSandbox(o: { cari?: string; setelah?: number; batas?
   return { daftar: baris.slice(0, batas), adaLagi: baris.length > batas, jumlah: n };
 }
 
-/**
- * Developer internal: ubah limit AI khusus (0 = ikut bawaan) dan/atau perpanjang masa sandbox satu akun. Berlaku di
- * mesin saat menyala / Perbarui lisensi (sandbox tanpa webhook).
- */
-export async function ubahSandbox(pelaku: User, id: number, u: { ai_hari?: number; perpanjang?: boolean }): Promise<void> {
+/** Developer internal: perpanjang masa sandbox satu akun. Berlaku di mesin saat menyala / Perbarui lisensi (tanpa webhook). */
+export async function ubahSandbox(pelaku: User, id: number, u: { perpanjang?: boolean }): Promise<void> {
+  if (!u.perpanjang) return;
   const umum = await pengaturanSandbox();
-  let ai: number | undefined;
-  if (u.ai_hari !== undefined) {
-    ai = Number(u.ai_hari);
-    if (!(Number.isInteger(ai) && (ai === 0 || (ai >= RENTANG_SANDBOX.ai_hari.min && ai <= RENTANG_SANDBOX.ai_hari.maks))))
-      throw new ApiError("isian_tidak_sah", `Limit AI harus 0 (ikut bawaan) atau ${RENTANG_SANDBOX.ai_hari.min}–${RENTANG_SANDBOX.ai_hari.maks.toLocaleString("id-ID")}.`);
-  }
   const a = await transaksi(async (tx) => {
     const a = await wajibAplikasi(tx, id, "sandbox");
-    const batas = ai === undefined ? a.batas : { ...a.batas, ai_hari: ai };
-    const sampai = u.perpanjang ? sekarang() + umum.hari * 86_400 : a.sandbox_sampai;
-    await tx`UPDATE api_aplikasi SET batas = ${tx.json({ ai_hari: batas.ai_hari })}, sandbox_sampai = ${sampai}, versi_lisensi = versi_lisensi + 1 WHERE id = ${id}`;
+    await tx`UPDATE api_aplikasi SET sandbox_sampai = ${sekarang() + umum.hari * 86_400}, versi_lisensi = versi_lisensi + 1 WHERE id = ${id}`;
     return a;
   });
-  await catatLog(pelaku, "ubah sandbox API", a.email, `${ai !== undefined ? `limit AI ${ai || `bawaan (${umum.ai_hari})`}/hari` : ""}${u.perpanjang ? `${ai !== undefined ? " · " : ""}diperpanjang ${umum.hari} hari` : ""}`);
+  await catatLog(pelaku, "ubah sandbox API", a.email, `diperpanjang ${umum.hari} hari`);
 }
 
 // ---------- Penagihan aplikasi berbayar ----------

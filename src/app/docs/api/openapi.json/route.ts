@@ -33,7 +33,7 @@ export function GET() {
     security: [{ bearer: [] }],
     paths,
     components: {
-      securitySchemes: { bearer: { type: "http", scheme: "bearer", description: "cg_live_… (production) atau cg_test_… (sandbox: 1 nomor penguji, limit balasan AI per hari) dari portal Developer" } },
+      securitySchemes: { bearer: { type: "http", scheme: "bearer", description: "cg_live_… (production) atau cg_test_… (sandbox: 1 nomor penguji) dari portal Developer" } },
       schemas: {
         Galat: {
           type: "object",

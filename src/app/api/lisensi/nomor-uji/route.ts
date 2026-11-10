@@ -14,6 +14,7 @@ export async function POST(req: Request) {
       telepon: typeof b.telepon === "string" ? b.telepon : null,
       alamat: typeof b.alamat === "string" ? b.alamat : null,
       versi: String(b.versi ?? ""),
+      nomor_bot: typeof b.nomor_bot === "string" ? b.nomor_bot : null,
     }),
   }));
 }

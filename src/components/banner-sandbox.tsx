@@ -1,10 +1,9 @@
 import { FlaskConical } from "lucide-react";
 import { teksHalaman } from "@/lib/bahasa-halaman";
-import { angka, tanggal } from "@/lib/format";
+import { tanggal } from "@/lib/format";
 import { modeMesin } from "@/lib/mode";
 import { requireUser } from "@/lib/session";
 import { alasanTerbatas, infoLisensi, muatLisensi, sandboxAktif } from "@/lib/mesin/lisensi";
-import { pemakaianAiHariIni } from "@/lib/mesin/kuota-ai";
 import { TombolPerbaruiLisensi } from "./tombol-perbarui-lisensi";
 
 /**
@@ -19,7 +18,6 @@ export async function BannerSandbox() {
   if (!sandboxAktif()) return null;
   const { b, t } = await teksHalaman();
   const l = infoLisensi();
-  const ai = await pemakaianAiHariIni().catch(() => ({ terpakai: 0, batas: 0, reset: 0 }));
   const terbatas = alasanTerbatas();
   return (
     <div role="status" className={`mb-6 flex flex-col gap-4 rounded-2xl border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 ${terbatas ? "border-danger/40 bg-danger-soft" : "border-warning/40 bg-warning-soft"}`}>
@@ -36,8 +34,7 @@ export async function BannerSandbox() {
             </span>
           </p>
           <p className="mt-0.5 text-muted">
-            {t(`Balasan AI hari ini ${angka(ai.terpakai)}/${ai.batas ? angka(ai.batas) : "∞"}`, `AI replies today ${angka(ai.terpakai, b)}/${ai.batas ? angka(ai.batas, b) : "∞"}`)}
-            {l.berlaku_sampai ? ` · ${t(`berlaku s.d. ${tanggal(l.berlaku_sampai)}`, `valid until ${tanggal(l.berlaku_sampai, b)}`)}` : ""}
+            {l.berlaku_sampai ? t(`Berlaku s.d. ${tanggal(l.berlaku_sampai)}`, `Valid until ${tanggal(l.berlaku_sampai, b)}`) : ""}
           </p>
           {terbatas && <p className="mt-1 font-semibold text-danger">{terbatas.pesan}</p>}
         </div>

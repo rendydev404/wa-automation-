@@ -8,7 +8,6 @@ import { modeMesin } from "../mode";
 import { type Nomor, nomorById } from "../numbers";
 import type { StatusSesiWa } from "../types";
 import { alasanTerbatas, lisensiSekarang, muatLisensi } from "./lisensi";
-import { ambilJatahAi, batasAiHarian } from "./kuota-ai";
 
 /**
  * Pembantu route API v1 di mesin self-host (src/app/api/v1/**). Autentikasi dicocokkan dengan daftar key di lisensi
@@ -97,16 +96,6 @@ export async function otorisasi(req: Request, scope: FiturApi | null, opsi: { iz
 }
 
 export const bukanKonteks = (x: Konteks | NextResponse): x is NextResponse => x instanceof NextResponse;
-
-/**
- * Ambil satu jatah balasan AI (limit batas.ai_hari). null = boleh lanjut; selain itu jawaban 429 batas_ai_harian.
- * Tanpa limit: nol query.
- */
-export async function jatahAi(k: Konteks): Promise<NextResponse | null> {
-  if (await ambilJatahAi()) return null;
-  const batas = batasAiHarian();
-  return galat("batas_ai_harian", `Batas ${batas.toLocaleString("id-ID")} balasan AI per hari untuk mesin ini sudah habis. Jatahnya kembali jam 00.00 WIB.`, k.id, k.kepala);
-}
 
 // ---------- Isi permintaan ----------
 

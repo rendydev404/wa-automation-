@@ -366,7 +366,7 @@ export async function simpanPengaturanSandboxAction(_lalu: Hasil | null, form: F
     await simpanPengaturanSandbox(pelaku, {
       aktif: form.get("aktif") === "on",
       hari: Number(String(form.get("hari") ?? "").trim()),
-      ai_hari: Number(String(form.get("ai_hari") ?? "").replace(/[.\s]/g, "").trim()),
+      port: Number(String(form.get("port") ?? "").trim()),
     });
     segarkanPanel();
     catatFitur(pelaku.id, "admin.developer_sandbox");
@@ -376,18 +376,17 @@ export async function simpanPengaturanSandboxAction(_lalu: Hasil | null, form: F
   }
 }
 
-/** Ubah limit AI khusus (0 = ikut bawaan) dan/atau perpanjang satu sandbox. */
+/** Perpanjang satu sandbox. */
 export async function ubahSandboxAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   const m = await tolakMesin();
   if (m) return m;
   const pelaku = await requireDeveloper();
   const id = idSah(form.get("id"));
   if (!id) return { ok: false, pesan: "Sandbox tidak valid." };
-  const aiTeks = String(form.get("ai_hari") ?? "").replace(/[.\s]/g, "").trim();
   try {
-    await ubahSandbox(pelaku, id, { ai_hari: aiTeks === "" ? undefined : Number(aiTeks), perpanjang: form.get("perpanjang") === "1" });
+    await ubahSandbox(pelaku, id, { perpanjang: form.get("perpanjang") === "1" });
     segarkanPanel();
-    return { ok: true, pesan: form.get("perpanjang") === "1" ? "Sandbox diperpanjang." : "Limit AI tersimpan." };
+    return { ok: true, pesan: "Sandbox diperpanjang." };
   } catch (e) {
     return galat(e);
   }

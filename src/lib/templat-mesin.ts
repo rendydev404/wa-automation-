@@ -63,7 +63,7 @@ volumes:
 
 const acak = (n = 32): string => randomBytes(n).toString("base64url");
 
-export function envMesin(o: { namaAplikasi: string; alamat: string | null; sandbox?: boolean }): string {
+export function envMesin(o: { namaAplikasi: string; alamat: string | null; sandbox?: boolean; port?: number }): string {
   const alamat = o.sandbox
     ? `# Sandbox TIDAK butuh alamat publik (boleh dijalankan di laptop). Isi nanti saat pindah ke key cg_live_ (production).
 # ALAMAT_PUBLIK=https://wa.domain-anda.com`
@@ -71,7 +71,7 @@ export function envMesin(o: { namaAplikasi: string; alamat: string | null; sandb
 ALAMAT_PUBLIK=${o.alamat ?? "https://wa.domain-anda.com"}`;
   return `# ChatGerCep Mesin ${o.sandbox ? "SANDBOX" : `untuk aplikasi "${o.namaAplikasi.replace(/[\r\n"]/g, " ")}"`}.
 # Salin menjadi .env di folder yang sama dengan docker-compose.yml. Jangan dibagikan/di-commit.
-${o.sandbox ? "# Sandbox: WhatsApp asli, 1 nomor WA, hanya dengan 1 nomor penguji terverifikasi, limit balasan AI per hari.\n" : ""}
+${o.sandbox ? "# Sandbox: WhatsApp asli, 1 nomor WA, hanya dengan 1 nomor penguji terverifikasi.\n" : ""}
 # --- Wajib ---
 # API key dari portal Developer (tampil sekali saat dibuat). Dipakai mesin untuk aktivasi DAN oleh aplikasi Anda
 # untuk memanggil API di mesin ini (Authorization: Bearer ...).${o.sandbox ? " Sandbox: cg_test_..." : ""}
@@ -94,6 +94,7 @@ AI_MODEL=gpt-4o-mini
 # Transkripsi pesan suara (kompatibel OpenAI, mis. Groq Whisper).
 # STT_API_KEY=
 MAKS_NOMOR=${o.sandbox ? 1 : 50}
+${o.sandbox ? `# Port dashboard mesin di komputer ini: buka http://localhost:${o.port ?? 1975} (Nomor -> Tambah nomor -> scan QR nomor bot).\nPORT_MESIN=${o.port ?? 1975}` : "# Port dashboard mesin di server ini (bawaan 3230).\n# PORT_MESIN=3230"}
 # Versi image (stable = rilis stabil terbaru; atau nomor versi, mis. 1.0.0).
 VERSI_MESIN=stable
 
