@@ -11,6 +11,7 @@ import { teksPermintaan } from "@/lib/bahasa-server";
 import { terlaluSering } from "@/lib/batas";
 import { alasanSpam, periksaSpam } from "@/lib/spam";
 import { type KirimProduk, type Produk, captionProduk, daftarProduk, katalogBoleh, perluDaftar, pilihUntukKirim, teksKatalog } from "@/lib/katalog";
+import { staf } from "@/lib/peran";
 
 /** Nama jenis pesan yang diabaikan AI, untuk tampilan Uji bot versi Inggris. */
 const JENIS_ABAIKAN_EN: Record<string, string> = { judi: "gambling", promosi: "promotion", penipuan: "scam", asusila: "adult content" };
@@ -77,7 +78,7 @@ export async function POST(req: Request) {
   // Penyedia sama seperti balasan WhatsApp nomor ini (menurut paket pemilik nomor bila mode "per_paket").
   const [ai, katalog] = await Promise.all([
     aiUntukAkun(nomor.user_id),
-    katalogBoleh(nomor.user_id).then((ok) => (ok || user.peran === "admin" ? daftarProduk(nomor.id) : [])),
+    katalogBoleh(nomor.user_id).then((ok) => (ok || staf(user.peran) ? daftarProduk(nomor.id) : [])),
   ]);
   const lengkap = tanpaIngatan(ai.penyedia);
   const semuaRiwayat = Array.isArray(b?.riwayat)
@@ -92,7 +93,7 @@ export async function POST(req: Request) {
     nilaiPesan: nomor.saring_prospek,
   });
   // Nama mesin/model, biaya, dan galat mentah hanya untuk admin; pengguna biasa tidak perlu tahu mesin di baliknya.
-  const admin = user.peran === "admin";
+  const admin = staf(user.peran);
   try {
     const j = await tanyaAiTerjaga({ sessionId: `uji-${user.id}-${nomor.id}-${sesi}`, sistem, pesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, [sistem, pesan, ...semuaRiwayat].join("\n"), { saringSpam, katalog: katalog.length > 0, gaya: true, nilai: nomor.saring_prospek });
     if (j.abaikan) {

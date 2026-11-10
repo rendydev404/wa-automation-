@@ -13,7 +13,9 @@ export default function HalamanPengguna(props: PageProps<"/[lang]/admin/pengguna
         <Suspense fallback={<div aria-hidden className="card h-[480px] animate-denyut" />}>
           <TabelPengguna searchParams={props.searchParams} />
         </Suspense>
-        <BuatAkun />
+        <Suspense fallback={<div aria-hidden className="card h-[340px] animate-denyut" />}>
+          <BuatAkun />
+        </Suspense>
       </div>
     </div>
   );

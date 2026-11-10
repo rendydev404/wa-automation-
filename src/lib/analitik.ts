@@ -524,7 +524,7 @@ export async function ringkasanAnalitik(f: FilterAnalitik): Promise<RingkasanAna
     ? sql`AND user_id = ${satuAkun}`
     : f.sertakanAdmin
       ? sql``
-      : sql`AND user_id NOT IN (SELECT id FROM users WHERE peran = 'admin')`;
+      : sql`AND user_id NOT IN (SELECT id FROM users WHERE peran <> 'user')`;
 
   // Daftar teratas satu jenis (indeks tanggal; tiga jenis = tiga bagian terpisah dari jendela yang sama). Per (kunci, label,
   // akun) dulu: pengguna unik = COUNT(*), dan dari kelompok yang sama diambil SIAPA_N akun teratas per butir (row_number),
@@ -666,7 +666,7 @@ export interface RincianAnalitik {
 export async function rincianAnalitik(f: FilterAnalitik & { jenis: Jenis; kunci: string; label?: string }): Promise<RincianAnalitik> {
   const { akhir, awal } = periode(f);
   const sql = await db();
-  const saring = f.sertakanAdmin ? sql`` : sql`AND user_id NOT IN (SELECT id FROM users WHERE peran = 'admin')`;
+  const saring = f.sertakanAdmin ? sql`` : sql`AND user_id NOT IN (SELECT id FROM users WHERE peran <> 'user')`;
   const baris = await sql<(PenggunaRinci & { total: number; akun: number })[]>`
     SELECT p.user_id AS "userId", u.email, NULLIF(u.nama, '') AS nama, u.peran, p.m AS n, p.hari AS "hariAktif", p.w AS terakhir,
            (SUM(p.m) OVER ())::bigint AS total, COUNT(*) FILTER (WHERE p.user_id <> 0) OVER () AS akun

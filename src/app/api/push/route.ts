@@ -4,12 +4,13 @@ import { catatFitur } from "@/lib/analitik";
 import { lewatHttps, terlaluSering } from "@/lib/batas";
 import { COOKIE_PUSH, catatTerima, hapusLangganan, kirimPush, kunciPublikPush, simpanLangganan, statusPerangkat, uraiLangganan } from "@/lib/push";
 import { getUser } from "@/lib/session";
+import { staf } from "@/lib/peran";
 
 const tanpaCache = { "Cache-Control": "no-store" };
 
 async function admin() {
   const user = await getUser();
-  return user?.peran === "admin" ? user : null;
+  return user && staf(user.peran) ? user : null;
 }
 
 const tolak = () => NextResponse.json({ error: "Hanya admin yang bisa memakai notifikasi push." }, { status: 403, headers: tanpaCache });

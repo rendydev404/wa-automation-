@@ -13,6 +13,7 @@ import { LencanaPaket } from "@/components/lencana-paket";
 import { tingkatPaket } from "@/lib/tingkat-paket";
 import { FormKeluarSemua, FormPassword, FormProfil } from "./form-akun";
 import { MEREK } from "@/lib/merek";
+import { labelPeran, staf } from "@/lib/peran";
 
 export async function generateMetadata({ params }: PageProps<"/[lang]/akun">): Promise<Metadata> {
   const { lang } = await params;
@@ -63,7 +64,7 @@ async function Isi() {
                 {data.paket_sampai && <p className="mt-1.5 text-[12px] text-muted">{t(`Aktif sampai ${tanggal(data.paket_sampai)}`, `Active until ${tanggal(data.paket_sampai, b)}`)}</p>}
               </div>
             ) : (
-              user.peran !== "admin" && <LencanaPaket tingkat={null} nama={t("Gratis", "Free")} ukuran="lg" />
+              !staf(user.peran) && <LencanaPaket tingkat={null} nama={t("Gratis", "Free")} ukuran="lg" />
             )}
           </div>
           <h2 className="text-[15px] font-bold">{t("Profil", "Profile")}</h2>
@@ -98,7 +99,7 @@ async function Isi() {
           <dl className="mt-5 space-y-2 border-t border-line pt-4 text-[13px]">
             <div className="flex justify-between gap-3">
               <dt className="text-muted">{t("Peran", "Role")}</dt>
-              <dd className="font-semibold">{user.peran === "admin" ? "Admin" : t("Pengguna", "User")}</dd>
+              <dd className="font-semibold">{staf(user.peran) ? labelPeran(user.peran) : t("Pengguna", "User")}</dd>
             </div>
             <div className="flex justify-between gap-3">
               <dt className="text-muted">Google</dt>

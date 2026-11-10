@@ -1,0 +1,61 @@
+# Image mesin ChatGerCep self-host (deploy/mesin/Dockerfile) -> GitHub Container Registry.
+#   - Tag git `mesin-v1.2.3`  -> ghcr.io/<pemilik>/chatgercep-mesin:1.2.3 + :1.2 + :stable
+#   - Jalankan manual (tab Actions) -> tag "uji-<sha>" (tidak menggeser :stable)
+# Multi-arsitektur: linux/amd64 & linux/arm64 (onnxruntime-node punya biner untuk keduanya).
+# Tidak menyentuh deploy chatgercep.com (deploy.yml) sama sekali.
+name: Image mesin
+
+on:
+  push:
+    tags: ["mesin-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versi
+        id: v
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/mesin-v* ]]; then
+            VERSI="${GITHUB_REF#refs/tags/mesin-v}"
+            MINOR="${VERSI%.*}"
+            echo "versi=${VERSI}" >> "$GITHUB_OUTPUT"
+            echo "tag=${VERSI},${MINOR},stable" >> "$GITHUB_OUTPUT"
+          else
+            echo "versi=uji-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+            echo "tag=uji-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Daftar tag image
+        id: tags
+        run: |
+          IMG="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/chatgercep-mesin"
+          echo "daftar=$(echo '${{ steps.v.outputs.tag }}' | tr ',' '\n' | sed "s|^|${IMG}:|" | paste -sd, -)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/mesin/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          build-args: VERSI=${{ steps.v.outputs.versi }}
+          push: true
+          tags: ${{ steps.tags.outputs.daftar }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

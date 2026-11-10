@@ -1100,7 +1100,7 @@ await cek("bonus kuota dari admin: menambah batas periode ini (juga setelah tria
   assert.match(daftar[0].judul_en, /250 bonus AI replies/);
   assert.equal((await sql`SELECT COUNT(*)::int AS n FROM admin_log WHERE aksi = 'beri bonus kuota'`)[0].n, 1);
   await assert.rejects(P.beriBonusKuota(A, u.id, 0, ""), /Jumlah bonus harus/);
-  await assert.rejects(P.beriBonusKuota(A, admin.id, 10, ""), /Admin tidak memakai/);
+  await assert.rejects(P.beriBonusKuota(A, admin.id, 10, ""), /tidak memakai kuota balasan AI/);
   // Free trial yang masa berlakunya lewat: bonus tetap bisa dipakai.
   await sql`UPDATE users SET created_at = ${sekarang() - 400 * 86400} WHERE id = ${u.id}`;
   await sql`UPDATE kuota_bonus SET dibuat = ${sekarang() - 400 * 86400 + 10} WHERE user_id = ${u.id}`;

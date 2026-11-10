@@ -4,7 +4,7 @@ import { namaBankTampil } from "@/lib/afiliasi-def";
 import { tanggal } from "@/lib/format";
 import { type BarisPengembalian, type StatusPengembalian, daftarPengembalian, modeRefund } from "@/lib/jaminan";
 import { JAMINAN_MAKS_PAKAI_PERSEN, MASA_ID } from "@/lib/jaminan-def";
-import { requireAdmin } from "@/lib/session";
+import { requireStaf } from "@/lib/session";
 import { rp } from "./bagian-transaksi";
 import { AksiPengembalian, FormModeRefund } from "./tombol-pengembalian";
 
@@ -60,7 +60,7 @@ export function BarisRefund({ r, tautan = true }: { r: BarisPengembalian; tautan
 
 /** Pengembalian dana: pilihan cara (manual/otomatis), antrean yang perlu ditangani, dan riwayat terbaru. */
 export async function PengembalianDana() {
-  await requireAdmin();
+  await requireStaf();
   const [{ berjalan, riwayat }, mode] = await Promise.all([daftarPengembalian(20), modeRefund()]);
   return (
     <section className="card overflow-hidden" aria-labelledby="judul-pengembalian">

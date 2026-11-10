@@ -13,12 +13,23 @@ export async function register() {
     // SIGTERM saat deploy: tutup koneksi WhatsApp & tuntaskan tulisan kunci sebelum keluar.
     const { pasangPenanganMati } = await import("@/lib/mati");
     pasangPenanganMati();
-    // Sinkron data Suka Shawarma: satu tarikan awal + pemeriksaan pengaman berkala (hanya bila dikonfigurasi).
-    const { mulaiSinkron } = await import("@/lib/sinkron");
-    mulaiSinkron();
-    // Data sistem ChatGerCep (paket, harga, komisi, metode bayar) untuk nomor yang dinyalakan admin.
-    const { mulaiSinkronCg } = await import("@/lib/sinkron-cg");
-    mulaiSinkronCg();
+    // Mesin self-host (MODE=mesin): tanpa pekerja khusus chatgercep.com; lisensi dari pusat, webhook aplikasi, antrean API.
+    const { modeMesin } = await import("@/lib/mode");
+    const mesin = modeMesin();
+    if (mesin) {
+      const { mulaiMesin } = await import("@/lib/mesin/mulai");
+      mulaiMesin();
+    } else {
+      // Sinkron data Suka Shawarma: satu tarikan awal + pemeriksaan pengaman berkala (hanya bila dikonfigurasi).
+      const { mulaiSinkron } = await import("@/lib/sinkron");
+      mulaiSinkron();
+      // Data sistem ChatGerCep (paket, harga, komisi, metode bayar) untuk nomor yang dinyalakan admin.
+      const { mulaiSinkronCg } = await import("@/lib/sinkron-cg");
+      mulaiSinkronCg();
+      // Developer API di pusat: pengirim lisensi lewat webhook + perpanjangan & pengingat bayar (hanya bila kunci lisensi dipasang).
+      const { mulaiDeveloperApi } = await import("@/lib/developer-api");
+      mulaiDeveloperApi();
+    }
     // Admin pertama dari env (instalasi baru) dibuat sebelum ada yang sempat mendaftar; gagal = dicoba lagi saat login/daftar.
     const { pastikanAdminAwal } = await import("@/lib/session");
     void pastikanAdminAwal().catch(() => {});
@@ -28,12 +39,14 @@ export async function register() {
     // Histori percakapan yang lebih lama dari 30 hari dihapus berkala.
     const { mulaiPembersihanHistori } = await import("@/lib/percakapan");
     mulaiPembersihanHistori();
-    // Follow-up WhatsApp nomor CS ke akun gratis yang kuotanya habis (mati sampai admin menyalakannya).
-    const { mulaiFollowup } = await import("@/lib/followup");
-    mulaiFollowup();
-    // Notifikasi in-app: pengingat paket akan/sudah berakhir & pembersihan notifikasi lama, tiap jam.
-    const { mulaiPengingat } = await import("@/lib/notifikasi");
-    mulaiPengingat();
+    if (!mesin) {
+      // Follow-up WhatsApp nomor CS ke akun gratis yang kuotanya habis (mati sampai admin menyalakannya).
+      const { mulaiFollowup } = await import("@/lib/followup");
+      mulaiFollowup();
+      // Notifikasi in-app: pengingat paket akan/sudah berakhir & pembersihan notifikasi lama, tiap jam.
+      const { mulaiPengingat } = await import("@/lib/notifikasi");
+      mulaiPengingat();
+    }
     // Analitik perilaku pengguna: event di memori ditulis berkelompok tiap ~10 dtk & baris lama dihapus tiap 6 jam.
     const { mulaiAnalitik } = await import("@/lib/analitik");
     mulaiAnalitik();

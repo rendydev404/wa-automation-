@@ -20,7 +20,7 @@ import { angka, angkaRingkas, rupiahRingkas, tanggal, waktuSingkatWib } from "@/
 import { PERIODE_HARI, kpiAdmin, type KpiAdmin } from "@/lib/kpi";
 import { infoKurs } from "@/lib/kurs";
 import { daftarLog } from "@/lib/pengguna";
-import { requireAdmin } from "@/lib/session";
+import { requireStaf } from "@/lib/session";
 import { deretHarian, persen } from "@/lib/tren";
 import { infoSesi } from "@/lib/wa";
 import { sekarang } from "@/lib/db";
@@ -39,7 +39,7 @@ const PEMBANDING = `${PERIODE_HARI} hari sebelumnya`;
 const HARI_GRAFIK = 14;
 
 export async function KpiRingkasan() {
-  const admin = await requireAdmin();
+  const admin = await requireStaf();
   const [k, kursI, log, tur] = await Promise.all([kpiAdmin(), infoKurs(), daftarLog(6), turSelesai(admin.id)]);
   const kini = sekarang();
   const kurs = kursI.kurs;

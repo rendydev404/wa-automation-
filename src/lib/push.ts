@@ -160,7 +160,7 @@ export async function kirimPush(userIds: number[], isi: IsiPush | ((userId: numb
     const perangkat = await sql<{ id: number; user_id: number; endpoint: string; p256dh: string; auth: string }[]>`
       SELECT p.id, p.user_id, p.endpoint, p.p256dh, p.auth
         FROM push_langganan p JOIN users u ON u.id = p.user_id
-       WHERE p.user_id = ANY(${tujuan}::int[]) AND u.peran = 'admin' AND u.status = 'aktif'`;
+       WHERE p.user_id = ANY(${tujuan}::int[]) AND u.peran <> 'user' AND u.status = 'aktif'`;
     if (!perangkat.length) return hasil;
     const [{ default: webpush }, v] = await Promise.all([import("web-push"), vapid()]);
     const basi: number[] = [];

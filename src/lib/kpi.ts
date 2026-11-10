@@ -65,18 +65,18 @@ export async function kpiAdmin(): Promise<KpiAdmin> {
     sql<{ kini: number; lalu: number }[]>`
       SELECT COUNT(DISTINCT l.user_id) FILTER (WHERE l.mulai <= ${kini} AND l.sampai > ${kini})::int AS kini,
              COUNT(DISTINCT l.user_id) FILTER (WHERE l.mulai <= ${awal} AND l.sampai > ${awal})::int AS lalu
-        FROM langganan l JOIN users u ON u.id = l.user_id AND u.peran <> 'admin'
+        FROM langganan l JOIN users u ON u.id = l.user_id AND u.peran = 'user'
        WHERE l.sampai > ${awal}`,
     // Satu titik per hari (pada jam yang sama dengan sekarang): jumlah akun berbayar saat itu.
     sql<{ tanggal: string; nilai: number }[]>`
       SELECT to_char(to_timestamp(t) AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD') AS tanggal, COUNT(DISTINCT l.user_id)::int AS nilai
         FROM generate_series(${awal + HARI}::bigint, ${kini}::bigint, ${HARI}::bigint) AS t
         JOIN langganan l ON l.mulai <= t AND l.sampai > t
-        JOIN users u ON u.id = l.user_id AND u.peran <> 'admin'
+        JOIN users u ON u.id = l.user_id AND u.peran = 'user'
        GROUP BY 1`,
     sql<{ nama: string; jumlah: number }[]>`
       SELECT l.nama_paket AS nama, COUNT(DISTINCT l.user_id)::int AS jumlah
-        FROM langganan l JOIN users u ON u.id = l.user_id AND u.peran <> 'admin'
+        FROM langganan l JOIN users u ON u.id = l.user_id AND u.peran = 'user'
        WHERE l.mulai <= ${kini} AND l.sampai > ${kini} GROUP BY 1 ORDER BY 2 DESC, 1`,
     sql<{ dibalas: number; dibalas_lalu: number; masuk: number }[]>`
       SELECT COALESCE(SUM(dibalas) FILTER (WHERE tanggal >= ${tglAwal}::date), 0)::int AS dibalas,
@@ -92,10 +92,10 @@ export async function kpiAdmin(): Promise<KpiAdmin> {
         FROM ai_pakai WHERE waktu >= ${awalLalu}`,
     sql<KpiAdmin["akun"][]>`
       SELECT COUNT(*)::int AS total,
-             COUNT(*) FILTER (WHERE peran <> 'admin')::int AS pengguna,
+             COUNT(*) FILTER (WHERE peran = 'user')::int AS pengguna,
              COUNT(*) FILTER (WHERE status = 'aktif')::int AS aktif,
              COUNT(*) FILTER (WHERE status = 'diblokir')::int AS diblokir,
-             COUNT(*) FILTER (WHERE peran = 'admin')::int AS admin,
+             COUNT(*) FILTER (WHERE peran <> 'user')::int AS admin,
              COUNT(*) FILTER (WHERE created_at >= ${awal})::int AS "baruKini",
              COUNT(*) FILTER (WHERE created_at >= ${awalLalu} AND created_at < ${awal})::int AS "baruLalu"
         FROM users`,
@@ -106,14 +106,14 @@ export async function kpiAdmin(): Promise<KpiAdmin> {
     sql<KpiAdmin["berakhir"]>`
       SELECT * FROM (
         SELECT DISTINCT ON (l.user_id) l.user_id AS "userId", u.email, l.nama_paket AS paket, l.sampai
-          FROM langganan l JOIN users u ON u.id = l.user_id AND u.peran <> 'admin'
+          FROM langganan l JOIN users u ON u.id = l.user_id AND u.peran = 'user'
          WHERE l.sampai > ${kini}
          ORDER BY l.user_id, l.sampai DESC) x
        WHERE sampai <= ${kini + 7 * HARI} ORDER BY sampai LIMIT 6`,
     // Pemakaian dihitung sama dengan balasanTerpakai (langganan.ts): balasan AI semua nomor akun sejak langganan mulai.
     sql<KpiAdmin["kuotaMenipis"]>`
       SELECT l.user_id AS "userId", u.email, l.nama_paket AS paket, l.kuota_balasan AS kuota, p.terpakai
-        FROM langganan l JOIN users u ON u.id = l.user_id AND u.peran <> 'admin'
+        FROM langganan l JOIN users u ON u.id = l.user_id AND u.peran = 'user'
         CROSS JOIN LATERAL (
           SELECT COUNT(*)::int AS terpakai FROM numbers n JOIN ai_pakai a ON a.number_id = n.id AND a.waktu >= l.mulai AND NOT a.abaikan
            WHERE n.user_id = l.user_id) p

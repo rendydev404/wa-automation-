@@ -13,6 +13,7 @@ import { MEREK } from "@/lib/merek";
 import { requireUser } from "@/lib/session";
 import { sudahPernahBayar } from "@/lib/jaminan";
 import { PilihMetode } from "./pilih-metode";
+import { staf } from "@/lib/peran";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await teksHalaman();
@@ -134,7 +135,7 @@ async function Isi({ params }: { params: Promise<{ paket: string }> }) {
           </Link>
         )}
         {k ? (
-          <PilihMetode paketId={p.id} harga={p.harga} kanal={kanal} kurs={kurs} jaminan={!pernahBayar && user.peran !== "admin"} penyedia={penyedia} />
+          <PilihMetode paketId={p.id} harga={p.harga} kanal={kanal} kurs={kurs} jaminan={!pernahBayar && !staf(user.peran)} penyedia={penyedia} />
         ) : (
           <p className="text-[13.5px] text-warning">{t("Pembayaran online belum diaktifkan admin.", "Online payment has not been enabled by the admin yet.")}</p>
         )}

@@ -10,6 +10,7 @@ import { getUser, halamanAwal } from "@/lib/session";
 import { LoginForm } from "./login-form";
 import { jalurLanjut } from "@/lib/lanjut";
 import { MEREK } from "@/lib/merek";
+import { staf } from "@/lib/peran";
 
 export async function generateMetadata({ params }: PageProps<"/[lang]/login">): Promise<Metadata> {
   const { lang } = await params;
@@ -21,7 +22,7 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/login">): 
 async function SudahMasuk({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await getUser();
   if (!user) return null;
-  const lanjut = user.peran === "admin" ? null : jalurLanjut((await searchParams).lanjut);
+  const lanjut = staf(user.peran) ? null : jalurLanjut((await searchParams).lanjut);
   await alihkanHalaman(lanjut ?? halamanAwal(user.peran));
   return null;
 }

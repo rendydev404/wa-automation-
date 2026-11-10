@@ -7,6 +7,7 @@ import { BATAS_RAPIKAN, GalatRapikan, rapikanKnowledge } from "@/lib/rapikan-kno
 import { getUser } from "@/lib/session";
 import { teksPermintaan } from "@/lib/bahasa-server";
 import { JENIS_USAHA, type KunciUsaha } from "@/lib/templat-usaha";
+import { staf } from "@/lib/peran";
 
 const galat = (pesan: string, status = 400) => NextResponse.json({ error: pesan }, { status });
 
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
 
   let teks = typeof b?.teks === "string" ? b.teks : "";
   if (b?.dokumenId) {
-    const d = await teksDokumen(Number(b.dokumenId), nomor.id, user.peran === "admin");
+    const d = await teksDokumen(Number(b.dokumenId), nomor.id, staf(user.peran));
     if (!d) return galat(t("Dokumen tidak ditemukan.", "Document not found."), 404);
     if (d.teks.length > BATAS_RAPIKAN.maks)
       return galat(

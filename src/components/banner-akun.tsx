@@ -8,6 +8,7 @@ import { tautanChatCs } from "@/lib/followup";
 import { hakAkunSekali, sisaKuotaAi } from "@/lib/langganan";
 import { requireUser } from "@/lib/session";
 import { MASA_ID, MASA_EN_ADJ } from "@/lib/jaminan-def";
+import { staf } from "@/lib/peran";
 
 /** Nomor milik pengguna yang belum punya base knowledge berisi (satu query, lewat documents_number_idx). */
 async function nomorTanpaKnowledge(userId: number): Promise<{ id: number; label: string }[]> {
@@ -26,7 +27,7 @@ async function nomorTanpaKnowledge(userId: number): Promise<{ id: number; label:
  */
 export async function BannerAkun() {
   const user = await requireUser();
-  if (user.peran === "admin") return null;
+  if (staf(user.peran)) return null;
   const kosong = await nomorTanpaKnowledge(user.id);
   if (!kosong.length) return null;
   const { t } = await teksHalaman();
@@ -65,7 +66,7 @@ export async function BannerAkun() {
  */
 export async function BannerKuota() {
   const user = await requireUser();
-  if (user.peran === "admin") return null;
+  if (staf(user.peran)) return null;
   const ambang = await aturan("peringatan_kuota_persen");
   const [hak, sisa] = await Promise.all([hakAkunSekali(user), sisaKuotaAi(user.id)]);
   if (hak.sampai === null && hak.balasan === 0) {

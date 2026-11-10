@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Activity, ArrowRight, Lock, Settings2 } from "lucide-react";
 import { semuaAturan } from "@/lib/aturan";
 import { pengaturanMetaPixel } from "@/lib/meta-pixel";
-import { requireAdmin } from "@/lib/session";
+import { requireStaf } from "@/lib/session";
 import { Pengaturan } from "../bagian";
 import { FormAturan } from "./form-aturan";
 
@@ -18,7 +18,7 @@ const ATURAN_TETAP = [
 ];
 
 async function IsiAturan() {
-  await requireAdmin();
+  await requireStaf();
   const nilai = await semuaAturan();
   return (
     <section className="card p-4 sm:p-6">
@@ -34,7 +34,7 @@ async function IsiAturan() {
 }
 
 async function KartuRingkasPixel() {
-  await requireAdmin();
+  await requireStaf();
   const px = await pengaturanMetaPixel();
   const aktif = px.aktif && Boolean(px.pixelId);
   return (

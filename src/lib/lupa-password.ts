@@ -6,6 +6,7 @@ import { emailTerkonfigurasi, htmlEmail, kirimEmail } from "./email";
 import { hashPassword } from "./password";
 import { MEREK } from "./merek";
 import { normalkanEmail } from "./pengguna";
+import type { Peran } from "./peran";
 
 /**
  * Lupa password, tiga tahap:
@@ -177,7 +178,7 @@ export async function gantiPasswordDenganToken(emailMentah: string, tokenMentah:
   const u = await transaksi(async (tx) => {
     const [dipakai] = await tx`DELETE FROM reset_password WHERE user_id = ${r.user_id} AND token_hash = ${r.token_hash} RETURNING user_id`;
     if (!dipakai) return null;
-    const [x] = await tx<{ id: number; email: string; nama: string; peran: "admin" | "user"; status: string; password_hash: string; sesi_versi: number }[]>`
+    const [x] = await tx<{ id: number; email: string; nama: string; peran: Peran; status: string; password_hash: string; sesi_versi: number }[]>`
       UPDATE users SET password_hash = ${hash}, sesi_versi = sesi_versi + 1, gagal_login = 0, kunci_sampai = 0
        WHERE id = ${r.user_id}
        RETURNING id, email, nama, peran, status, password_hash, sesi_versi`;

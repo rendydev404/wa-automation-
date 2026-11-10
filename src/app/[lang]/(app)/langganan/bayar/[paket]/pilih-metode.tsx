@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Building2, Check, Loader2, QrCode, ShieldCheck, Wallet } from "lucide-react";
 import { bayarPaketAction } from "@/app/actions";
+import { bayarApiAction } from "@/app/actions-developer";
 import { LogoKanal } from "@/components/logo-kanal";
 import { lacakMetaEvent } from "@/components/meta-pixel";
 import { Pesan } from "@/components/ui";
@@ -25,6 +26,7 @@ export function PilihMetode({
   kurs,
   jaminan = false,
   penyedia = {},
+  aplikasiApi,
 }: {
   paketId: number;
   harga: number;
@@ -34,6 +36,8 @@ export function PilihMetode({
   jaminan?: boolean;
   /** Provider tiap metode (src/lib/gateway.ts penyediaKanal; mode hybrid bisa berbeda per metode). */
   penyedia?: Partial<Record<KanalBayar, Gateway>>;
+  /** Diisi = tagihan Developer API untuk aplikasi ini (developer-api.ts mulaiBayarApi), bukan paket. */
+  aplikasiApi?: number;
 }) {
   const router = useRouterBahasa();
   const { b, t } = useBahasa();
@@ -50,9 +54,9 @@ export function PilihMetode({
     mulai(async () => {
       if (!pilih) return;
       setGalat("");
-      const h = await bayarPaketAction(paketId, pilih);
+      const h = aplikasiApi ? await bayarApiAction(aplikasiApi, pilih) : await bayarPaketAction(paketId, pilih);
       if (h.ok && h.orderId) {
-        lacakMetaEvent("initiate_checkout", { num_items: 1, currency: "IDR", value: harga }, `ic_${h.orderId}`);
+        if (!aplikasiApi) lacakMetaEvent("initiate_checkout", { num_items: 1, currency: "IDR", value: harga }, `ic_${h.orderId}`);
         router.push(`/langganan/tagihan/${encodeURIComponent(h.orderId)}`);
       } else {
         setGalat(h.pesan ?? t("Gagal membuat tagihan.", "Could not create the invoice."));

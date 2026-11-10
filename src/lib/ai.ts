@@ -10,6 +10,7 @@ import { buangTagTeruskan } from "./teruskan";
 import { type KirimProduk, ambilKirimProduk } from "./katalog-def";
 import { type Label, ambilNilai } from "./prospek-def";
 import type { Foto } from "./types";
+import { modeMesin } from "./mode";
 
 /**
  * Satu pintu ke AI, apa pun penyedianya:
@@ -22,9 +23,11 @@ import type { Foto } from "./types";
  * (model utama, lalu cadangan) dan bila Claude tetap gagal, Hermes. Penyedia per akun: aiUntukAkun (langganan.ts).
  */
 
-export type Penyedia = "hermes" | "anthropic";
+export type Penyedia = "hermes" | "anthropic" | "openai";
 /** Pilihan admin: satu penyedia untuk semua nomor, atau dibagi menurut status paket akun. */
-export type ModeAi = Penyedia | "per_paket";
+/** Penyedia yang bisa dipilih admin di dashboard (umum & per akun). "openai" hanya lewat env, tidak lewat dashboard. */
+export type PenyediaAkun = "hermes" | "anthropic";
+export type ModeAi = PenyediaAkun | "per_paket";
 
 export const MODEL_BAWAAN = "claude-haiku-5-5";
 export const CADANGAN_BAWAAN = "claude-sonnet-5-5";
@@ -38,18 +41,36 @@ export interface PengaturanAi {
   cadangan: string;
 }
 
-/** API key Anthropic dari .env server (dipasang developer). */
+/** API key Anthropic dari .env server (dipasang developer). Mesin self-host: AI_API_KEY bila AI_PENYEDIA=anthropic. */
 export function kunciAnthropic(): string | null {
-  return process.env.ANTHROPIC_API_KEY?.trim() || null;
+  const mesin = modeMesin() && process.env.AI_PENYEDIA === "anthropic" ? process.env.AI_API_KEY : undefined;
+  return process.env.ANTHROPIC_API_KEY?.trim() || mesin?.trim() || null;
+}
+
+/**
+ * Penyedia kompatibel OpenAI (Chat Completions): OpenAI, Gemini (endpoint kompatibel), Groq, OpenRouter, Ollama/vLLM.
+ * Dipilih lewat env AI_PENYEDIA=openai + AI_API_KEY + AI_MODEL (+ AI_API_URL, bawaan api.openai.com). Dipakai terutama
+ * di mesin self-host (kunci AI milik pemilik mesin). Model lokal tanpa kunci: AI_API_KEY boleh diisi apa saja.
+ */
+export function konfigOpenAi(): { url: string; kunci: string; model: string } | null {
+  const kunci = process.env.AI_API_KEY?.trim();
+  const model = process.env.AI_MODEL?.trim();
+  if (process.env.AI_PENYEDIA !== "openai" || !kunci || !model) return null;
+  return { url: (process.env.AI_API_URL?.trim() || "https://api.openai.com/v1").replace(/\/+$/, ""), kunci, model };
 }
 
 export async function pengaturanAi(): Promise<PengaturanAi> {
   const [p, m, c] = await Promise.all([getSetting("ai_penyedia"), getSetting("ai_model"), getSetting("ai_cadangan")]);
   const k = kunciAnthropic();
+  // Kompatibel OpenAI hanya lewat env (AI_PENYEDIA=openai): kuncinya bukan milik pengaturan dashboard.
+  const oa = konfigOpenAi();
   // Bawaan Hermes. Anthropic (juga per_paket) hanya bila admin memilihnya DAN kuncinya ada; tanpa Hermes terpasang (dev) dan ada kunci: Anthropic.
-  const pilih = p || process.env.AI_PENYEDIA || "hermes";
+  // Mesin self-host: penyedia dari env AI_PENYEDIA lebih dulu (tanpa Hermes).
+  const pilih = (modeMesin() ? process.env.AI_PENYEDIA || p : p || process.env.AI_PENYEDIA) || "hermes";
   const mode: ModeAi = !hermesTerkonfigurasi() && k ? "anthropic" : k && (pilih === "anthropic" || pilih === "per_paket") ? pilih : "hermes";
-  const penyedia: Penyedia = mode === "anthropic" ? "anthropic" : "hermes";
+  // Kompatibel OpenAI dari env menggantikan penyedia (mode dashboard tetap seperti tersimpan).
+  const penyedia: Penyedia = oa && (modeMesin() || !p) ? "openai" : mode === "anthropic" ? "anthropic" : "hermes";
+  if (penyedia === "openai") return { penyedia, mode, model: oa!.model, cadangan: "" };
   return { penyedia, mode, model: m && ID_MODEL.test(m) ? m : MODEL_BAWAAN, cadangan: c === "" ? "" : c && ID_MODEL.test(c) ? c : CADANGAN_BAWAAN };
 }
 
@@ -78,11 +99,12 @@ export interface PermintaanAi {
 }
 
 /** Penyedia tanpa ingatan sesi: pemanggil wajib menyertakan riwayat chat lengkap di pesan sistem. */
-export const tanpaIngatan = (p: Penyedia): boolean => p === "anthropic";
+export const tanpaIngatan = (p: Penyedia): boolean => p !== "hermes";
 
 export async function tanyaAi(r: PermintaanAi): Promise<JawabanAi> {
   const atur = { ...(await pengaturanAi()), ...r.paksa };
   if (atur.penyedia === "hermes") return jawabHermes(r);
+  if (atur.penyedia === "openai") return tanyaOpenAi(r);
   try {
     return await tanyaAnthropic(r, atur.model, atur.cadangan);
   } catch (e) {
@@ -258,6 +280,53 @@ export async function modelAnthropic(kunci?: string | null, opsi: { segar?: bool
   }
 }
 
+// ---------- Kompatibel OpenAI (Chat Completions) ----------
+
+async function tanyaOpenAi(r: PermintaanAi): Promise<JawabanAi> {
+  const c = konfigOpenAi();
+  if (!c) throw new Error("Penyedia kompatibel OpenAI belum dikonfigurasi (AI_PENYEDIA=openai, AI_API_KEY, AI_MODEL).");
+  const mulai = performance.now();
+  const isiUser = r.gambar?.length
+    ? [...r.gambar.map((g) => ({ type: "image_url", image_url: { url: `data:${g.mime};base64,${g.data}` } })), { type: "text", text: r.pesan.toWellFormed() }]
+    : r.pesan.toWellFormed();
+  const res = await fetch(`${c.url}/chat/completions`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${c.kunci}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model: c.model,
+      max_tokens: await aturan("maks_token_balasan"),
+      messages: [
+        { role: "system", content: `${teksSoul()}\n\n${r.sistem.toWellFormed()}` },
+        { role: "user", content: isiUser },
+      ],
+    }),
+    signal: AbortSignal.timeout(r.timeoutMs ?? (r.gambar?.length ? 90_000 : 60_000)),
+    cache: "no-store",
+  });
+  const d = (await res.json().catch(() => null)) as {
+    model?: string;
+    error?: { message?: string } | string;
+    choices?: { message?: { content?: string | { type?: string; text?: string }[] | null } }[];
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
+  } | null;
+  if (!res.ok || !d || d.error) {
+    const pesan = typeof d?.error === "string" ? d.error : d?.error?.message;
+    throw new Error(`AI (kompatibel OpenAI) HTTP ${res.status}${pesan ? `: ${pesan.slice(0, 200)}` : ""}`);
+  }
+  const isi = d.choices?.[0]?.message?.content;
+  const teks = (Array.isArray(isi) ? isi.map((b) => b.text ?? "").join("") : (isi ?? "")).trim();
+  if (!teks) throw new Error("AI (kompatibel OpenAI) membalas kosong");
+  return {
+    teks,
+    ms: Math.round(performance.now() - mulai),
+    penyedia: "openai",
+    model: d.model ?? c.model,
+    tokenMasuk: d.usage?.prompt_tokens ?? null,
+    tokenKeluar: d.usage?.completion_tokens ?? null,
+    biayaUsd: null,
+  };
+}
+
 // ---------- Kesehatan ----------
 
 const g = globalThis as unknown as { __waAiSehat?: { kunci: string; at: number; ok: boolean } };
@@ -266,11 +335,27 @@ const g = globalThis as unknown as { __waAiSehat?: { kunci: string; at: number; 
 export async function aiSehat(): Promise<boolean> {
   const { penyedia } = await pengaturanAi();
   if (penyedia === "hermes") return hermesSehat();
+  if (penyedia === "openai") return sehatOpenAi();
   const k = kunciAnthropic() ?? "";
   const c = g.__waAiSehat;
   if (c && c.kunci === k && Date.now() - c.at < 5 * 60_000) return c.ok; // daftar model cukup dicek tiap 5 menit
   const ok = (await modelAnthropic(k, { segar: true })) !== null; // pemeriksaan kesehatan: selalu tanya ulang
   g.__waAiSehat = { kunci: k, at: Date.now(), ok };
+  return ok;
+}
+
+async function sehatOpenAi(): Promise<boolean> {
+  const c = konfigOpenAi();
+  if (!c) return false;
+  const kunci = `openai:${c.url}:${c.kunci.slice(-6)}`;
+  const x = g.__waAiSehat;
+  if (x && x.kunci === kunci && Date.now() - x.at < 5 * 60_000) return x.ok;
+  let ok = false;
+  try {
+    const r = await fetch(`${c.url}/models`, { headers: { authorization: `Bearer ${c.kunci}` }, signal: AbortSignal.timeout(8000), cache: "no-store" });
+    ok = r.ok;
+  } catch {}
+  g.__waAiSehat = { kunci, at: Date.now(), ok };
   return ok;
 }
 

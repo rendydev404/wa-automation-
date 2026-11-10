@@ -16,6 +16,7 @@ import { labelGateway } from "@/lib/gateway-def";
 import { MEREK, PERUSAHAAN } from "@/lib/merek";
 import { type BitQr, kemasQr } from "@/lib/qr";
 import { requireUser } from "@/lib/session";
+import { aplikasiTransaksi } from "@/lib/developer-api";
 import { type DataBayar, InstruksiBayar, PantauStatus } from "./instruksi";
 import { LangkahBayar } from "./langkah";
 
@@ -42,6 +43,8 @@ interface L {
   b: Bahasa;
   t: Terjemah;
   kurs?: number;
+  /** Tagihan Developer API: id aplikasinya (bukan paket langganan). */
+  api?: number | null;
 }
 
 type T = Transaksi & { bayar: DataMidtrans | null; gateway?: string };
@@ -77,7 +80,8 @@ async function Isi({ params }: { params: Promise<{ order: string }> }) {
   const { order } = await params;
   const [awal, kurs] = await Promise.all([ORDER_TAMPIL.test(order) ? transaksiMilik(user.id, order) : undefined, b === "en" ? kursUsd() : Promise.resolve(undefined)]);
   let t: T | undefined = awal;
-  const l: L = { b, t: tr, kurs };
+  const api = t && !t.paket_id ? await aplikasiTransaksi(user.id, t.order_id) : null;
+  const l: L = { b, t: tr, kurs, api };
   if (!t) return <TidakAda l={l} />;
   // Batas bayar sudah lewat tetapi webhook "expire" belum datang: pastikan ke provider asalnya sekarang (sekali, dijatah).
   if (t.status === "menunggu" && t.kedaluwarsa !== null && t.kedaluwarsa <= sekarang()) {
@@ -98,7 +102,8 @@ async function dataBayar(b: DataMidtrans): Promise<DataBayar> {
   return { va: b.va, biller: b.biller, qrUrl: b.qrUrl, deeplink: b.deeplink, qr };
 }
 
-async function hrefBaru(t: Transaksi): Promise<string | null> {
+async function hrefBaru(t: Transaksi, api?: number | null): Promise<string | null> {
+  if (api) return `/developer/${api}/bayar`;
   if (!t.paket_id) return null;
   const p = await paketById(t.paket_id);
   return p?.aktif && p.harga > 0 ? `/langganan/bayar/${p.id}` : null;
@@ -106,13 +111,13 @@ async function hrefBaru(t: Transaksi): Promise<string | null> {
 
 async function Tagihan({ t, l }: { t: T; l: L }) {
   const kanal = t.kanal!;
-  const [bayar, ganti] = await Promise.all([dataBayar(t.bayar!), hrefBaru(t)]);
+  const [bayar, ganti] = await Promise.all([dataBayar(t.bayar!), hrefBaru(t, l.api)]);
   return (
     <div className="space-y-4">
       <InstruksiBayar
         orderId={t.order_id}
         kanal={kanal}
-        labelKanal={`${labelKanal(kanal, l.b, t.gateway)} · ${namaPaket(t.nama_paket, l.t)}`}
+        labelKanal={`${labelKanal(kanal, l.b, t.gateway)} · ${l.api ? t.nama_paket : namaPaket(t.nama_paket, l.t)}`}
         namaAplikasi={kanal === "gopay" ? "GoPay" : kanal === "shopeepay" ? "ShopeePay" : kanal === "dana" ? "DANA" : undefined}
         jumlah={t.jumlah}
         kurs={l.kurs}
@@ -133,7 +138,7 @@ async function Tagihan({ t, l }: { t: T; l: L }) {
 function Rangkuman({ t, l, baris = [] }: { t: Transaksi; l: L; baris?: [string, string][] }) {
   const { b, t: tr } = l;
   const semua: [string, string][] = [
-    [tr("Paket", "Plan"), t.nama_paket],
+    [l.api ? tr("Layanan", "Service") : tr("Paket", "Plan"), t.nama_paket],
     [tr("Total", "Total"), uang(t.jumlah, b, l.kurs)],
   ];
   if (b === "en") semua.push(["Billed as", `Rp${angka(t.jumlah, b)}`]);
@@ -179,6 +184,23 @@ function Kartu({ ikon, nada, judul, isi, children }: { ikon: ReactNode; nada: st
 
 async function Sukses({ t, userId, l }: { t: Transaksi; userId: number; l: L }) {
   const { b, t: tr } = l;
+  if (l.api) {
+    return (
+      <Kartu
+        ikon={<CheckCircle2 className="size-9" aria-hidden />}
+        nada="bg-success-soft text-success"
+        judul={tr("Pembayaran berhasil", "Payment successful")}
+        isi={tr("Terima kasih! Lisensi mesin diperpanjang dan dikirim otomatis ke mesin Anda.", "Thank you! Your engine license has been renewed and sent to your engine automatically.")}
+      >
+        <Rangkuman t={t} l={l} />
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+          <Link href={`/developer/${l.api}`} className="btn btn-primary">
+            {tr("Ke aplikasi", "Go to the application")} <ArrowRight className="size-4" aria-hidden />
+          </Link>
+        </div>
+      </Kartu>
+    );
+  }
   const a = await langgananAktif(userId);
   const baris: [string, string][] = a
     ? [
@@ -270,7 +292,7 @@ async function Gagal({ t, l }: { t: Transaksi; l: L }) {
   const tr = l.t;
   const hasil = HASIL(tr);
   const h = hasil[t.status] ?? hasil.gagal;
-  const baru = t.status === "dikembalikan" ? null : await hrefBaru(t);
+  const baru = t.status === "dikembalikan" ? null : await hrefBaru(t, l.api);
   const ikon = h.ikon === "jam" ? <Clock className="size-9" aria-hidden /> : h.ikon === "ban" ? <Ban className="size-9" aria-hidden /> : <XCircle className="size-9" aria-hidden />;
   return (
     <Kartu ikon={ikon} nada={t.status === "gagal" ? "bg-danger-soft text-danger" : "bg-subtle text-muted"} judul={h.judul} isi={h.isi}>
@@ -281,9 +303,15 @@ async function Gagal({ t, l }: { t: Transaksi; l: L }) {
             {tr("Buat tagihan baru", "Create a new invoice")} <ArrowRight className="size-4" aria-hidden />
           </Link>
         )}
-        <Link href="/langganan" className={baru ? "btn btn-ghost" : "btn btn-primary"}>
-          {baru ? tr("Pilih paket lain", "Choose another plan") : tr("Ke halaman langganan", "Go to subscription")}
-        </Link>
+        {l.api ? (
+          <Link href={`/developer/${l.api}`} className={baru ? "btn btn-ghost" : "btn btn-primary"}>
+            {tr("Ke aplikasi", "Go to the application")}
+          </Link>
+        ) : (
+          <Link href="/langganan" className={baru ? "btn btn-ghost" : "btn btn-primary"}>
+            {baru ? tr("Pilih paket lain", "Choose another plan") : tr("Ke halaman langganan", "Go to subscription")}
+          </Link>
+        )}
       </div>
     </Kartu>
   );

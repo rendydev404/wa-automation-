@@ -9,16 +9,20 @@ import { hakAkun } from "./langganan";
 import { hashPassword } from "./password";
 import { COOKIE_PUSH, hapusLangganan } from "./push";
 
-export type Peran = "admin" | "user";
+import { type Peran, staf } from "./peran";
 
-/** Halaman pertama setelah masuk: admin langsung ke panel admin, pengguna biasa ke dashboard workspace-nya. */
-export const halamanAwal = (peran: Peran): string => (peran === "admin" ? "/admin" : "/dashboard");
+export { type Peran, labelPeran, staf } from "./peran";
+
+/** Halaman pertama setelah masuk: staf (admin & developer) langsung ke panel admin, pengguna biasa ke dashboard workspace-nya. */
+export const halamanAwal = (peran: Peran): string => (staf(peran) ? "/admin" : "/dashboard");
 
 export interface User {
   id: number;
   email: string;
   nama: string;
   peran: Peran;
+  /** Boleh membuka portal Developer API (/developer). Dipilih developer internal; bawaan false, admin pun tidak otomatis. */
+  aksesApi?: boolean;
 }
 
 export interface UserRow extends User {
@@ -28,9 +32,10 @@ export interface UserRow extends User {
   sesi_versi: number;
   gagal_login: number;
   kunci_sampai: number;
+  akses_api: boolean;
 }
 
-const KOLOM_ROW = "id, email, nama, peran, password_hash, status, alasan_blokir, sesi_versi, gagal_login, kunci_sampai";
+const KOLOM_ROW = "id, email, nama, peran, password_hash, status, alasan_blokir, sesi_versi, gagal_login, kunci_sampai, akses_api";
 
 /** Buat admin pertama dari env bila tabel pengguna masih kosong. */
 async function seedAdmin(): Promise<void> {
@@ -77,7 +82,7 @@ export const getUser = cache(async (): Promise<User | null> => {
   const [row] = await sql<UserRow[]>`SELECT ${sql.unsafe(KOLOM_ROW)} FROM users WHERE id = ${payload.uid}`;
   if (!row || row.status !== "aktif" || row.sesi_versi !== payload.sv) return null;
   if ((await passwordFingerprint(row.password_hash)) !== payload.pv) return null;
-  return { id: row.id, email: row.email, nama: row.nama, peran: row.peran };
+  return { id: row.id, email: row.email, nama: row.nama, peran: row.peran, aksesApi: row.akses_api };
 });
 
 export async function requireUser(): Promise<User> {
@@ -86,8 +91,32 @@ export async function requireUser(): Promise<User> {
   return user!;
 }
 
-/** Halaman/aksi khusus admin. Bukan admin = 404 (keberadaan halamannya tidak dibocorkan). */
-export async function requireAdmin(): Promise<User> {
+/** Halaman/aksi panel admin: admin & developer internal. Selain itu = 404 (keberadaan halamannya tidak dibocorkan). */
+export async function requireStaf(): Promise<User> {
+  const user = await requireUser();
+  if (!staf(user.peran)) notFound();
+  return user;
+}
+
+/**
+ * Panel Developer API (/admin/developer-api): HANYA peran developer. Admin pun 404, sesuai keputusan pemilik: fitur ini
+ * belum dibuka umum dan tidak ditampilkan di panel admin biasa.
+ */
+export async function requireDeveloper(): Promise<User> {
+  const user = await requireUser();
+  if (user.peran !== "developer") notFound();
+  return user;
+}
+
+/** Portal Developer API (/developer): hanya akun yang diberi akses oleh developer internal. Selain itu 404. */
+export async function requireAksesApi(): Promise<User> {
+  const user = await requireUser();
+  if (!user.aksesApi) notFound();
+  return user;
+}
+
+/** Tindakan yang hanya boleh dilakukan admin (mis. mengatur peran). Developer & pengguna biasa = 404. */
+export async function requireAdminUtama(): Promise<User> {
   const user = await requireUser();
   if (user.peran !== "admin") notFound();
   return user;

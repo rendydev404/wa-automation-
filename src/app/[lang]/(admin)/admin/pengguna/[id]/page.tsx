@@ -8,7 +8,7 @@ import { ChevronRight } from "lucide-react";
 import { formatNomor, tanggal, waktuSingkatWib } from "@/lib/format";
 import { nomorMilik } from "@/lib/numbers";
 import { penggunaById } from "@/lib/pengguna";
-import { kuotaBawaan, requireAdmin } from "@/lib/session";
+import { kuotaBawaan, requireStaf } from "@/lib/session";
 import { infoSesi } from "@/lib/wa";
 import { AksiAkun, FormAiAkun, FormBonusKuota, FormBlokir, FormKuota, HapusAkun, HentikanLangganan, PutuskanWa } from "../../form-admin";
 import { BerikanPaket } from "../../berikan-paket";
@@ -24,6 +24,7 @@ import { TEMPLAT_AI } from "@/lib/templat-ai-def";
 import { followupAkun } from "@/lib/followup";
 import { LABEL_ACK, LABEL_STATUS } from "@/lib/followup-def";
 import { AntrekanUlang, FormTautChatCs } from "../../followup/followup-akun";
+import { labelPeran, staf } from "@/lib/peran";
 
 export const metadata: Metadata = { title: `Kelola pengguna · ${MEREK}` };
 
@@ -62,7 +63,7 @@ export default function HalamanPengguna(props: PageProps<"/[lang]/admin/pengguna
 }
 
 async function Isi({ params }: { params: Promise<{ id: string }> }) {
-  const admin = await requireAdmin();
+  const admin = await requireStaf();
   const id = Number((await params).id);
   const u = Number.isInteger(id) && id > 0 ? await penggunaById(id) : undefined;
   if (!u) notFound();
@@ -90,6 +91,8 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
         : "Hermes";
   const terpakai = hak.balasan === null ? 0 : await balasanTerpakai(id, hak.periodeMulai);
   const diriSendiri = u.id === admin.id;
+  // Akun admin hanya boleh diubah admin: developer internal tidak melihat tombol yang pasti ditolak server.
+  const terkunci = u.peran === "admin" && admin.peran !== "admin";
 
   return (
     <div className="space-y-6">
@@ -103,7 +106,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
           <div data-analitik-privat className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-2xl font-bold tracking-tight">{u.nama || "(tanpa nama)"}</h1>
-              {u.peran === "admin" && <span className="rounded-md bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent uppercase">Admin</span>}
+              {staf(u.peran) && <span className="rounded-md bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent uppercase">{labelPeran(u.peran)}</span>}
               {u.paket_nama && <LencanaPaket tingkat={tingkatPaket(u.paket_kode, u.paket_nama)} nama={u.paket_nama} />}
               {u.google && <span className="rounded-md bg-subtle px-2 py-0.5 text-[11px] font-bold text-muted uppercase">Google</span>}
               {u.status === "diblokir" ? (
@@ -145,10 +148,10 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               <div>
                 <h2 className="text-[15px] font-bold">Perangkat WhatsApp</h2>
                 <p className="text-[13px] text-muted">
-                  {nomor.length} dari {u.peran === "admin" ? "∞" : (u.kuota_nomor ?? bawaan)} kuota terpakai
+                  {nomor.length} dari {staf(u.peran) ? "∞" : (u.kuota_nomor ?? bawaan)} kuota terpakai
                 </p>
               </div>
-              <PutuskanWa id={u.id} jumlah={nomor.filter((n) => n.wa_id).length} />
+              {!terkunci && <PutuskanWa id={u.id} jumlah={nomor.filter((n) => n.wa_id).length} />}
             </div>
             <ul className="divide-y divide-line">
               {nomor.map((n) => {
@@ -174,12 +177,12 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
           <section className="card p-4 sm:p-6">
             <h2 className="text-[15px] font-bold">Tindakan akun</h2>
             <div className="mt-4">
-              <AksiAkun id={u.id} nama={u.nama} email={u.email} jumlahNomor={nomor.length} admin={u.peran === "admin"} diriSendiri={diriSendiri} />
+              <AksiAkun id={u.id} nama={u.nama} email={u.email} jumlahNomor={nomor.length} peran={u.peran} pelakuAdmin={admin.peran === "admin"} diriSendiri={diriSendiri} />
             </div>
           </section>
         </div>
         <div className="min-w-0 space-y-6">
-          {u.peran !== "admin" && (
+          {!staf(u.peran) && (
             <section className="card p-4 sm:p-6">
               <h2 className="text-[15px] font-bold">Langganan</h2>
               <p className="mt-1 text-[13px] text-muted">
@@ -232,12 +235,12 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               )}
             </section>
           )}
-          {u.peran !== "admin" && (
+          {!staf(u.peran) && (
             <Suspense fallback={<div aria-hidden className="card h-56 animate-denyut" />}>
               <FollowupAkun id={u.id} />
             </Suspense>
           )}
-          {u.peran !== "admin" && (
+          {!staf(u.peran) && (
             <section className="card p-4 sm:p-6">
               <h2 className="text-[15px] font-bold">Bonus kuota balasan AI</h2>
               <p className="mt-0.5 text-[13px] text-muted">
@@ -281,7 +284,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               <FormAiAkun id={u.id} penyedia={u.ai_penyedia} umum={umum} adaKunci={!!kunciAnthropic()} />
             </div>
           </section>
-          {u.peran !== "admin" && (
+          {!staf(u.peran) && (
             <section className="card p-4 sm:p-6">
               <h2 className="text-[15px] font-bold">Kuota perangkat</h2>
               <div className="mt-4">
@@ -289,7 +292,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               </div>
             </section>
           )}
-          {!diriSendiri && (
+          {!diriSendiri && !terkunci && (
             <section className="card p-4 sm:p-6">
               <h2 className="text-[15px] font-bold">{u.status === "diblokir" ? "Akun diblokir" : "Blokir akun"}</h2>
               <div className="mt-4">
@@ -297,7 +300,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               </div>
             </section>
           )}
-          {!diriSendiri && (
+          {!diriSendiri && !terkunci && (
             <section className="card border-danger/30 p-4 sm:p-6">
               <h2 className="text-[15px] font-bold text-danger">Hapus akun</h2>
               <p className="mt-0.5 text-[13px] text-muted">Semua nomor, knowledge, dan histori percakapannya ikut terhapus permanen.</p>

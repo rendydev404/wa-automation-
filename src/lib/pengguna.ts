@@ -1,11 +1,12 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import type { Penyedia } from "./ai";
+import type { PenyediaAkun } from "./ai";
 import { db, sekarang } from "./db";
 import { segarkanAiAkun, segarkanKuota } from "./langganan";
 import { kirimNotif } from "./notifikasi";
 import { segarkanNomor } from "./numbers";
 import { hashPassword } from "./password";
+import { staf } from "./peran";
 import type { Peran, User } from "./session";
 
 /** Data akun & administrasi pengguna. Semua fungsi di sini dipanggil setelah peran pemanggil diperiksa. */
@@ -25,7 +26,7 @@ export interface BarisPengguna {
   created_at: number;
   punya_password: boolean; // false = akun dibuat lewat Google dan belum pernah memasang password
   google: boolean; // tertaut ke akun Google
-  ai_penyedia: Penyedia | null; // dipaksa admin untuk akun ini; null = ikut pengaturan Mesin AI
+  ai_penyedia: PenyediaAkun | null; // dipaksa admin untuk akun ini; null = ikut pengaturan Mesin AI
   /** Langganan yang sedang aktif (untuk lencana paket); null = gratis / berakhir. */
   paket_nama: string | null;
   paket_kode: string | null;
@@ -143,7 +144,7 @@ export async function daftarPengguna(opsi: { cari?: string; filter?: FilterPengg
       ${PAKET_AKTIF(sql, sekarang())}
      WHERE (${opsi.sebelumId ?? null}::integer IS NULL OR u.id < ${opsi.sebelumId ?? null}::integer)
        AND (${cari} = '' OR u.email LIKE ${pola} OR lower(u.nama) LIKE ${pola})
-       AND (${f} = 'semua' OR (${f} = 'admin' AND u.peran = 'admin') OR u.status = ${f})
+       AND (${f} = 'semua' OR (${f} = 'admin' AND u.peran <> 'user') OR u.status = ${f})
        AND ${kondisiPaket(sql, opsi.paket)}
      ORDER BY u.id DESC
      LIMIT ${batas + 1}`;
@@ -159,7 +160,7 @@ export async function hitungPengguna(opsi: { cari?: string; paket?: SaringPaket 
     SELECT COUNT(*)::int AS semua,
            COUNT(*) FILTER (WHERE u.status = 'aktif')::int AS aktif,
            COUNT(*) FILTER (WHERE u.status = 'diblokir')::int AS diblokir,
-           COUNT(*) FILTER (WHERE u.peran = 'admin')::int AS admin
+           COUNT(*) FILTER (WHERE u.peran <> 'user')::int AS admin
       FROM users u
       ${pakaiPaket ? PAKET_AKTIF(sql, sekarang()) : sql``}
      WHERE (${cari} = '' OR u.email LIKE ${pola} OR lower(u.nama) LIKE ${pola})
@@ -176,12 +177,12 @@ export async function hitungPaketPengguna(opsi: { cari?: string; filter?: Filter
   const { cari, pola } = polaCari(opsi.cari);
   const f = opsi.filter ?? "semua";
   const baris = await sql<{ paket_nama: string | null; paket_kode: string | null; admin: boolean; n: number }[]>`
-    SELECT pk.paket_nama, MIN(pk.paket_kode) AS paket_kode, u.peran = 'admin' AS admin, COUNT(*)::int AS n
+    SELECT pk.paket_nama, MIN(pk.paket_kode) AS paket_kode, u.peran <> 'user' AS admin, COUNT(*)::int AS n
       FROM users u
       ${PAKET_AKTIF(sql, sekarang())}
      WHERE (${cari} = '' OR u.email LIKE ${pola} OR lower(u.nama) LIKE ${pola})
-       AND (${f} = 'semua' OR (${f} = 'admin' AND u.peran = 'admin') OR u.status = ${f})
-     GROUP BY pk.paket_nama, u.peran = 'admin'`;
+       AND (${f} = 'semua' OR (${f} = 'admin' AND u.peran <> 'user') OR u.status = ${f})
+     GROUP BY pk.paket_nama, u.peran <> 'user'`;
   let gratis = 0;
   let berbayar = 0;
   const paket = new Map<string, { nama: string; kode: string | null; n: number }>();
@@ -216,9 +217,15 @@ async function jumlahAdminAktif(): Promise<number> {
   return r.n;
 }
 
-/** Tindakan yang tidak boleh dikenakan admin pada dirinya sendiri atau pada admin aktif terakhir. */
+/** Akun admin hanya boleh diubah oleh admin: developer internal (staf non-admin) ditolak. */
+export function jagaAkunAdmin(pelaku: User, sasaran: { peran: string }): void {
+  if (sasaran.peran === "admin" && pelaku.peran !== "admin") throw new PenggunaError("Hanya admin yang bisa mengubah akun admin.");
+}
+
+/** Tindakan yang tidak boleh dikenakan staf pada dirinya sendiri, pada akun admin (bila pelakunya bukan admin), atau pada admin aktif terakhir. */
 async function jagaAdmin(admin: User, sasaran: BarisPengguna, aksi: string): Promise<void> {
   if (sasaran.id === admin.id) throw new PenggunaError(`Anda tidak bisa ${aksi} akun Anda sendiri.`);
+  jagaAkunAdmin(admin, sasaran);
   if (sasaran.peran === "admin" && sasaran.status === "aktif" && (await jumlahAdminAktif()) <= 1) throw new PenggunaError("Harus tersisa minimal satu admin aktif.");
 }
 
@@ -249,7 +256,7 @@ export const MAKS_BONUS_KUOTA = 1_000_000;
 export async function beriBonusKuota(admin: User, id: number, jumlah: number, catatan: string): Promise<void> {
   if (!Number.isInteger(jumlah) || jumlah < 1 || jumlah > MAKS_BONUS_KUOTA) throw new PenggunaError(`Jumlah bonus harus 1–${MAKS_BONUS_KUOTA.toLocaleString("id-ID")} balasan.`);
   const u = await wajib(id);
-  if (u.peran === "admin") throw new PenggunaError("Admin tidak memakai kuota balasan AI.");
+  if (staf(u.peran)) throw new PenggunaError("Admin & developer tidak memakai kuota balasan AI.");
   const sql = await db();
   const isiCatatan = catatan.trim().slice(0, 200) || null;
   await sql`INSERT INTO kuota_bonus(user_id, jumlah, catatan, oleh, dibuat) VALUES (${id}, ${jumlah}, ${isiCatatan}, ${admin.id}, ${sekarang()})`;
@@ -273,7 +280,7 @@ export async function setKuota(admin: User, id: number, kuota: number | null): P
 }
 
 /** Paksa penyedia AI untuk semua nomor akun ini (null = ikut pengaturan Mesin AI); berlaku di pesan berikutnya. */
-export async function setAiAkun(admin: User, id: number, penyedia: Penyedia | null): Promise<void> {
+export async function setAiAkun(admin: User, id: number, penyedia: PenyediaAkun | null): Promise<void> {
   const u = await wajib(id);
   const sql = await db();
   await sql`UPDATE users SET ai_penyedia = ${penyedia} WHERE id = ${id}`;
@@ -281,13 +288,15 @@ export async function setAiAkun(admin: User, id: number, penyedia: Penyedia | nu
   await catatLog(admin, "ubah mesin AI akun", u.email, penyedia === null ? "ikut pengaturan umum" : penyedia === "anthropic" ? "Claude API" : "Hermes");
 }
 
+/** Hanya admin yang memanggil ini (requireAdminUtama di aksinya). Menurunkan admin dijaga: bukan diri sendiri & bukan admin aktif terakhir. */
 export async function setPeran(admin: User, id: number, peran: Peran): Promise<void> {
+  if (admin.peran !== "admin") throw new PenggunaError("Hanya admin yang bisa mengubah peran.");
   const u = await wajib(id);
   if (u.peran === peran) return;
-  if (peran === "user") await jagaAdmin(admin, u, "menurunkan peran");
+  if (u.peran === "admin") await jagaAdmin(admin, u, "menurunkan peran");
   const sql = await db();
   await sql`UPDATE users SET peran = ${peran} WHERE id = ${id}`;
-  await catatLog(admin, peran === "admin" ? "jadikan admin" : "jadikan pengguna biasa", u.email);
+  await catatLog(admin, peran === "admin" ? "jadikan admin" : peran === "developer" ? "jadikan developer" : "jadikan pengguna biasa", u.email);
 }
 
 /** Blokir: semua sesi login dicabut dan AI berhenti membalas di semua nomornya (koneksi WhatsApp tidak diputus). */
@@ -304,6 +313,7 @@ export async function setBlokir(admin: User, id: number, blokir: boolean, alasan
 /** Password sementara acak (ditampilkan sekali ke admin); semua sesi lama pengguna itu ikut batal. */
 export async function resetPassword(admin: User, id: number): Promise<string> {
   const u = await wajib(id);
+  jagaAkunAdmin(admin, u);
   const sementara = `${randomBytes(9).toString("base64url")}7a`;
   const sql = await db();
   await sql`UPDATE users SET password_hash = ${await hashPassword(sementara)}, sesi_versi = sesi_versi + 1, gagal_login = 0, kunci_sampai = 0 WHERE id = ${id}`;
@@ -313,6 +323,7 @@ export async function resetPassword(admin: User, id: number): Promise<string> {
 
 /** Naikkan sesi_versi: semua sesi login akun ini batal. Mengembalikan data untuk membuat sesi baru (akun sendiri). */
 export async function cabutSesi(id: number, admin?: User) {
+  if (admin && admin.id !== id) jagaAkunAdmin(admin, await wajib(id));
   const sql = await db();
   const [u] = await sql<{ id: number; email: string; password_hash: string; sesi_versi: number }[]>`
     UPDATE users SET sesi_versi = sesi_versi + 1 WHERE id = ${id} RETURNING id, email, password_hash, sesi_versi`;

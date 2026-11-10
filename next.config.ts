@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   poweredByHeader: false,
+  // Ditanam saat build (bukan dibaca dari .env saat jalan): kunci lisensi uji hanya bisa aktif di build lokal yang
+  // sengaja dibangun dengan LISENSI_MODE_UJI=1. Image mesin dibangun dengan nilai kosong (src/lib/lisensi-def.ts).
+  env: { LISENSI_MODE_UJI: process.env.LISENSI_MODE_UJI === "1" ? "1" : "" },
   // CI mengecek tipe di job terpisah yang berjalan paralel (deploy.yml, job `periksa`); build lokal tetap mengecek.
   typescript: { ignoreBuildErrors: process.env.LEWATI_CEK_TIPE === "1" },
   // Build mandiri untuk Docker (image kecil).

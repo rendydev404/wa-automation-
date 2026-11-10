@@ -22,6 +22,7 @@ import { JAMINAN_MAKS_PAKAI_PERSEN, syaratJaminan, teksProsesRefund, MASA_ID, MA
 import { sekarang } from "@/lib/db";
 import { FormJaminan } from "./jaminan";
 import { MEREK } from "@/lib/merek";
+import { staf } from "@/lib/peran";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await teksHalaman();
@@ -76,7 +77,7 @@ export default async function HalamanLangganan() {
  */
 async function Jaminan() {
   const [user, { b, t }] = await Promise.all([requireUser(), teksHalaman()]);
-  if (user.peran === "admin") return null;
+  if (staf(user.peran)) return null;
   const [j, mode] = await Promise.all([cekJaminan(user.id), modeRefundAkun(user.id)]);
   if (!j || (!j.pengajuan && sekarang() > j.sampai)) return null;
   const rp = uang(j.jumlah, b);

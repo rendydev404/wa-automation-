@@ -2,35 +2,43 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, ArrowLeft, Bot, ChartColumnIncreasing, Ellipsis, LayoutDashboard, LogOut, MessageCircleReply, Package, ScrollText, Settings2, Share2, Users, Wallet } from "lucide-react";
+import { Activity, ArrowLeft, Bot, ChartColumnIncreasing, Code2, Ellipsis, LayoutDashboard, LogOut, MessageCircleReply, Package, ScrollText, Settings2, Share2, Users, Wallet } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { BilahBawah, TabBawah, TabLembar } from "@/components/bilah-bawah";
 
-type ItemMenu = { href: string; label: string; ikon: typeof Users; tepat?: boolean; pendek?: string };
+/**
+ * `pusat`: hanya di server pusat chatgercep.com (disembunyikan di mesin self-host).
+ * `developer`: hanya untuk peran developer (admin pun tidak melihatnya; fitur belum dibuka umum).
+ */
+type ItemMenu = { href: string; label: string; ikon: typeof Users; tepat?: boolean; pendek?: string; pusat?: boolean; developer?: boolean };
 
 const MENU: ItemMenu[] = [
   { href: "/admin", label: "Ringkasan", ikon: LayoutDashboard, tepat: true },
   { href: "/admin/pengguna", label: "Pengguna", ikon: Users },
-  { href: "/admin/paket", label: "Paket & harga", pendek: "Paket", ikon: Package },
-  { href: "/admin/transaksi", label: "Transaksi", ikon: Wallet },
+  { href: "/admin/paket", label: "Paket & harga", pendek: "Paket", ikon: Package, pusat: true },
+  { href: "/admin/transaksi", label: "Transaksi", ikon: Wallet, pusat: true },
   // Setelah Transaksi (indeks 4): empat tab bilah bawah HP tetap sama, Analitik masuk lembar "Lainnya".
   { href: "/admin/analitik", label: "Analitik", ikon: ChartColumnIncreasing },
-  { href: "/admin/afiliasi", label: "Afiliasi", ikon: Share2 },
-  { href: "/admin/followup", label: "Follow-up WA", ikon: MessageCircleReply },
-  { href: "/admin/pixel", label: "Meta Pixel", ikon: Activity },
+  { href: "/admin/afiliasi", label: "Afiliasi", ikon: Share2, pusat: true },
+  { href: "/admin/developer-api", label: "Developer API", ikon: Code2, pusat: true, developer: true },
+  { href: "/admin/followup", label: "Follow-up WA", ikon: MessageCircleReply, pusat: true },
+  { href: "/admin/pixel", label: "Meta Pixel", ikon: Activity, pusat: true },
   { href: "/admin/ai", label: "Mesin AI", ikon: Bot },
   { href: "/admin/aturan", label: "Aturan", ikon: Settings2 },
   { href: "/admin/log", label: "Log admin", ikon: ScrollText },
 ];
 
+const menuUntuk = (mesin: boolean, developer: boolean) => MENU.filter((m) => !(mesin && m.pusat) && (developer || !m.developer));
+
 /** Menu panel admin (terpisah dari menu workspace pengguna). */
-export function NavAdmin() {
+export function NavAdmin({ mesin = false, developer = false }: { mesin?: boolean; developer?: boolean }) {
   const jalur = useJalurAdmin();
+  const menu = menuUntuk(mesin, developer);
   return (
     <nav aria-label="Menu admin" className="flex flex-1 flex-col px-3 pt-3">
       <p className="px-3 pb-2 text-[11px] font-semibold tracking-[0.08em] text-ink-muted/80 uppercase">Panel admin</p>
       <ul className="space-y-0.5">
-        {MENU.map((m) => {
+        {menu.map((m) => {
           const aktif = aktifDi(m, jalur);
           return (
             <li key={m.href}>
@@ -73,12 +81,13 @@ const aktifDi = (m: ItemMenu, jalur: string) => (m.tepat ? jalur === m.href : ja
 const MENU_BILAH = 4;
 
 /** Menu bawah HP untuk panel admin. */
-export function NavAdminBawah() {
+export function NavAdminBawah({ mesin = false, developer = false }: { mesin?: boolean; developer?: boolean }) {
   const jalur = useJalurAdmin();
-  const lain = MENU.slice(MENU_BILAH);
+  const menu = menuUntuk(mesin, developer);
+  const lain = menu.slice(MENU_BILAH);
   return (
     <BilahBawah label="Menu admin">
-      {MENU.slice(0, MENU_BILAH).map((m) => (
+      {menu.slice(0, MENU_BILAH).map((m) => (
         <TabBawah key={m.href} href={m.href} label={m.pendek ?? m.label} aktif={aktifDi(m, jalur)} ikon={<m.ikon className="size-5" aria-hidden />} />
       ))}
       <TabLembar label="Lainnya" judul="Menu admin lainnya" aktif={lain.some((m) => aktifDi(m, jalur))} ikon={<Ellipsis className="size-5" aria-hidden />}>

@@ -123,6 +123,52 @@ await cek("admin tidak bisa memblokir/menurunkan/menghapus dirinya sendiri, dan 
   assert.equal((await P.penggunaById(sari.id)).peran, "user");
 });
 
+console.log("== peran developer ==");
+await cek("developer: migrasi v32 menerima peran 'developer', peran lain tetap ditolak database", async () => {
+  const dev = await P.buatAkun({ email: "dev@uji.test", nama: "Dev", password: "rahasia-dev-001", peran: "developer" });
+  assert.equal((await P.penggunaById(dev.id)).peran, "developer");
+  await assert.rejects(sql`UPDATE users SET peran = 'superadmin' WHERE id = ${dev.id}`, /users_peran_check/);
+  await P.hapusPengguna(A, dev.id);
+});
+
+await cek("developer = staf: buka panel, akses semua nomor, tanpa kuota; tapi tidak bisa atur peran / ubah akun admin", async () => {
+  const { staf, labelPeran, peranSah } = await lib("src/lib/peran.ts");
+  const { hakAkun } = await lib("src/lib/langganan.ts");
+  const dev = await P.buatAkun({ email: "dev2@uji.test", nama: "Dev", password: "rahasia-dev-002", peran: "developer" });
+  const D = { id: dev.id, email: "dev2@uji.test", nama: "Dev", peran: "developer" };
+  assert.equal(staf("developer"), true);
+  assert.equal(staf("admin"), true);
+  assert.equal(staf("user"), false);
+  assert.equal(staf(undefined), false);
+  assert.equal(labelPeran("developer"), "Developer");
+  assert.equal(peranSah("developer") && !peranSah("root"), true);
+  assert.equal(bolehAkses(D, await nomorById(ns.id)), true);
+  const hak = await hakAkun(D);
+  assert.equal(hak.nomor, null);
+  assert.equal(hak.paket, "Developer");
+  // Mengatur peran: hanya admin (developer tidak bisa menaikkan dirinya/siapa pun).
+  await assert.rejects(P.setPeran(D, budi.id, "admin"), /Hanya admin yang bisa mengubah peran/);
+  await assert.rejects(P.setPeran(D, dev.id, "admin"), /Hanya admin yang bisa mengubah peran/);
+  // Akun admin tidak bisa diubah developer: blokir, hapus, reset password, keluarkan sesi.
+  await assert.rejects(P.setBlokir(D, admin.id, true), /Hanya admin yang bisa mengubah akun admin/);
+  await assert.rejects(P.hapusPengguna(D, admin.id), /Hanya admin yang bisa mengubah akun admin/);
+  await assert.rejects(P.resetPassword(D, admin.id), /Hanya admin yang bisa mengubah akun admin/);
+  await assert.rejects(P.cabutSesi(admin.id, D), /Hanya admin yang bisa mengubah akun admin/);
+  // Akun pengguna biasa tetap bisa dikelola developer.
+  await P.setBlokir(D, sari.id, true, "uji");
+  await P.setBlokir(D, sari.id, false);
+  await P.cabutSesi(dev.id, D); // akun sendiri
+  // Admin menaikkan & menurunkan developer; developer bukan admin, jadi admin aktif terakhir tetap dijaga.
+  await P.setPeran(A, budi.id, "developer");
+  assert.equal((await P.penggunaById(budi.id)).peran, "developer");
+  await P.setPeran(A, budi.id, "user");
+  const log = await P.daftarLog(2);
+  assert.deepEqual(log.map((l) => l.aksi), ["jadikan pengguna biasa", "jadikan developer"]);
+  // Tab "Admin & developer" & KPI menghitung developer sebagai staf, bukan pengguna.
+  assert.equal((await P.hitungPengguna({ cari: "dev2@" })).admin, 1);
+  await P.hapusPengguna(A, dev.id);
+});
+
 await cek("kuota per akun: null = bawaan, angka disimpan; log admin tercatat terbaru dulu", async () => {
   await P.setKuota(A, budi.id, 3);
   assert.equal((await P.penggunaById(budi.id)).kuota_nomor, 3);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { catatFitur } from "@/lib/analitik";
 import { infoKurs, perbaruiKurs } from "@/lib/kurs";
 import { getUser } from "@/lib/session";
+import { staf } from "@/lib/peran";
 
 /**
  * Kurs USD → Rp terbaru untuk kalkulator harga di panel admin (ditanyakan berkala selama halaman terbuka).
@@ -10,7 +11,7 @@ import { getUser } from "@/lib/session";
  */
 export async function GET(req: Request) {
   const user = await getUser();
-  if (user?.peran !== "admin") return NextResponse.json({ error: "Tidak ditemukan." }, { status: 404, headers: { "Cache-Control": "no-store" } });
+  if (!user || !staf(user.peran)) return NextResponse.json({ error: "Tidak ditemukan." }, { status: 404, headers: { "Cache-Control": "no-store" } });
   const segarkan = new URL(req.url).searchParams.get("segarkan") === "1";
   const info = segarkan ? await perbaruiKurs() : await infoKurs({ tunggu: true });
   if (segarkan) catatFitur(user.id, "admin.perbarui_kurs");

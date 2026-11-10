@@ -1,13 +1,14 @@
 import "server-only";
 import { type Nomor, nomorById } from "./numbers";
 import type { User } from "./session";
+import { staf } from "./peran";
 
 /**
  * Satu-satunya pintu membaca nomor atas nama pengguna: pemiliknya, atau admin.
  * Nomor milik orang lain diperlakukan sama dengan nomor yang tidak ada (tidak membocorkan keberadaannya).
  */
 export function bolehAkses(user: User, nomor: Nomor | undefined): nomor is Nomor {
-  return !!nomor && (nomor.user_id === user.id || user.peran === "admin");
+  return !!nomor && (nomor.user_id === user.id || staf(user.peran));
 }
 
 export async function nomorUntuk(user: User, id: unknown): Promise<Nomor | undefined> {

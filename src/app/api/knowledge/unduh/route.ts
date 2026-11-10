@@ -3,6 +3,7 @@ import { catatFitur } from "@/lib/analitik";
 import { teksDokumen } from "@/lib/knowledge";
 import { sesiDanNomor } from "@/lib/akses";
 import { teksPermintaan } from "@/lib/bahasa-server";
+import { staf } from "@/lib/peran";
 
 /** Unduh isi satu dokumen base knowledge sebagai berkas .txt. Query: ?id=<dokumen>&nomor=<number_id>. */
 export async function GET(req: Request) {
@@ -14,7 +15,7 @@ export async function GET(req: Request) {
   if (!Number.isInteger(id) || !nomor) return tidakAda();
   const numberId = nomor.id;
 
-  const dok = await teksDokumen(id, numberId, user.peran === "admin");
+  const dok = await teksDokumen(id, numberId, staf(user.peran));
   if (!dok) return tidakAda();
 
   const nama = `${dok.judul.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").trim().slice(0, 100) || t("dokumen", "document")}.txt`;

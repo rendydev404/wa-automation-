@@ -19,6 +19,7 @@ import { sttTerkonfigurasi, transkripsi } from "./stt";
 import type { Foto } from "./types";
 import type { WAMessage } from "baileys";
 import { type EventWa, digitWa, kirimGambar, kirimTeks, mengetik, padaEvent, tandaiDibaca } from "./wa";
+import { layananBoleh } from "./mesin/lisensi";
 
 /**
  * Jembatan WhatsApp (src/lib/wa.ts) -> Hermes -> WhatsApp.
@@ -183,6 +184,15 @@ export interface KaitCs {
 
 const g = globalThis as unknown as { __waBridge?: Keadaan };
 const st: Keadaan = (g.__waBridge ??= { terlihat: new Map(), terkirim: new Set(), antre: new Map(), tulis: Promise.resolve(), hitung: 0 });
+
+/**
+ * Tandai pesan keluar sebagai kiriman sistem (mis. API mesin self-host, src/lib/mesin/antrean.ts), bukan balasan
+ * manusia dari HP: gemanya tidak menjeda AI dan tidak tercatat sebagai balasan pemilik. Dipanggil lewat padaId
+ * kirimTeks/kirimGambar, yaitu sebelum gemanya mungkin tiba.
+ */
+export function tandaiKirimanSistem(id: string): void {
+  ingat(st.terkirim, id, 500);
+}
 
 export function pasangKaitCs(k: KaitCs): void {
   st.kaitCs = k;
@@ -461,7 +471,8 @@ async function proses(kunci: string): Promise<void> {
       tanpaKnowledgeDicatat.set(nomor.id, Date.now());
       console.warn(`[bridge] nomor ${nomor.id} belum punya product knowledge: AI tidak membalas`);
     }
-    if (!nomor || !nomor.bot_aktif || !nomor.pemilik_aktif || habis || tanpaKnowledge) {
+    // Mesin self-host dalam mode terbatas (lisensi habis/ditangguhkan): AI diam, koneksi WA tetap. Pusat: selalu true.
+    if (!nomor || !nomor.bot_aktif || !nomor.pemilik_aktif || habis || tanpaKnowledge || !layananBoleh()) {
       a.teks.length = 0;
       a.foto.length = 0;
       a.siap = null;
@@ -971,7 +982,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   statistik(nomor.id, "masuk");
   if (teksLog) tulisLatar(() => catatPesan({ numberId: nomor.id, kunci, peran: 0, teks: teksLog, waktu: ev.waktu || sekarang(), telepon, nama: ev.namaPengirim ?? null, alamat: ev.alamat }));
   // Bot dimatikan atau pemilik diblokir admin: pesan tetap tercatat, tapi AI tidak membalas.
-  if (!nomor.bot_aktif || !nomor.pemilik_aktif) return;
+  if (!nomor.bot_aktif || !nomor.pemilik_aktif || !layananBoleh()) return;
   // Pesan dari nomor CS ChatGerCep (follow-up) ke nomor pelanggan: dicatat, tidak dibalas AI nomor ini. Tanpa ini dua
   // bot bisa saling membalas tanpa henti; pemilik nomor tetap membacanya dan membalas sendiri dari HP.
   const cs = st.kaitCs?.nomorCs();

@@ -2,6 +2,7 @@ import "server-only";
 import { db, sekarang } from "./db";
 import { type HakAkun, type Paket, aturanPercobaan, daftarPaket, hakAkun, sisaKuotaAi } from "./langganan";
 import { nomorMilik } from "./numbers";
+import { staf } from "./peran";
 
 /**
  * Data halaman /trial-habis: hasil nyata akun gratis selama kuota/masa free trial-nya berjalan, untuk meyakinkan pemilik
@@ -51,7 +52,7 @@ export interface DataTrialHabis {
  * pelanggan lama diarahkan ke halaman Langganan biasa).
  */
 export async function dataTrialHabis(user: { id: number; peran: string; nama: string }): Promise<DataTrialHabis | null> {
-  if (user.peran === "admin") return null;
+  if (staf(user.peran)) return null;
   const sql = await db();
   const [hak, sisa, aturan, nomor, [riwayat]] = await Promise.all([
     hakAkun(user),

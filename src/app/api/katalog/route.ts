@@ -5,6 +5,7 @@ import { catatFitur } from "@/lib/analitik";
 import { BATAS_KATALOG, KatalogError, katalogBoleh, simpanProduk } from "@/lib/katalog";
 import { getUser } from "@/lib/session";
 import { teksPermintaan } from "@/lib/bahasa-server";
+import { staf } from "@/lib/peran";
 
 const galat = (pesan: string, status = 400) => NextResponse.json({ error: pesan }, { status });
 
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
   }
   const nomor = await nomorUntuk(user, form.get("number_id"));
   if (!nomor) return galat(t("Nomor tidak ditemukan.", "Number not found."), 404);
-  if (user.peran !== "admin" && !(await katalogBoleh(nomor.user_id))) return galat(t("Katalog produk tersedia untuk paket berbayar. Pilih paket di halaman Langganan.", "The product catalog is available on paid plans. Choose a plan on the Subscription page."), 403);
+  if (!staf(user.peran) && !(await katalogBoleh(nomor.user_id))) return galat(t("Katalog produk tersedia untuk paket berbayar. Pilih paket di halaman Langganan.", "The product catalog is available on paid plans. Choose a plan on the Subscription page."), 403);
 
   const idMentah = Number(form.get("id"));
   const idLama = Number.isInteger(idMentah) && idMentah > 0 ? idMentah : undefined;

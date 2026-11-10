@@ -6,7 +6,8 @@ import { NavBawahKerangka } from "@/components/navigasi";
 import { LoncengNotifikasi } from "@/components/notifikasi";
 import { Rangka } from "@/components/rangka";
 import { PenyediaTur } from "@/components/tur";
-import { requireAdmin } from "@/lib/session";
+import { getUser, requireStaf } from "@/lib/session";
+import { modeMesin } from "@/lib/mode";
 import { NavAdmin, NavAdminBawah } from "./nav-admin";
 import { MEREK } from "@/lib/merek";
 
@@ -21,8 +22,15 @@ export const viewport: Viewport = { themeColor: "#0b1813" };
 
 /** Pemeriksa akses: bukan admin = 404 (keberadaan panel tidak dibocorkan). Di dalam Suspense supaya rangka tetap statis. */
 async function Penjaga() {
-  await requireAdmin();
+  await requireStaf();
   return null;
+}
+
+/** Menu sesuai peran: Developer API hanya untuk peran developer. getUser di-memo per permintaan (berbagi query dengan Penjaga). */
+async function Menu({ bawah = false }: { bawah?: boolean }) {
+  const user = await getUser();
+  const props = { mesin: modeMesin(), developer: user?.peran === "developer" };
+  return bawah ? <NavAdminBawah {...props} /> : <NavAdmin {...props} />;
 }
 
 /** Panel admin: rangka, menu, dan halaman terpisah dari workspace pengguna (/dashboard, /nomor/...). */
@@ -36,13 +44,13 @@ export default function LayoutAdmin({ children }: LayoutProps<"/[lang]/admin">) 
       aksiAtas={<LoncengNotifikasi gelap push />}
       bawah={
         <Suspense fallback={<NavBawahKerangka />}>
-          <NavAdminBawah />
+          <Menu bawah />
         </Suspense>
       }
       sidebar={
         <>
           <Suspense fallback={<div className="flex-1" />}>
-            <NavAdmin />
+            <Menu />
           </Suspense>
           <div className="border-t border-ink-line p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             <form action={logoutAction}>

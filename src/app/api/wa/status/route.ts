@@ -8,6 +8,7 @@ import type { StatusWa } from "@/lib/types";
 import { infoSesi } from "@/lib/wa";
 import { teksPermintaan } from "@/lib/bahasa-server";
 import { jumlahBelum } from "@/lib/notifikasi";
+import { staf } from "@/lib/peran";
 
 const g = globalThis as unknown as { __waAiStatus?: { at: number; ok: boolean; janji: Promise<boolean> | null } };
 
@@ -39,9 +40,9 @@ export async function GET() {
   // Jumlah notifikasi belum dibaca ikut di polling ini (dari memori): lonceng tidak butuh permintaan sendiri.
   const [ai, notif] = await Promise.all([aiCache(), jumlahBelum(user.id).catch(() => 0)]);
   // Galat AI berisi detail teknis server (termasuk nama mesin/model): hanya untuk admin.
-  const galatMentah = user.peran === "admin" ? await getSetting("galat_terakhir") : null;
+  const galatMentah = staf(user.peran) ? await getSetting("galat_terakhir") : null;
   const galatAi = galatMentah ? (JSON.parse(galatMentah) as { at: number; pesan: string }) : null;
-  const daftar = user.peran === "admin" ? await semuaNomor() : await nomorMilik(user.id);
+  const daftar = staf(user.peran) ? await semuaNomor() : await nomorMilik(user.id);
   const hasil: StatusWa = {
     ai,
     galatAi: galatAi && sekarang() - galatAi.at < 86400 ? galatAi : null,

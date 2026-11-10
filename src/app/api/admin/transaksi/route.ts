@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { catatFitur } from "@/lib/analitik";
 import { getUser } from "@/lib/session";
 import { cariTransaksi, labelMetode, opsiDariParam } from "@/lib/transaksi-admin";
+import { staf } from "@/lib/peran";
 
 /**
  * Ekspor CSV riwayat transaksi untuk admin, dengan saringan yang sama persis dengan halaman /admin/transaksi
@@ -9,7 +10,7 @@ import { cariTransaksi, labelMetode, opsiDariParam } from "@/lib/transaksi-admin
  */
 export async function GET(req: Request) {
   const user = await getUser();
-  if (user?.peran !== "admin") return NextResponse.json({ error: "Tidak ditemukan." }, { status: 404, headers: { "Cache-Control": "no-store" } });
+  if (!user || !staf(user.peran)) return NextResponse.json({ error: "Tidak ditemukan." }, { status: 404, headers: { "Cache-Control": "no-store" } });
   const sp = Object.fromEntries(new URL(req.url).searchParams);
   const { daftar } = await cariTransaksi({ ...opsiDariParam(sp), batas: 5000 });
   const iso = (d: number | null) => (d ? new Date((d + 7 * 3600) * 1000).toISOString().replace("T", " ").slice(0, 19) : "");

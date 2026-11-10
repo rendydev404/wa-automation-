@@ -27,6 +27,7 @@ import { PilihOpsi } from "@/components/pilih-opsi";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "@/components/ui";
 import { type JenisKomisi, hitungKomisiPaket } from "@/lib/afiliasi-def";
 import type { InfoKurs } from "@/lib/kurs-def";
+import type { Peran } from "@/lib/peran";
 import { KANAL_BAYAR, type KanalBayar } from "@/lib/harga";
 import { MASA_ID } from "@/lib/jaminan-def";
 
@@ -171,6 +172,7 @@ export function FormPengaturan({
 
 const PILIHAN_PERAN = [
   { id: "user", label: "Pengguna" },
+  { id: "developer", label: "Developer" },
   { id: "admin", label: "Admin" },
 ] as const;
 
@@ -203,7 +205,8 @@ export function SaklarKanal({ kanal, tampil: awal, keterangan }: { kanal: KanalB
   );
 }
 
-export function FormBuatAkun() {
+/** `bolehStaf`: pilihan peran Admin/Developer hanya untuk admin (developer internal hanya bisa membuat akun pengguna). */
+export function FormBuatAkun({ bolehStaf }: { bolehStaf: boolean }) {
   const [hasil, aksi] = useActionState(adminBuatAkunAction, null);
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => {
@@ -215,7 +218,7 @@ export function FormBuatAkun() {
       <input name="email" aria-label="Email" type="email" placeholder="Email" required className="field" />
       <input name="password" aria-label="Password awal" type="text" placeholder="Password awal (min. 10, huruf + angka)" required minLength={10} autoComplete="off" className="field" />
       <div className="grid grid-cols-2 gap-3">
-        <PilihOpsi name="peran" nilai="user" opsi={PILIHAN_PERAN} label="Peran" />
+        <PilihOpsi name="peran" nilai="user" opsi={bolehStaf ? PILIHAN_PERAN : PILIHAN_PERAN.slice(0, 1)} label="Peran" />
         <input name="kuota" aria-label="Kuota nomor" type="number" min={0} max={100} placeholder="Kuota (bawaan)" className="field" />
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -374,14 +377,18 @@ export function AksiAkun({
   nama = "",
   email = "",
   jumlahNomor = 0,
-  admin,
+  peran,
+  pelakuAdmin,
   diriSendiri,
 }: {
   id: number;
   nama?: string;
   email?: string;
   jumlahNomor?: number;
-  admin: boolean;
+  /** Peran akun yang sedang dilihat. */
+  peran: Peran;
+  /** Yang membuka halaman ini admin (bukan developer): hanya admin yang boleh mengatur peran & mengubah akun admin. */
+  pelakuAdmin: boolean;
   diriSendiri: boolean;
 }) {
   const [pw, setPw] = useState<string | null>(null);
@@ -393,8 +400,32 @@ export function AksiAkun({
       setPesan({ ok: h.ok, teks: h.pesan ?? (h.ok ? "Selesai." : "Gagal.") });
     });
 
+  if (peran === "admin" && !pelakuAdmin) {
+    return <p className="text-[13px] text-muted">Akun admin hanya bisa diubah oleh admin.</p>;
+  }
+
   return (
     <div className="space-y-3">
+      {pelakuAdmin && !diriSendiri && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[13px] font-semibold text-muted">Peran</span>
+          <div role="radiogroup" aria-label="Peran akun" className="inline-flex rounded-xl border border-line p-0.5">
+            {PILIHAN_PERAN.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                role="radio"
+                aria-checked={peran === p.id}
+                disabled={tunggu || peran === p.id}
+                className={`rounded-[10px] px-3 py-1.5 text-[13px] font-semibold transition-colors ${peran === p.id ? "bg-ink text-ink-signal" : "text-muted hover:bg-subtle"}`}
+                onClick={() => jalankan(() => adminPeranAction(id, p.id))}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -413,11 +444,6 @@ export function AksiAkun({
         <button type="button" disabled={tunggu} className="btn btn-ghost border border-line" onClick={() => jalankan(() => adminCabutSesiAction(id))}>
           <LogOut className="size-4" aria-hidden /> Keluarkan dari semua perangkat
         </button>
-        {!diriSendiri && (
-          <button type="button" disabled={tunggu} className="btn btn-ghost border border-line" onClick={() => jalankan(() => adminPeranAction(id, admin ? "user" : "admin"))}>
-            {admin ? "Jadikan pengguna biasa" : "Jadikan admin"}
-          </button>
-        )}
         {!diriSendiri && email && <TombolHapusPengguna id={id} nama={nama} email={email} jumlahNomor={jumlahNomor} alihkan mode="tombol" />}
         {tunggu && <Loader2 className="size-4 animate-spin self-center text-muted" aria-hidden />}
       </div>

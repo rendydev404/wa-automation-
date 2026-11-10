@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowDown, Bot, CheckCircle2, ChevronRight, Info, Packag
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna, hitungPaketPengguna, hitungPengguna } from "@/lib/pengguna";
 import { SaringPaket } from "./pengguna/saring-paket";
-import { kuotaBawaan, pendaftaranDibuka, requireAdmin } from "@/lib/session";
+import { kuotaBawaan, pendaftaranDibuka, requireStaf } from "@/lib/session";
 import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, TombolHapusPengguna } from "./form-admin";
 import { customTampil, hargaAngka, paketCustom } from "@/lib/paket-custom";
 import { labelKomisiPaket } from "@/lib/afiliasi-def";
@@ -23,6 +23,7 @@ import { TarifInfo } from "@/components/tarif-info";
 import { sekarang } from "@/lib/db";
 import { LencanaPaket } from "@/components/lencana-paket";
 import { tingkatPaket } from "@/lib/tingkat-paket";
+import { labelPeran, staf } from "@/lib/peran";
 
 /** Bagian-bagian panel admin; tiap halaman di /admin/* menyusunnya. */
 
@@ -30,10 +31,11 @@ const FILTER: { nilai: FilterPengguna; label: string }[] = [
   { nilai: "semua", label: "Semua" },
   { nilai: "aktif", label: "Aktif" },
   { nilai: "diblokir", label: "Diblokir" },
-  { nilai: "admin", label: "Admin" },
+  { nilai: "admin", label: "Staf" },
 ];
 
-export function BuatAkun() {
+export async function BuatAkun() {
+  const pelaku = await requireStaf();
   return (
     <section className="card p-4 sm:p-6">
       <h2 className="flex items-center gap-2 text-[15px] font-bold">
@@ -41,14 +43,14 @@ export function BuatAkun() {
       </h2>
       <p className="mt-0.5 text-[13px] text-muted">Untuk klien yang tidak mendaftar sendiri.</p>
       <div className="mt-4">
-        <FormBuatAkun />
+        <FormBuatAkun bolehStaf={pelaku.peran === "admin"} />
       </div>
     </section>
   );
 }
 
 export async function MesinAi() {
-  await requireAdmin();
+  await requireStaf();
   const kunci = kunciAnthropic();
   const [atur, pakai, kursI, tarifI] = await Promise.all([pengaturanAi(), ringkasPakai(sekarang() - 7 * 86400), infoKurs(), infoTarif()]);
   const KURS = kursI.kurs;
@@ -116,7 +118,7 @@ export async function MesinAi() {
 }
 
 export async function Pengaturan() {
-  await requireAdmin();
+  await requireStaf();
   const [buka, kuota, percobaan, kurs] = await Promise.all([pendaftaranDibuka(), kuotaBawaan(), aturanPercobaan(), infoKurs()]);
   return (
     <section className="card p-4 sm:p-6">
@@ -166,7 +168,7 @@ const MODEL_ACUAN = [
 ];
 
 export async function KelolaPaket() {
-  await requireAdmin();
+  await requireStaf();
   const [paket, acuan, nyata, kursI, custom, daftarAcuan, tarifI] = await Promise.all([daftarPaket({ semua: true }), acuanHarga(), pemakaianNyata(), infoKurs(), paketCustom(), modelAcuan(), infoTarif()]);
   return (
     <section className="card p-4 sm:p-6">
@@ -242,7 +244,7 @@ export async function KelolaPaket() {
 
 /** Paket Custom: kuota → harga otomatis (margin & asumsi biaya bisa diatur, harga bisa ditimpa), lihat paket-custom.tsx. */
 export async function KelolaPaketCustom() {
-  await requireAdmin();
+  await requireStaf();
   const [custom, acuan, nyata, kursI, paket, midtrans, model] = await Promise.all([paketCustom(), acuanHarga(), pemakaianNyata(), infoKurs(), daftarPaket(), konfigMidtrans(), modelAcuan()]);
   // Model tersimpan yang tidak ada di daftar acuan (mis. diganti di versi lama) tetap bisa dipilih bila tarifnya diketahui.
   const usdTersimpan = perkiraanPerBalasan(custom.model);
@@ -284,7 +286,7 @@ export async function KelolaPaketCustom() {
  * halaman bayar beserta providernya. Metode yang ditolak provider tersembunyi sendiri; admin bisa menampilkan/menyembunyikan.
  */
 export async function MetodeBayar() {
-  await requireAdmin();
+  await requireStaf();
   const [info, rencana] = await Promise.all([infoGateway(), rencanaKanal()]);
   const sumber = await sumberStatus(); // setelah rencanaKanal: hasil baca provider sudah tersimpan
   const jam = (ms: number) => new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" }).format(new Date(ms));
@@ -379,7 +381,7 @@ export async function MetodeBayar() {
 }
 
 export async function TabelPengguna({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const admin = await requireAdmin();
+  const admin = await requireStaf();
   const sp = await searchParams;
   const cari = typeof sp.q === "string" ? sp.q : "";
   const filter = (FILTER.find((f) => f.nilai === sp.f)?.nilai ?? "semua") as FilterPengguna;
@@ -448,7 +450,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-[14px] font-semibold">{u.nama || "(tanpa nama)"}</span>
-                  {u.peran === "admin" && <span className="shrink-0 rounded-md bg-accent-soft px-1.5 py-0.5 text-[10.5px] font-bold text-accent uppercase">Admin</span>}
+                  {staf(u.peran) && <span className="shrink-0 rounded-md bg-accent-soft px-1.5 py-0.5 text-[10.5px] font-bold text-accent uppercase">{labelPeran(u.peran)}</span>}
                 </span>
                 <span className="block truncate text-[12.5px] text-muted">{u.email}</span>
                 <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-muted">
@@ -457,14 +459,14 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
                   </span>
                   {u.paket_nama && <LencanaPaket tingkat={tingkatPaket(u.paket_kode, u.paket_nama)} nama={u.paket_nama} ukuran="sm" />}
                   <span className="tabular-nums">
-                    {u.jumlah_nomor} / {u.peran === "admin" ? "∞" : (u.kuota_nomor ?? "bawaan")} nomor
+                    {u.jumlah_nomor} / {staf(u.peran) ? "∞" : (u.kuota_nomor ?? "bawaan")} nomor
                   </span>
                   <span>{u.login_terakhir ? waktuSingkatWib(u.login_terakhir) : `Daftar ${tanggal(u.created_at)}`}</span>
                 </span>
               </span>
               <ChevronRight className="size-4 shrink-0 text-faint" aria-hidden />
             </Link>
-            {u.id !== admin.id && <TombolHapusPengguna id={u.id} nama={u.nama} email={u.email} jumlahNomor={u.jumlah_nomor} mode="baris" />}
+            {u.id !== admin.id && !(u.peran === "admin" && admin.peran !== "admin") && <TombolHapusPengguna id={u.id} nama={u.nama} email={u.email} jumlahNomor={u.jumlah_nomor} mode="baris" />}
           </li>
         ))}
         {daftar.length === 0 && <li className="px-4 py-10 text-center text-muted">Tidak ada pengguna yang cocok.</li>}
@@ -490,7 +492,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">
                         {u.nama || "(tanpa nama)"}
-                        {u.peran === "admin" && <span className="ml-2 rounded-md bg-accent-soft px-1.5 py-0.5 text-[10.5px] font-bold text-accent uppercase">Admin</span>}
+                        {staf(u.peran) && <span className="ml-2 rounded-md bg-accent-soft px-1.5 py-0.5 text-[10.5px] font-bold text-accent uppercase">{labelPeran(u.peran)}</span>}
                         {u.ai_penyedia && (
                           <span className="ml-2 rounded-md bg-subtle px-1.5 py-0.5 text-[10.5px] font-bold text-muted uppercase">{u.ai_penyedia === "anthropic" ? "Claude API" : "Hermes"}</span>
                         )}
@@ -513,17 +515,17 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
                       {u.paket_sampai && <span className="text-[11.5px] text-faint">s.d. {tanggal(u.paket_sampai)}</span>}
                     </span>
                   ) : (
-                    <span className="text-[12px] text-faint">{u.peran === "admin" ? "—" : "Gratis"}</span>
+                    <span className="text-[12px] text-faint">{staf(u.peran) ? "—" : "Gratis"}</span>
                   )}
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums">
                   {u.jumlah_nomor}
-                  <span className="text-muted"> / {u.peran === "admin" ? "∞" : (u.kuota_nomor ?? "bawaan")}</span>
+                  <span className="text-muted"> / {staf(u.peran) ? "∞" : (u.kuota_nomor ?? "bawaan")}</span>
                 </td>
                 <td className="px-3 py-3 text-muted">{u.login_terakhir ? waktuSingkatWib(u.login_terakhir) : `Daftar ${tanggal(u.created_at)}`}</td>
                 <td className="px-5 py-3 text-right">
                   <div className="inline-flex items-center justify-end gap-1.5">
-                    {u.id !== admin.id && <TombolHapusPengguna id={u.id} nama={u.nama} email={u.email} jumlahNomor={u.jumlah_nomor} mode="baris" />}
+                    {u.id !== admin.id && !(u.peran === "admin" && admin.peran !== "admin") && <TombolHapusPengguna id={u.id} nama={u.nama} email={u.email} jumlahNomor={u.jumlah_nomor} mode="baris" />}
                     <Link
                       href={`/admin/pengguna/${u.id}`}
                       data-analitik="Kelola pengguna"
@@ -572,7 +574,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
 }
 
 export async function Log({ batas = 25 }: { batas?: number } = {}) {
-  await requireAdmin();
+  await requireStaf();
   const log = await daftarLog(batas);
   return (
     <section className="card p-4 sm:p-6">

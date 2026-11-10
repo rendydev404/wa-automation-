@@ -1,6 +1,7 @@
 import "server-only";
 import { db, sekarang } from "./db";
 import { UMUR_HISTORI_HARI } from "./format";
+import { pancarkan } from "./peristiwa";
 
 /**
  * Histori percakapan per nomor WhatsApp.
@@ -112,6 +113,10 @@ export async function catatPesan(d: {
     )
     INSERT INTO pesan_chat (percakapan_id, peran, teks, waktu)
     SELECT id, ${d.peran}, ${teksBersih}, ${waktu} FROM p`;
+  // Bus peristiwa (webhook aplikasi di mesin self-host); tanpa pendengar biayanya nol.
+  if (d.peran === 0) pancarkan({ jenis: "pesan.masuk", numberId: d.numberId, kunci: d.kunci, alamat, telepon, nama, teks: teksBersih, waktu });
+  else if (d.peran === 1) pancarkan({ jenis: "pesan.dibalas_ai", numberId: d.numberId, kunci: d.kunci, teks: teksBersih, waktu });
+  else pancarkan({ jenis: "pesan.manusia", numberId: d.numberId, kunci: d.kunci, teks: teksBersih, waktu });
 }
 
 /** Ringkasan total untuk satu nomor; hanya memindai baris `percakapan` milik nomor itu (tanpa menyentuh `pesan_chat`). */

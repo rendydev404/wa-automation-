@@ -135,6 +135,17 @@ const DAFTAR_FITUR = {
   "admin.followup_antre_ulang": "Antrekan ulang follow-up",
   "admin.followup_tulis_ulang": "Tulis ulang pesan follow-up",
   "admin.followup_ubah_pesan": "Ubah pesan follow-up",
+  "developer.ajukan": "Ajukan aplikasi Developer API",
+  "developer.buat_key": "Buat API key",
+  "developer.ganti_key": "Ganti API key",
+  "developer.buat_tagihan": "Buat tagihan Developer API",
+  "admin.developer_setujui": "Setujui aplikasi Developer API",
+  "admin.developer_ubah": "Ubah aplikasi Developer API",
+  "admin.developer_tolak": "Tolak aplikasi Developer API",
+  "admin.developer_tangguhkan": "Tangguhkan aplikasi Developer API",
+  "admin.developer_aktifkan": "Aktifkan lagi aplikasi Developer API",
+  "admin.developer_cabut": "Cabut aplikasi Developer API",
+  "admin.developer_pengaturan": "Ubah pengaturan Developer API",
 } as const;
 
 /** Semua kode fitur yang dicatat server. */
@@ -161,6 +172,7 @@ export const GRUP_FITUR: Record<string, string> = {
   notifikasi: "Notifikasi",
   push: "Notifikasi push",
   sinkron: "Sinkron data otomatis",
+  developer: "Developer API",
   admin: "Panel admin",
 };
 

@@ -5,7 +5,7 @@ import { LencanaPaket } from "@/components/lencana-paket";
 import { TombolSalin } from "@/components/tombol-salin";
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { daftarPaket } from "@/lib/langganan";
-import { requireAdmin } from "@/lib/session";
+import { requireStaf } from "@/lib/session";
 import { tingkatPaket } from "@/lib/tingkat-paket";
 import { FILTER_STATUS_TRX, cariTransaksi, hitungTransaksi, labelMetode, opsiDariParam, ringkasanTransaksi, satu } from "@/lib/transaksi-admin";
 import { PilihOpsi } from "@/components/pilih-opsi";
@@ -39,7 +39,7 @@ function Kartu({ ikon: Ikon, label, nilai, sub, nada }: { ikon: typeof Wallet; l
 }
 
 export async function RingkasanTransaksi() {
-  await requireAdmin();
+  await requireStaf();
   const r = await ringkasanTransaksi();
   const selisih = r.bulanLalu > 0 ? Math.round(((r.bulanIni - r.bulanLalu) / r.bulanLalu) * 100) : null;
   const maks = Math.max(1, ...r.perPaket.map((p) => p.total));
@@ -92,7 +92,7 @@ export async function RingkasanTransaksi() {
 }
 
 export async function DaftarTransaksi({ searchParams }: { searchParams: Promise<Cari> }) {
-  await requireAdmin();
+  await requireStaf();
   const sp = await searchParams;
   const opsi = opsiDariParam(sp);
   const [sb, sbId] = satu(sp.sebelum).split(".").map(Number);

@@ -6,7 +6,7 @@ import { ChevronRight, ExternalLink, Receipt, UserRound } from "lucide-react";
 import { LencanaPaket } from "@/components/lencana-paket";
 import { TombolSalin } from "@/components/tombol-salin";
 import { angka, jamWib, tanggal, waktuSingkatWib } from "@/lib/format";
-import { requireAdmin } from "@/lib/session";
+import { requireStaf } from "@/lib/session";
 import { tingkatPaket } from "@/lib/tingkat-paket";
 import { detailTransaksi } from "@/lib/transaksi-admin";
 import { STATUS_TRX, labelMetode, rp } from "../bagian-transaksi";
@@ -51,7 +51,7 @@ function Baris({ label, children }: { label: string; children: React.ReactNode }
 }
 
 async function Isi({ params }: { params: Promise<{ order: string }> }) {
-  await requireAdmin();
+  await requireStaf();
   const order = decodeURIComponent((await params).order).slice(0, 80);
   const t = await detailTransaksi(order);
   if (!t) notFound();

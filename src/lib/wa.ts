@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import type { ConnectionState, SocketConfig, WAMessage, WAPatchName, WASocket, proto } from "baileys";
 import { type BitQr, kemasQr } from "./qr";
 import { rapikanNomorWa } from "./format";
+import { pancarkan } from "./peristiwa";
 import { type Foto, MAKS_FOTO_BYTE, MIME_FOTO, type SesiNomor } from "./types";
 import { type AuthSesi, bukaAuth, hapusAuth, rapikanAuthYatim, sesiTerpasang, tungguSemuaTulis } from "./wa-auth";
 
@@ -226,6 +227,8 @@ export function padaAck(fn: (sesi: string, id: string, status: number) => void):
 
 /** Selesai setelah penangannya selesai, supaya event satu nomor benar-benar diproses berurutan. */
 async function kabari(ev: EventWa): Promise<void> {
+  // Bus peristiwa (webhook aplikasi di mesin self-host); tanpa pendengar biayanya nol.
+  if (ev.jenis === "terhubung") pancarkan({ jenis: "nomor.terhubung", sesi: ev.sesi, waId: ev.waId, nama: ev.nama });
   try {
     await st.penangan?.(ev);
   } catch (e) {
@@ -874,9 +877,10 @@ async function sambung(s: Sesi): Promise<void> {
     const chat = new Set<string>();
     for (const { key, update } of daftar) {
       if (!key.fromMe && chatPribadi(B, key.remoteJid) && (update.status ?? 0) >= B.proto.WebMessageInfo.Status.READ) chat.add(key.remoteJid);
-      else if (key.fromMe && key.id && typeof update.status === "number" && st.padaAck) {
+      else if (key.fromMe && key.id && typeof update.status === "number") {
+        pancarkan({ jenis: "pesan.status", sesi: s.nama, waId: key.id, status: update.status });
         try {
-          st.padaAck(s.nama, key.id, update.status);
+          st.padaAck?.(s.nama, key.id, update.status);
         } catch {
           // pemantau kiriman tidak boleh mengganggu event lain
         }
@@ -907,6 +911,7 @@ function sinkronAwal(sock: WASocket, auth: AuthSesi, koleksi: readonly WAPatchNa
 function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen: number, u: Partial<ConnectionState>): void {
   if (u.qr) {
     s.qr = u.qr;
+    qrSejak.set(s.nama, Date.now());
     s.qrBit = null;
     s.status = "SCAN_QR_CODE";
     lepasTunggu(s);
@@ -981,6 +986,7 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
     void hapusAuth(s.nama).catch((e) => console.error(`[wa ${s.nama}] gagal membuang kredensial:`, e));
     s.status = terpasang ? "STOPPED" : "FAILED";
     if (terpasang) void import("./notifikasi").then((m) => m.notifNomorTerputus(s.nama));
+    if (terpasang) pancarkan({ jenis: "nomor.terputus", sesi: s.nama, kode, keluar: kode === KODE.keluar });
     s.alasan = terpasang
       ? "Perangkat ini dikeluarkan dari WhatsApp di HP. Pindai QR lagi untuk menautkan."
       : kode === KODE.waktuHabis
@@ -1009,6 +1015,7 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
   const jeda = skala(dasar + Math.floor(Math.random() * 1_000));
   s.status = "STARTING";
   s.alasan = "Sedang menyambung ulang secara otomatis ke WhatsApp...";
+  if (s.gagal === 1) pancarkan({ jenis: "nomor.terputus", sesi: s.nama, kode, keluar: false });
   console.warn(`[wa ${s.nama}] terputus (kode ${kode}), menyambung ulang dalam ${Math.round(jeda / 1000)} dtk`);
   s.timer = setTimeout(() => void sambung(s), jeda);
   lepasTunggu(s);
@@ -1191,6 +1198,14 @@ export async function logout(nama: string): Promise<void> {
 export async function hapusSesi(nama: string): Promise<void> {
   await logout(nama);
   st.sesi.delete(nama);
+}
+
+const qrSejak = new Map<string, number>();
+
+/** Teks mentah kode QR yang sedang aktif + sejak kapan (ms), untuk API v1 mesin self-host. */
+export function qrMentah(nama: string): { teks: string; sejakMs: number } | null {
+  const s = st.sesi.get(nama);
+  return s?.qr && s.status === "SCAN_QR_CODE" ? { teks: s.qr, sejakMs: qrSejak.get(nama) ?? Date.now() } : null;
 }
 
 /** Matriks kode QR; dihitung sekali per kode (berganti tiap ±20 detik) lalu disimpan. */

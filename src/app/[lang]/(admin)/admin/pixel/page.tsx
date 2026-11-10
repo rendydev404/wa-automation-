@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Activity, CheckCircle2, HelpCircle, ShieldCheck } from "lucide-react";
 import { pengaturanMetaPixel } from "@/lib/meta-pixel";
 import { MEREK } from "@/lib/merek";
-import { requireAdmin } from "@/lib/session";
+import { requireStaf } from "@/lib/session";
 import { FormMetaPixel } from "./form-pixel";
 
 export const metadata: Metadata = { title: `Meta Pixel · Admin · ${MEREK}` };
@@ -24,7 +24,7 @@ const LANGKAH_PASANG = [
 ];
 
 async function IsiMetaPixelAdmin() {
-  await requireAdmin();
+  await requireStaf();
   const awal = await pengaturanMetaPixel();
   return (
     <section className="card p-5 sm:p-6">

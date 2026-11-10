@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "@/components/link";
-import { CircleHelp, CreditCard, LayoutDashboard, LogOut, MessageCircle, Share2, ShieldCheck, UserRound } from "lucide-react";
+import { CircleHelp, Code2, CreditCard, LayoutDashboard, LogOut, MessageCircle, Share2, ShieldCheck, UserRound } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import type { T } from "@/lib/bahasa";
 import { formatNomor } from "@/lib/format";
@@ -84,7 +84,8 @@ function ItemNomor({ n, aktif }: { n: ItemNomorNav; aktif: boolean }) {
   );
 }
 
-export function NavUtama({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; admin: boolean; pengguna: { nama: string; email: string } }) {
+/** `developer`: tautan portal Developer API, hanya untuk akun yang dipilih developer internal (users.akses_api) di server pusat. */
+export function NavUtama({ nomor, admin, pengguna, developer = false }: { nomor: ItemNomorNav[]; admin: boolean; pengguna: { nama: string; email: string }; developer?: boolean }) {
   const jalur = useJalur();
   const { t } = useBahasa();
   return (
@@ -104,6 +105,11 @@ export function NavUtama({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
         <TautanNav href="/afiliasi" aktif={jalur === "/afiliasi"} ikon={<Share2 className="size-4" aria-hidden />}>
           {t("Afiliasi", "Affiliate")}
         </TautanNav>
+        {developer && (
+          <TautanNav href="/developer" aktif={jalur.startsWith("/developer")} ikon={<Code2 className="size-4" aria-hidden />}>
+            Developer API
+          </TautanNav>
+        )}
         {admin && (
           <TautanNav href="/admin" aktif={jalur.startsWith("/admin")} ikon={<ShieldCheck className="size-4" aria-hidden />}>
             {t("Panel admin", "Admin panel")}
@@ -176,7 +182,7 @@ const KELAS_KELUAR =
   "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13.5px] font-semibold text-ink-muted transition-colors hover:bg-ink-raised hover:text-ink-fg";
 
 /** Menu bawah HP untuk workspace pengguna: Ringkasan, Nomor (lembar), Langganan, Afiliasi, Akun (lembar). */
-export function NavBawah({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; admin: boolean; pengguna: { nama: string; email: string } }) {
+export function NavBawah({ nomor, admin, pengguna, developer = false }: { nomor: ItemNomorNav[]; admin: boolean; pengguna: { nama: string; email: string }; developer?: boolean }) {
   const jalur = useJalur();
   const { t } = useBahasa();
   const tur = turHalaman(jalur);
@@ -217,7 +223,7 @@ export function NavBawah({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
         ikon={<CreditCard className="size-5" aria-hidden />}
       />
       <TabBawah href="/afiliasi" label={t("Afiliasi", "Affiliate")} aktif={jalur === "/afiliasi"} ikon={<Share2 className="size-5" aria-hidden />} />
-      <TabLembar label={t("Akun", "Account")} judul={t("Akun", "Account")} aktif={jalur === "/akun"} ikon={<UserRound className="size-5" aria-hidden />}>
+      <TabLembar label={t("Akun", "Account")} judul={t("Akun", "Account")} aktif={jalur === "/akun" || jalur.startsWith("/developer")} ikon={<UserRound className="size-5" aria-hidden />}>
         <div data-analitik-privat className="mb-2 flex items-center gap-3 rounded-2xl bg-white/[0.04] px-3 py-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-ink-signal/15 text-[15px] font-bold text-ink-signal uppercase">{pengguna.nama.trim().charAt(0) || "#"}</span>
           <span className="min-w-0">
@@ -229,6 +235,11 @@ export function NavBawah({ nomor, admin, pengguna }: { nomor: ItemNomorNav[]; ad
           <TautanNav href="/akun" aktif={jalur === "/akun"} ikon={<UserRound className="size-4" aria-hidden />} analitik="Akun saya">
             {t("Akun saya", "My account")}
           </TautanNav>
+          {developer && (
+            <TautanNav href="/developer" aktif={jalur.startsWith("/developer")} ikon={<Code2 className="size-4" aria-hidden />}>
+              Developer API
+            </TautanNav>
+          )}
           {admin && (
             <TautanNav href="/admin" aktif={false} ikon={<ShieldCheck className="size-4" aria-hidden />}>
               {t("Panel admin", "Admin panel")}

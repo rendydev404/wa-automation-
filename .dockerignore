@@ -1,0 +1,23 @@
+# Konteks build image mesin (deploy/mesin/Dockerfile): hanya kode app + dependensi; tanpa data, media, rahasia.
+.git
+.github
+.next
+node_modules
+data
+video
+assets
+docs
+uji
+deploy
+screenshot-*
+panduan-pengguna
+knowledge-cs
+knowledge-video-ai
+*.pdf
+*.log
+.env*
+!.env.example
+ml/data
+ml/latih.mjs
+ml/*.py
+tsconfig.tsbuildinfo

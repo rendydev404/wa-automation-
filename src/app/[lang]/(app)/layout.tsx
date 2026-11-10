@@ -12,6 +12,8 @@ import { WaStatusProvider } from "@/components/wa-status";
 import { teksHalaman } from "@/lib/bahasa-halaman";
 import { nomorMilik } from "@/lib/numbers";
 import { requireUser } from "@/lib/session";
+import { staf } from "@/lib/peran";
+import { modeMesin } from "@/lib/mode";
 
 export const viewport: Viewport = { themeColor: "#0b1813" };
 
@@ -22,7 +24,7 @@ export const viewport: Viewport = { themeColor: "#0b1813" };
 async function NavData({ bawah = false }: { bawah?: boolean }) {
   const user = await requireUser();
   const nomor = (await nomorMilik(user.id)).map((n) => ({ id: n.id, label: n.label, wa_id: n.wa_id }));
-  const props = { nomor, admin: user.peran === "admin", pengguna: { nama: user.nama || user.email.split("@")[0], email: user.email } };
+  const props = { nomor, admin: staf(user.peran), developer: !modeMesin() && !!user.aksesApi, pengguna: { nama: user.nama || user.email.split("@")[0], email: user.email } };
   return bawah ? <NavBawah {...props} /> : <NavUtama {...props} />;
 }
 

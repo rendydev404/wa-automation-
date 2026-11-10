@@ -1,6 +1,6 @@
 import "server-only";
-import { cache } from "react";
 import { randomBytes } from "node:crypto";
+import { cache } from "react";
 import { type Tx, db, getSetting, sekarang, transaksi as transaksiDb } from "./db";
 import { MODEL_BAWAAN, type Penyedia, kunciAnthropic, kursUsd, pengaturanAi, perkiraanPerBalasan } from "./ai";
 import { type KanalBayar, METODE_BAYAR, type MetodeBayar, TAMBAHAN_BIAYA_BALASAN, hargaMinimal, hitungHarga, kuotaDariHarga, nomorDariKuota, sisaBersih } from "./harga";
@@ -13,6 +13,9 @@ import { namaBankTampil } from "./afiliasi-def";
 import { type JenisKomisi, prosesKomisiTransaksi } from "./afiliasi";
 import { type KonteksMeta, kirimCapiEvent } from "./meta-pixel";
 import { MASA_ID, MASA_EN_ADJ } from "./jaminan-def";
+import { labelPeran, staf } from "./peran";
+import { modeMesin } from "./mode";
+import { perpanjangDibayar, setelahDibayar } from "./developer-api";
 
 /**
  * Paket langganan, masa aktif, transaksi Midtrans, dan kuota.
@@ -183,7 +186,9 @@ const BUKAN_PERCOBAAN = { percobaan: false, percobaanSampai: null, percobaanBera
 export const hakAkunSekali = cache((user: { id: number; peran: string }): Promise<HakAkun> => hakAkun(user));
 
 export async function hakAkun(user: { id: number; peran: string }): Promise<HakAkun> {
-  if (user.peran === "admin") return { nomor: null, balasan: null, periodeMulai: awalBulanWib(), sampai: null, paket: "Admin", kodePaket: null, bonus: 0, ...BUKAN_PERCOBAAN };
+  if (staf(user.peran)) return { nomor: null, balasan: null, periodeMulai: awalBulanWib(), sampai: null, paket: labelPeran(user.peran), kodePaket: null, bonus: 0, ...BUKAN_PERCOBAAN };
+  // Mesin self-host: tanpa paket/kuota (server & AI milik pemiliknya); batas nomor dari lisensi (src/lib/mesin).
+  if (modeMesin()) return { nomor: null, balasan: null, periodeMulai: awalBulanWib(), sampai: null, paket: "Self-host", kodePaket: null, bonus: 0, ...BUKAN_PERCOBAAN };
   const sql = await db();
   const [[u], l] = await Promise.all([
     sql<{ kuota_nomor: number | null; created_at: number }[]>`SELECT kuota_nomor, created_at FROM users WHERE id = ${user.id}`,
@@ -311,7 +316,7 @@ export async function sisaKuotaAi(userId: number): Promise<number | null> {
 export async function klaimPemberitahuanKuota(userId: number): Promise<boolean> {
   const sql = await db();
   const [u] = await sql<{ peran: string }[]>`SELECT peran FROM users WHERE id = ${userId}`;
-  if (!u || u.peran === "admin") return false;
+  if (!u || staf(u.peran)) return false;
   const hak = await hakAkun({ id: userId, peran: u.peran });
   if (hak.sampai !== null) return false;
   const [r] = await sql<{ id: number }[]>`
@@ -347,7 +352,7 @@ export function catatBalasanLokal(userId: number): void {
 export async function catatKuotaHabis(userId: number): Promise<boolean> {
   const sql = await db();
   const [u] = await sql<{ peran: string }[]>`SELECT peran FROM users WHERE id = ${userId}`;
-  if (!u || u.peran === "admin") return false;
+  if (!u || staf(u.peran)) return false;
   const hak = await hakAkun({ id: userId, peran: u.peran });
   const gratis = hak.sampai === null;
   const { kirimNotif } = await import("./notifikasi");
@@ -646,9 +651,10 @@ export async function terapkanStatus(
   const status = s.status;
   let infoCapi: InfoCapiBeli | null = null;
   let infoRefund: InfoRefund | null = null;
+  let apiDibayar: number | null = null;
   const hasil = await transaksiDb(async (tx) => {
-    const [t] = await tx<(Transaksi & { aktif_id: number | null; meta_konteks: KonteksMeta | null })[]>`
-      SELECT ${tx.unsafe(KOLOM_TRX)}, langganan_id AS aktif_id, meta_konteks FROM transaksi WHERE order_id = ${orderId} FOR UPDATE`;
+    const [t] = await tx<(Transaksi & { aktif_id: number | null; meta_konteks: KonteksMeta | null; api_aplikasi_id: number | null })[]>`
+      SELECT ${tx.unsafe(KOLOM_TRX)}, langganan_id AS aktif_id, meta_konteks, api_aplikasi_id FROM transaksi WHERE order_id = ${orderId} FOR UPDATE`;
     if (!t) return null;
     if (s.jumlah !== t.jumlah) {
       console.error(`[bayar] nominal tidak cocok order=${orderId}: ${g.nama} ${s.jumlah}, tagihan ${t.jumlah}`);
@@ -664,6 +670,14 @@ export async function terapkanStatus(
       infoRefund = await selesaikanRefund(tx, t, s, g.nama);
       return { status, baruAktif: false };
     }
+    // Tagihan Developer API (developer-api.ts): lunas pertama kali = masa bayar aplikasi +30 hari, tanpa paket/komisi.
+    if (t.api_aplikasi_id) {
+      if (status === "lunas" && t.status !== "lunas") {
+        await perpanjangDibayar(tx, t.api_aplikasi_id, kini);
+        apiDibayar = t.api_aplikasi_id;
+      }
+      return { status, baruAktif: false };
+    }
     if (status !== "lunas" || t.aktif_id) return { status, baruAktif: false };
     const { id } = await aktifkan(tx, { userId: t.user_id, paketId: t.paket_id, sumber: "midtrans" });
     await tx`UPDATE transaksi SET langganan_id = ${id}, meta_konteks = NULL WHERE id = ${t.id}`;
@@ -674,6 +688,7 @@ export async function terapkanStatus(
     return { status, baruAktif: true };
   });
   if (infoRefund) notifRefund(infoRefund);
+  if (apiDibayar) void setelahDibayar(apiDibayar).catch((e) => console.warn("[devapi] setelah bayar:", e instanceof Error ? e.message : e));
   if (hasil?.baruAktif) void notifPaketAktif(orderId, "midtrans");
   if (hasil?.baruAktif && infoCapi) {
     const c = infoCapi as InfoCapiBeli;

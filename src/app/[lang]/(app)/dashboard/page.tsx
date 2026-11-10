@@ -19,6 +19,7 @@ import { Maskot } from "@/components/maskot/maskot";
 import { hakAkunSekali, sisaKuotaAi } from "@/lib/langganan";
 import { kuotaNomor, requireUser } from "@/lib/session";
 import { deretHarian, hariTerakhir, persen } from "@/lib/tren";
+import { staf } from "@/lib/peran";
 
 const fmtHariIni = {
   id: new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric" }),
@@ -73,7 +74,7 @@ async function Ringkasan() {
   const hari = hariTerakhir(tanggalWib(), 7);
   // hakAkun dibagi dengan banner kuota & kartu langganan (cache per permintaan); sisa kuota dari cache memori 60 dtk.
   const [nomor, stat, kuota, tur, hak, sisaAi] = await Promise.all([
-    daftarNomor(user.id, user.peran === "admin"),
+    daftarNomor(user.id, staf(user.peran)),
     statHarian(hari[0], { userId: user.id }),
     kuotaNomor(user),
     turSelesai(user.id),
@@ -146,7 +147,7 @@ async function Ringkasan() {
       </section>
 
       {/* Kesehatan sistem (status mesin AI, galat) hanya untuk admin; pengguna biasa cukup melihat grafik aktivitasnya. */}
-      {user.peran === "admin" ? (
+      {staf(user.peran) ? (
         <div className="grid gap-4 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <GrafikAktivitas titik={tren} />
           <PanelSistem botAktif={nomor.filter((n) => n.bot_aktif).length} total={nomor.length} dokumen={dokumen} karakter={karakter} />

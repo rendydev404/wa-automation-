@@ -27,7 +27,9 @@ export type JenisNotif =
   | "admin_daftar"
   | "admin_bayar"
   | "admin_afiliasi"
-  | "admin_followup";
+  | "admin_followup"
+  | "developer_api"
+  | "admin_developer_api";
 
 export interface IsiNotif {
   jenis: JenisNotif;
@@ -93,14 +95,25 @@ export async function kirimNotif(userIds: number | number[], n: IsiNotif): Promi
   }
 }
 
-/** Ke semua admin aktif (peristiwa jarang: pendaftaran, pembayaran, penarikan), jadi daftar admin dibaca langsung. */
+/** Ke semua staf aktif (admin & developer; peristiwa jarang: pendaftaran, pembayaran, penarikan), jadi daftar admin dibaca langsung. */
 export async function kirimNotifAdmin(n: IsiNotif): Promise<void> {
   try {
     const sql = await db();
-    const admin = await sql<{ id: number }[]>`SELECT id FROM users WHERE peran = 'admin' AND status = 'aktif'`;
+    const admin = await sql<{ id: number }[]>`SELECT id FROM users WHERE peran <> 'user' AND status = 'aktif'`;
     await kirimNotif(admin.map((a) => a.id), n);
   } catch (e) {
     console.warn("[notifikasi] admin gagal dicari:", e instanceof Error ? e.message : e);
+  }
+}
+
+/** Khusus developer internal (peran developer): Developer API belum dibuka umum, jadi admin tidak ikut menerima. */
+export async function kirimNotifDeveloper(n: IsiNotif): Promise<void> {
+  try {
+    const sql = await db();
+    const dev = await sql<{ id: number }[]>`SELECT id FROM users WHERE peran = 'developer' AND status = 'aktif'`;
+    await kirimNotif(dev.map((d) => d.id), n);
+  } catch (e) {
+    console.warn("[notifikasi] developer gagal dicari:", e instanceof Error ? e.message : e);
   }
 }
 

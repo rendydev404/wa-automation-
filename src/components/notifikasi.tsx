@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bell, CalendarClock, CheckCheck, CreditCard, Gauge, Gift, HandCoins, Loader2, MessageCircleWarning, Package, Share2, Unplug, UserPlus, Wallet } from "lucide-react";
+import { Bell, CalendarClock, CheckCheck, Code2, CreditCard, Gauge, Gift, HandCoins, Loader2, MessageCircleWarning, Package, Share2, Unplug, UserPlus, Wallet } from "lucide-react";
 import Link from "@/components/link";
 import { waktuSingkatWib } from "@/lib/format";
 import { useBahasa, useRouterBahasa } from "./bahasa";
@@ -34,6 +34,8 @@ const IKON: Record<string, { ikon: typeof Bell; warna: string }> = {
   admin_bayar: { ikon: Wallet, warna: "bg-success-soft text-success" },
   admin_afiliasi: { ikon: HandCoins, warna: "bg-warning-soft text-warning" },
   admin_followup: { ikon: MessageCircleWarning, warna: "bg-danger-soft text-danger" },
+  developer_api: { ikon: Code2, warna: "bg-accent-soft text-accent" },
+  admin_developer_api: { ikon: Code2, warna: "bg-accent-soft text-accent" },
 };
 
 /** Satu baris notifikasi: dipakai di panel lonceng dan halaman /notifikasi. */

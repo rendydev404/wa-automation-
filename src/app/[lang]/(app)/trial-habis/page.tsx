@@ -13,6 +13,7 @@ import { requireUser } from "@/lib/session";
 import { sekarang } from "@/lib/db";
 import { dataTrialHabis } from "@/lib/trial-habis";
 import { HitungPaket } from "./hitung-paket";
+import { staf } from "@/lib/peran";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await teksHalaman();
@@ -50,7 +51,7 @@ async function Isi() {
     b === "en" ? kursUsd() : Promise.resolve(undefined),
     tautanChatCs(user.id).catch(() => null),
   ]);
-  if (!d) await alihkanHalaman(user.peran === "admin" ? "/admin" : "/langganan");
+  if (!d) await alihkanHalaman(staf(user.peran) ? "/admin" : "/langganan");
   const data = d!;
   const kanal = k ? await kanalAktif() : [];
   const kini = sekarang();

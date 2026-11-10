@@ -7,7 +7,7 @@ import { daftarFollowup, statusMesinFollowup } from "@/lib/followup";
 import { type BarisFollowup, LABEL_ACK, LABEL_STATUS, type StatusFollowup } from "@/lib/followup-def";
 import { MEREK } from "@/lib/merek";
 import { semuaNomor } from "@/lib/numbers";
-import { requireAdmin } from "@/lib/session";
+import { requireStaf } from "@/lib/session";
 import { nomorSinkronCg } from "@/lib/sinkron-cg";
 import { sekarang } from "@/lib/db";
 import { FormFollowup, LepasRem } from "./form-followup";
@@ -36,7 +36,7 @@ const ATURAN = [
 ];
 
 async function Mesin() {
-  await requireAdmin();
+  await requireStaf();
   const [m, semua, cg] = await Promise.all([statusMesinFollowup(), semuaNomor(), nomorSinkronCg()]);
   const cgSet = new Set(cg);
   const pilihan = semua.filter((n) => n.wa_id || cgSet.has(n.id)).map((n) => ({ id: n.id, label: n.label, wa_id: n.wa_id, cg: cgSet.has(n.id) }));
@@ -93,7 +93,7 @@ function Centang({ ack, pada }: { ack: number; pada: number | null }) {
 }
 
 async function Riwayat({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  await requireAdmin();
+  await requireStaf();
   const sp = await searchParams;
   const mentah = typeof sp.status === "string" ? sp.status : "";
   const status = (URUTAN as string[]).includes(mentah) ? (mentah as StatusFollowup) : null;

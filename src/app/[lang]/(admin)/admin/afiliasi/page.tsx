@@ -5,7 +5,7 @@ import { Banknote, CheckCircle2, Clock, Package, Settings2, Share2, Users, Walle
 import { labelKomisiPaket, namaBankTampil, ringkasanAfiliasiAdmin } from "@/lib/afiliasi";
 import { angka, waktuSingkatWib } from "@/lib/format";
 import { MEREK } from "@/lib/merek";
-import { requireAdmin } from "@/lib/session";
+import { requireStaf } from "@/lib/session";
 import { AksiStatusAfiliator, FormAturanAfiliasi, FormProsesPenarikan } from "./form-afiliasi-admin";
 
 export const metadata: Metadata = { title: `Afiliasi · Admin · ${MEREK}` };
@@ -23,7 +23,7 @@ const BADGE_PENARIKAN: Record<string, { label: string; kelas: string }> = {
 };
 
 async function IsiAdminAfiliasi() {
-  await requireAdmin();
+  await requireStaf();
   const data = await ringkasanAfiliasiAdmin();
   const { statistik: s, pengaturan, irisSiap, penarikan, afiliator, komisiTerbaru } = data;
   const antreanMenunggu = penarikan.filter((p) => p.status === "menunggu");

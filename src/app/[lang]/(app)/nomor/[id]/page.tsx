@@ -29,6 +29,7 @@ import { turSelesai } from "@/lib/pengguna";
 import { konfigurasi as konfigurasiSinkron, nomorSinkron, statusSinkron, type Status } from "@/lib/sinkron";
 import { nomorSinkronCg, statusSinkronCg, type StatusCg } from "@/lib/sinkron-cg";
 import { deretHarian, hariTerakhir, persen } from "@/lib/tren";
+import { staf } from "@/lib/peran";
 
 function teksStatusSinkron(s: Status | StatusCg): string {
   if (s.galat) return `Tarikan terakhir gagal: ${s.galat}`;
@@ -68,7 +69,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   const nomor = await nomorUntuk(user, (await params).id);
   if (!nomor) notFound(); // nomor milik orang lain = tidak ditemukan
   const id = nomor.id;
-  const admin = user.peran === "admin";
+  const admin = staf(user.peran);
 
   const hari = hariTerakhir(tanggalWib(), 7);
   const [dokumen, sinkronIds, statusSs, sinkronCgIds, statusCg, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran, tur, produk, katalogAktif, ml] = await Promise.all([

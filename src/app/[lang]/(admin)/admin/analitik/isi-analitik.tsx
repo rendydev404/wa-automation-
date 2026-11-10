@@ -8,8 +8,9 @@ import { namaFitur } from "@/lib/analitik-fitur";
 import { namaHalaman } from "@/lib/analitik-nama";
 import { angka, angkaRingkas, jamWib, kunciHariWib, waktuSingkatWib } from "@/lib/format";
 import { type BarisPengguna, penggunaById } from "@/lib/pengguna";
-import { requireAdmin } from "@/lib/session";
+import { requireStaf } from "@/lib/session";
 import { GrafikHarian, type TitikGrafik } from "./grafik-harian";
+import { labelPeran, staf } from "@/lib/peran";
 
 /**
  * Isi halaman /admin/analitik. Semua angka dari ringkasanAnalitik() (agregasi di SQL); halaman ini hanya menata.
@@ -131,7 +132,7 @@ const labelGrafik = (harian: RingkasanAnalitik["harian"]): TitikGrafik[] =>
   });
 
 export async function IsiAnalitik({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const [, sp] = await Promise.all([requireAdmin(), searchParams]);
+  const [, sp] = await Promise.all([requireStaf(), searchParams]);
   const p = bacaParam(sp);
   // Mode per pengguna selalu menyertakan admin: akun yang dipilih sendiri bisa saja akun admin.
   const [r, akun, rincian] = await Promise.all([
@@ -281,7 +282,7 @@ function KepalaPengguna({ p, akun }: { p: Param; akun: BarisPengguna | undefined
             <>
               <p className="flex min-w-0 items-center gap-2">
                 <span className="truncate text-[15px] font-bold">{akun.nama || "(tanpa nama)"}</span>
-                {akun.peran === "admin" && <span className="shrink-0 rounded-md bg-accent-soft px-1.5 py-0.5 text-[10.5px] font-bold text-accent uppercase">Admin</span>}
+                {staf(akun.peran) && <span className="shrink-0 rounded-md bg-accent-soft px-1.5 py-0.5 text-[10.5px] font-bold text-accent uppercase">{labelPeran(akun.peran)}</span>}
               </p>
               <p className="truncate text-[13px] text-muted">{akun.email}</p>
             </>
@@ -630,7 +631,7 @@ function RincianSiapa({ p, rinci, d }: { p: Param; rinci: Rinci; d: RincianAnali
                 <Link prefetch={false} href={tautan(p, { pengguna: u.userId, rinci: null })} data-analitik="Rincian siapa saja: buka pengguna" className="group/akun min-w-0">
                   <span className="flex items-center gap-1.5">
                     <span className="truncate text-[13px] font-semibold group-hover/akun:text-accent group-hover/akun:underline">{label(u)}</span>
-                    {u.peran === "admin" && <LencanaAdmin />}
+                    {staf(u.peran) && <LencanaAdmin peran={u.peran} />}
                   </span>
                   {u.nama && u.email && <span className="block truncate text-[12px] text-muted">{u.email}</span>}
                 </Link>
@@ -695,7 +696,7 @@ function PenggunaTeraktif({ p, daftar }: { p: Param; daftar: PenggunaAktif[] }) 
                       <Link prefetch={false} href={keAnalitik(u)} data-analitik={ANALITIK_LIHAT} className="min-w-0 rounded-md hover:text-accent">
                         <span className="flex items-center gap-1.5">
                           <span className="truncate text-[13.5px] font-semibold">{label(u)}</span>
-                          {u.peran === "admin" && <LencanaAdmin />}
+                          {staf(u.peran) && <LencanaAdmin peran={u.peran} />}
                         </span>
                         {u.nama && u.email && <span className="block truncate text-[12px] text-muted">{u.email}</span>}
                       </Link>
@@ -752,7 +753,7 @@ function PenggunaTeraktif({ p, daftar }: { p: Param; daftar: PenggunaAktif[] }) 
                       <Link prefetch={false} href={keAnalitik(u)} data-analitik={ANALITIK_LIHAT} className="group/akun block min-w-0">
                         <span className="flex items-center gap-1.5">
                           <span className="truncate font-semibold group-hover/akun:text-accent group-hover/akun:underline">{label(u)}</span>
-                          {u.peran === "admin" && <LencanaAdmin />}
+                          {staf(u.peran) && <LencanaAdmin peran={u.peran} />}
                         </span>
                         {u.nama && u.email && <span className="block truncate text-muted">{u.email}</span>}
                       </Link>
@@ -791,8 +792,8 @@ function Sel({ label, nilai }: { label: string; nilai: number }) {
   );
 }
 
-function LencanaAdmin() {
-  return <span className="shrink-0 rounded bg-accent-soft px-1.5 py-px text-[10px] font-bold text-accent uppercase">Admin</span>;
+function LencanaAdmin({ peran }: { peran: string | null }) {
+  return <span className="shrink-0 rounded bg-accent-soft px-1.5 py-px text-[10px] font-bold text-accent uppercase">{labelPeran(peran)}</span>;
 }
 
 /** Keadaan kosong: menjelaskan bahwa pencatatan berjalan otomatis + jalan pintas ke periode/saringan yang lebih luas. */

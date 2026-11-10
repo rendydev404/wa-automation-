@@ -2,6 +2,8 @@ import "server-only";
 import { db, getSetting, sekarang } from "./db";
 import { akunBerbayar } from "./langganan";
 import { BATAS_KATALOG, type KirimProduk, MAKS_HARGA_PRODUK, type Produk, pilihUntukKirim } from "./katalog-def";
+import { staf } from "./peran";
+import { modeMesin } from "./mode";
 
 export * from "./katalog-def";
 
@@ -45,11 +47,12 @@ const cacheBoleh = (gk.__waKatalogBoleh ??= new Map());
  */
 export async function katalogBoleh(userId: number | null): Promise<boolean> {
   if (userId === null) return false;
+  if (modeMesin()) return true; // mesin self-host: semua fitur tanpa paket
   const c = cacheBoleh.get(userId);
   if (c && Date.now() - c.at < 60_000) return c.ok;
   const sql = await db();
   const [u] = await sql<{ peran: string }[]>`SELECT peran FROM users WHERE id = ${userId}`;
-  const ok = u?.peran === "admin" || (await akunBerbayar(userId)) || (await punyaNomorCs(userId));
+  const ok = staf(u?.peran) || (await akunBerbayar(userId)) || (await punyaNomorCs(userId));
   cacheBoleh.set(userId, { at: Date.now(), ok });
   return ok;
 }
