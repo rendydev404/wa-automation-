@@ -484,7 +484,7 @@ export interface RingkasanAnalitik {
 export const ONLINE_DETIK = 300;
 
 /** Batas butir per daftar: halaman & fitur praktis semuanya, klik (label bebas) 50 teratas. */
-const BATAS_TOP: Record<Jenis, number> = { 0: 40, 1: 50, 2: 150 };
+const BATAS_TOP: Record<Jenis, number> = { 0: 60, 1: 50, 2: 150 };
 /** Akun teratas yang disebut per butir daftar. */
 const SIAPA_N = 3;
 const PENGGUNA_N = 20;

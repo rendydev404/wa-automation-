@@ -1,6 +1,6 @@
 # Rencana: Core API headless (UI bisa diganti developer, kendali tetap di kita)
 
-Tanggal: 2026-11-10 · Status: **H1–H4 dibangun di lokal (2026-11-10), uji lolos; menunggu persetujuan screenshot sebelum push** · Lanjutan dari
+Tanggal: 2026-11-10 · Status: **H1–H4 di-push 2026-11-10 (commit 2205fbf)**; sisa di §8 · Lanjutan dari
 [2026-11-09-developer-api.md](2026-11-09-developer-api.md) dan [2026-11-10-sandbox-developer-api.md](2026-11-10-sandbox-developer-api.md)
 
 ---
