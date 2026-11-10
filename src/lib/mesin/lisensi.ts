@@ -87,7 +87,7 @@ export const lisensiSekarang = (): IsiLisensi | null => st.isi;
 /** Mesin sedang berjalan sebagai sandbox (menurut lisensi yang dipegang). Sinkron, hanya membaca memori. */
 export const sandboxAktif = (): boolean => modeMesin() && (st.isi ? modeLisensi(st.isi) === "sandbox" : modeKunci() === "sandbox");
 
-/** Nomor uji lisensi sandbox; null = belum diverifikasi / bukan sandbox. */
+/** Nomor penguji lisensi sandbox; null = belum diverifikasi / bukan sandbox. */
 export const nomorUji = (): NomorUji | null => (sandboxAktif() ? (st.isi?.uji ?? null) : null);
 
 const angka = (v: string | null | undefined): string => String(v ?? "").replace(/\D/g, "");
@@ -95,7 +95,7 @@ const angka = (v: string | null | undefined): string => String(v ?? "").replace(
 const teleponDariAlamat = (a: string | null | undefined): string | null => (a && a.endsWith("@s.whatsapp.net") ? angka(a.split("@")[0].split(":")[0]) || null : null);
 
 /**
- * Apakah lawan bicara ini nomor uji sandbox? Dicocokkan lewat telepon ATAU alamat WA (JID/LID), karena WhatsApp kadang
+ * Apakah lawan bicara ini nomor penguji sandbox? Dicocokkan lewat telepon ATAU alamat WA (JID/LID), karena WhatsApp kadang
  * hanya memberi LID. Bukan sandbox = selalu true (gerbang tidak berlaku).
  */
 export function lawanNomorUji(o: { telepon?: string | null; alamat?: string | null }): boolean {
@@ -108,7 +108,7 @@ export function lawanNomorUji(o: { telepon?: string | null; alamat?: string | nu
   return !!o.alamat && !!u.alamat && o.alamat === u.alamat;
 }
 
-/** Tujuan kirim (nomor 628…) sama dengan nomor uji? Bukan sandbox = true. */
+/** Tujuan kirim (nomor 628…) sama dengan nomor penguji? Bukan sandbox = true. */
 export function tujuanNomorUji(ke: string): boolean {
   if (!sandboxAktif()) return true;
   const u = st.isi?.uji;
@@ -163,7 +163,7 @@ export function alasanTerbatas(kini = sekarang()): { kode: KodeGalat; pesan: str
 export interface InfoLisensi {
   aktif: boolean;
   mode: ModeApi;
-  /** Sandbox: nomor uji tersamar (62812****890) / "terverifikasi" bila hanya LID; null = belum ada. */
+  /** Sandbox: nomor penguji tersamar (62812****890) / "terverifikasi" bila hanya LID; null = belum ada. */
   nomor_uji: string | null;
   status: IsiLisensi["status"] | "belum_aktif";
   aplikasi: string | null;
@@ -309,7 +309,7 @@ async function gantiInstalasi(): Promise<void> {
 
 /**
  * Tombol "Perbarui lisensi" di dashboard mesin (tindakan pemilik, bukan polling): sekali bertanya ke pusat. Dipakai
- * sandbox (tanpa webhook) sesudah perpanjang / ganti nomor uji / hapus nomor lebih. Jeda 15 dtk antar-klik.
+ * sandbox (tanpa webhook) sesudah perpanjang / ganti nomor penguji / hapus nomor lebih. Jeda 15 dtk antar-klik.
  */
 export async function perbaruiLisensi(): Promise<{ ok: boolean; pesan: string }> {
   if (!modeMesin()) return { ok: false, pesan: "Hanya di mesin self-host." };
@@ -329,7 +329,7 @@ export async function perbaruiLisensi(): Promise<{ ok: boolean; pesan: string }>
 
 /**
  * Mesin sandbox menerima "UJI <kode>" (dari nomor mana pun): teruskan ke pusat; jawabannya lisensi baru berisi nomor
- * uji. Mengembalikan true bila nomor pengirim kini nomor uji.
+ * uji. Mengembalikan true bila nomor pengirim kini nomor penguji.
  */
 export async function verifikasiNomorUjiKePusat(kode: string, pengirim: { telepon: string | null; alamat: string | null }): Promise<{ ok: boolean; pesan: string }> {
   await muatLisensi();
@@ -359,7 +359,7 @@ export function mulaiLisensiMesin(tundaMs = 5_000): void {
   void muatLisensi().catch((e) => console.warn("[mesin] lisensi tersimpan gagal dimuat:", e instanceof Error ? e.message : e));
   if (!kunciApi()) console.error("[mesin] CHATGERCEP_KEY belum diisi: mesin berjalan dalam mode terbatas (API & bot tidak melayani, WhatsApp tetap tersambung).");
   if (!alamatPublik() && modeKunci() !== "sandbox") console.warn("[mesin] ALAMAT_PUBLIK belum diisi: aktivasi & perpanjangan lisensi dari pusat butuh alamat HTTPS publik mesin ini.");
-  if (modeKunci() === "sandbox") console.info("[mesin] key sandbox (cg_test_): hanya 1 nomor uji, tanpa alamat publik.");
+  if (modeKunci() === "sandbox") console.info("[mesin] key sandbox (cg_test_): hanya 1 nomor penguji, tanpa alamat publik.");
   const jalan = async (): Promise<void> => {
     st.timerUlang = null;
     try {

@@ -152,7 +152,7 @@ export async function perpanjangSandboxAction(): Promise<Hasil> {
   }
 }
 
-/** Kode verifikasi nomor uji (6 angka, 10 menit). */
+/** Kode verifikasi nomor penguji (6 angka, 10 menit). */
 export async function mulaiNomorUjiAction(): Promise<Hasil & { kode?: string; sampai?: number }> {
   const m = await tolakMesin();
   if (m) return m;

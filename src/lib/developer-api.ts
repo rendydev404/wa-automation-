@@ -1050,8 +1050,8 @@ const hashKode = (aplikasiId: number, kode: string): string => createHash("sha25
 const MAKS_COBA_KODE = 5;
 
 /**
- * Mulai daftarkan / ganti nomor uji: kode 6 angka berlaku 10 menit (hanya hash yang disimpan). Pemilik HP yang akan
- * menjadi nomor uji mengirim WA "UJI <kode>" ke nomor sandbox; mesin meneruskannya ke verifikasiNomorUji.
+ * Mulai daftarkan / ganti nomor penguji: kode 6 angka berlaku 10 menit (hanya hash yang disimpan). Pemilik HP yang akan
+ * menjadi nomor penguji mengirim WA "UJI <kode>" ke nomor bot; mesin meneruskannya ke verifikasiNomorUji.
  */
 export async function mulaiNomorUji(user: User): Promise<{ kode: string; sampai: number }> {
   const kode = String(randomInt(0, 1_000_000)).padStart(6, "0");
@@ -1073,7 +1073,7 @@ const alamatWaSah = (v: unknown): string | null => {
 };
 
 /**
- * Mesin sandbox menerima "UJI <kode>": cocokkan kode, simpan nomor uji (menggantikan yang lama), lalu kembalikan lisensi
+ * Mesin sandbox menerima "UJI <kode>": cocokkan kode, simpan nomor penguji (menggantikan yang lama), lalu kembalikan lisensi
  * baru di jawaban (sandbox tanpa webhook). Kode sekali pakai; maks 5 percobaan salah per kode.
  */
 export async function verifikasiNomorUji(p: PermintaanNomorUji): Promise<string> {
@@ -1084,7 +1084,7 @@ export async function verifikasiNomorUji(p: PermintaanNomorUji): Promise<string>
   const alamat = alamatWaSah(p.alamat);
   if (!telepon && !alamat) throw new ApiError("isian_tidak_sah", "Nomor pengirim tidak dikenali.");
   const a = await aplikasiUntukKunci(p.key);
-  if (a.mode !== "sandbox") throw new ApiError("isian_tidak_sah", "Nomor uji hanya untuk key sandbox.");
+  if (a.mode !== "sandbox") throw new ApiError("isian_tidak_sah", "Nomor penguji hanya untuk key sandbox.");
   if (a.status !== "disetujui") throw new ApiError("aplikasi_ditangguhkan", "Sandbox ini sedang ditangguhkan.");
   const kini = sekarang();
   const ok = await transaksi(async (tx) => {

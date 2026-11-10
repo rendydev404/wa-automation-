@@ -2,7 +2,7 @@ import { verifikasiNomorUji } from "@/lib/developer-api";
 import { tanganiLisensi } from "@/lib/developer-api-http";
 
 /**
- * Mesin sandbox menerima pesan WA "UJI <kode>": verifikasi nomor uji. Jawabannya lisensi baru berisi nomor uji
+ * Mesin sandbox menerima pesan WA "UJI <kode>": verifikasi nomor penguji. Jawabannya lisensi baru berisi nomor penguji
  * (sandbox tidak punya webhook lisensi). Dipanggil hanya saat ada pesan berkode, bukan polling.
  */
 export async function POST(req: Request) {

@@ -94,7 +94,7 @@ export function rapikanBatas(b: Partial<Record<keyof BatasApi, unknown>> | null 
 
 /**
  * Mode aplikasi. Sandbox = key `cg_test_…` untuk mencoba API dengan WhatsApp asli sebelum production: keluar tanpa
- * peninjauan, 1 nomor WA, hanya boleh berkomunikasi dengan SATU nomor uji yang terverifikasi, limit balasan AI per hari.
+ * peninjauan, 1 nomor WA, hanya boleh berkomunikasi dengan SATU nomor penguji yang terverifikasi, limit balasan AI per hari.
  * Rencana: docs/plans/2026-11-10-sandbox-developer-api.md.
  */
 export type ModeApi = "produksi" | "sandbox";
@@ -108,11 +108,11 @@ export const RENTANG_SANDBOX = {
 } as const;
 /** Batas tetap sandbox (tidak bisa diubah): 1 nomor WA, 1 instalasi. */
 export const BATAS_TETAP_SANDBOX = { nomor: 1, instalasi: 1 } as const;
-/** Kode verifikasi nomor uji: 6 angka, berlaku 10 menit. Pesan WA-nya: "UJI 123456". */
+/** Kode verifikasi nomor penguji: 6 angka, berlaku 10 menit. Pesan WA-nya: "UJI 123456". */
 export const MASA_KODE_UJI_DETIK = 600;
 export const POLA_PESAN_UJI = /^\s*UJI\s+(\d{6})\s*$/i;
 
-/** Nomor uji di lisensi sandbox. Gerbang mencocokkan telepon ATAU alamat WA (JID/LID), karena WA kadang hanya memberi LID. */
+/** Nomor penguji di lisensi sandbox. Gerbang mencocokkan telepon ATAU alamat WA (JID/LID), karena WA kadang hanya memberi LID. */
 export interface NomorUji {
   /** 628… tanpa tanda +; null bila WhatsApp hanya memberi LID. */
   telepon: string | null;
@@ -178,7 +178,7 @@ export const JALUR_WEBHOOK_MESIN = "/api/lisensi/webhook";
 /** Jalur di pusat. */
 export const JALUR_AKTIVASI = "/api/lisensi/aktivasi";
 export const JALUR_KONDISI = "/api/lisensi/kondisi";
-/** Mesin sandbox -> pusat saat menerima pesan "UJI ######": verifikasi nomor uji, jawabannya lisensi baru. */
+/** Mesin sandbox -> pusat saat menerima pesan "UJI ######": verifikasi nomor penguji, jawabannya lisensi baru. */
 export const JALUR_NOMOR_UJI = "/api/lisensi/nomor-uji";
 
 /**
@@ -226,8 +226,8 @@ export const KODE_GALAT = {
   aplikasi_dicabut: 403,
   belum_bayar: 402,
   batas_nomor: 403,
-  bukan_nomor_uji: 403,
-  nomor_uji_belum_ada: 409,
+  bukan_nomor_penguji: 403,
+  nomor_penguji_belum_ada: 409,
   batas_ai_harian: 429,
   sandbox_kedaluwarsa: 402,
   sandbox_nonaktif: 403,

@@ -496,7 +496,7 @@ async function proses(kunci: string): Promise<void> {
       a.siap = null;
       a.siapProduk = null;
       // Limit balasan AI per hari (mesin self-host, batas.ai_hari; pusat & tanpa limit = tanpa query): jatah diambil
-      // sebelum AI dipanggil. Habis = bot diam (pesan tetap tercatat); nomor uji sandbox diberi tahu sekali sehari.
+      // sebelum AI dipanggil. Habis = bot diam (pesan tetap tercatat); nomor penguji sandbox diberi tahu sekali sehari.
       if (!(await ambilJatahAi())) {
         a.teks.length = 0;
         a.foto.length = 0;
@@ -864,9 +864,9 @@ async function verifikasiUjiDariWa(ev: Extract<EventWa, { jenis: "pesan" }>, kod
   if (!h.ok && Date.now() - (ujiDibalas.get(k) ?? 0) < 600_000) return;
   if (ujiDibalas.size > 500) ujiDibalas.clear();
   ujiDibalas.set(k, Date.now());
-  if (!h.ok) console.warn(`[bridge] verifikasi nomor uji sandbox gagal: ${h.pesan}`);
+  if (!h.ok) console.warn(`[bridge] verifikasi nomor penguji sandbox gagal: ${h.pesan}`);
   const teks = h.ok
-    ? "✅ Nomor ini sekarang jadi nomor uji sandbox ChatGerCep. Silakan mulai mencoba API: kirim pesan ke nomor ini atau chat ke nomor sandbox."
+    ? "✅ Nomor ini sekarang jadi nomor penguji sandbox ChatGerCep. Silakan mulai mencoba API: kirim pesan ke nomor ini atau chat ke nomor bot."
     : "Kode salah atau sudah habis. Buat kode baru di portal Developer ChatGerCep, lalu kirim lagi: UJI <kode>.";
   await kirimTeks(ev.sesi, ev.alamat, teks, (x) => ingat(st.terkirim, x, 500)).catch(() => {});
 }
@@ -951,8 +951,8 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   const telepon = teleponDariEvent(ev);
   const teksLog = teksLogPesan(ev);
 
-  // Mesin sandbox (Developer API, key cg_test_): hanya SATU nomor uji yang dilayani. "UJI ######" dari nomor mana pun
-  // memverifikasi nomor uji; chat lain dengan nomor selain nomor uji diabaikan seluruhnya (tidak dicatat, tanpa
+  // Mesin sandbox (Developer API, key cg_test_): hanya SATU nomor penguji yang dilayani. "UJI ######" dari nomor mana pun
+  // memverifikasi nomor penguji; chat lain dengan nomor selain nomor penguji diabaikan seluruhnya (tidak dicatat, tanpa
   // webhook, bot diam). Cek memori saja, tanpa query.
   if (sandboxAktif()) {
     const lawan = { telepon, alamat: ev.chat };

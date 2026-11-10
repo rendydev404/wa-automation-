@@ -71,7 +71,7 @@ export function envMesin(o: { namaAplikasi: string; alamat: string | null; sandb
 ALAMAT_PUBLIK=${o.alamat ?? "https://wa.domain-anda.com"}`;
   return `# ChatGerCep Mesin ${o.sandbox ? "SANDBOX" : `untuk aplikasi "${o.namaAplikasi.replace(/[\r\n"]/g, " ")}"`}.
 # Salin menjadi .env di folder yang sama dengan docker-compose.yml. Jangan dibagikan/di-commit.
-${o.sandbox ? "# Sandbox: WhatsApp asli, 1 nomor WA, hanya dengan 1 nomor uji terverifikasi, limit balasan AI per hari.\n" : ""}
+${o.sandbox ? "# Sandbox: WhatsApp asli, 1 nomor WA, hanya dengan 1 nomor penguji terverifikasi, limit balasan AI per hari.\n" : ""}
 # --- Wajib ---
 # API key dari portal Developer (tampil sekali saat dibuat). Dipakai mesin untuk aktivasi DAN oleh aplikasi Anda
 # untuk memanggil API di mesin ini (Authorization: Bearer ...).${o.sandbox ? " Sandbox: cg_test_..." : ""}

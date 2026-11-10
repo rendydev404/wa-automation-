@@ -54,7 +54,7 @@ export async function pemakaianAiHariIni(kini = sekarang()): Promise<{ terpakai:
 }
 
 const g = globalThis as unknown as { __waBatasAiDiberitahu?: { hari: number } };
-/** Pemberitahuan "limit AI habis" ke nomor uji sandbox: sekali per hari. */
+/** Pemberitahuan "limit AI habis" ke nomor penguji sandbox: sekali per hari. */
 export function perluBeritahuBatasAi(kini = sekarang()): boolean {
   const hari = awalHariAi(kini);
   const s = (g.__waBatasAiDiberitahu ??= { hari: 0 });

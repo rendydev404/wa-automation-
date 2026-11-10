@@ -8,7 +8,7 @@ import { pemakaianAiHariIni } from "@/lib/mesin/kuota-ai";
 import { TombolPerbaruiLisensi } from "./tombol-perbarui-lisensi";
 
 /**
- * Banner mesin sandbox (key cg_test_) di atas dashboard mesin self-host: nomor uji, sisa balasan AI hari ini, masa
+ * Banner mesin sandbox (key cg_test_) di atas dashboard mesin self-host: nomor penguji, sisa balasan AI hari ini, masa
  * berlaku, alasan mode terbatas, dan tombol Perbarui lisensi. Di pusat & mesin production: tidak tampil, tanpa query.
  */
 export async function BannerSandbox() {
@@ -31,8 +31,8 @@ export async function BannerSandbox() {
             <span className="font-normal text-muted">
               {" · "}
               {l.nomor_uji
-                ? t(`hanya dengan nomor uji ${l.nomor_uji}`, `only with test number ${l.nomor_uji}`)
-                : t("nomor uji belum didaftarkan (kirim UJI <kode> dari HP uji)", "test number not registered yet (send UJI <code> from the test phone)")}
+                ? t(`hanya dengan nomor penguji ${l.nomor_uji}`, `only with tester number ${l.nomor_uji}`)
+                : t("nomor penguji belum didaftarkan (kirim UJI <kode> dari HP penguji)", "tester number not registered yet (send UJI <code> from the tester's phone)")}
             </span>
           </p>
           <p className="mt-0.5 text-muted">

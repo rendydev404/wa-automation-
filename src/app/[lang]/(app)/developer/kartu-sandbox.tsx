@@ -97,7 +97,7 @@ export function TombolPerpanjangSandbox() {
   );
 }
 
-/** Kode verifikasi nomor uji: "UJI 123456" dikirim lewat WA dari HP nomor uji ke nomor sandbox. */
+/** Kode verifikasi nomor penguji: "UJI 123456" dikirim lewat WA dari HP penguji ke nomor bot. */
 export function TombolNomorUji({ ada, boleh }: { ada: boolean; boleh: boolean }) {
   const { t, b } = useBahasa();
   const [kode, setKode] = useState<{ kode: string; sampai: number } | null>(null);
@@ -110,7 +110,7 @@ export function TombolNomorUji({ ada, boleh }: { ada: boolean; boleh: boolean })
       {kode && (
         <div className="rounded-xl border border-accent/30 bg-accent-soft p-3.5 text-[13px]">
           <p className="font-semibold text-fg">
-            {t("Dari HP yang mau dijadikan nomor uji, kirim pesan WhatsApp ini ke nomor sandbox:", "From the phone you want as the test number, send this WhatsApp message to the sandbox number:")}
+            {t("Dari HP yang mau dijadikan nomor penguji, kirim pesan WhatsApp ini ke nomor bot:", "From the phone you want as the tester number, send this WhatsApp message to the bot number:")}
           </p>
           <div className="mt-2 flex items-center gap-1.5">
             <code className="min-w-0 flex-1 rounded-lg bg-surface px-3 py-2 font-mono text-[18px] font-bold tracking-wider select-all">{pesan}</code>
@@ -118,8 +118,8 @@ export function TombolNomorUji({ ada, boleh }: { ada: boolean; boleh: boolean })
           </div>
           <p className="mt-2 text-muted">
             {t(
-              `Berlaku sampai ${jam(kode.sampai)} WIB. Nomor sandbox membalas ✅ begitu berhasil, lalu muat ulang halaman ini.`,
-              `Valid until ${jam(kode.sampai)} WIB. The sandbox number replies ✅ when it works; then reload this page.`,
+              `Berlaku sampai ${jam(kode.sampai)} WIB. Nomor bot membalas ✅ begitu berhasil, lalu muat ulang halaman ini.`,
+              `Valid until ${jam(kode.sampai)} WIB. The bot number replies ✅ when it works; then reload this page.`,
             )}
           </p>
         </div>
@@ -138,7 +138,7 @@ export function TombolNomorUji({ ada, boleh }: { ada: boolean; boleh: boolean })
         }
       >
         {tunggu ? <Loader2 className="size-4 animate-spin" aria-hidden /> : ada ? <Smartphone className="size-4" aria-hidden /> : <MessageSquareText className="size-4" aria-hidden />}
-        {kode ? t("Buat kode baru", "New code") : ada ? t("Ganti nomor uji", "Change test number") : t("Daftarkan nomor uji", "Register test number")}
+        {kode ? t("Buat kode baru", "New code") : ada ? t("Ganti nomor penguji", "Change tester number") : t("Daftarkan nomor penguji", "Register tester number")}
       </button>
       <Pesan ok={false}>{galat}</Pesan>
     </div>

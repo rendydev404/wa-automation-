@@ -1,5 +1,5 @@
 // Uji mode sandbox Developer API di server pusat: key cg_test_ (1 per akun, tanpa peninjauan), aktivasi tanpa alamat
-// publik & tantangan, lisensi v2 (mode sandbox, 1 nomor, limit AI, berlaku = masa sandbox), nomor uji tunggal lewat kode,
+// publik & tantangan, lisensi v2 (mode sandbox, 1 nomor, limit AI, berlaku = masa sandbox), nomor penguji tunggal lewat kode,
 // sakelar umum, kedaluwarsa & perpanjang, limit AI khusus, pemisahan dari aplikasi production, dan rencana query.
 // PostgreSQL 15 sungguhan (uji/pg-lokal.mjs). Rencana: docs/plans/2026-11-10-sandbox-developer-api.md.
 // Pakai (dari akar proyek): node --import ./uji/loader.mjs uji/uji-sandbox-pusat.mjs
@@ -157,9 +157,9 @@ await cek("1 instalasi: mesin sandbox baru melepas yang lama otomatis (pindah la
   idA = idB;
 });
 
-console.log("== nomor uji ==");
+console.log("== nomor penguji ==");
 const uji = (kode, o = {}) => D.verifikasiNomorUji({ key: keyB, id_instalasi: idA, kode, telepon: "628111222333", alamat: "628111222333@s.whatsapp.net", versi: "1.0.1", ...o });
-await cek("kode 6 angka berlaku 10 menit (hanya hash disimpan); kode benar -> lisensi baru berisi nomor uji", async () => {
+await cek("kode 6 angka berlaku 10 menit (hanya hash disimpan); kode benar -> lisensi baru berisi nomor penguji", async () => {
   const { kode, sampai } = await D.mulaiNomorUji(B);
   assert.match(kode, /^\d{6}$/);
   assert.ok(Math.abs(sampai - (sekarang() + 600)) < 3);
@@ -183,7 +183,7 @@ await cek("kode salah dihitung; 5 kali salah = kode hangus walau yang benar diki
   await assert.rejects(uji("123456", { telepon: "abc", alamat: "x" }), galat("isian_tidak_sah"));
 });
 
-await cek("ganti nomor uji = kode baru dari HP lain; nomor lama langsung digantikan (tidak pernah dua); LID tanpa telepon diterima", async () => {
+await cek("ganti nomor penguji = kode baru dari HP lain; nomor lama langsung digantikan (tidak pernah dua); LID tanpa telepon diterima", async () => {
   const { kode } = await D.mulaiNomorUji(B);
   const isi = L.verifikasiLisensi(await uji(kode, { telepon: null, alamat: "123456789012345@lid" }));
   assert.deepEqual(isi.uji, { telepon: null, alamat: "123456789012345@lid" });
@@ -195,7 +195,7 @@ await cek("ganti nomor uji = kode baru dari HP lain; nomor lama langsung diganti
   assert.equal((await D.sandboxMilik(budi.id)).uji_telepon, "628111222333");
 });
 
-await cek("nomor uji hanya untuk instalasi sandbox milik key itu", async () => {
+await cek("nomor penguji hanya untuk instalasi sandbox milik key itu", async () => {
   const { kode } = await D.mulaiNomorUji(B);
   await assert.rejects(uji(kode, { id_instalasi: randomUUID() }), galat("tidak_ditemukan"));
 });

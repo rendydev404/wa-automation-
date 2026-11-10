@@ -20,8 +20,8 @@ disetujui dan tanpa domain/HTTPS.
 - **Key sandbox `cg_test_…`** keluar langsung dari portal (hanya akun yang punya akses portal, `users.akses_api`).
 - **Mesin yang sama** (`MODE=mesin`). Mesin membaca jenis key-nya lalu otomatis masuk mode sandbox.
 - **WhatsApp asli:** scan QR beneran, pesan beneran masuk ke HP, bot AI beneran menjawab.
-- **Pembatas utama: hanya 1 nomor uji.** Mesin sandbox hanya boleh mengirim ke, dan menanggapi chat dari,
-  satu nomor uji yang sudah diverifikasi. Chat dari nomor lain diabaikan.
+- **Pembatas utama: hanya 1 nomor penguji.** Mesin sandbox hanya boleh mengirim ke, dan menanggapi chat dari,
+  satu nomor penguji yang sudah diverifikasi. Chat dari nomor lain diabaikan.
 - **Limit balasan AI per hari** diatur developer internal (bawaan umum + per akun).
 - **Bisa jalan di laptop.** Gak perlu `ALAMAT_PUBLIK`, karena sandbox tidak memakai webhook lisensi.
 - **Naik ke production:** ajukan → disetujui → ganti `CHATGERCEP_KEY` ke `cg_live_…`. Kode aplikasi tidak berubah,
@@ -34,7 +34,7 @@ LAPTOP / SERVER DEVELOPER                                   SERVER KITA (chatger
 │                                         │     │ menyala  │  (sandbox: TANPA tantangan)   │
 │ ◀── webhook pesan masuk/status ─────────┤     │          │                              │
 │                                         │     │──saat────▶ /api/lisensi/nomor-uji        │
-│        WA asli (1 nomor sandbox) ◀──────┘     │ verifikasi│  (kode UJI dari portal)      │
+│        WA asli (1 nomor bot) ◀──────┘     │ verifikasi│  (kode UJI dari portal)      │
 │              ▲ ▼ hanya dengan                 │          └──────────────────────────────┘
 │        1 NOMOR UJI (HP developer)             │
 └───────────────────────────────────────────────┘
@@ -43,14 +43,14 @@ LAPTOP / SERVER DEVELOPER                                   SERVER KITA (chatger
 ### Masuk versi ini
 1. Key sandbox per akun (maks 1 sandbox per akun), masa berlaku, perpanjang, cabut.
 2. Aktivasi sandbox tanpa alamat publik & tanpa tantangan.
-3. Nomor uji tunggal + verifikasi lewat pesan WA berkode.
+3. Nomor penguji tunggal + verifikasi lewat pesan WA berkode.
 4. Gerbang sandbox di mesin: kirim pesan, pesan masuk, bot, webhook, cek kontak.
 5. Limit balasan AI per hari (sandbox wajib; production opsional, bawaan tanpa batas).
 6. Panel developer internal (tab **Sandbox**), kartu sandbox di portal, banner sandbox di dashboard mesin.
 7. Dokumentasi `/docs/api` bagian Sandbox.
 
 ### Tidak masuk (sengaja, supaya tetap simpel)
-Sandbox yang kita hosting, WA tiruan / nomor ajaib, lebih dari 1 nomor uji, webhook lisensi untuk sandbox.
+Sandbox yang kita hosting, WA tiruan / nomor ajaib, lebih dari 1 nomor penguji, webhook lisensi untuk sandbox.
 
 ---
 
@@ -60,8 +60,8 @@ Sandbox yang kita hosting, WA tiruan / nomor ajaib, lebih dari 1 nomor uji, webh
 |---|---|
 | **Sandbox** | Satu baris `api_aplikasi` dengan `mode = 'sandbox'`, otomatis aktif, milik satu akun |
 | **Key sandbox** | `cg_test_<awalan 8>_<rahasia 32>`, tampil sekali |
-| **Nomor sandbox** | Nomor WA yang di-scan ke mesin sandbox (maks 1) |
-| **Nomor uji** | Satu-satunya nomor yang boleh berkomunikasi dengan nomor sandbox (biasanya HP developer) |
+| **Nomor bot** | Nomor WA yang di-scan ke mesin sandbox (maks 1) |
+| **Nomor penguji** | Satu-satunya nomor yang boleh berkomunikasi dengan nomor bot (biasanya HP developer) |
 | **Balasan AI** | Satu panggilan model AI: balasan bot di WA, `POST /ai/jawab`, `POST /ai/rapikan` |
 
 ---
@@ -92,28 +92,28 @@ Sandbox yang kita hosting, WA tiruan / nomor ajaib, lebih dari 1 nomor uji, webh
   menolak aktivasi sandbox dari `versi` mesin di bawah versi minimum (`versi_mesin_lama`, 426).
 - **R-SBL-3** `berlaku_sampai` = `sandbox_sampai`. **Tanpa webhook dan tanpa perpanjangan otomatis** (tidak ada
   alamat publik, dan aturan tanpa polling tetap berlaku). Mesin mendapat lisensi baru hanya saat:
-  menyala, verifikasi nomor uji, atau pemilik menekan **Perbarui lisensi** di dashboard mesin.
+  menyala, verifikasi nomor penguji, atau pemilik menekan **Perbarui lisensi** di dashboard mesin.
 - **R-SBL-4** Akibat R-SBL-3: pencabutan/penangguhan sandbox berlaku saat mesin menyala ulang atau saat masa
-  berlakunya habis (maks 30 hari). Dampaknya kecil karena sandbox hanya bisa bicara dengan 1 nomor uji.
+  berlakunya habis (maks 30 hari). Dampaknya kecil karena sandbox hanya bisa bicara dengan 1 nomor penguji.
 - **R-SBL-5** Lisensi production tetap `v: 1` dan alurnya tidak berubah.
 - **R-SBL-6** Ganti key di `.env` (test → live atau sebaliknya): mesin melihat awalan key tidak ada di
   `lisensi.kunci`, lalu membuat `id_instalasi` baru, mengosongkan lisensi lama, dan aktivasi ulang. **Data mesin
   dan koneksi WA tidak disentuh.** Pindah ke sandbox dengan lebih dari 1 nomor tersimpan → mode terbatas dengan
   pesan "Sandbox hanya boleh 1 nomor; hapus nomor lain dulu".
 
-### 3.3 Nomor uji (tepat satu)
-- **R-UJI-1** Portal: **Daftarkan nomor uji** → pusat membuat kode 6 angka (berlaku 10 menit, disimpan sebagai
-  hash). Portal menampilkan: "Dari HP yang mau dijadikan nomor uji, kirim WA `UJI 482913` ke nomor sandbox".
+### 3.3 Nomor penguji (tepat satu)
+- **R-UJI-1** Portal: **Daftarkan nomor penguji** → pusat membuat kode 6 angka (berlaku 10 menit, disimpan sebagai
+  hash). Portal menampilkan: "Dari HP yang mau dijadikan nomor penguji, kirim WA `UJI 482913` ke nomor bot".
 - **R-UJI-2** Mesin sandbox mengenali pesan pribadi `^UJI\s+\d{6}$` dari nomor **mana pun** (satu-satunya
   pengecualian gerbang), lalu memanggil `POST /api/lisensi/nomor-uji { key, id_instalasi, kode, telepon, alamat, versi }`.
 - **R-UJI-3** Pusat memeriksa: key sandbox sah, instalasi milik sandbox itu, kode cocok & belum habis. Bila
   benar: simpan `uji_telepon` + `uji_alamat`, hapus kode, naikkan `versi_lisensi`, lalu **kembalikan lisensi
   baru** di jawaban (bukan webhook). Dibatasi 5 percobaan per 10 menit per key (`batas.ts`).
-- **R-UJI-4** Mesin membalas ke nomor itu: "Nomor ini sekarang jadi nomor uji sandbox ✅". Kode salah/habis →
+- **R-UJI-4** Mesin membalas ke nomor itu: "Nomor ini sekarang jadi nomor penguji sandbox ✅". Kode salah/habis →
   balasan "Kode salah atau sudah habis, buat kode baru di portal" (maks 1 balasan per 10 menit per nomor).
-- **R-UJI-5** **Ganti nomor uji** = buat kode baru dan verifikasi dari HP lain. Begitu terverifikasi, nomor lama
-  langsung digantikan. Tidak pernah ada dua nomor uji.
-- **R-UJI-6** Identitas nomor uji: telepon (`628…`) bila diketahui, plus alamat WA (JID/LID) dari event. Gerbang
+- **R-UJI-5** **Ganti nomor penguji** = buat kode baru dan verifikasi dari HP lain. Begitu terverifikasi, nomor lama
+  langsung digantikan. Tidak pernah ada dua nomor penguji.
+- **R-UJI-6** Identitas nomor penguji: telepon (`628…`) bila diketahui, plus alamat WA (JID/LID) dari event. Gerbang
   mencocokkan salah satunya, karena WhatsApp kadang hanya memberi LID tanpa nomor telepon.
 
 ### 3.4 Gerbang sandbox di mesin
@@ -122,11 +122,11 @@ Semua cek membaca lisensi di memori (tanpa query tambahan).
 | Hal | Perilaku di sandbox |
 |---|---|
 | `POST /nomor` | Maks 1 nomor (`batas_nomor` 403 seperti sekarang) |
-| `POST /pesan` | `ke` harus nomor uji. Selain itu → `403 bukan_nomor_uji`. Belum ada nomor uji → `409 nomor_uji_belum_ada` |
-| Pesan masuk dari nomor uji | Normal: tercatat, webhook `pesan.masuk`, bot AI menjawab |
+| `POST /pesan` | `ke` harus nomor penguji. Selain itu → `403 bukan_nomor_penguji`. Belum ada nomor penguji → `409 nomor_penguji_belum_ada` |
+| Pesan masuk dari nomor penguji | Normal: tercatat, webhook `pesan.masuk`, bot AI menjawab |
 | Pesan masuk dari nomor lain | **Diabaikan seluruhnya**: tidak dicatat, tidak ke webhook, bot diam (kecuali pesan `UJI ######`) |
 | Pesan yang diketik manual dari HP sandbox ke nomor lain | Tidak dicatat, tidak ke webhook |
-| `POST /kontak/cek` | Hanya boleh nomor uji (mencegah sandbox dipakai menyaring daftar nomor) |
+| `POST /kontak/cek` | Hanya boleh nomor penguji (mencegah sandbox dipakai menyaring daftar nomor) |
 | `POST /ai/jawab`, `/ai/rapikan` | Jalan, dihitung ke limit AI |
 | Fitur lain (knowledge, katalog, bot, statistik, profil, dll.) | Sama dengan production |
 | Anti-blokir & batas laju | Sama dengan production |
@@ -143,7 +143,7 @@ Semua cek membaca lisensi di memori (tanpa query tambahan).
 - **R-AI-5** Jatah diambil **sebelum** memanggil AI (atomik, tidak bisa dilewati permintaan serentak) dan
   dikembalikan bila AI gagal.
 - **R-AI-6** Limit tercapai: bot diam (pesan tetap tercatat), API membalas `429 batas_ai_harian` + jam reset.
-  Di sandbox, mesin mengirim **sekali per hari** pesan WA ke nomor uji: "Batas 100 balasan AI sandbox hari ini
+  Di sandbox, mesin mengirim **sekali per hari** pesan WA ke nomor penguji: "Batas 100 balasan AI sandbox hari ini
   sudah habis, reset jam 00.00 WIB".
 - **R-AI-7** Penghitung di DB mesin. Karena kunci AI milik developer sendiri, limit ini menjaga sandbox tetap
   untuk testing dan mencegah biaya AI bocor saat ada loop (mis. bot saling membalas).
@@ -152,7 +152,7 @@ Semua cek membaca lisensi di memori (tanpa query tambahan).
 - **R-NAIK-1** Kartu sandbox punya tombol **Ajukan production**. Formulir pengajuan yang ada terisi otomatis
   (nama, kegunaan, kontak) dan masuk alur peninjauan biasa.
 - **R-NAIK-2** Disetujui → key `cg_live_`. Developer mengganti `CHATGERCEP_KEY` dan mengisi `ALAMAT_PUBLIK`.
-  Mesin aktivasi ulang (R-SBL-6), gerbang nomor uji hilang, data dan koneksi WA tetap.
+  Mesin aktivasi ulang (R-SBL-6), gerbang nomor penguji hilang, data dan koneksi WA tetap.
 - **R-NAIK-3** Sandbox tetap ada setelah production aktif (untuk mencoba fitur baru).
 
 ---
@@ -162,7 +162,7 @@ Semua cek membaca lisensi di memori (tanpa query tambahan).
 ### 4.1 Performa (diukur sebelum & sesudah, angka nyata dilaporkan)
 | Hal | Target |
 |---|---|
-| Cek mode + gerbang nomor uji per panggilan/pesan | 0 query tambahan, ≤ 0,1 ms (memori) |
+| Cek mode + gerbang nomor penguji per panggilan/pesan | 0 query tambahan, ≤ 0,1 ms (memori) |
 | Ambil jatah AI | 1 query `UPDATE … WHERE jumlah < batas RETURNING`, p95 ≤ 2 ms |
 | Production tanpa limit AI (`ai_hari = 0`) | 0 query tambahan |
 | Buat key sandbox (pusat) | ≤ 3 query, p95 ≤ 30 ms |
@@ -172,15 +172,15 @@ Semua cek membaca lisensi di memori (tanpa query tambahan).
 ### 4.2 Beban server kita
 Tidak ada pekerja latar baru. Sandbox **dikecualikan** dari antrean webhook lisensi dan perpanjangan 3 harian
 (`putaranJam`, `jadwalkanAplikasi`). Panggilan ke pusat hanya: aktivasi/kondisi saat mesin menyala, verifikasi
-nomor uji, dan tombol Perbarui lisensi.
+nomor penguji, dan tombol Perbarui lisensi.
 
 ### 4.3 Keamanan & anti-penyalahgunaan
 - Sandbox hanya untuk akun `akses_api` (sudah dipilih developer internal), 1 per akun, 1 instalasi, 1 nomor WA,
-  1 nomor uji. Gak bisa dipakai blast atau bot pelanggan.
-- Nomor uji ada di **lisensi bertanda tangan**, jadi tidak bisa ditambah lewat database mesin.
+  1 nomor penguji. Gak bisa dipakai blast atau bot pelanggan.
+- Nomor penguji ada di **lisensi bertanda tangan**, jadi tidak bisa ditambah lewat database mesin.
 - Lisensi sandbox `v: 2` mencegah mesin versi lama berjalan tanpa gerbang.
 - Kode verifikasi disimpan sebagai hash, 10 menit, dibatasi percobaannya.
-- Nomor uji tampil tersamar di panel & portal (`62812****890`). Log tidak memuat isi pesan atau key.
+- Nomor penguji tampil tersamar di panel & portal (`62812****890`). Log tidak memuat isi pesan atau key.
 
 ### 4.4 Keandalan
 Koneksi WA tidak pernah diputus oleh sandbox: lisensi habis, ganti key, atau sandbox dicabut = mode terbatas
@@ -218,7 +218,7 @@ CREATE TABLE mesin_pemakaian_ai (
 - Pembersihan: baris `mesin_pemakaian_ai` > 90 hari dihapus bersama pembersihan berkala yang ada.
 
 Kontrak (`api-def.ts`): `BatasApi.ai_hari`, `IsiLisensi.v: 1 | 2`, `mode?`, `uji?`, kode galat baru
-`bukan_nomor_uji` 403, `nomor_uji_belum_ada` 409, `batas_ai_harian` 429, `sandbox_kedaluwarsa` 402,
+`bukan_nomor_penguji` 403, `nomor_penguji_belum_ada` 409, `batas_ai_harian` 429, `sandbox_kedaluwarsa` 402,
 `versi_mesin_lama` 426, jalur `JALUR_NOMOR_UJI = "/api/lisensi/nomor-uji"`.
 
 ---
@@ -227,11 +227,11 @@ Kontrak (`api-def.ts`): `BatasApi.ai_hari`, `IsiLisensi.v: 1 | 2`, `mode?`, `uji
 
 | Halaman | Perubahan |
 |---|---|
-| `/developer` (portal) | **Kartu Sandbox** di atas daftar aplikasi: buat/ganti key (tampil sekali), berlaku sampai + Perpanjang, nomor uji (belum ada / menunggu kode `UJI ######` + hitung mundur / terverifikasi + Ganti), unduh `.env` sandbox, langkah singkat 1-2-3, tombol **Ajukan production** |
-| `/admin/developer-api` | Tab baru **Sandbox**: pengaturan umum (sakelar sandbox, masa key, limit AI bawaan) + daftar sandbox (akun, nomor uji tersamar, berlaku sampai, terakhir menyala, limit AI) dengan aksi ubah limit, perpanjang, tangguhkan, cabut |
+| `/developer` (portal) | **Kartu Sandbox** di atas daftar aplikasi: buat/ganti key (tampil sekali), berlaku sampai + Perpanjang, nomor penguji (belum ada / menunggu kode `UJI ######` + hitung mundur / terverifikasi + Ganti), unduh `.env` sandbox, langkah singkat 1-2-3, tombol **Ajukan production** |
+| `/admin/developer-api` | Tab baru **Sandbox**: pengaturan umum (sakelar sandbox, masa key, limit AI bawaan) + daftar sandbox (akun, nomor penguji tersamar, berlaku sampai, terakhir menyala, limit AI) dengan aksi ubah limit, perpanjang, tangguhkan, cabut |
 | `/admin/developer-api/[id]` | Isian baru **Balasan AI per hari** (0 = tanpa batas) di form batas aplikasi production |
-| Dashboard mesin | Banner "Mode sandbox: hanya dengan nomor uji 62812****890" + sisa balasan AI hari ini + tombol **Perbarui lisensi** |
-| `/docs/api` | Bagian **Sandbox**: cara mulai, aturan nomor uji, galat khusus, limit AI, cara naik ke production. `openapi.json` menyebut kedua jenis key |
+| Dashboard mesin | Banner "Mode sandbox: hanya dengan nomor penguji 62812****890" + sisa balasan AI hari ini + tombol **Perbarui lisensi** |
+| `/docs/api` | Bagian **Sandbox**: cara mulai, aturan nomor penguji, galat khusus, limit AI, cara naik ke production. `openapi.json` menyebut kedua jenis key |
 
 Sesuai aturan: screenshot Chrome headless (desktop ±1440 px & HP ±390 px; kosong/berisi; kode menunggu;
 terverifikasi; limit habis) dari build lokal dengan DB sementara, lalu **menunggu persetujuan sebelum push**.
@@ -245,18 +245,18 @@ terverifikasi; limit habis) dari build lokal dengan DB sementara, lalu **menungg
 |---|---|
 | Key sandbox | Akun tanpa `akses_api` ditolak; maks 1 per akun; key tampil sekali; ganti key = lama mati; sakelar umum mati = tidak bisa buat |
 | Aktivasi | `cg_test_` tanpa alamat berhasil; mesin versi lama ditolak (`versi_mesin_lama`); token `v: 2` ditolak verifikasi `v: 1` lama |
-| Nomor uji | Kode benar → lisensi baru berisi `uji`; kode salah/habis/dipakai ulang ditolak; percobaan ke-6 dalam 10 menit → 429; ganti nomor uji menggantikan yang lama |
-| Gerbang | `POST /pesan` ke nomor lain 403; pesan masuk dari nomor lain tidak dicatat & tanpa webhook; pesan dari nomor uji (telepon maupun LID) lolos; `kontak/cek` dibatasi |
+| Nomor penguji | Kode benar → lisensi baru berisi `uji`; kode salah/habis/dipakai ulang ditolak; percobaan ke-6 dalam 10 menit → 429; ganti nomor penguji menggantikan yang lama |
+| Gerbang | `POST /pesan` ke nomor lain 403; pesan masuk dari nomor lain tidak dicatat & tanpa webhook; pesan dari nomor penguji (telepon maupun LID) lolos; `kontak/cek` dibatasi |
 | Limit AI | Jatah ke-101 → bot diam + `429`; 50 permintaan serentak tidak melewati batas; AI gagal → jatah kembali; reset 00.00 WIB (jam dipercepat `skala-waktu.ts`); production `ai_hari = 0` tanpa query tambahan |
 | Ganti key | test → live dan live → test: instalasi baru, data & sesi WA utuh; >1 nomor di sandbox → mode terbatas |
 | Regresi | Seluruh uji Developer API & mesin lama tetap lolos; sandbox tidak muncul di antrean/penagihan |
 
 ### 7.2 Manual dengan WA asli (di laptop / VPS uji, bukan produksi)
-Butuh **2 nomor WA asli**: satu di-scan jadi nomor sandbox, satu jadi nomor uji.
+Butuh **2 nomor WA asli**: satu di-scan jadi nomor bot, satu jadi nomor penguji.
 1. Buat key sandbox → `docker compose up` tanpa `ALAMAT_PUBLIK` → scan QR.
-2. Kirim `UJI ######` dari HP uji → muncul balasan ✅ dan portal menampilkan nomor terverifikasi.
-3. `POST /pesan` ke HP uji → pesan masuk; status terkirim/dibaca muncul di webhook.
-4. Chat dari HP uji → webhook `pesan.masuk` + bot menjawab.
+2. Kirim `UJI ######` dari HP penguji → muncul balasan ✅ dan portal menampilkan nomor terverifikasi.
+3. `POST /pesan` ke HP penguji → pesan masuk; status terkirim/dibaca muncul di webhook.
+4. Chat dari HP penguji → webhook `pesan.masuk` + bot menjawab.
 5. Chat dari nomor ketiga → tidak ada webhook, bot diam.
 6. Turunkan limit AI ke 2 → balasan ke-3 tidak keluar, pesan pemberitahuan limit masuk sekali.
 7. Ganti ke key live di VPS uji → aktivasi production, WA tidak terputus.
@@ -267,7 +267,7 @@ Butuh **2 nomor WA asli**: satu di-scan jadi nomor sandbox, satu jadi nomor uji.
 
 | Fase | Isi | Selesai bila |
 |---|---|---|
-| **S1 Kontrak & pusat** | v35, key `cg_test_`, buat/perpanjang/ganti/cabut sandbox, aktivasi tanpa tantangan, lisensi `v: 2`, endpoint nomor-uji, pengecualian dari antrean & query production | Uji key, aktivasi, nomor uji lolos |
+| **S1 Kontrak & pusat** | v35, key `cg_test_`, buat/perpanjang/ganti/cabut sandbox, aktivasi tanpa tantangan, lisensi `v: 2`, endpoint nomor-uji, pengecualian dari antrean & query production | Uji key, aktivasi, nomor penguji lolos |
 | **S2 Mesin** | Mode sandbox, gerbang (§3.4), verifikasi `UJI`, limit AI (sandbox + production), ganti key aman, header & amplop webhook | Uji gerbang, limit AI, ganti key lolos; target §4.1 terukur |
 | **S3 UI & dokumentasi** | Kartu portal, tab Sandbox, isian limit AI production, banner mesin, `/docs/api` + `api-dok.ts` | Screenshot dikirim dan **disetujui** |
 | **S4 Uji WA asli** | Skenario §7.2 di laptop/VPS uji | Semua langkah lolos, hasil dilaporkan |
@@ -284,7 +284,7 @@ Catatan implementasi:
   mesin lama cukup lewat format lisensi `v: 2`; cek versi mesin di pusat (`versi_mesin_lama`) tidak dipasang.
 - Sandbox yang diaktivasi dari mesin lain melepas instalasi sandbox sebelumnya secara otomatis (bukan `instalasi_penuh`),
   supaya pindah laptop → server uji tidak perlu klik apa pun.
-- Nomor uji yang hanya punya LID (tanpa nomor telepon) bisa chat dengan bot, tetapi `POST /pesan` ke nomor itu ditolak
+- Nomor penguji yang hanya punya LID (tanpa nomor telepon) bisa chat dengan bot, tetapi `POST /pesan` ke nomor itu ditolak
   (`ke` berupa nomor telepon). Perlu dicek di uji WA asli (S4).
 
 ### Usulan yang dipakai

@@ -105,7 +105,7 @@ async function KartuSandbox() {
     t("Buat key sandbox (cg_test_…) dan unduh .env sandbox.", "Create a sandbox key (cg_test_…) and download the sandbox .env."),
     t("Jalankan mesin (docker compose up -d), boleh di laptop. Tidak perlu domain/HTTPS.", "Start the engine (docker compose up -d), even on a laptop. No domain/HTTPS needed."),
     t("Scan QR dengan nomor WhatsApp khusus testing (1 nomor).", "Scan the QR with a WhatsApp number reserved for testing (1 number)."),
-    t("Daftarkan 1 nomor uji: kirim WA berisi kode UJI ke nomor sandbox.", "Register 1 test number: send the UJI code over WhatsApp to the sandbox number."),
+    t("Daftarkan 1 nomor penguji: kirim WA berisi kode UJI ke nomor bot.", "Register 1 tester number: send the UJI code over WhatsApp to the bot number."),
     t("Coba kirim pesan, webhook, dan bot AI antara dua nomor itu.", "Try sending messages, webhooks, and the AI bot between those two numbers."),
   ];
   return (
@@ -132,8 +132,8 @@ async function KartuSandbox() {
             </h2>
             <p className="mt-0.5 max-w-2xl text-[13px] text-muted">
               {t(
-                "Coba API dengan WhatsApp asli sebelum production, tanpa menunggu pengajuan disetujui. Sandbox hanya bisa berkomunikasi dengan 1 nomor uji milik Anda.",
-                "Try the API with real WhatsApp before production, without waiting for approval. The sandbox can only talk to 1 test number of yours.",
+                "Coba API dengan WhatsApp asli sebelum production, tanpa menunggu pengajuan disetujui. Sandbox hanya bisa berkomunikasi dengan 1 nomor penguji milik Anda.",
+                "Try the API with real WhatsApp before production, without waiting for approval. The sandbox can only talk to 1 tester number of yours.",
               )}
             </p>
           </div>
@@ -186,7 +186,7 @@ async function KartuSandbox() {
           <div className="min-w-0 space-y-5">
             {sb && (
               <div>
-                <h3 className="text-[13px] font-bold text-muted uppercase">{t("Nomor uji (maks 1)", "Test number (max 1)")}</h3>
+                <h3 className="text-[13px] font-bold text-muted uppercase">{t("Nomor penguji (maks 1)", "Tester number (max 1)")}</h3>
                 {sb.uji_diverifikasi ? (
                   <p className="mt-1.5 flex items-center gap-1.5 text-[14px] font-semibold">
                     <CheckCircle2 className="size-4 text-success" aria-hidden />
@@ -195,7 +195,7 @@ async function KartuSandbox() {
                   </p>
                 ) : (
                   <p className="mt-1.5 text-[13.5px] text-muted">
-                    {kodeMenunggu ? t("Menunggu pesan kode UJI dari HP nomor uji.", "Waiting for the UJI code message from the test phone.") : t("Belum ada. Mesin sandbox belum bisa mengirim pesan ke siapa pun.", "None yet. The sandbox engine can't message anyone yet.")}
+                    {kodeMenunggu ? t("Menunggu pesan kode UJI dari HP penguji.", "Waiting for the UJI code message from the tester's phone.") : t("Belum ada. Mesin sandbox belum bisa mengirim pesan ke siapa pun.", "None yet. The sandbox engine can't message anyone yet.")}
                   </p>
                 )}
                 <p className="mt-1 text-[12.5px] text-muted">

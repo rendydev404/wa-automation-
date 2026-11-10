@@ -5,7 +5,7 @@ import { aman, bukanKonteks, ok, otorisasi } from "@/lib/mesin/api";
 import { infoLisensi } from "@/lib/mesin/lisensi";
 import { pemakaianAiHariIni } from "@/lib/mesin/kuota-ai";
 
-/** GET /api/v1/status: versi mesin, mode (sandbox/production), nomor uji, pemakaian AI hari ini, lisensi, jumlah nomor. Tetap menjawab dalam mode terbatas (untuk tahu sebabnya). */
+/** GET /api/v1/status: versi mesin, mode (sandbox/production), nomor penguji, pemakaian AI hari ini, lisensi, jumlah nomor. Tetap menjawab dalam mode terbatas (untuk tahu sebabnya). */
 export async function GET(req: Request) {
   const k = await otorisasi(req, null, { izinkanTerbatas: true });
   if (bukanKonteks(k)) return k;

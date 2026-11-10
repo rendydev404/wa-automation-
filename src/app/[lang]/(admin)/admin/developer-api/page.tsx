@@ -219,7 +219,7 @@ async function Sandbox({ sp }: { sp: SP }) {
       <section className="card max-w-3xl p-4 sm:p-5">
         <h2 className="text-[15px] font-bold">Pengaturan sandbox</h2>
         <p className="text-[12.5px] text-muted">
-          Sandbox = key <code className="font-mono">cg_test_</code> untuk mencoba API dengan WhatsApp asli: langsung aktif tanpa peninjauan, 1 nomor WA, hanya dengan 1 nomor uji
+          Sandbox = key <code className="font-mono">cg_test_</code> untuk mencoba API dengan WhatsApp asli: langsung aktif tanpa peninjauan, 1 nomor WA, hanya dengan 1 nomor penguji
           terverifikasi, dan dibatasi balasan AI per hari. Hanya akun yang punya akses portal.
         </p>
         <div className="mt-4">
@@ -258,7 +258,7 @@ async function Sandbox({ sp }: { sp: SP }) {
                           )}
                         </span>
                         <span className="mt-0.5 block text-[12.5px] text-muted">
-                          Nomor uji {s.uji_diverifikasi ? (s.uji_telepon ? samarkanNomor(s.uji_telepon) : "terverifikasi (LID)") : "belum ada"} · limit AI{" "}
+                          Nomor penguji {s.uji_diverifikasi ? (s.uji_telepon ? samarkanNomor(s.uji_telepon) : "terverifikasi (LID)") : "belum ada"} · limit AI{" "}
                           {s.ai_khusus > 0 ? `${s.ai_khusus.toLocaleString("id-ID")} (khusus)` : `${umum.ai_hari.toLocaleString("id-ID")} (bawaan)`}/hari
                         </span>
                       </span>

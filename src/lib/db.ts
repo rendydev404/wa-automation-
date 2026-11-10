@@ -835,7 +835,7 @@ const KUNCI_MIGRASI = 7272740001;
  */
 const KOLOM_PASTI: readonly { tabel: string; kolom: string; sql: string }[] = [
   // Mode sandbox Developer API (docs/plans/2026-11-10-sandbox-developer-api.md). Pusat: sandbox = baris api_aplikasi
-  // mode 'sandbox' (maks 1 per akun) + SATU nomor uji terverifikasi; instalasi sandbox tanpa alamat publik. Mesin:
+  // mode 'sandbox' (maks 1 per akun) + SATU nomor penguji terverifikasi; instalasi sandbox tanpa alamat publik. Mesin:
   // penghitung balasan AI per hari WIB (batas.ai_hari). Default konstan = ADD COLUMN tanpa menulis ulang tabel.
   {
     tabel: "api_aplikasi",

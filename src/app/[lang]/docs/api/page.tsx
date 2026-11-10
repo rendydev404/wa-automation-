@@ -206,8 +206,8 @@ function webhookSah(body, header, rahasia) {
               <li>{t("Tidak perlu domain/HTTPS: ALAMAT_PUBLIK boleh kosong, mesin bisa jalan di laptop.", "No domain/HTTPS needed: ALAMAT_PUBLIK can be empty, so the engine can run on a laptop.")}</li>
               <li>{t("1 nomor WhatsApp per mesin sandbox.", "1 WhatsApp number per sandbox engine.")}</li>
               <li>
-                {t("Hanya 1 nomor uji. Mesin hanya boleh mengirim ke nomor itu (", "Only 1 test number. The engine may only send to that number (")}
-                <code>403 bukan_nomor_uji</code>
+                {t("Hanya 1 nomor penguji. Mesin hanya boleh mengirim ke nomor itu (", "Only 1 tester number. The engine may only send to that number (")}
+                <code>403 bukan_nomor_penguji</code>
                 {t("), dan chat dari nomor lain diabaikan: tidak dicatat, tanpa webhook, bot diam.", "); chats from any other number are ignored: not stored, no webhook, the bot stays silent.")}
               </li>
               <li>
@@ -224,11 +224,11 @@ function webhookSah(body, header, rahasia) {
                 {t(", lalu scan QR (GET /nomor/{id}/qr) dengan nomor WA khusus testing.", ", then scan the QR (GET /nomor/{id}/qr) with a WhatsApp number reserved for testing.")}
               </li>
               <li>
-                {t("Portal → Daftarkan nomor uji → dari HP nomor uji kirim WA ", "Portal → Register test number → from the test phone send the WhatsApp message ")}
+                {t("Portal → Daftarkan nomor penguji → dari HP penguji kirim WA ", "Portal → Register tester number → from the tester's phone send the WhatsApp message ")}
                 <code>UJI 482913</code>
-                {t(" (kode Anda) ke nomor sandbox. Nomor sandbox membalas ✅.", " (your code) to the sandbox number. The sandbox number replies ✅.")}
+                {t(" (kode Anda) ke nomor bot. Nomor bot membalas ✅.", " (your code) to the bot number. The bot number replies ✅.")}
               </li>
-              <li>{t("Coba kirim pesan ke nomor uji, chat dari HP uji (webhook pesan.masuk + bot AI), dan fitur lain.", "Try sending to the test number, chatting from the test phone (pesan.masuk webhook + AI bot), and other features.")}</li>
+              <li>{t("Coba kirim pesan ke nomor penguji, chat dari HP penguji (webhook pesan.masuk + bot AI), dan fitur lain.", "Try sending to the tester number, chatting from the tester's phone (pesan.masuk webhook + AI bot), and other features.")}</li>
               <li>
                 {t("Siap? Ajukan production di portal. Setelah disetujui, ganti CHATGERCEP_KEY ke ", "Ready? Apply for production in the portal. Once approved, switch CHATGERCEP_KEY to ")}
                 <code>cg_live_…</code>
@@ -240,7 +240,7 @@ function webhookSah(body, header, rahasia) {
               <code>X-ChatGerCep-Mode: sandbox</code>
               {t(", amplop webhook berisi ", ", webhook envelopes include ")}
               <code>&quot;mode&quot;: &quot;sandbox&quot;</code>
-              {t(", dan GET /status menampilkan mode, nomor uji, serta pemakaian AI hari ini. Sandbox tidak diperpanjang lewat webhook: setelah perpanjang di portal, klik Perbarui lisensi di dashboard mesin atau nyalakan ulang mesin.", ", and GET /status shows the mode, test number, and today's AI usage. The sandbox isn't renewed via webhook: after extending in the portal, click Refresh license in the engine dashboard or restart the engine.")}
+              {t(", dan GET /status menampilkan mode, nomor penguji, serta pemakaian AI hari ini. Sandbox tidak diperpanjang lewat webhook: setelah perpanjang di portal, klik Perbarui lisensi di dashboard mesin atau nyalakan ulang mesin.", ", and GET /status shows the mode, tester number, and today's AI usage. The sandbox isn't renewed via webhook: after extending in the portal, click Refresh license in the engine dashboard or restart the engine.")}
             </p>
           </Bagian>
 

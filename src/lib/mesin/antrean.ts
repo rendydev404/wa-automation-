@@ -24,7 +24,7 @@ const MIME_GAMBAR = new Set(["image/jpeg", "image/png", "image/webp"]);
 const UMUR_ANTRE_MAKS = 24 * 3600;
 
 export class AntreanError extends Error {
-  kode: "isian_tidak_sah" | "ditolak_anti_blokir" | "tidak_ditemukan" | "bukan_nomor_uji" | "nomor_uji_belum_ada";
+  kode: "isian_tidak_sah" | "ditolak_anti_blokir" | "tidak_ditemukan" | "bukan_nomor_penguji" | "nomor_penguji_belum_ada";
   constructor(kode: AntreanError["kode"], pesan: string) {
     super(pesan);
     this.kode = kode;
@@ -67,10 +67,10 @@ export async function masukkanPesan(i: IsianPesan): Promise<PesanKeluar> {
     gambar = { data, mime, caption };
   }
   if (!teks && !gambar) throw new AntreanError("isian_tidak_sah", "Isi `teks` atau `gambar`.");
-  // Sandbox: hanya boleh mengirim ke SATU nomor uji yang sudah diverifikasi (cek memori, tanpa query).
+  // Sandbox: hanya boleh mengirim ke SATU nomor penguji yang sudah diverifikasi (cek memori, tanpa query).
   if (sandboxAktif()) {
-    if (!nomorUji()) throw new AntreanError("nomor_uji_belum_ada", "Sandbox: daftarkan nomor uji dulu di portal Developer (kirim WA berisi UJI <kode> ke nomor sandbox).");
-    if (!tujuanNomorUji(ke)) throw new AntreanError("bukan_nomor_uji", "Sandbox hanya boleh mengirim ke nomor uji yang terverifikasi.");
+    if (!nomorUji()) throw new AntreanError("nomor_penguji_belum_ada", "Sandbox: daftarkan nomor penguji dulu di portal Developer (kirim WA berisi UJI <kode> ke nomor bot).");
+    if (!tujuanNomorUji(ke)) throw new AntreanError("bukan_nomor_penguji", "Sandbox hanya boleh mengirim ke nomor penguji yang terverifikasi.");
   }
   const batas = lisensiSekarang()?.batas;
   const maksBaru = batas?.kontak_baru_hari ?? 50;

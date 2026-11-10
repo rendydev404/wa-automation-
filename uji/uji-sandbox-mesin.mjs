@@ -1,5 +1,5 @@
-// Uji mesin self-host dalam mode sandbox (key cg_test_): aktivasi tanpa ALAMAT_PUBLIK, gerbang SATU nomor uji (kirim,
-// pesan masuk, bot, webhook, cek kontak), verifikasi nomor uji lewat pesan WA "UJI <kode>", limit balasan AI per hari
+// Uji mesin self-host dalam mode sandbox (key cg_test_): aktivasi tanpa ALAMAT_PUBLIK, gerbang SATU nomor penguji (kirim,
+// pesan masuk, bot, webhook, cek kontak), verifikasi nomor penguji lewat pesan WA "UJI <kode>", limit balasan AI per hari
 // (atomik, dikembalikan saat AI gagal, pemberitahuan sekali), header & amplop sandbox, sandbox > 1 nomor, dan ganti key
 // sandbox -> production tanpa memutus WhatsApp.
 // Asli: kode src/lib & route src/app/api/v1/**, PostgreSQL 15. Tiruan: pusat, soket WhatsApp, server AI, penerima webhook.
@@ -290,7 +290,7 @@ const jumlahChat = async (telepon) =>
 // =====================================================================================
 bagian("A. Aktivasi sandbox tanpa alamat publik");
 process.env.CHATGERCEP_KEY = KT.key;
-await cek("key cg_test_ tanpa ALAMAT_PUBLIK: aktivasi berhasil, lisensi v2 sandbox, nomor uji belum ada", async () => {
+await cek("key cg_test_ tanpa ALAMAT_PUBLIK: aktivasi berhasil, lisensi v2 sandbox, nomor penguji belum ada", async () => {
   await ML.sinkronSekali();
   assert.equal(ML.sandboxAktif(), true);
   const akt = pusat.panggil.find((p) => p.url === "/api/lisensi/aktivasi");
@@ -304,7 +304,7 @@ await cek("key cg_test_ tanpa ALAMAT_PUBLIK: aktivasi berhasil, lisensi v2 sandb
 const { n: N, s: SK } = await nomorTerhubung("Nomor Sandbox", "628999000999");
 await tambahDokumen({ numberId: N.id, judul: "Info", sumber: "teks", teks: "Toko Sandbox buka pukul 09.00 sampai 21.00 setiap hari." });
 
-await cek("API: header X-ChatGerCep-Mode sandbox; GET /status berisi mode, nomor uji, pemakaian AI; key live di mesin sandbox = 401", async () => {
+await cek("API: header X-ChatGerCep-Mode sandbox; GET /status berisi mode, nomor penguji, pemakaian AI; key live di mesin sandbox = 401", async () => {
   const r = await json(await rute.status.GET(minta("/status")));
   assert.equal(r.status, 200);
   assert.equal(r.h.get("x-chatgercep-mode"), "sandbox");
@@ -330,11 +330,11 @@ await cek("PUT /webhook di laptop (http://127.0.0.1) diterima; webhook uji memba
   assert.equal(diterimaWh.at(-1).mode, "sandbox");
 });
 
-bagian("B. Gerbang nomor uji");
-await cek("belum ada nomor uji: POST /pesan = 409 nomor_uji_belum_ada", async () => {
+bagian("B. Gerbang nomor penguji");
+await cek("belum ada nomor penguji: POST /pesan = 409 nomor_penguji_belum_ada", async () => {
   const r = await json(await rute.pesan.POST(minta("/pesan", { metode: "POST", body: { nomor_id: N.id, ke: UJI_TEL, teks: "halo" } })));
   assert.equal(r.status, 409);
-  assert.equal(r.j.galat.kode, "nomor_uji_belum_ada");
+  assert.equal(r.j.galat.kode, "nomor_penguji_belum_ada");
 });
 
 await cek("chat dari nomor asing diabaikan seluruhnya: tidak dicatat, tanpa webhook, AI tidak dipanggil, tidak dibalas", async () => {
@@ -350,7 +350,7 @@ await cek("chat dari nomor asing diabaikan seluruhnya: tidak dicatat, tanpa webh
   assert.equal(SK.terkirim.length, awalKirim);
 });
 
-await cek("\"UJI <kode salah>\" dari nomor mana pun: diteruskan ke pusat, dibalas sekali per 10 menit, nomor tetap bukan nomor uji", async () => {
+await cek("\"UJI <kode salah>\" dari nomor mana pun: diteruskan ke pusat, dibalas sekali per 10 menit, nomor tetap bukan nomor penguji", async () => {
   const awal = SK.terkirim.length;
   pesanDari(SK, ASING_TEL, "UJI 111111");
   await tunggu(() => SK.terkirim.length > awal, 4000, "balasan kode salah");
@@ -361,7 +361,7 @@ await cek("\"UJI <kode salah>\" dari nomor mana pun: diteruskan ke pusat, dibala
   assert.equal(ML.nomorUji(), null);
 });
 
-await cek("\"UJI <kode benar>\" dari HP uji: lisensi baru berisi nomor uji, mesin membalas ✅, portal-nya jadi terverifikasi", async () => {
+await cek("\"UJI <kode benar>\" dari HP penguji: lisensi baru berisi nomor penguji, mesin membalas ✅, portal-nya jadi terverifikasi", async () => {
   const awal = SK.terkirim.length;
   pesanDari(SK, UJI_TEL, `UJI ${KODE}`);
   await tunggu(() => SK.terkirim.length > awal, 4000, "balasan verifikasi");
@@ -374,24 +374,24 @@ await cek("\"UJI <kode benar>\" dari HP uji: lisensi baru berisi nomor uji, mesi
   assert.equal(await jumlahChat(UJI_TEL), 0); // pesan kode tidak masuk histori
 });
 
-await cek("POST /pesan ke nomor uji = 202 dan terkirim; ke nomor lain = 403 bukan_nomor_uji", async () => {
+await cek("POST /pesan ke nomor penguji = 202 dan terkirim; ke nomor lain = 403 bukan_nomor_penguji", async () => {
   const ok = await json(await rute.pesan.POST(minta("/pesan", { metode: "POST", body: { nomor_id: N.id, ke: "0833-3000-333", teks: "Halo dari sandbox" } })));
   assert.equal(ok.status, 202);
   await tunggu(() => SK.terkirim.some((x) => x.isi.text === "Halo dari sandbox"), 3000, "pesan API terkirim");
   const tolak = await json(await rute.pesan.POST(minta("/pesan", { metode: "POST", body: { nomor_id: N.id, ke: ASING_TEL, teks: "spam" } })));
   assert.equal(tolak.status, 403);
-  assert.equal(tolak.j.galat.kode, "bukan_nomor_uji");
+  assert.equal(tolak.j.galat.kode, "bukan_nomor_penguji");
 });
 
-await cek("kontak/cek di sandbox hanya untuk nomor uji", async () => {
+await cek("kontak/cek di sandbox hanya untuk nomor penguji", async () => {
   const ok = await json(await rute.kontakCek.POST(minta("/kontak/cek", { metode: "POST", body: { nomor_id: N.id, nomor: [UJI_TEL] } })));
   assert.equal(ok.status, 200);
   const tolak = await json(await rute.kontakCek.POST(minta("/kontak/cek", { metode: "POST", body: { nomor_id: N.id, nomor: [UJI_TEL, ASING_TEL] } })));
   assert.equal(tolak.status, 403);
-  assert.equal(tolak.j.galat.kode, "bukan_nomor_uji");
+  assert.equal(tolak.j.galat.kode, "bukan_nomor_penguji");
 });
 
-await cek("chat dari nomor uji: dicatat, webhook pesan.masuk (mode sandbox), bot AI menjawab ke HP uji", async () => {
+await cek("chat dari nomor penguji: dicatat, webhook pesan.masuk (mode sandbox), bot AI menjawab ke HP penguji", async () => {
   const awalWh = diterimaWh.length;
   const awal = SK.terkirim.length;
   pesanDari(SK, UJI_TEL, "jam buka?");
@@ -438,7 +438,7 @@ await cek("POST /ai/jawab dihitung; habis = 429 batas_ai_harian tanpa memanggil 
   assert.equal(aiDipanggil, awalAi);
 });
 
-await cek("bot WA saat limit habis: diam, pesan tetap tercatat, nomor uji diberi tahu SEKALI per hari", async () => {
+await cek("bot WA saat limit habis: diam, pesan tetap tercatat, nomor penguji diberi tahu SEKALI per hari", async () => {
   const awal = SK.terkirim.length;
   const awalAi = aiDipanggil;
   const chatAwal = await jumlahChat(UJI_TEL);
@@ -508,7 +508,7 @@ await cek("ganti CHATGERCEP_KEY sandbox -> production: instalasi baru, gerbang h
   assert.equal((await rute.status.GET(minta("/status", { key: KT.key }))).status, 401); // key sandbox tidak berlaku lagi
 });
 
-await cek("gerbang & penghitung: cek nomor uji di memori ≤ 0,01 ms; ambil jatah AI p95 ≤ 2 ms", async () => {
+await cek("gerbang & penghitung: cek nomor penguji di memori ≤ 0,01 ms; ambil jatah AI p95 ≤ 2 ms", async () => {
   process.env.CHATGERCEP_KEY = KT.key;
   delete process.env.ALAMAT_PUBLIK;
   await ML.sinkronSekali();
@@ -524,7 +524,7 @@ await cek("gerbang & penghitung: cek nomor uji di memori ≤ 0,01 ms; ambil jata
   }
   w.sort((a, b) => a - b);
   const p95 = w[Math.floor(w.length * 0.95)];
-  console.log(`      gerbang nomor uji: ${(gerbang * 1000).toFixed(2)} µs/cek · ambil jatah AI: p50 ${w[100].toFixed(2)} ms, p95 ${p95.toFixed(2)} ms`);
+  console.log(`      gerbang nomor penguji: ${(gerbang * 1000).toFixed(2)} µs/cek · ambil jatah AI: p50 ${w[100].toFixed(2)} ms, p95 ${p95.toFixed(2)} ms`);
   assert.ok(gerbang < 0.01);
   assert.ok(p95 < 2);
 });
