@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import LinkNiat from "@/components/link-niat";
 import { Banknote, CheckCircle2, Clock, Package, Settings2, Share2, Users, Wallet, XCircle } from "lucide-react";
 import { labelKomisiPaket, namaBankTampil, ringkasanAfiliasiAdmin } from "@/lib/afiliasi";
 import { angka, waktuSingkatWib } from "@/lib/format";
@@ -120,9 +121,9 @@ async function IsiAdminAfiliasi() {
                     </p>
                     <p className="mt-0.5 text-[12.5px] text-muted">
                       Mitra:{" "}
-                      <Link href={`/admin/pengguna/${p.afiliator_id}`} data-analitik="Buka pengguna" className="font-semibold text-fg hover:underline">
+                      <LinkNiat href={`/admin/pengguna/${p.afiliator_id}`} data-analitik="Buka pengguna" className="font-semibold text-fg hover:underline">
                         {p.afiliator_nama || p.afiliator_email}
-                      </Link>{" "}
+                      </LinkNiat>{" "}
                       ({p.afiliator_email} · kode <code className="font-mono">{p.afiliator_kode}</code>) · Diajukan{" "}
                       {waktuSingkatWib(p.dibuat)}
                     </p>
@@ -188,9 +189,9 @@ async function IsiAdminAfiliasi() {
                 <li key={a.user_id} className="space-y-2 px-4 py-3.5 text-[13px]">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <Link href={`/admin/pengguna/${a.user_id}`} data-analitik="Buka pengguna" className="block truncate font-semibold hover:underline">
+                      <LinkNiat href={`/admin/pengguna/${a.user_id}`} data-analitik="Buka pengguna" className="block truncate font-semibold hover:underline">
                         {a.nama || a.email}
-                      </Link>
+                      </LinkNiat>
                       <span className="block text-[12px] text-muted [overflow-wrap:anywhere]">
                         {a.email} · kode <code className="font-mono font-semibold text-fg">{a.kode}</code>
                       </span>
@@ -235,9 +236,9 @@ async function IsiAdminAfiliasi() {
                   return (
                     <tr key={a.user_id} className="transition-colors hover:bg-subtle/40">
                       <td className="px-5 py-3">
-                        <Link href={`/admin/pengguna/${a.user_id}`} data-analitik="Buka pengguna" className="font-semibold hover:underline">
+                        <LinkNiat href={`/admin/pengguna/${a.user_id}`} data-analitik="Buka pengguna" className="font-semibold hover:underline">
                           {a.nama || a.email}
-                        </Link>
+                        </LinkNiat>
                         <span className="block text-[12px] text-muted">
                           {a.email} · kode <code className="font-mono font-semibold text-fg">{a.kode}</code>
                         </span>
@@ -288,9 +289,9 @@ async function IsiAdminAfiliasi() {
                 <li key={k.id} className="flex items-center justify-between gap-3 px-5 py-3 text-[13px]">
                   <div className="min-w-0">
                     <p className="truncate font-semibold">
-                      <Link href={`/admin/pengguna/${k.afiliator_id}`} data-analitik="Buka pengguna" className="hover:underline">
+                      <LinkNiat href={`/admin/pengguna/${k.afiliator_id}`} data-analitik="Buka pengguna" className="hover:underline">
                         {k.afiliator_email}
-                      </Link>{" "}
+                      </LinkNiat>{" "}
                       (<code className="font-mono text-[12px]">{k.afiliator_kode}</code>)
                     </p>
                     <p className="truncate text-[12px] text-muted">
@@ -322,9 +323,9 @@ async function IsiAdminAfiliasi() {
                     <div className="min-w-0 [overflow-wrap:anywhere]">
                       <p className="font-bold tabular-nums">
                         Rp{angka(p.nominal)} ·{" "}
-                        <Link href={`/admin/pengguna/${p.afiliator_id}`} data-analitik="Buka pengguna" className="font-semibold hover:underline">
+                        <LinkNiat href={`/admin/pengguna/${p.afiliator_id}`} data-analitik="Buka pengguna" className="font-semibold hover:underline">
                           {p.afiliator_email}
-                        </Link>
+                        </LinkNiat>
                       </p>
                       <p className="text-[12px] text-faint">
                         {namaBankTampil(p.bank_nama)} {p.bank_nomor} a.n. {p.bank_pemilik}

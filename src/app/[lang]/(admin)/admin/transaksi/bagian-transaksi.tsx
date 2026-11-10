@@ -1,4 +1,5 @@
 import Link from "next/link";
+import LinkNiat from "@/components/link-niat";
 import { sekarang } from "@/lib/db";
 import { ArrowDownRight, ArrowUpRight, ChevronRight, Clock, Download, Receipt, Search, Users, Wallet } from "lucide-react";
 import { LencanaPaket } from "@/components/lencana-paket";
@@ -143,7 +144,7 @@ export async function DaftarTransaksi({ searchParams }: { searchParams: Promise<
               Terapkan
             </button>
             {adaSaring && (
-              <Link href={opsi.status === "semua" ? "/admin/transaksi" : `/admin/transaksi?s=${opsi.status}`} className="btn btn-ghost border border-line">
+              <Link prefetch={false} href={opsi.status === "semua" ? "/admin/transaksi" : `/admin/transaksi?s=${opsi.status}`} className="btn btn-ghost border border-line">
                 Reset
               </Link>
             )}
@@ -154,6 +155,7 @@ export async function DaftarTransaksi({ searchParams }: { searchParams: Promise<
             <Link
               key={f.nilai}
               data-analitik={`Saring status: ${f.label}`}
+              prefetch={false}
               href={tautan({ s: f.nilai === "semua" ? undefined : f.nilai, sebelum: undefined })}
               aria-current={opsi.status === f.nilai ? "page" : undefined}
               className={`inline-flex min-h-9 shrink-0 items-center rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${opsi.status === f.nilai ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
@@ -175,12 +177,12 @@ export async function DaftarTransaksi({ searchParams }: { searchParams: Promise<
               <li key={t.id} className="px-4 py-3.5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <Link href={`/admin/transaksi/${encodeURIComponent(t.order_id)}`} data-analitik="Buka transaksi" className="block truncate font-mono text-[12.5px] font-semibold hover:underline">
+                    <LinkNiat href={`/admin/transaksi/${encodeURIComponent(t.order_id)}`} data-analitik="Buka transaksi" className="block truncate font-mono text-[12.5px] font-semibold hover:underline">
                       {t.order_id}
-                    </Link>
-                    <Link href={`/admin/pengguna/${t.user_id}`} data-analitik="Buka pengguna" className="block truncate text-[13px] text-muted hover:underline">
+                    </LinkNiat>
+                    <LinkNiat href={`/admin/pengguna/${t.user_id}`} data-analitik="Buka pengguna" className="block truncate text-[13px] text-muted hover:underline">
                       {t.nama_user || t.email} · {t.email}
-                    </Link>
+                    </LinkNiat>
                   </div>
                   <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${STATUS_TRX[t.status]?.kelas ?? ""}`}>{STATUS_TRX[t.status]?.label ?? t.status}</span>
                 </div>
@@ -214,17 +216,17 @@ export async function DaftarTransaksi({ searchParams }: { searchParams: Promise<
                   <tr key={t.id} className="align-top transition-colors hover:bg-subtle/50">
                     <td className="px-5 py-3">
                       <span className="flex items-center gap-1">
-                        <Link href={`/admin/transaksi/${encodeURIComponent(t.order_id)}`} data-analitik="Buka transaksi" className="font-mono text-[12.5px] font-semibold hover:underline">
+                        <LinkNiat href={`/admin/transaksi/${encodeURIComponent(t.order_id)}`} data-analitik="Buka transaksi" className="font-mono text-[12.5px] font-semibold hover:underline">
                           {t.order_id}
-                        </Link>
+                        </LinkNiat>
                         <TombolSalin teks={t.order_id} />
                       </span>
                       <span className="text-[11.5px] text-faint">#{t.id}</span>
                     </td>
                     <td className="max-w-[220px] px-3 py-3">
-                      <Link href={`/admin/pengguna/${t.user_id}`} data-analitik="Buka pengguna" className="block truncate font-semibold hover:underline">
+                      <LinkNiat href={`/admin/pengguna/${t.user_id}`} data-analitik="Buka pengguna" className="block truncate font-semibold hover:underline">
                         {t.nama_user || "(tanpa nama)"}
-                      </Link>
+                      </LinkNiat>
                       <span className="block truncate text-muted">{t.email}</span>
                     </td>
                     <td className="px-3 py-3">
@@ -248,14 +250,14 @@ export async function DaftarTransaksi({ searchParams }: { searchParams: Promise<
                       <span className="block text-[11.5px] text-faint">{t.dibayar ? `Dibayar ${waktuSingkatWib(t.dibayar, kini)}` : t.status === "menunggu" && t.kedaluwarsa ? `Batas ${waktuSingkatWib(t.kedaluwarsa, kini)}` : "—"}</span>
                     </td>
                     <td className="px-5 py-3 text-right">
-                      <Link
+                      <LinkNiat
                         href={`/admin/transaksi/${encodeURIComponent(t.order_id)}`}
                         data-analitik="Detail transaksi"
                         aria-label={`Detail ${t.order_id}`}
                         className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-2.5 text-[12px] font-semibold text-muted transition-colors hover:border-line-strong hover:bg-surface hover:text-fg"
                       >
                         Detail <ChevronRight className="size-3.5" aria-hidden />
-                      </Link>
+                      </LinkNiat>
                     </td>
                   </tr>
                 ))}
@@ -271,11 +273,11 @@ export async function DaftarTransaksi({ searchParams }: { searchParams: Promise<
         </p>
         {(adaLagi || sebelum) && (
           <div className="flex gap-2">
-            <Link href={tautan({ sebelum: undefined })} className="btn btn-ghost border border-line">
+            <Link prefetch={false} href={tautan({ sebelum: undefined })} className="btn btn-ghost border border-line">
               Ke awal
             </Link>
             {adaLagi && (
-              <Link href={tautan({ sebelum: `${daftar[daftar.length - 1].dibuat}.${daftar[daftar.length - 1].id}` })} className="btn btn-ghost border border-line">
+              <Link prefetch={false} href={tautan({ sebelum: `${daftar[daftar.length - 1].dibuat}.${daftar[daftar.length - 1].id}` })} className="btn btn-ghost border border-line">
                 Berikutnya
               </Link>
             )}

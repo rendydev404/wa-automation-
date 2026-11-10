@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { ChevronRight, Inbox } from "lucide-react";
 import Link from "@/components/link";
+import LinkNiat from "@/components/link-niat";
 import { Pill } from "@/components/ui";
 import { FITUR_API, type FiturApi, LABEL_STATUS_APLIKASI, labelFitur } from "@/lib/api-def";
 import { ENDPOINT_DOK } from "@/lib/api-dok";
@@ -65,12 +66,16 @@ async function Panel({ searchParams }: { searchParams: Promise<SP> }) {
   ];
   return (
     <>
+      {/* Tautan yang hanya mengganti parameter URL di halaman yang sama (tab, saring, halaman) memakai prefetch={false}:
+          dengan partialPrefetching, App Shell hasil prefetch dipakai tanpa meminta isi dinamis, jadi URL berganti tetapi
+          isinya tidak pernah diperbarui (diukur lewat docs/serah-terima-skrip/ukur-navigasi.mjs, DIAG_TAB=1). */}
       <nav aria-label="Bagian Developer API" className="-mx-4 flex gap-1 overflow-x-auto border-b border-line px-4 sm:mx-0 sm:px-0">
         {TAB.map((t) => {
           const aktif = t.nilai === tab;
           return (
             <Link
               key={t.nilai}
+              prefetch={false}
               href={t.nilai === "aplikasi" ? "/admin/developer-api" : `/admin/developer-api?tab=${t.nilai}`}
               aria-current={aktif ? "page" : undefined}
               className={`relative -mb-px inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-[13.5px] font-semibold transition-colors ${aktif ? "border-accent text-fg" : "border-transparent text-muted hover:text-fg"}`}
@@ -123,6 +128,7 @@ async function Aplikasi({ sp, jumlah }: { sp: SP; jumlah: Record<FilterAplikasi,
           {FILTER.map((f) => (
             <Link
               key={f.nilai}
+              prefetch={false}
               href={tautan({ f: f.nilai === "menunggu" ? undefined : f.nilai })}
               aria-current={filter === f.nilai ? "page" : undefined}
               className={`inline-flex shrink-0 items-center rounded-md px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${filter === f.nilai ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
@@ -141,7 +147,7 @@ async function Aplikasi({ sp, jumlah }: { sp: SP; jumlah: Record<FilterAplikasi,
             const fitur = (aktif ? a.fitur : a.fitur_diminta).map(labelFitur).join(", ") || "-";
             return (
               <li key={a.id}>
-                <Link href={`/admin/developer-api/${a.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-subtle/50 sm:px-5">
+                <LinkNiat href={`/admin/developer-api/${a.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-subtle/50 sm:px-5">
                   <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-ink text-[14px] font-bold text-ink-signal uppercase">{a.nama.charAt(0)}</span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
@@ -157,7 +163,7 @@ async function Aplikasi({ sp, jumlah }: { sp: SP; jumlah: Record<FilterAplikasi,
                   <span className="hidden w-20 text-[11.5px] font-bold text-muted uppercase lg:block">{aktif ? biayaEfektif(a, umum) : ""}</span>
                   <span className="hidden w-24 text-right text-[12px] text-faint tabular-nums sm:block">{tanggal(a.created_at)}</span>
                   <ChevronRight className="size-4 shrink-0 text-faint" aria-hidden />
-                </Link>
+                </LinkNiat>
               </li>
             );
           })}
@@ -173,12 +179,12 @@ async function Aplikasi({ sp, jumlah }: { sp: SP; jumlah: Record<FilterAplikasi,
       {(adaLagi || sp.setelah) && (
         <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-2.5 sm:px-5">
           {sp.setelah && (
-            <Link href={tautan({})} className="btn btn-ghost border border-line">
+            <Link prefetch={false} href={tautan({})} className="btn btn-ghost border border-line">
               Ke awal
             </Link>
           )}
           {adaLagi && terakhir && (
-            <Link href={tautan({ setelah: String(terakhir.id) })} className="btn btn-ghost border border-line">
+            <Link prefetch={false} href={tautan({ setelah: String(terakhir.id) })} className="btn btn-ghost border border-line">
               Berikutnya
             </Link>
           )}
@@ -204,7 +210,7 @@ async function Pengaturan() {
       <h2 className="text-[15px] font-bold">Pengaturan umum</h2>
       <p className="text-[12.5px] text-muted">
         Biaya bawaan untuk semua aplikasi; pengaturan per aplikasi mengalahkannya. Fitur yang dibagikan diatur di tab{" "}
-        <Link href="/admin/developer-api?tab=fitur" className="font-semibold text-accent hover:underline">
+        <Link prefetch={false} href="/admin/developer-api?tab=fitur" className="font-semibold text-accent hover:underline">
           Fitur
         </Link>
         .

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import LinkNiat from "@/components/link-niat";
 import { AlertTriangle, ArrowDown, Bot, CheckCircle2, ChevronRight, Info, Package, ShieldCheck, Sparkles, UserPlus, Wallet } from "lucide-react";
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna, hitungPaketPengguna, hitungPengguna } from "@/lib/pengguna";
@@ -431,6 +432,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
             <Link
               key={f.nilai}
               data-analitik={`Saring pengguna: ${f.label}`}
+              prefetch={false}
               href={tautan({ f: f.nilai === "semua" ? undefined : f.nilai })}
               aria-current={filter === f.nilai ? "page" : undefined}
               className={`inline-flex min-h-9 shrink-0 items-center rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${filter === f.nilai ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg"}`}
@@ -445,7 +447,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
       <ul data-analitik-privat className="divide-y divide-line sm:hidden">
         {daftar.map((u) => (
           <li key={u.id} className="flex items-center gap-2 px-4 py-3">
-            <Link href={`/admin/pengguna/${u.id}`} data-analitik="Buka pengguna" className="flex min-w-0 flex-1 items-center gap-3">
+            <LinkNiat href={`/admin/pengguna/${u.id}`} data-analitik="Buka pengguna" className="flex min-w-0 flex-1 items-center gap-3">
               <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-ink text-[13px] font-bold text-ink-signal uppercase">{(u.nama || u.email).charAt(0)}</span>
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 items-center gap-1.5">
@@ -465,7 +467,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
                 </span>
               </span>
               <ChevronRight className="size-4 shrink-0 text-faint" aria-hidden />
-            </Link>
+            </LinkNiat>
             {u.id !== admin.id && !(u.peran === "admin" && admin.peran !== "admin") && <TombolHapusPengguna id={u.id} nama={u.nama} email={u.email} jumlahNomor={u.jumlah_nomor} mode="baris" />}
           </li>
         ))}
@@ -487,7 +489,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
             {daftar.map((u) => (
               <tr key={u.id} className="group transition-colors hover:bg-subtle/50">
                 <td className="px-5 py-3">
-                  <Link href={`/admin/pengguna/${u.id}`} data-analitik="Buka pengguna" className="flex items-center gap-3">
+                  <LinkNiat href={`/admin/pengguna/${u.id}`} data-analitik="Buka pengguna" className="flex items-center gap-3">
                     <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-ink text-[12px] font-bold text-ink-signal uppercase">{(u.nama || u.email).charAt(0)}</span>
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">
@@ -499,7 +501,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
                       </span>
                       <span className="block truncate text-muted">{u.email}</span>
                     </span>
-                  </Link>
+                  </LinkNiat>
                 </td>
                 <td className="px-3 py-3">
                   {u.status === "aktif" ? (
@@ -526,7 +528,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
                 <td className="px-5 py-3 text-right">
                   <div className="inline-flex items-center justify-end gap-1.5">
                     {u.id !== admin.id && !(u.peran === "admin" && admin.peran !== "admin") && <TombolHapusPengguna id={u.id} nama={u.nama} email={u.email} jumlahNomor={u.jumlah_nomor} mode="baris" />}
-                    <Link
+                    <LinkNiat
                       href={`/admin/pengguna/${u.id}`}
                       data-analitik="Kelola pengguna"
                       aria-label={`Kelola ${u.email}`}
@@ -534,7 +536,7 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
                     >
                       <span>Kelola</span>
                       <ChevronRight className="size-3.5" aria-hidden />
-                    </Link>
+                    </LinkNiat>
                   </div>
                 </td>
               </tr>
@@ -558,11 +560,11 @@ export async function TabelPengguna({ searchParams }: { searchParams: Promise<Re
         </p>
         {(adaLagi || sp.sebelum) && (
           <div className="flex gap-2">
-            <Link href={tautan({})} className="btn btn-ghost border border-line">
+            <Link prefetch={false} href={tautan({})} className="btn btn-ghost border border-line">
               Ke awal
             </Link>
             {adaLagi && (
-              <Link href={tautan({ sebelum: String(daftar[daftar.length - 1].id) })} className="btn btn-ghost border border-line">
+              <Link prefetch={false} href={tautan({ sebelum: String(daftar[daftar.length - 1].id) })} className="btn btn-ghost border border-line">
                 Berikutnya
               </Link>
             )}

@@ -1,6 +1,7 @@
 import { Fragment, Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import LinkNiat from "@/components/link-niat";
 import { CheckCheck, MessageCircleWarning, ShieldCheck } from "lucide-react";
 import { formatNomor, waktuSingkatWib } from "@/lib/format";
 import { daftarFollowup, statusMesinFollowup } from "@/lib/followup";
@@ -126,9 +127,9 @@ async function Riwayat({ searchParams }: { searchParams: Promise<Record<string, 
               <li key={b.user_id} className="space-y-2.5 px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <Link href={`/admin/pengguna/${b.user_id}`} data-analitik="Buka pengguna" className="block truncate text-[13.5px] font-semibold hover:text-accent hover:underline">
+                    <LinkNiat href={`/admin/pengguna/${b.user_id}`} data-analitik="Buka pengguna" className="block truncate text-[13.5px] font-semibold hover:text-accent hover:underline">
                       {b.nama_akun || "(tanpa nama)"}
-                    </Link>
+                    </LinkNiat>
                     <span className="block truncate text-[12.5px] text-muted">{b.email}</span>
                   </div>
                   <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold whitespace-nowrap ${NADA[b.status]}`}>{LABEL_STATUS[b.status]}</span>
@@ -185,9 +186,9 @@ async function Riwayat({ searchParams }: { searchParams: Promise<Record<string, 
                   <Fragment key={b.user_id}>
                     <tr className="align-top">
                       <td className="max-w-[240px] px-5 py-3">
-                        <Link href={`/admin/pengguna/${b.user_id}`} data-analitik="Buka pengguna" className="block truncate font-semibold hover:text-accent hover:underline">
+                        <LinkNiat href={`/admin/pengguna/${b.user_id}`} data-analitik="Buka pengguna" className="block truncate font-semibold hover:text-accent hover:underline">
                           {b.nama_akun || "(tanpa nama)"}
-                        </Link>
+                        </LinkNiat>
                         <span className="block truncate text-muted">{b.email}</span>
                       </td>
                       <td className="px-3 py-3">
@@ -252,6 +253,7 @@ const ubahPesan = (b: BarisFollowup): 1 | 2 | null => (b.status === "antre" && b
 function Saring({ href, aktif, label }: { href: string; aktif: boolean; label: string }) {
   return (
     <Link
+      prefetch={false}
       href={href}
       aria-current={aktif ? "page" : undefined}
       className={`shrink-0 rounded-lg border px-3 py-1.5 text-[12px] font-semibold whitespace-nowrap transition-colors ${aktif ? "border-accent bg-accent-soft text-accent" : "border-line text-muted hover:bg-subtle hover:text-fg"}`}

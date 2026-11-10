@@ -815,6 +815,14 @@ const MIGRASI: string[] = [
   ALTER TABLE users ADD COLUMN akses_api boolean NOT NULL DEFAULT false;
   CREATE INDEX users_akses_api_idx ON users (id) WHERE akses_api;
   `,
+  // v35: rentang waktu lintas semua nomor di ai_pakai (biaya AI 60 hari di Ringkasan admin, pemakaian 7 hari di Mesin AI)
+  //   sebelumnya memindai seluruh tabel (indeks yang ada diawali number_id). Baris ditulis saat balasan dibuat (waktu =
+  //   sekarang), jadi urutan fisik mengikuti waktu: BRIN cukup (puluhan KB untuk jutaan baris, dibuat dengan sekali
+  //   pindai, hampir tanpa biaya tulis) dan hanya membaca blok rentang yang diminta. Diukur pada 302 ribu baris 180 hari
+  //   (docs/serah-terima-skrip/profil-query.mjs): lihat ringkasan perubahan performa.
+  `
+  CREATE INDEX ai_pakai_waktu_brin ON ai_pakai USING brin (waktu) WITH (pages_per_range = 32);
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;
