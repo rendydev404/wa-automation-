@@ -4,14 +4,14 @@ import { IMAGE_MESIN } from "./templat-mesin";
 
 /**
  * Pusat: info rilis mesin yang ditumpangkan ke setiap lisensi (sandbox & production).
- *   - terbaru: tag semver tertinggi image di GHCR (publik, tanpa login), di-cache 30 menit di memori. Rilis baru cukup
+ *   - terbaru: tag semver tertinggi image di GHCR (publik, tanpa login), di-cache 5 menit di memori. Rilis baru cukup
  *     push tag `mesin-vX.Y.Z`; begitu image terbit, pusat mengetahuinya sendiri.
  *   - minimal & tenggat: .env pusat MESIN_VERSI_MINIMAL=1.0.3 dan MESIN_WAJIB_SAMPAI=2026-11-20 (tanggal atau detik epoch).
  *   - catatan: .env MESIN_CATATAN_RILIS (opsional).
  * Uji (LISENSI_MODE_UJI=1) tidak pernah menghubungi GHCR: pakai MESIN_RILIS_TERBARU bila diisi.
  */
 
-const CACHE_MS = 30 * 60_000;
+const CACHE_MS = 5 * 60_000;
 const g = globalThis as unknown as { __waRilisMesin?: { nilai: string | null; sampai: number; janji: Promise<string | null> | null } };
 const st = (g.__waRilisMesin ??= { nilai: null, sampai: 0, janji: null });
 
@@ -33,7 +33,7 @@ async function ambilDariGhcr(): Promise<string | null> {
   return Array.isArray(j.tags) ? versiTertinggi(j.tags.filter((t): t is string => typeof t === "string")) : null;
 }
 
-/** Versi image terbaru (cache 30 mnt; gagal = nilai terakhir yang diketahui, tidak pernah melempar). */
+/** Versi image terbaru (cache 5 mnt; gagal = nilai terakhir yang diketahui, tidak pernah melempar). */
 export async function versiMesinTerbaru(): Promise<string | null> {
   const paksa = process.env.MESIN_RILIS_TERBARU?.trim();
   if (paksa !== undefined && paksa !== "") return versiSah(paksa) ? paksa.replace(/^v/, "") : null;
