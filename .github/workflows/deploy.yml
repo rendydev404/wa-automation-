@@ -129,7 +129,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        jalur: [alur, tolok, fitur]
+        jalur: [alur-1, alur-2, alur-3, followup, tolok, fitur]
     # Push baru saat masih tahap ini langsung membatalkan proses commit lama yang usang (job deploy tidak).
     concurrency:
       group: ci-uji-${{ matrix.jalur }}-${{ github.ref }}

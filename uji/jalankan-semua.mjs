@@ -12,6 +12,11 @@ import { mulaiPg } from "./pg-lokal.mjs";
 const JALUR = {
   // Alur WhatsApp <-> AI (termasuk follow-up nomor CS): sebagian besar menunggu timer jembatan (dipercepat lewat WA_SKALA_WAKTU).
   alur: { berkas: ["uji/uji-alur.mjs", "uji/uji-followup.mjs"], sekaligus: 2 },
+  // CI: uji-alur dibagi 3 mesin per bagian (UJI_BAGIAN, seimbang menurut waktu) + follow-up sendiri. Tidak ikut tanpa --jalur.
+  "alur-1": { berkas: ["uji/uji-alur.mjs"], env: { UJI_BAGIAN: "B,C,D2,D3,D4,D5" }, sekaligus: 1, ci: true },
+  "alur-2": { berkas: ["uji/uji-alur.mjs"], env: { UJI_BAGIAN: "D,E" }, sekaligus: 1, ci: true },
+  "alur-3": { berkas: ["uji/uji-alur.mjs"], env: { UJI_BAGIAN: "D6,F,G" }, sekaligus: 1, ci: true },
+  followup: { berkas: ["uji/uji-followup.mjs"], sekaligus: 1, ci: true },
   // Tolok ukur latensi ketat (< 20 ms di uji-data, < 15 ms di uji-pengguna): berurutan, tidak berebut CPU sesamanya.
   tolok: { berkas: ["uji/uji-data.mjs", "uji/uji-pengguna.mjs"], sekaligus: 1 },
   // Kebenaran fitur tanpa tolok ukur waktu: boleh berjalan bersamaan.
@@ -26,7 +31,7 @@ const pilihan = (process.argv.find((a) => a.startsWith("--jalur="))?.slice(8) ??
   .map((s) => s.trim())
   .filter(Boolean);
 for (const p of pilihan) if (!JALUR[p]) throw new Error(`jalur tidak dikenal: ${p} (pilihan: ${Object.keys(JALUR).join(", ")})`);
-const dipakai = pilihan.length ? pilihan : Object.keys(JALUR);
+const dipakai = pilihan.length ? pilihan : Object.keys(JALUR).filter((j) => !JALUR[j].ci);
 const TOTAL_BERKAS = dipakai.reduce((n, j) => n + JALUR[j].berkas.length, 0);
 
 const t0 = performance.now();
@@ -38,12 +43,12 @@ await tpl.berhentiSementara();
 
 let gagal = false;
 
-function jalankanSatu(berkas) {
+function jalankanSatu(berkas, envTambahan = {}) {
   return new Promise((resolve) => {
     const mulai = performance.now();
     const out = [];
     const proc = spawn(process.execPath, ["--no-warnings", "--import", "./uji/loader.mjs", berkas], {
-      env: { ...process.env, WA_PG_TEMPLATE: tplDir },
+      env: { ...process.env, ...envTambahan, WA_PG_TEMPLATE: tplDir },
       stdio: ["ignore", "pipe", "pipe"],
     });
     proc.stdout.on("data", (b) => out.push(String(b)));
@@ -60,10 +65,10 @@ function jalankanSatu(berkas) {
 }
 
 /** Satu jalur: berkasnya diambil bergiliran oleh `sekaligus` pekerja. Ada yang gagal = berkas berikutnya tidak dimulai. */
-async function jalankanJalur({ berkas, sekaligus }) {
+async function jalankanJalur({ berkas, sekaligus, env }) {
   const antre = [...berkas];
   const pekerja = async () => {
-    for (let b = antre.shift(); b && !gagal; b = antre.shift()) await jalankanSatu(b);
+    for (let b = antre.shift(); b && !gagal; b = antre.shift()) await jalankanSatu(b, env);
   };
   await Promise.all(Array.from({ length: Math.min(sekaligus, antre.length) }, pekerja));
 }

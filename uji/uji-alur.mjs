@@ -14,7 +14,7 @@ import { pathToFileURL } from "node:url";
 import { mulaiPg } from "./pg-lokal.mjs";
 
 const akar = process.cwd();
-const tmp = path.join(os.tmpdir(), "wa-uji-alur");
+const tmp = path.join(os.tmpdir(), `wa-uji-alur-${process.pid}`); // unik per proses: potongan UJI_BAGIAN boleh jalan bersamaan
 rmSync(tmp, { recursive: true, force: true });
 mkdirSync(tmp, { recursive: true });
 const pg = await mulaiPg({ dir: path.join(tmp, "pg"), sementara: true });
@@ -184,7 +184,13 @@ globalThis.__waGerbang.lib = Promise.resolve({
 // ---------- alat bantu ----------
 let lolos = 0;
 const gagalList = [];
+// Pembagian (shard) untuk CI: UJI_BAGIAN="B,C,D2" = hanya bagian itu yang diuji (bagian A selalu, karena menyiapkan
+// nomor yang dipakai bagian lain). Kosong = semua bagian. Kode di luar cek() tetap jalan, jadi persiapan antarbagian sama.
+const BAGIAN_DIPILIH = (process.env.UJI_BAGIAN ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+let bagianKini = "";
+let dilewati = 0;
 async function cek(nama, fn) {
+  if (BAGIAN_DIPILIH.length && bagianKini !== "A" && !BAGIAN_DIPILIH.includes(bagianKini)) return void (dilewati += 1);
   const t0 = performance.now();
   try {
     await fn();
@@ -195,7 +201,10 @@ async function cek(nama, fn) {
     console.log(`  GAGAL ${nama}\n        ${String(e?.message ?? e).split("\n").slice(0, 6).join("\n        ")}`);
   }
 }
-const bagian = (j) => console.log(`\n== ${j} ==`);
+const bagian = (j) => {
+  bagianKini = j.split(".")[0];
+  if (!BAGIAN_DIPILIH.length || bagianKini === "A" || BAGIAN_DIPILIH.includes(bagianKini)) console.log(`\n== ${j} ==`);
+};
 /** Jumlah baris sesi login di database, setelah tulis yang masih antre selesai. */
 const auth = async (sesi) => (await tungguTulis(sesi), (await sql`SELECT COUNT(*) AS n FROM wa_auth WHERE sesi = ${sesi}`)[0].n);
 /** Statistik di database, setelah tulis latar jembatan tuntas. */
@@ -1893,7 +1902,7 @@ await cek("database sempat tidak terjangkau saat server mulai: gerbang mencoba l
 });
 
 await bridge.tulisTuntas();
-console.log(`\n${gagalList.length ? "ADA YANG GAGAL" : "SEMUA LOLOS"}: ${lolos} lolos, ${gagalList.length} gagal, ${((Date.now() - mulaiSemua) / 1000).toFixed(0)} dtk`);
+console.log(`\n${gagalList.length ? "ADA YANG GAGAL" : "SEMUA LOLOS"}: ${lolos} lolos, ${gagalList.length} gagal, ${dilewati ? `${dilewati} di bagian lain (UJI_BAGIAN=${BAGIAN_DIPILIH.join(",")}), ` : ""}${((Date.now() - mulaiSemua) / 1000).toFixed(0)} dtk`);
 if (gagalList.length) console.log("Gagal:\n- " + gagalList.join("\n- "));
 server.close();
 for (const s of globalThis.__waGerbang.sesi.values()) if (s.timer) clearTimeout(s.timer);
