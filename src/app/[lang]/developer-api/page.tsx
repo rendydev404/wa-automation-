@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowRight, ArrowUpRight, BookOpen, Bot, Boxes, FileText, FlaskConical, KeyRound, Lock, Server, ShieldCheck, Smartphone, Webhook } from "lucide-react";
 import Link from "@/components/link";
-import { Logo, PATH_TANDA } from "@/components/logo";
+import { Logo } from "@/components/logo";
 import { FITUR_API } from "@/lib/api-def";
 import { bahasaHalaman, teksHalaman } from "@/lib/bahasa-halaman";
 import { pembuatT } from "@/lib/bahasa";
 import { MEREK, NOMOR_WA_DEMO, PERUSAHAAN } from "@/lib/merek";
 import { modeMesin } from "@/lib/mode";
 import { type ContohKode, DemoApi, PemicuMuncul, SalinPerintah, Sorot } from "./klien";
+import { Kubus3D } from "./kubus-3d";
 import "./lp-dev.css";
 
 /**
@@ -160,28 +161,12 @@ Http::withToken(env('CHATGERCEP_KEY'))
               <SalinPerintah teks="docker compose up -d" label={t("Salin perintah", "Copy command")} />
             </div>
           </div>
-          <div className="ld-panggung relative flex h-[300px] items-center justify-center sm:h-[400px] lg:h-[520px]" aria-hidden>
-            <div className="ld-kubus">
-              {Array.from({ length: 6 }, (_, s) => (
-                <div key={s} className="ld-sisi">
-                  {Array.from({ length: 9 }, (_, i) => {
-                    const tanda = (s === 0 || s === 2) && i === 4;
-                    const hijau = !tanda && (s * 9 + i) % 7 === 3;
-                    return (
-                      <div key={i} className={`ld-ubin ${tanda ? "tanda" : hijau ? "hijau" : ""}`} style={hijau ? { animationDelay: `${((s * 9 + i) % 5) * 0.7}s` } : undefined}>
-                        {tanda && (
-                          <svg viewBox="0 0 100 100" className="size-[62%] text-[#3ddc97]">
-                            <path d={PATH_TANDA} fill="currentColor" />
-                            <circle cx="94.76" cy="75.68" r="4.68" fill="currentColor" />
-                          </svg>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-            <div className="ld-bayang" />
+          <div className="relative h-[340px] sm:h-[440px] lg:h-[560px]">
+            <Kubus3D label={t("Kubus 3D interaktif: tarik untuk memutar, klik untuk memutar satu lapisan", "Interactive 3D cube: drag to spin, click to twist a layer")} />
+            <div aria-hidden className="ld-bayang" />
+            <p aria-hidden className="pointer-events-none absolute inset-x-0 bottom-2 text-center font-mono text-[11px] text-[#5f7a6e]">
+              {t("tarik untuk memutar · klik untuk memutar lapisan", "drag to spin · click to twist a layer")}
+            </p>
           </div>
         </div>
         <svg aria-hidden viewBox="0 0 1440 220" preserveAspectRatio="none" className="ld-garis-cahaya pointer-events-none absolute inset-x-0 bottom-0 h-[160px] w-full">

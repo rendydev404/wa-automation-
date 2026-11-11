@@ -57,82 +57,15 @@
   }
 }
 
-/* Kubus 3D dari ubin kaca gelap (ala objek 3D Resend). */
-.ld-panggung {
-  perspective: 1100px;
-}
-.ld-kubus {
-  --s: 250px;
-  position: relative;
-  width: var(--s);
-  height: var(--s);
-  transform-style: preserve-3d;
-  animation: ld-putar 28s linear infinite;
-}
-@media (max-width: 640px) {
-  .ld-kubus {
-    --s: 168px;
-  }
-}
-@keyframes ld-putar {
-  from {
-    transform: rotateX(-22deg) rotateY(0deg);
-  }
-  to {
-    transform: rotateX(-22deg) rotateY(360deg);
-  }
-}
-.ld-sisi {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 5px;
-  padding: 5px;
-  backface-visibility: visible;
-}
-.ld-sisi:nth-child(1) { transform: rotateY(0deg) translateZ(calc(var(--s) / 2)); }
-.ld-sisi:nth-child(2) { transform: rotateY(90deg) translateZ(calc(var(--s) / 2)); }
-.ld-sisi:nth-child(3) { transform: rotateY(180deg) translateZ(calc(var(--s) / 2)); }
-.ld-sisi:nth-child(4) { transform: rotateY(-90deg) translateZ(calc(var(--s) / 2)); }
-.ld-sisi:nth-child(5) { transform: rotateX(90deg) translateZ(calc(var(--s) / 2)); }
-.ld-sisi:nth-child(6) { transform: rotateX(-90deg) translateZ(calc(var(--s) / 2)); }
-.ld-ubin {
-  position: relative;
-  border-radius: 9px;
-  background: linear-gradient(150deg, #1d3229 0%, #0d1a15 55%, #08110d 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.09),
-    inset 0 0 0 1px rgba(232, 240, 236, 0.06);
-}
-.ld-ubin::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.025) 0 2px, transparent 2px 5px);
-}
-.ld-ubin.hijau {
-  background: radial-gradient(circle at 35% 30%, rgba(61, 220, 151, 0.55), rgba(15, 122, 92, 0.35) 45%, #0b1813 80%);
-  animation: ld-denyut-ubin 4s ease-in-out infinite;
-}
-.ld-ubin.tanda {
-  display: grid;
-  place-items: center;
-  background: radial-gradient(circle at 50% 40%, #12382b, #08110d 75%);
-}
-.ld-ubin.tanda svg {
-  filter: drop-shadow(0 0 10px rgba(61, 220, 151, 0.7));
-}
-@keyframes ld-denyut-ubin {
-  50% {
-    filter: brightness(1.45);
-  }
+/* Kubus 3D WebGL (kubus-3d.tsx): kanvas mengisi wadah; pemilihan teks dimatikan supaya tarik-putar mulus. */
+.ld-kubus3d {
+  user-select: none;
+  -webkit-user-select: none;
 }
 .ld-bayang {
   position: absolute;
   left: 50%;
-  bottom: -70px;
+  bottom: 4%;
   width: 340px;
   height: 60px;
   transform: translateX(-50%);
