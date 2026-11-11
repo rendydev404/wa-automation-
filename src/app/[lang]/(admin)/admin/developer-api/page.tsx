@@ -1,19 +1,32 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { ChevronRight, Inbox } from "lucide-react";
+import { ArrowLeft, ChevronRight, Inbox } from "lucide-react";
 import Link from "@/components/link";
 import LinkNiat from "@/components/link-niat";
 import { Pill } from "@/components/ui";
 import { FITUR_API, type FiturApi, LABEL_STATUS_APLIKASI, labelFitur, samarkanNomor } from "@/lib/api-def";
 import { ENDPOINT_DOK } from "@/lib/api-dok";
-import { type FilterAplikasi, biayaEfektif, cariAkunAkses, daftarAplikasi, daftarSandbox, hitungAplikasi, pemakaianFitur, pengaturanApi, pengaturanSandbox } from "@/lib/developer-api";
+import {
+  type FilterAplikasi,
+  akunFitur,
+  biayaEfektif,
+  cariAkunAkses,
+  daftarAplikasi,
+  daftarFiturKhusus,
+  daftarSandbox,
+  hitungAplikasi,
+  pemakaianFitur,
+  pengaturanApi,
+  pengaturanSandbox,
+} from "@/lib/developer-api";
 import { sekarang } from "@/lib/db";
 import { jamWib, tanggal } from "@/lib/format";
 import { modeMesin } from "@/lib/mode";
 import { requireDeveloper } from "@/lib/session";
 import { AksesPengguna } from "./akses-pengguna";
 import { CariLangsung } from "./cari-langsung";
-import { type EndpointRingkas, FormFiturGlobal } from "./fitur-global";
+import { type EndpointRingkas, FormFiturGlobal, LingkupFitur } from "./fitur-global";
+import { type BarisPenggunaFitur, PilihPenggunaFitur } from "./pilih-pengguna-fitur";
 import { FormPengaturanApi, FormStatus } from "./form-developer-api";
 import { FormFiturSandbox, FormPengaturanSandbox, FormUbahSandbox } from "./sandbox-panel";
 import { NADA_STATUS } from "./umum";
@@ -94,7 +107,7 @@ async function Panel({ searchParams }: { searchParams: Promise<SP> }) {
         })}
       </nav>
       {tab === "fitur" ? (
-        <Fitur dibagikan={umum.fitur} />
+        <Fitur sp={sp} global={umum.fitur} />
       ) : tab === "akses" ? (
         <AksesPengguna awal={akses.daftar} jumlahAwal={akses.jumlahAkses} />
       ) : tab === "pengaturan" ? (
@@ -277,7 +290,7 @@ async function Sandbox({ sp }: { sp: SP }) {
                         <>
                           <FormUbahSandbox id={s.id} hari={umum.hari} />
                           <FormStatus id={s.id} status={s.status === "ditangguhkan" ? "ditangguhkan" : "disetujui"} />
-                          <FormFiturSandbox id={s.id} khusus={s.fitur_khusus} fitur={s.fitur} global={api.fitur} />
+                          <FormFiturSandbox id={s.id} khusus={s.fitur_khusus} fitur={s.fitur} global={s.api_fitur ?? api.fitur} />
                         </>
                       )}
                     </div>
@@ -315,9 +328,60 @@ async function Sandbox({ sp }: { sp: SP }) {
 const ENDPOINT_PER_FITUR: Record<string, EndpointRingkas[]> = {};
 for (const e of ENDPOINT_DOK) if (e.fitur) (ENDPOINT_PER_FITUR[e.fitur] ??= []).push({ metode: e.metode, jalur: e.jalur });
 
-async function Fitur({ dibagikan }: { dibagikan: FiturApi[] }) {
-  const pemakaian = await pemakaianFitur();
-  return <FormFiturGlobal dibagikan={dibagikan} pemakaian={pemakaian} endpoint={ENDPOINT_PER_FITUR} />;
+/**
+ * Tab Fitur: lingkup Global (daftar untuk semua akun) atau Per pengguna (daftar khusus satu akun yang menggantikan
+ * global). Per pengguna tanpa `u` = pemilih akun; dengan `u` = form centang akun itu.
+ */
+async function Fitur({ sp, global }: { sp: SP; global: FiturApi[] }) {
+  const lingkup = sp.lingkup === "pengguna" ? "pengguna" : "global";
+  const uid = Number(sp.u);
+  const [khusus, pemakaian, akun, akses] = await Promise.all([
+    daftarFiturKhusus(),
+    lingkup === "global" ? pemakaianFitur() : Promise.resolve({}),
+    lingkup === "pengguna" && Number.isInteger(uid) && uid > 0 ? akunFitur(uid) : Promise.resolve(undefined),
+    lingkup === "pengguna" && !sp.u ? cariAkunAkses({ hanyaAkses: true }) : Promise.resolve(null),
+  ]);
+  let isi: React.ReactNode;
+  if (lingkup === "global") {
+    isi = <FormFiturGlobal dibagikan={global} pemakaian={pemakaian} endpoint={ENDPOINT_PER_FITUR} />;
+  } else if (sp.u) {
+    isi = (
+      <div className="space-y-3">
+        <Link prefetch={false} href="/admin/developer-api?tab=fitur&lingkup=pengguna" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-muted hover:text-fg">
+          <ArrowLeft className="size-4" aria-hidden />
+          Semua pengguna
+        </Link>
+        {akun ? (
+          <FormFiturGlobal
+            key={akun.id}
+            dibagikan={akun.fitur ?? global}
+            pemakaian={{}}
+            endpoint={ENDPOINT_PER_FITUR}
+            pengguna={{ id: akun.id, email: akun.email, nama: akun.nama, akses_api: akun.akses_api, khusus: akun.fitur !== null, global }}
+          />
+        ) : (
+          <p className="card px-5 py-10 text-center text-[13px] text-muted">Akun tidak ditemukan.</p>
+        )}
+      </div>
+    );
+  } else {
+    // Akun yang diatur khusus dulu, lalu akun dengan akses portal yang belum ada di daftar itu.
+    const awal: BarisPenggunaFitur[] = khusus.daftar.map((k) => ({ id: k.id, email: k.email, nama: k.nama, akses_api: true, fitur_khusus: k.fitur.length }));
+    const ada = new Set(awal.map((a) => a.id));
+    for (const a of akses?.daftar ?? []) {
+      if (ada.has(a.id)) {
+        const x = awal.find((b) => b.id === a.id)!;
+        x.akses_api = a.akses_api;
+      } else awal.push({ id: a.id, email: a.email, nama: a.nama, akses_api: a.akses_api, fitur_khusus: a.fitur_khusus });
+    }
+    isi = <PilihPenggunaFitur awal={awal} total={FITUR_API.length} global={global.length} />;
+  }
+  return (
+    <div className="space-y-4">
+      <LingkupFitur lingkup={lingkup} jumlahKhusus={khusus.jumlah} />
+      {isi}
+    </div>
+  );
 }
 
 async function Pengaturan() {

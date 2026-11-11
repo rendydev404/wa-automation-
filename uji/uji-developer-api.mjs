@@ -438,6 +438,31 @@ await cek("fitur dibagikan: hanya yang dicentang bisa diajukan & dibuka; pemakai
   await D.simpanFiturGlobal(DV, (await lib("src/lib/api-def.ts")).KODE_FITUR);
 });
 
+await cek("fitur per pengguna: akun khusus bisa mengajukan & dibuka fitur di luar global; akun lain tetap ikut global", async () => {
+  const [d] = await sql`INSERT INTO users (email, password_hash, peran, nama, created_at, akses_api) VALUES ('dodi@uji.test', 'x', 'user', 'Dodi', 0, true) RETURNING id`;
+  const Dd = { id: d.id, email: "dodi@uji.test", nama: "Dodi", peran: "user" };
+  const [c] = await sql`SELECT id FROM users WHERE email = 'citra@uji.test'`;
+  const C = { id: c.id, email: "citra@uji.test", nama: "Citra", peran: "user" };
+  await D.simpanFiturGlobal(DV, ["nomor", "ai"]);
+  await D.simpanFiturPengguna(DV, Dd.id, ["nomor", "statistik"]);
+  // Dodi: statistik (di luar global) bisa, ai (global tapi ditutup untuknya) dibuang.
+  const id = await D.ajukan(Dd, isian({ fitur: ["statistik", "ai", "nomor"] }));
+  const [a] = await sql`SELECT fitur_diminta FROM api_aplikasi WHERE id = ${id}`;
+  assert.deepEqual(a.fitur_diminta, ["nomor", "statistik"]);
+  await assert.rejects(D.setujui(DV, id, { fitur: ["ai"], biaya: "gratis", harga_bulan: null, batas: {} }), galat("isian_tidak_sah"));
+  await D.setujui(DV, id, { fitur: ["statistik", "ai"], biaya: "gratis", harga_bulan: null, batas: {} });
+  const [b] = await sql`SELECT fitur FROM api_aplikasi WHERE id = ${id}`;
+  assert.deepEqual(b.fitur, ["statistik"]);
+  // Citra tetap ikut global: statistik tidak bisa diajukan.
+  await assert.rejects(D.ajukan(C, isian({ fitur: ["statistik"] })), galat("isian_tidak_sah"));
+  // Webhook lisensi dijadwalkan ulang hanya untuk aplikasi akun yang diubah (satu query, tanpa memindai semua).
+  const t0 = performance.now();
+  await D.simpanFiturPengguna(DV, Dd.id, null);
+  console.log(`      simpanFiturPengguna: ${(performance.now() - t0).toFixed(1)} ms`);
+  assert.deepEqual(await D.fiturUntuk(Dd.id), { fitur: ["nomor", "ai"], khusus: false });
+  await D.simpanFiturGlobal(DV, (await lib("src/lib/api-def.ts")).KODE_FITUR);
+});
+
 server.close();
 await sql.end();
 await pg.berhenti();

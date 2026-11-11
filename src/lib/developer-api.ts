@@ -136,6 +136,70 @@ export async function pemakaianFitur(): Promise<Record<string, number>> {
   return Object.fromEntries(baris.map((b) => [b.f, b.n]));
 }
 
+// ---------- Fitur per pengguna ----------
+
+/** Daftar fitur khusus satu akun (kolom users.api_fitur) → fitur sah; null = ikut daftar global. */
+const fiturKhususSah = (x: readonly string[] | null | undefined): FiturApi[] | null => (x ? KODE_FITUR.filter((k) => x.includes(k)) : null);
+
+/**
+ * Fitur yang dibagikan untuk satu akun: daftar khusus akun itu bila diatur (bisa lebih banyak atau lebih sedikit dari
+ * global), selain itu daftar global. Satu query PK.
+ */
+export async function fiturUntuk(userId: number, umum?: PengaturanApi): Promise<{ fitur: FiturApi[]; khusus: boolean }> {
+  const sql = await db();
+  const [[u], g] = await Promise.all([sql<{ api_fitur: string[] | null }[]>`SELECT api_fitur FROM users WHERE id = ${userId}`, umum ?? pengaturanApi()]);
+  const k = fiturKhususSah(u?.api_fitur);
+  return k ? { fitur: k, khusus: true } : { fitur: g.fitur, khusus: false };
+}
+
+export interface AkunFiturKhusus {
+  id: number;
+  email: string;
+  nama: string;
+  fitur: FiturApi[];
+}
+
+/** Akun yang fiturnya diatur khusus (indeks parsial users_api_fitur_idx). */
+export async function daftarFiturKhusus(batas = 100): Promise<{ daftar: AkunFiturKhusus[]; jumlah: number }> {
+  const sql = await db();
+  const [baris, [{ n }]] = await Promise.all([
+    sql<(Omit<AkunFiturKhusus, "fitur"> & { api_fitur: string[] })[]>`
+      SELECT id, email, nama, api_fitur FROM users WHERE api_fitur IS NOT NULL ORDER BY id DESC LIMIT ${Math.min(Math.max(batas, 1), 200)}`,
+    sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM users WHERE api_fitur IS NOT NULL`,
+  ]);
+  return { daftar: baris.map((b) => ({ id: b.id, email: b.email, nama: b.nama, fitur: fiturKhususSah(b.api_fitur) ?? [] })), jumlah: n };
+}
+
+/** Satu akun untuk form fitur per pengguna. undefined = tidak ada. */
+export async function akunFitur(userId: number): Promise<{ id: number; email: string; nama: string; akses_api: boolean; fitur: FiturApi[] | null } | undefined> {
+  if (!Number.isInteger(userId) || userId <= 0) return undefined;
+  const sql = await db();
+  const [u] = await sql<{ id: number; email: string; nama: string; akses_api: boolean; api_fitur: string[] | null }[]>`
+    SELECT id, email, nama, akses_api, api_fitur FROM users WHERE id = ${userId}`;
+  return u && { id: u.id, email: u.email, nama: u.nama, akses_api: u.akses_api, fitur: fiturKhususSah(u.api_fitur) };
+}
+
+/**
+ * Atur fitur satu akun: null = kembali ikut global; daftar = pengganti global untuk akun ini (boleh membuka fitur yang
+ * tidak dibagikan global, atau menutup sebagian). Lisensi aplikasi produksi akun itu dikirim ulang lewat webhook;
+ * sandbox memakainya saat mesin menyala / Perbarui lisensi. Pilihan per aplikasi tetap tersimpan.
+ */
+export async function simpanFiturPengguna(pelaku: User, userId: number, masukan: readonly string[] | null): Promise<{ email: string; fitur: FiturApi[] | null }> {
+  if (!Number.isInteger(userId) || userId <= 0) throw new ApiError("isian_tidak_sah", "Akun tidak valid.");
+  const fitur = masukan === null ? null : KODE_FITUR.filter((k) => masukan.includes(k));
+  const sql = await db();
+  const [u] = await sql<{ email: string }[]>`UPDATE users SET api_fitur = ${fitur} WHERE id = ${userId} RETURNING email`;
+  if (!u) throw new ApiError("isian_tidak_sah", "Akun tidak ditemukan.");
+  await catatLog(pelaku, "ubah fitur Developer API pengguna", u.email, fitur === null ? "ikut daftar global" : `khusus ${fitur.length}/${KODE_FITUR.length}: ${fitur.join(", ") || "-"}`);
+  await sql`
+    INSERT INTO api_kirim_lisensi (instalasi_id, berikut_pada)
+    SELECT i.id, ${sekarang()} FROM api_instalasi i JOIN api_aplikasi a ON a.id = i.aplikasi_id
+     WHERE a.user_id = ${userId} AND i.dilepas_pada IS NULL AND i.alamat IS NOT NULL AND a.status IN ('disetujui', 'ditangguhkan', 'dicabut')
+    ON CONFLICT (instalasi_id) DO UPDATE SET berikut_pada = EXCLUDED.berikut_pada, coba = 0, galat = NULL`;
+  pantik();
+  return { email: u.email, fitur };
+}
+
 // ---------- Aplikasi ----------
 
 export interface Aplikasi {
@@ -255,8 +319,8 @@ export async function ajukan(user: User, i: IsianPengajuan): Promise<number> {
   const pemilik = bersih(i.pemilik, 120);
   const kontak = String(i.kontak_wa ?? "").replace(/\D/g, "").replace(/^0/, "62").slice(0, 15);
   const perkiraan = String(i.perkiraan_nomor ?? "").trim() === "" ? null : Number(i.perkiraan_nomor);
-  // Hanya fitur yang sedang dibagikan (tab Fitur di panel developer internal) yang bisa diajukan.
-  const dibagikan = (await pengaturanApi()).fitur;
+  // Hanya fitur yang sedang dibagikan untuk akun ini (tab Fitur: global atau khusus per pengguna) yang bisa diajukan.
+  const dibagikan = (await fiturUntuk(user.id)).fitur;
   const fitur = dibagikan.filter((k) => (i.fitur ?? []).includes(k));
   if (nama.length < 3) throw new ApiError("isian_tidak_sah", "Nama aplikasi minimal 3 karakter.");
   if (kegunaan.length < 20) throw new ApiError("isian_tidak_sah", "Ceritakan kegunaan aplikasi minimal 20 karakter.");
@@ -295,6 +359,8 @@ export interface AkunAksesApi {
   nama: string;
   peran: string;
   akses_api: boolean;
+  /** Jumlah fitur khusus per pengguna; null = ikut global. */
+  fitur_khusus: number | null;
 }
 
 export const MAKS_AKSES_API = 200;
@@ -311,7 +377,7 @@ export async function cariAkunAkses(o: { cari?: string; hanyaAkses?: boolean } =
   const sql = await db();
   const [daftar, [{ n }]] = await Promise.all([
     sql<AkunAksesApi[]>`
-      SELECT id, email, nama, peran, akses_api FROM users
+      SELECT id, email, nama, peran, akses_api, cardinality(api_fitur) AS fitur_khusus FROM users
        WHERE (${cari} = '' OR email LIKE ${pola} OR lower(nama) LIKE ${pola})
          AND (${!hanya} OR akses_api)
        ORDER BY akses_api DESC, id DESC
@@ -412,10 +478,15 @@ export interface Keputusan {
   batas: Partial<Record<keyof BatasApi, unknown>>;
 }
 
-async function periksaKeputusan(k: Keputusan): Promise<{ fitur: FiturApi[]; biaya: BiayaAplikasi; harga: number | null; batas: BatasApi }> {
+async function periksaKeputusan(id: number, k: Keputusan): Promise<{ fitur: FiturApi[]; biaya: BiayaAplikasi; harga: number | null; batas: BatasApi }> {
   const umum = await pengaturanApi();
-  const fitur = umum.fitur.filter((f) => k.fitur.includes(f));
-  if (!fitur.length) throw new ApiError("isian_tidak_sah", "Buka minimal satu fitur (yang diizinkan di pengaturan umum).");
+  const sql = await db();
+  const [p] = await sql<{ user_id: number }[]>`SELECT user_id FROM api_aplikasi WHERE id = ${id}`;
+  if (!p) throw new ApiError("tidak_ditemukan", "Aplikasi tidak ditemukan.");
+  // Fitur yang dibagikan untuk pemilik aplikasi (global atau khusus per pengguna).
+  const boleh = (await fiturUntuk(p.user_id, umum)).fitur;
+  const fitur = boleh.filter((f) => k.fitur.includes(f));
+  if (!fitur.length) throw new ApiError("isian_tidak_sah", "Buka minimal satu fitur (yang dibagikan untuk pemilik aplikasi ini).");
   if (!["ikut_umum", "gratis", "berbayar"].includes(k.biaya)) throw new ApiError("isian_tidak_sah", "Pilihan biaya tidak valid.");
   const harga = k.harga_bulan === null || k.harga_bulan === undefined ? null : Number(k.harga_bulan);
   if (harga !== null && !(Number.isInteger(harga) && harga >= 0 && harga <= MAKS_HARGA_API)) throw new ApiError("isian_tidak_sah", "Harga per bulan tidak valid.");
@@ -432,7 +503,7 @@ async function wajibAplikasi(tx: Tx, id: number, mode?: ModeApi): Promise<Aplika
 }
 
 export async function setujui(pelaku: User, id: number, k: Keputusan): Promise<void> {
-  const d = await periksaKeputusan(k);
+  const d = await periksaKeputusan(id, k);
   const a = await transaksi(async (tx) => {
     const a = await wajibAplikasi(tx, id, "produksi");
     if (a.status !== "menunggu" && a.status !== "ditolak") throw new ApiError("isian_tidak_sah", "Aplikasi ini sudah pernah disetujui.");
@@ -471,7 +542,7 @@ export async function tolak(pelaku: User, id: number, alasan: string): Promise<v
 
 /** Ubah fitur/biaya/harga/batas aplikasi yang sudah disetujui; perubahan langsung dikirim ke mesin lewat webhook. */
 export async function ubahAplikasi(pelaku: User, id: number, k: Keputusan): Promise<void> {
-  const d = await periksaKeputusan(k);
+  const d = await periksaKeputusan(id, k);
   const a = await transaksi(async (tx) => {
     const a = await wajibAplikasi(tx, id, "produksi");
     if (a.status === "menunggu" || a.status === "ditolak") throw new ApiError("isian_tidak_sah", "Setujui pengajuan ini dulu.");
@@ -634,15 +705,17 @@ async function terbitkan(instalasiId: string): Promise<{ token: string; isi: Isi
   if (!priv) throw new ApiError("galat_server", "Penerbit lisensi belum dipasang di server (LISENSI_KUNCI_PRIVAT).");
   const sql = await db();
   const umum = await pengaturanApi();
-  const [i] = await sql<(Aplikasi & { alamat: string | null; versi: number })[]>`
+  const [i] = await sql<(Aplikasi & { alamat: string | null; versi: number; api_fitur: string[] | null })[]>`
     WITH naik AS (
       UPDATE api_aplikasi a SET versi_lisensi = a.versi_lisensi + 1
         FROM api_instalasi i WHERE i.id = ${instalasiId}::uuid AND i.dilepas_pada IS NULL AND a.id = i.aplikasi_id
       RETURNING a.*, i.alamat
     )
-    SELECT ${sql.unsafe(KOLOM_APLIKASI)}, a.alamat, a.versi_lisensi AS versi FROM naik a`;
+    SELECT ${sql.unsafe(KOLOM_APLIKASI)}, a.alamat, a.versi_lisensi AS versi, u.api_fitur FROM naik a JOIN users u ON u.id = a.user_id`;
   if (!i) return null;
   const a = rapikan(i);
+  // Fitur yang dibagikan untuk pemilik: daftar khusus per pengguna mengalahkan daftar global.
+  const dibagikan = fiturKhususSah(i.api_fitur) ?? umum.fitur;
   const sb = a.mode === "sandbox";
   const umumSb = sb ? await pengaturanSandbox() : null;
   let status = statusLisensi(a, umum);
@@ -666,8 +739,8 @@ async function terbitkan(instalasiId: string): Promise<{ token: string; isi: Isi
         nama_aplikasi: a.nama,
         id_instalasi: instalasiId,
         status,
-        // Per pengguna: sandbox yang diatur khusus hanya mendapat fitur pilihannya (tetap dibatasi daftar global).
-        fitur: a.fitur_khusus ? umum.fitur.filter((f) => a.fitur.includes(f)) : [...umum.fitur],
+        // Sandbox yang diatur khusus hanya mendapat fitur pilihannya (tetap dibatasi fitur yang dibagikan untuk pemiliknya).
+        fitur: a.fitur_khusus ? dibagikan.filter((f) => a.fitur.includes(f)) : [...dibagikan],
         batas: { ...BATAS_BAWAAN, ...BATAS_TETAP_SANDBOX },
         biaya: "gratis",
         dibayar_sampai: null,
@@ -685,7 +758,7 @@ async function terbitkan(instalasiId: string): Promise<{ token: string; isi: Isi
         nama_aplikasi: a.nama,
         id_instalasi: instalasiId,
         status,
-        fitur: a.fitur.filter((f) => umum.fitur.includes(f)),
+        fitur: a.fitur.filter((f) => dibagikan.includes(f)),
         batas: a.batas,
         biaya: biayaEfektif(a, umum),
         dibayar_sampai: a.dibayar_sampai,
@@ -1185,6 +1258,8 @@ export interface SandboxPanel {
   created_at: number;
   fitur: FiturApi[];
   fitur_khusus: boolean;
+  /** Fitur khusus akun pemilik (tab Fitur per pengguna); null = ikut global. */
+  api_fitur: FiturApi[] | null;
 }
 
 /** Daftar sandbox untuk panel developer internal: indeks parsial api_aplikasi_sandbox_idx, kursor id, tanpa OFFSET. */
@@ -1197,7 +1272,7 @@ export async function daftarSandbox(o: { cari?: string; setelah?: number; batas?
   const [baris, [{ n }]] = await Promise.all([
     sql<SandboxPanel[]>`
       SELECT a.id, a.user_id, u.email, u.nama AS nama_akun, a.status, a.sandbox_sampai, a.uji_telepon, a.uji_alamat, a.uji_diverifikasi,
-             i.terakhir_sukses AS terakhir_menyala, i.versi_mesin, a.created_at, a.fitur, a.fitur_khusus
+             i.terakhir_sukses AS terakhir_menyala, i.versi_mesin, a.created_at, a.fitur, a.fitur_khusus, u.api_fitur
         FROM api_aplikasi a
         JOIN users u ON u.id = a.user_id
         LEFT JOIN LATERAL (
@@ -1208,13 +1283,13 @@ export async function daftarSandbox(o: { cari?: string; setelah?: number; batas?
        ORDER BY a.id DESC LIMIT ${batas + 1}`,
     sql<{ n: number }[]>`SELECT COUNT(*)::int AS n FROM api_aplikasi WHERE mode = 'sandbox'`,
   ]);
-  return { daftar: baris.slice(0, batas), adaLagi: baris.length > batas, jumlah: n };
+  return { daftar: baris.slice(0, batas).map((b) => ({ ...b, api_fitur: fiturKhususSah(b.api_fitur) })), adaLagi: baris.length > batas, jumlah: n };
 }
 
 /** Developer internal: perpanjang masa sandbox satu akun. Berlaku di mesin saat menyala / Perbarui lisensi (tanpa webhook). */
 export async function ubahSandbox(pelaku: User, id: number, u: { perpanjang?: boolean; fitur?: readonly string[] | null }): Promise<void> {
   if (u.fitur !== undefined) {
-    // Per pengguna: null = ikut daftar global; daftar = hanya fitur ini (yang tidak dibagikan global tetap tertutup).
+    // null = ikut fitur yang dibagikan untuk pemiliknya; daftar = hanya fitur ini (yang tidak dibagikan tetap tertutup).
     const fitur = u.fitur === null ? [] : KODE_FITUR.filter((k) => u.fitur!.includes(k));
     const a = await transaksi(async (tx) => {
       const a = await wajibAplikasi(tx, id, "sandbox");

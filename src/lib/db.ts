@@ -866,6 +866,13 @@ const KOLOM_PASTI: readonly { tabel: string; kolom: string; sql: string }[] = [
        WHERE 'bot' = ANY(fitur_diminta);
     `,
   },
+  // Fitur Developer API per pengguna (tab Fitur): NULL = ikut daftar global; daftar = pengganti global untuk akun ini
+  // (bisa menambah atau mengurangi). Indeks parsial hanya memuat segelintir akun yang diatur khusus.
+  {
+    tabel: "users",
+    kolom: "api_fitur",
+    sql: "ALTER TABLE users ADD COLUMN IF NOT EXISTS api_fitur text[]; CREATE INDEX IF NOT EXISTS users_api_fitur_idx ON users (id) WHERE api_fitur IS NOT NULL",
+  },
   // Fitur per pengguna untuk sandbox: false = ikut daftar global; true = hanya `fitur` sandbox ini (tetap dibatasi global).
   { tabel: "api_aplikasi", kolom: "fitur_khusus", sql: "ALTER TABLE api_aplikasi ADD COLUMN IF NOT EXISTS fitur_khusus boolean NOT NULL DEFAULT false" },
   // Nomor bot (WA yang terhubung di mesin) yang dilaporkan mesin saat menyala / nomor terhubung: tampil di portal Developer.

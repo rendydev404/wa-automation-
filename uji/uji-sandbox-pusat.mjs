@@ -261,6 +261,42 @@ await cek("fitur per pengguna: sandbox diatur khusus hanya mendapat fitur piliha
   assert.deepEqual(log.map((r) => r.detail), ["nomor, spam", "ikut daftar global"]);
 });
 
+await cek("fitur per pengguna (tab Fitur): daftar khusus akun menggantikan global (boleh di luar global), sandbox khusus dibatasi daftar akun, kembali ikut global", async () => {
+  const fiturLisensi = async () => L.verifikasiLisensi(await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" })).fitur;
+  const { KODE_FITUR } = await lib("src/lib/api-def.ts");
+  const urut = (x) => KODE_FITUR.filter((k) => x.includes(k));
+  const global = (await D.pengaturanApi()).fitur;
+  await D.simpanFiturGlobal(DV, global.filter((f) => f !== "percakapan"));
+  const g2 = (await D.pengaturanApi()).fitur;
+  assert.ok(!g2.includes("percakapan"));
+  assert.deepEqual(await D.fiturUntuk(budi.id), { fitur: g2, khusus: false });
+  const r = await D.simpanFiturPengguna(DV, budi.id, ["percakapan", "nomor", "tidak-ada"]);
+  assert.deepEqual(r.fitur, urut(["nomor", "percakapan"]));
+  assert.deepEqual(await D.fiturUntuk(budi.id), { fitur: urut(["nomor", "percakapan"]), khusus: true });
+  // Fitur di luar global terbuka untuk akun ini, fitur global lain tertutup.
+  assert.deepEqual(await fiturLisensi(), urut(["nomor", "percakapan"]));
+  // Sandbox yang diatur khusus dibatasi daftar akun (spam tidak ada di daftar akun).
+  await D.ubahSandbox(DV, sb.id, { fitur: ["percakapan", "spam"] });
+  assert.deepEqual(await fiturLisensi(), ["percakapan"]);
+  await D.ubahSandbox(DV, sb.id, { fitur: null });
+  const k = await D.daftarFiturKhusus();
+  assert.equal(k.jumlah, 1);
+  assert.deepEqual(k.daftar.map((x) => [x.id, x.fitur.length]), [[budi.id, 2]]);
+  const cari = await D.cariAkunAkses({ cari: "budi@uji" });
+  assert.equal(cari.daftar.find((x) => x.id === budi.id).fitur_khusus, 2);
+  // Daftar kosong = akun ini tidak mendapat fitur apa pun (beda dengan null = ikut global).
+  await D.simpanFiturPengguna(DV, budi.id, []);
+  assert.deepEqual(await fiturLisensi(), []);
+  await D.simpanFiturPengguna(DV, budi.id, null);
+  assert.deepEqual(await fiturLisensi(), g2);
+  assert.equal((await D.cariAkunAkses({ cari: "budi@uji" })).daftar.find((x) => x.id === budi.id).fitur_khusus, null);
+  await assert.rejects(D.simpanFiturPengguna(DV, 99_999_999, []), galat("isian_tidak_sah"));
+  const log = await sql`SELECT detail FROM admin_log WHERE aksi = 'ubah fitur Developer API pengguna' ORDER BY id`;
+  assert.equal(log.length, 3);
+  assert.equal(log.at(-1).detail, "ikut daftar global");
+  await D.simpanFiturGlobal(DV, global);
+});
+
 await cek("daftar fitur global lama (sebelum bot dipecah): bot yang dibagikan = spam, belajar, ml ikut dibagikan", async () => {
   await sql`DELETE FROM settings WHERE kunci = 'api_fitur_pecah_bot_kenal'`;
   await sql`INSERT INTO settings (kunci, nilai) VALUES ('api_fitur_global', '["nomor","bot"]') ON CONFLICT (kunci) DO UPDATE SET nilai = EXCLUDED.nilai`;

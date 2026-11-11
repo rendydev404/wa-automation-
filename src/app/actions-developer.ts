@@ -19,6 +19,7 @@ import {
   perpanjangSandbox,
   setujui,
   simpanFiturGlobal,
+  simpanFiturPengguna,
   simpanPengaturanApi,
   simpanPengaturanSandbox,
   tolak,
@@ -335,6 +336,24 @@ export async function simpanFiturGlobalAction(_lalu: Hasil | null, form: FormDat
     segarkanPanel();
     catatFitur(pelaku.id, "admin.developer_pengaturan");
     return { ok: true, pesan: `${fitur.length} fitur dibagikan. Lisensi semua mesin aktif diperbarui.` };
+  } catch (e) {
+    return galat(e);
+  }
+}
+
+/** Fitur per pengguna (tab Fitur → Per pengguna): mode "global" = ikut daftar global, "khusus" = daftar centang. */
+export async function simpanFiturPenggunaAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const m = await tolakMesin();
+  if (m) return m;
+  const pelaku = await requireDeveloper();
+  const id = idSah(form.get("user_id"));
+  if (!id) return { ok: false, pesan: "Akun tidak valid." };
+  const ikutGlobal = form.get("mode") === "global";
+  try {
+    const r = await simpanFiturPengguna(pelaku, id, ikutGlobal ? null : form.getAll("fitur").map(String).filter(fiturSah));
+    segarkanPanel();
+    catatFitur(pelaku.id, "admin.developer_pengaturan");
+    return { ok: true, pesan: r.fitur === null ? `${r.email} kembali mengikuti fitur global.` : `${r.fitur.length} fitur khusus untuk ${r.email} disimpan. Lisensi mesinnya diperbarui.` };
   } catch (e) {
     return galat(e);
   }

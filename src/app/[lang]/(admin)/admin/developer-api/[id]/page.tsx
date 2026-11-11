@@ -5,7 +5,7 @@ import Link from "@/components/link";
 import { Pill } from "@/components/ui";
 import { LABEL_STATUS_APLIKASI, labelFitur } from "@/lib/api-def";
 import { sekarang } from "@/lib/db";
-import { aplikasiById, biayaEfektif, daftarInstalasi, daftarKunci, hargaEfektif, pengaturanApi, statusLisensi } from "@/lib/developer-api";
+import { aplikasiById, biayaEfektif, daftarInstalasi, daftarKunci, fiturUntuk, hargaEfektif, pengaturanApi, statusLisensi } from "@/lib/developer-api";
 import { angka, formatNomor, tanggal, waktuSingkatWib } from "@/lib/format";
 import { sembunyikanKunci } from "@/lib/lisensi-def";
 import { modeMesin } from "@/lib/mode";
@@ -47,7 +47,8 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   const a = await aplikasiById(id);
   if (!a || a.mode === "sandbox") notFound(); // sandbox dikelola di kartu Sandbox / tab Sandbox
   const aktif = a.status === "disetujui" || a.status === "ditangguhkan";
-  const [umum, kunci, instalasi] = await Promise.all([pengaturanApi(), aktif || a.status === "dicabut" ? daftarKunci(a.id) : [], aktif ? daftarInstalasi(a.id) : []]);
+  const umum = await pengaturanApi();
+  const [kunci, instalasi, dibagikan] = await Promise.all([aktif || a.status === "dicabut" ? daftarKunci(a.id) : [], aktif ? daftarInstalasi(a.id) : [], fiturUntuk(a.user_id, umum)]);
   const kini = sekarang();
   const lisensi = statusLisensi(a, umum, kini);
   const biaya = biayaEfektif(a, umum);
@@ -103,7 +104,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               <h2 className="text-[15px] font-bold">{a.status === "ditolak" ? "Setujui ulang" : "Setujui pengajuan"}</h2>
               <p className="mt-0.5 text-[13px] text-muted">Pilih fitur yang dibuka, biaya, dan batas. Developer lalu membuat API key sendiri di portalnya.</p>
               <div className="mt-5">
-                <FormKeputusan id={a.id} mode="setujui" fitur={a.fitur_diminta} diminta={a.fitur_diminta} global={umum.fitur} biaya="ikut_umum" harga={null} batas={a.batas} umum={umum} />
+                <FormKeputusan id={a.id} mode="setujui" fitur={a.fitur_diminta} diminta={a.fitur_diminta} global={dibagikan.fitur} biaya="ikut_umum" harga={null} batas={a.batas} umum={umum} />
               </div>
             </section>
           )}
@@ -112,7 +113,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
               <h2 className="text-[15px] font-bold">Fitur, biaya & batas</h2>
               <p className="mt-0.5 text-[13px] text-muted">Perubahan langsung dikirim ke semua mesin aplikasi ini lewat webhook lisensi.</p>
               <div className="mt-5">
-                <FormKeputusan id={a.id} mode="ubah" fitur={a.fitur} diminta={a.fitur_diminta} global={umum.fitur} biaya={a.biaya} harga={a.harga_bulan} batas={a.batas} umum={umum} />
+                <FormKeputusan id={a.id} mode="ubah" fitur={a.fitur} diminta={a.fitur_diminta} global={dibagikan.fitur} biaya={a.biaya} harga={a.harga_bulan} batas={a.batas} umum={umum} />
               </div>
             </section>
           )}

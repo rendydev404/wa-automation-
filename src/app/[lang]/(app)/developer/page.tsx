@@ -6,7 +6,7 @@ import Link from "@/components/link";
 import { Pill } from "@/components/ui";
 import { labelFitur, samarkanNomor } from "@/lib/api-def";
 import { teksHalaman } from "@/lib/bahasa-halaman";
-import { aplikasiMilik, daftarInstalasi, daftarKunci, pengaturanApi, pengaturanSandbox, sandboxMilik } from "@/lib/developer-api";
+import { aplikasiMilik, daftarInstalasi, daftarKunci, fiturUntuk, pengaturanSandbox, sandboxMilik } from "@/lib/developer-api";
 import { sekarang } from "@/lib/db";
 import { jamWib, tanggal } from "@/lib/format";
 import { sembunyikanKunci } from "@/lib/lisensi-def";
@@ -285,10 +285,10 @@ async function KartuSandbox() {
   );
 }
 
-/** Formulir pengajuan dengan fitur yang sedang dibagikan developer internal (getSetting dimemo: tanpa query tambahan). */
+/** Formulir pengajuan dengan fitur yang dibagikan untuk akun ini (global atau khusus per pengguna; satu query PK). */
 async function Ajukan() {
-  await requireAksesApi();
-  return <FormAjukan fitur={(await pengaturanApi()).fitur} />;
+  const user = await requireAksesApi();
+  return <FormAjukan fitur={(await fiturUntuk(user.id)).fitur} />;
 }
 
 async function DaftarAplikasi() {
