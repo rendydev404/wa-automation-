@@ -3,7 +3,10 @@
 # dari repo yang sama dengan chatgercep.com (satu basis kode). Konteks build = akar repo:
 #   docker build -f deploy/mesin/Dockerfile --build-arg VERSI=1.0.0 -t chatgercep-engine .
 
-FROM node:24-bookworm-slim AS bangun
+# Tahap bangun selalu di arsitektur runner (native, tanpa emulasi QEMU): hasil Next.js standalone murni JS, dan
+# satu-satunya modul native yang dipakai saat jalan (onnxruntime-node) sudah membawa biner linux x64 & arm64.
+# sharp/@img dibuang di bawah. Dulu arm64 dibangun lewat QEMU: ±10 menit dari total ±20 menit.
+FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS bangun
 WORKDIR /src
 ENV NEXT_TELEMETRY_DISABLED=1 \
     # onnxruntime-node (penyaring prospek): biner CPU saja, bukan CUDA.
