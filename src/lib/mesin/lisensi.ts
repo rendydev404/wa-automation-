@@ -19,7 +19,8 @@ import {
 import { db, sekarang } from "../db";
 import { uraiKunciApi, verifikasiLisensi } from "../lisensi-def";
 import { VERSI_APLIKASI, alamatPusat, modeMesin } from "../mode";
-import { PERINTAH_UPDATE, type StatusUpdate, statusUpdate } from "../rilis-def";
+import { type StatusUpdate, statusUpdate } from "../rilis-def";
+import { teksBannerUpdate } from "./spanduk";
 import { dengar, pancarkan } from "../peristiwa";
 
 /**
@@ -225,16 +226,18 @@ export function updateMesin(kini = sekarang()): StatusUpdate {
   return statusUpdate(VERSI_APLIKASI, st.isi?.rilis, kini);
 }
 
-/** Satu baris peringatan di terminal (docker compose logs), sekali per versi terbaru/minimal yang baru diketahui. */
-function catatUpdate(): void {
+/**
+ * Banner kotak update di terminal (docker compose logs): langsung saat versi baru/minimal pertama diketahui (lisensi
+ * dimuat saat menyala atau diterima dari pusat), lalu diulang tiap 6 jam selama belum di-update (timer lokal, tanpa
+ * menghubungi pusat). `paksa` = abaikan penanda "sudah dicetak" (dipakai pengingat berkala).
+ */
+export function catatUpdate(paksa = false): void {
   const u = updateMesin();
   if (!u.tersedia && !u.wajib) return;
-  const kunci = `${u.versi_terbaru}|${u.wajib}|${u.wajib_sampai}`;
-  if (st.updateDicatat === kunci) return;
+  const kunci = `${u.versi_terbaru}|${u.wajib}|${u.wajib_sampai}|${u.terblokir}`;
+  if (!paksa && st.updateDicatat === kunci) return;
   st.updateDicatat = kunci;
-  const tenggat = u.wajib_sampai ? ` sebelum ${new Date(u.wajib_sampai * 1000).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB` : "";
-  const awal = u.wajib ? `WAJIB UPDATE${tenggat}` : "Update tersedia";
-  console.warn(`[mesin] ${awal}: v${u.versi_kini} -> v${u.versi_terbaru ?? "?"}. Jalankan: ${PERINTAH_UPDATE}${u.catatan ? ` | ${u.catatan}` : ""}`);
+  console.warn(teksBannerUpdate(u));
 }
 
 export function infoLisensi(): InfoLisensi {

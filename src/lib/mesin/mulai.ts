@@ -1,7 +1,7 @@
 import "server-only";
 import { bersihkanAntrean, mulaiAntreanMesin } from "./antrean";
 import { bersihkanIdempoten } from "./api";
-import { mulaiLisensiMesin } from "./lisensi";
+import { catatUpdate, mulaiLisensiMesin } from "./lisensi";
 import { cetakSpanduk } from "./spanduk";
 import { bersihkanWebhook, mulaiWebhookMesin } from "./webhook";
 
@@ -29,4 +29,6 @@ export function mulaiMesin(): void {
   };
   setTimeout(() => void bersih(), 60_000).unref?.();
   setInterval(() => void bersih(), 6 * 3600_000).unref?.();
+  // Pengingat update di terminal tiap 6 jam selama mesin belum di-update (lokal, tanpa menghubungi pusat).
+  setInterval(() => catatUpdate(true), 6 * 3600_000).unref?.();
 }

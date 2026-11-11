@@ -1,4 +1,5 @@
 import { VERSI_APLIKASI } from "@/lib/mode";
+import { PERINTAH_UPDATE, type StatusUpdate } from "@/lib/rilis-def";
 
 /**
  * Spanduk (banner) ASCII ChatGerCep yang dicetak sekali saat mesin menyala, terlihat di
@@ -127,4 +128,42 @@ export function cetakSpanduk(): void {
   if (g.__waSpandukMesin) return;
   g.__waSpandukMesin = true;
   console.log(teksSpanduk());
+}
+
+/**
+ * Banner kotak "update tersedia / wajib update" untuk terminal (docker compose logs). Kuning = tersedia, merah = wajib
+ * atau API sudah diblokir. Murni teks; lebar kotak mengikuti baris terpanjang (kode ANSI tidak dihitung).
+ */
+export function teksBannerUpdate(u: StatusUpdate, warna = !process.env.NO_COLOR): string {
+  const w = (kode: string, s: string) => (warna ? `\x1b[${kode}m${s}\x1b[0m` : s);
+  const tenggat = u.wajib_sampai ? new Date(u.wajib_sampai * 1000).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "short" }) + " WIB" : null;
+  const kode = u.terblokir || u.wajib ? "1;31" : "1;33";
+  const judul = u.terblokir
+    ? "■ API DIHENTIKAN: mesin wajib di-update"
+    : u.wajib
+      ? `▲ WAJIB UPDATE${tenggat ? ` sebelum ${tenggat}` : ""}`
+      : "▲ UPDATE TERSEDIA";
+  const baris: [string, string][] = [
+    [judul, w(kode, judul)],
+    ["", ""],
+    [`Versi mesin ini v${u.versi_kini}  →  terbaru v${u.versi_terbaru ?? u.versi_minimal ?? "?"}`, `Versi mesin ini ${w("2", `v${u.versi_kini}`)}  →  terbaru ${w("1;32", `v${u.versi_terbaru ?? u.versi_minimal ?? "?"}`)}`],
+    ...(u.catatan ? ([[`Catatan: ${u.catatan}`, `Catatan: ${u.catatan}`]] as [string, string][]) : []),
+    ["", ""],
+    ["Jalankan di folder mesin:", "Jalankan di folder mesin:"],
+    [`  ${PERINTAH_UPDATE}`, `  ${w("1", PERINTAH_UPDATE)}`],
+    ["", ""],
+    [
+      u.terblokir ? "WhatsApp tetap tersambung; API pulih begitu mesin terbaru menyala." : "Data & nomor WhatsApp tetap aman, tanpa scan ulang.",
+      w("2", u.terblokir ? "WhatsApp tetap tersambung; API pulih begitu mesin terbaru menyala." : "Data & nomor WhatsApp tetap aman, tanpa scan ulang."),
+    ],
+  ];
+  const lebar = Math.max(...baris.map(([polos]) => [...polos].length)) + 2;
+  const garis = (a: string, b: string) => w(kode, `  ${a}${"─".repeat(lebar + 2)}${b}`);
+  return [
+    "",
+    garis("╭", "╮"),
+    ...baris.map(([polos, berwarna]) => `  ${w(kode, "│")}  ${berwarna}${" ".repeat(lebar - [...polos].length)}${w(kode, "│")}`),
+    garis("╰", "╯"),
+    "",
+  ].join("\n");
 }
