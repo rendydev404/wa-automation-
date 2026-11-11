@@ -21,13 +21,14 @@ const PUBLIK = new Set([...JALUR_LP_PUBLIK, "/", "/program-afiliasi", "/panduan"
 /**
  * Developer API: diautentikasi di handler masing-masing, bukan cookie. /api/v1/* = API mesin self-host (Bearer key);
  * /api/lisensi/* = aktivasi & cek dari mesin (di pusat) dan webhook dari pusat (di mesin; tanda tangan Ed25519);
- * /docs/api = dokumentasi publik (+ openapi.json).
+ * /docs/api = dokumentasi publik (+ openapi.json). /developer-api = landing page Developer API (tidak dipublikasikan:
+ * noindex, tidak ditautkan; hanya lewat tautan yang dibagikan).
  */
 const publikDeveloperApi = (p: string): boolean =>
-  p === "/api/v1" || p.startsWith("/api/v1/") || p.startsWith("/api/lisensi/") || p === "/docs/api" || p.startsWith("/docs/api/");
+  p === "/api/v1" || p.startsWith("/api/v1/") || p.startsWith("/api/lisensi/") || p === "/docs/api" || p.startsWith("/docs/api/") || p === "/developer-api";
 
 /** Mode mesin self-host: halaman khusus chatgercep.com (landing, langganan, afiliasi, portal developer) tidak ada. */
-const HALAMAN_PUSAT = ["/program-afiliasi", "/panduan", "/langganan", "/afiliasi", "/developer", "/trial-habis"];
+const HALAMAN_PUSAT = ["/program-afiliasi", "/panduan", "/langganan", "/afiliasi", "/developer", "/developer-api", "/trial-habis"];
 const halamanPusat = (p: string): boolean => p === "/" || HALAMAN_PUSAT.some((h) => p === h || p.startsWith(`${h}/`));
 /** Menu panel khusus pusat (paket berbayar, transaksi, afiliasi, follow-up penjualan, pixel, Developer API) di mesin = ke Ringkasan. */
 const PANEL_PUSAT = ["/admin/paket", "/admin/transaksi", "/admin/afiliasi", "/admin/followup", "/admin/pixel", "/admin/developer-api"];
