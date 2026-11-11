@@ -6,10 +6,12 @@ import { Logo } from "@/components/logo";
 import { FITUR_API } from "@/lib/api-def";
 import { bahasaHalaman, teksHalaman } from "@/lib/bahasa-halaman";
 import { pembuatT } from "@/lib/bahasa";
-import { MEREK, NOMOR_WA_DEMO, PERUSAHAAN } from "@/lib/merek";
+import { MEREK, PERUSAHAAN } from "@/lib/merek";
 import { modeMesin } from "@/lib/mode";
 import { type ContohKode, DemoApi, PemicuMuncul, SalinPerintah, Sorot } from "./klien";
 import { Kubus3D } from "./kubus-3d";
+import { Keunggulan } from "./keunggulan";
+import { PitaLogo } from "./pita-logo";
 import "./lp-dev.css";
 
 /**
@@ -28,12 +30,14 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 const ALAMAT = "https://wa.tokoanda.com";
+/** Nomor WhatsApp tim untuk permintaan akses Developer API (0858-8549-7377). */
+const NOMOR_WA_AKSES = "6285885497377";
 
 export default async function HalamanDeveloperApi() {
   if (modeMesin()) notFound(); // mesin self-host: halaman khusus chatgercep.com
   const { t } = await teksHalaman();
   const pesanAkses = t(`Halo ${MEREK}, saya developer dan ingin minta akses Developer API.`, `Hi ${MEREK}, I'm a developer and I'd like access to the Developer API.`);
-  const urlAkses = `https://wa.me/${NOMOR_WA_DEMO}?text=${encodeURIComponent(pesanAkses)}`;
+  const urlAkses = `https://wa.me/${NOMOR_WA_AKSES}?text=${encodeURIComponent(pesanAkses)}`;
   const teksPesan = t("Pesanan #1042 siap diambil!", "Order #1042 is ready for pickup!");
   const contoh: ContohKode[] = [
     {
@@ -93,7 +97,6 @@ Http::withToken(env('CHATGERCEP_KEY'))
     },
   ];
   const fitur = (g: string) => FITUR_API.filter((f) => f.grup === g).map((f) => f.label);
-  const STACK = ["Node.js", "TypeScript", "Python", "PHP", "Laravel", "Go", "Next.js", "Django", "Ruby", "cURL", "Docker", "PostgreSQL"];
 
   return (
     <div className="ld min-h-dvh overflow-x-clip">
@@ -205,32 +208,21 @@ Http::withToken(env('CHATGERCEP_KEY'))
         </p>
       </section>
 
-      {/* ---------- Pita stack ---------- */}
-      <section className="mt-20 border-y border-white/[0.06] py-8">
-        <p className="mb-5 text-center text-[13px] text-[#93a99f]">{t("Cukup HTTP + JSON. Pakai bahasa apa pun.", "Just HTTP + JSON. Use any language.")}</p>
-        <div className="ld-pita overflow-hidden">
-          <div className="ld-pita-isi flex w-max gap-14 pr-14">
-            {[...STACK, ...STACK].map((s, i) => (
-              <span key={i} className="font-mono text-[18px] font-semibold tracking-tight text-[#e8f0ec]/45">
-                {s}
-              </span>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* ---------- Pita logo bahasa & framework ---------- */}
+      <PitaLogo />
 
-      {/* ---------- Integrasi sore ini (ala Resend) ---------- */}
+      {/* ---------- Tiga langkah: nyalakan, scan, kirim ---------- */}
       <section id="cara-kerja" className="mx-auto max-w-[1200px] scroll-mt-20 px-4 py-24 sm:px-6 sm:py-32">
         <div className="ld-muncul mx-auto max-w-[720px] text-center">
           <span className="mx-auto grid size-16 place-items-center rounded-2xl border border-white/10 bg-gradient-to-b from-[#1d3229] to-[#0b1813] shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_20px_50px_-15px_rgba(61,220,151,0.35)]">
             <Webhook className="size-7 text-[#3ddc97]" aria-hidden />
           </span>
           <h2 className="mt-6 text-[36px] leading-[1.08] font-bold tracking-[-0.03em] sm:text-[52px]">
-            <span className="ld-kilau">{t("Terintegrasi", "Integrated")} </span>
-            <span className="text-[#3ddc97]">{t("sore ini.", "this afternoon.")}</span>
+            <span className="ld-kilau">{t("Nyalakan. Scan.", "Start. Scan.")} </span>
+            <span className="ld-kilau-hijau">{t("Kirim.", "Send.")}</span>
           </h2>
           <p className="mt-4 text-[16px] leading-relaxed text-[#93a99f] sm:text-[17px]">
-            {t("Tiga langkah dari nol ke pesan pertama. Tanpa membangun koneksi WhatsApp, antrean, atau AI sendiri.", "Three steps from zero to your first message. No WhatsApp connection, queue, or AI to build yourself.")}
+            {t("Pesan pertama sudah terkirim sebelum kopi Anda dingin. Koneksi WhatsApp, antrean anti-blokir, dan otak AI-nya sudah kami siapkan.", "Your first message goes out before your coffee gets cold. The WhatsApp connection, anti-ban queue, and AI brain are already built in.")}
           </p>
         </div>
         <div className="mt-14 grid gap-4 lg:grid-cols-3">
@@ -251,6 +243,9 @@ Http::withToken(env('CHATGERCEP_KEY'))
           ))}
         </div>
       </section>
+
+      {/* ---------- Keunggulan: ML prospek, tameng spam, belajar, anti-blokir ---------- */}
+      <Keunggulan />
 
       {/* ---------- Bento fitur terang (ala Supabase) ---------- */}
       <section id="fitur" className="scroll-mt-16 rounded-t-[32px] bg-[#f6f6f3] text-[#15201b] sm:rounded-t-[48px]">

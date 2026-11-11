@@ -182,6 +182,16 @@
   }
 }
 
+/* Batang skor penyaring prospek: terisi saat kartunya terlihat. */
+.ld-batang {
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 1.4s cubic-bezier(0.22, 1, 0.36, 1) 0.35s;
+}
+.terlihat .ld-batang {
+  transform: scaleX(var(--n, 0));
+}
+
 /* Muncul halus saat digulir. */
 .ld-muncul {
   opacity: 0;
@@ -209,5 +219,8 @@
   }
   .ld-garis-cahaya path {
     stroke-dashoffset: 0;
+  }
+  .ld-batang {
+    transform: scaleX(var(--n, 0));
   }
 }

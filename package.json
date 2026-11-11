@@ -39,6 +39,7 @@
     "embedded-postgres": "15.18.0-beta.17",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "simple-icons": "^16.36.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
