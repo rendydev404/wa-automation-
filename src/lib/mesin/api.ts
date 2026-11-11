@@ -7,7 +7,8 @@ import { kunciCocok, uraiKunciApi } from "../lisensi-def";
 import { modeMesin } from "../mode";
 import { type Nomor, nomorById } from "../numbers";
 import type { StatusSesiWa } from "../types";
-import { alasanTerbatas, lisensiSekarang, muatLisensi } from "./lisensi";
+import { PERINTAH_UPDATE } from "../rilis-def";
+import { alasanTerbatas, lisensiSekarang, muatLisensi, updateMesin } from "./lisensi";
 
 /**
  * Pembantu route API v1 di mesin self-host (src/app/api/v1/**). Autentikasi dicocokkan dengan daftar key di lisensi
@@ -86,10 +87,18 @@ export async function otorisasi(req: Request, scope: FiturApi | null, opsi: { iz
   if (!kunciCocok(kunci, l.kunci, undefined, mode)) return galat("key_tidak_sah", "API key tidak sah, sudah dicabut, atau masa rotasinya habis.", id);
   const r = hitungLaju(`api:${urai.awalan}`);
   r.kepala["X-ChatGerCep-Mode"] = mode === "sandbox" ? "sandbox" : "production";
+  // Rolling release: versi terbaru di header setiap jawaban, supaya aplikasi bisa menampilkan peringatan sendiri.
+  const u = updateMesin();
+  if (u.tersedia || u.wajib) {
+    r.kepala["X-CG-Update"] = u.versi_terbaru ?? "";
+    if (u.wajib) r.kepala["X-CG-Update-Wajib"] = u.wajib_sampai ? new Date(u.wajib_sampai * 1000).toISOString() : "ya";
+  }
   if (!r.boleh) return galat("terlalu_sering", `Terlalu banyak permintaan (maks ${BATAS_PER_DETIK}/detik per key).`, id, r.kepala);
   if (!opsi.izinkanTerbatas) {
     const a = alasanTerbatas();
     if (a) return galat(a.kode, a.pesan, id, r.kepala);
+    if (u.terblokir)
+      return galat("update_wajib", `Mesin v${u.versi_kini} sudah tidak dilayani (minimal v${u.versi_minimal}). Jalankan: ${PERINTAH_UPDATE}. WhatsApp tetap tersambung.`, id, r.kepala);
   }
   if (scope && !l.fitur.includes(scope)) return galat("fitur_tidak_dibuka", `Fitur '${scope}' belum dibuka untuk aplikasi ini.`, id, r.kepala);
   return { id, awalan: urai.awalan, kepala: r.kepala };

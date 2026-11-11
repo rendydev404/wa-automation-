@@ -19,6 +19,7 @@ import {
 import { db, sekarang } from "../db";
 import { uraiKunciApi, verifikasiLisensi } from "../lisensi-def";
 import { VERSI_APLIKASI, alamatPusat, modeMesin } from "../mode";
+import { PERINTAH_UPDATE, type StatusUpdate, statusUpdate } from "../rilis-def";
 import { dengar, pancarkan } from "../peristiwa";
 
 /**
@@ -44,6 +45,8 @@ interface Keadaan {
   timerUlang: ReturnType<typeof setTimeout> | null;
   timerPeringatan: ReturnType<typeof setInterval> | null;
   peringatan: Set<string>;
+  /** Versi update terakhir yang sudah dicatat di log (sekali per versi). */
+  updateDicatat?: string;
   /** Penundaan awal sebelum menghubungi pusat (uji bisa mempercepat). */
   coba: number;
   /** Sandbox: mesin menyimpan lebih dari 1 nomor (sandbox hanya boleh 1) -> mode terbatas. */
@@ -71,6 +74,7 @@ export function muatLisensi(): Promise<void> {
     st.galat = r.galat_terakhir;
     const isi = r.lisensi ? verifikasiLisensi(r.lisensi) : null;
     st.isi = isi && isi.id_instalasi === r.id_instalasi ? isi : null;
+    catatUpdate();
     await periksaNomorSandbox();
   })().catch((e) => {
     st.siap = null; // database belum siap: dicoba lagi di panggilan berikutnya
@@ -216,6 +220,23 @@ export interface InfoLisensi {
   alasan: string | null;
 }
 
+/** Status rolling release mesin ini terhadap info rilis di lisensi (sandbox & production sama). */
+export function updateMesin(kini = sekarang()): StatusUpdate {
+  return statusUpdate(VERSI_APLIKASI, st.isi?.rilis, kini);
+}
+
+/** Satu baris peringatan di terminal (docker compose logs), sekali per versi terbaru/minimal yang baru diketahui. */
+function catatUpdate(): void {
+  const u = updateMesin();
+  if (!u.tersedia && !u.wajib) return;
+  const kunci = `${u.versi_terbaru}|${u.wajib}|${u.wajib_sampai}`;
+  if (st.updateDicatat === kunci) return;
+  st.updateDicatat = kunci;
+  const tenggat = u.wajib_sampai ? ` sebelum ${new Date(u.wajib_sampai * 1000).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB` : "";
+  const awal = u.wajib ? `WAJIB UPDATE${tenggat}` : "Update tersedia";
+  console.warn(`[mesin] ${awal}: v${u.versi_kini} -> v${u.versi_terbaru ?? "?"}. Jalankan: ${PERINTAH_UPDATE}${u.catatan ? ` | ${u.catatan}` : ""}`);
+}
+
 export function infoLisensi(): InfoLisensi {
   const i = st.isi;
   const u = nomorUji();
@@ -261,6 +282,7 @@ export async function terimaLisensi(token: string): Promise<{ ok: true; versi: n
   st.isi = isi;
   st.galat = null;
   st.peringatan.clear();
+  catatUpdate();
   await periksaNomorSandbox();
   return { ok: true, versi: isi.versi_urut };
 }

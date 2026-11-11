@@ -30,6 +30,7 @@ import {
   rapikanBatas,
 } from "./api-def";
 import { type Tx, db, getSetting, sekarang, setSetting, transaksi } from "./db";
+import { infoRilis } from "./rilis-mesin";
 import type { KanalBayar } from "./harga";
 import { type AdapterGateway } from "./gateway";
 import { GatewayError } from "./gateway-def";
@@ -641,6 +642,7 @@ async function terbitkan(instalasiId: string): Promise<{ token: string; isi: Isi
     SELECT awalan, hash, berlaku_sampai AS sampai FROM api_kunci
      WHERE aplikasi_id = ${a.id} AND dicabut_pada IS NULL AND (berlaku_sampai IS NULL OR berlaku_sampai > ${kini})`;
   const daftarKunci = kunci.map((k) => ({ awalan: k.awalan, hash: k.hash, sampai: k.sampai }));
+  const rilis = await infoRilis();
   const isi: IsiLisensi = sb
     ? {
         // Sandbox: v2 (mesin lama menolaknya), semua fitur yang dibagikan, 1 nomor, berlaku sampai masa sandbox
@@ -658,6 +660,7 @@ async function terbitkan(instalasiId: string): Promise<{ token: string; isi: Isi
         dibayar_sampai: null,
         kunci: daftarKunci,
         uji: a.uji_diverifikasi ? { telepon: a.uji_telepon, alamat: a.uji_alamat } : null,
+        rilis,
         diterbitkan: kini,
         berlaku_sampai: a.sandbox_sampai ?? kini,
       }
@@ -673,6 +676,7 @@ async function terbitkan(instalasiId: string): Promise<{ token: string; isi: Isi
         biaya: biayaEfektif(a, umum),
         dibayar_sampai: a.dibayar_sampai,
         kunci: daftarKunci,
+        rilis,
         diterbitkan: kini,
         berlaku_sampai: kini + MASA_LISENSI_DETIK,
       };
@@ -934,6 +938,14 @@ export async function putaranJam(kini = sekarang()): Promise<void> {
      WHERE i.dilepas_pada IS NULL AND i.alamat IS NOT NULL AND a.status IN ('disetujui', 'ditangguhkan', 'dicabut')
        AND (i.terakhir_sukses IS NULL OR i.terakhir_sukses < ${kini - JEDA_PERPANJANG_DETIK})
     ON CONFLICT (instalasi_id) DO NOTHING`;
+  // Rilis mesin baru (tag image naik / versi minimal diganti): kirim lisensi baru ke semua mesin production sekali,
+  // supaya peringatan update langsung sampai tanpa menunggu perpanjangan 3 harian. Sandbox menerimanya saat menyala.
+  const r = await infoRilis();
+  const sidik = [r.terbaru, r.minimal, r.wajib_sampai, r.catatan].join("|");
+  if (r.terbaru && sidik !== (await getSetting("rilis_mesin_dikirim"))) {
+    await setSetting("rilis_mesin_dikirim", sidik);
+    await jadwalkanSemua();
+  }
   const umum = await pengaturanApi();
   const bayar = await sql<{ id: number; user_id: number; nama: string; biaya: BiayaAplikasi; dibayar_sampai: number | null; pengingat_bayar: string | null }[]>`
     SELECT id, user_id, nama, biaya, dibayar_sampai, pengingat_bayar FROM api_aplikasi

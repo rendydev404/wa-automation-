@@ -370,6 +370,36 @@ await cek("akses portal: bawaan kosong (admin pun tidak), developer menyalakan/m
   await sql`DELETE FROM users WHERE email LIKE '%@banyak.test'`;
 });
 
+console.log("== rolling release ==");
+await cek("aturan versi: semver dibanding per angka, tag non-semver diabaikan, 'dev' tidak pernah diblokir; lisensi membawa info rilis", async () => {
+  const R = await lib("src/lib/rilis-def.ts");
+  assert.equal(R.bandingVersi("1.0.9", "1.0.10"), -1);
+  assert.equal(R.bandingVersi("1.2.0", "1.10.0"), -1);
+  assert.equal(R.bandingVersi("v1.0.3", "1.0.3"), 0);
+  assert.equal(R.bandingVersi("dev", "1.0.3"), null);
+  assert.equal(R.versiTertinggi(["stable", "1.0", "1.0.2", "1.0.10", "1.0.9", "uji-abc"]), "1.0.10");
+  const kini = sekarang();
+  const r = { terbaru: "1.0.3", minimal: "1.0.2", wajib_sampai: kini - 1, catatan: null };
+  assert.equal(R.statusUpdate("1.0.1", r, kini).terblokir, true);
+  assert.equal(R.statusUpdate("1.0.2", r, kini).terblokir, false);
+  assert.equal(R.statusUpdate("1.0.2", r, kini).tersedia, true);
+  assert.equal(R.statusUpdate("dev", r, kini).terblokir, false);
+  assert.equal(R.statusUpdate("1.0.1", { ...r, wajib_sampai: null }, kini).terblokir, false); // wajib tanpa tenggat = peringatan saja
+  // Pusat menumpangkan info rilis (uji: tanpa GHCR, dari env) ke lisensi yang diterbitkan.
+  process.env.MESIN_RILIS_TERBARU = "1.0.7";
+  process.env.MESIN_VERSI_MINIMAL = "1.0.5";
+  process.env.MESIN_WAJIB_SAMPAI = "2030-01-31";
+  try {
+    const RM = await lib("src/lib/rilis-mesin.ts");
+    const info = await RM.infoRilis();
+    assert.deepEqual(info, { terbaru: "1.0.7", minimal: "1.0.5", wajib_sampai: Math.floor(Date.parse("2030-01-31T23:59:59+07:00") / 1000), catatan: null });
+  } finally {
+    delete process.env.MESIN_RILIS_TERBARU;
+    delete process.env.MESIN_VERSI_MINIMAL;
+    delete process.env.MESIN_WAJIB_SAMPAI;
+  }
+});
+
 console.log("== katalog fitur ==");
 await cek("katalog: kode unik & tiap fitur punya grup + endpoint terdokumentasi", async () => {
   const def = await lib("src/lib/api-def.ts");

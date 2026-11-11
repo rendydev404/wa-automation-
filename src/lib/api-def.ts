@@ -1,3 +1,4 @@
+import type { InfoRilis } from "./rilis-def";
 /**
  * Kontrak bersama Developer API (dipakai server pusat chatgercep.com, mesin self-host, UI, dan uji). Murni: tanpa I/O.
  * Rencana lengkap: docs/plans/2026-11-09-developer-api.md.
@@ -188,6 +189,8 @@ export interface IsiLisensi {
   mode?: ModeApi;
   /** Hanya sandbox: satu-satunya nomor yang boleh berkomunikasi dengan mesin; null = belum diverifikasi. */
   uji?: NomorUji | null;
+  /** Rolling release (src/lib/rilis-def.ts): versi terbaru & minimal. Tidak ada = pusat lama. */
+  rilis?: InfoRilis;
 }
 
 /** Mode lisensi (lisensi v1 lama selalu produksi). */
@@ -265,6 +268,7 @@ export const KODE_GALAT = {
   alamat_tidak_sah: 422,
   tantangan_gagal: 422,
   ditolak_anti_blokir: 422,
+  update_wajib: 426,
   terlalu_sering: 429,
   wa_sedang_menyambung: 503,
   ai_tidak_tersedia: 503,

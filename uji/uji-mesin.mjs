@@ -35,6 +35,7 @@ Object.assign(process.env, {
   DATA_DIR: path.join(tmp, "data-kosong"),
   AUTH_SECRET: "x".repeat(40),
   MODE: "mesin",
+  VERSI_APLIKASI: "1.0.0", // rolling release: dibandingkan dengan info rilis di lisensi
   LISENSI_MODE_UJI: "1",
   LISENSI_KUNCI_PUBLIK: kunciUji.publicKey.export({ format: "der", type: "spki" }).toString("base64"),
   CHATGERCEP_PUSAT: `http://127.0.0.1:${portPusat}`,
@@ -475,6 +476,46 @@ await cek("peringatan lisensi (sisa < 24 jam) dipancarkan sekali", async () => {
   ML.periksaPeringatan();
   assert.equal(peristiwa.filter((p) => p.jenis === "lisensi.peringatan").length, awal + 1);
   await kirimLisensi(tokenPusat(idMesin));
+});
+
+await cek("rolling release: versi baru = peringatan di /status & header X-CG-Update; wajib lewat tenggat = 426, WhatsApp tetap tersambung", async () => {
+  const rilis = (r) => ({ rilis: { terbaru: null, minimal: null, wajib_sampai: null, catatan: null, ...r } });
+  // 1. Ada versi baru: dilayani normal + peringatan.
+  await kirimLisensi(tokenPusat(idMesin, rilis({ terbaru: "1.0.3", catatan: "Perbaikan antrean" })));
+  const s1 = await json(await rute.status.GET(minta("/status")));
+  assert.equal(s1.j.update.tersedia, true);
+  assert.equal(s1.j.update.versi_kini, "1.0.0");
+  assert.equal(s1.j.update.versi_terbaru, "1.0.3");
+  assert.equal(s1.j.update.wajib, false);
+  assert.equal(s1.j.update.perintah, "docker compose pull && docker compose up -d");
+  assert.equal(s1.j.update.catatan, "Perbaikan antrean");
+  const n1 = await json(await rute.nomor.GET(minta("/nomor")));
+  assert.equal(n1.status, 200);
+  assert.equal(n1.h.get("x-cg-update"), "1.0.3");
+  assert.equal(n1.h.get("x-cg-update-wajib"), null);
+  // 2. Wajib, tenggat belum lewat: masih dilayani, header wajib berisi tenggat.
+  const tenggat = kini() + 3600;
+  await kirimLisensi(tokenPusat(idMesin, rilis({ terbaru: "1.0.3", minimal: "1.0.2", wajib_sampai: tenggat })));
+  const n2 = await json(await rute.nomor.GET(minta("/nomor")));
+  assert.equal(n2.status, 200);
+  assert.equal(n2.h.get("x-cg-update-wajib"), new Date(tenggat * 1000).toISOString());
+  // 3. Tenggat lewat: 426 update_wajib, /status tetap menjawab, WhatsApp tidak diputus.
+  await kirimLisensi(tokenPusat(idMesin, rilis({ terbaru: "1.0.3", minimal: "1.0.2", wajib_sampai: kini() - 1 })));
+  const n3 = await json(await rute.nomor.GET(minta("/nomor")));
+  assert.equal(n3.status, 426);
+  assert.equal(n3.j.galat.kode, "update_wajib");
+  assert.match(n3.j.galat.pesan, /docker compose pull/);
+  const s3 = await json(await rute.status.GET(minta("/status")));
+  assert.equal(s3.status, 200);
+  assert.equal(s3.j.update.terblokir, true);
+  assert.equal(wa.infoSesi(N1.sesi).status, "WORKING");
+  assert.equal(S1.ditutup, 0);
+  // 4. Mesin sudah versi terbaru: tanpa peringatan sama sekali.
+  await kirimLisensi(tokenPusat(idMesin, rilis({ terbaru: "1.0.0", minimal: "1.0.0" })));
+  const n4 = await json(await rute.nomor.GET(minta("/nomor")));
+  assert.equal(n4.status, 200);
+  assert.equal(n4.h.get("x-cg-update"), null);
+  assert.equal((await json(await rute.status.GET(minta("/status")))).j.update.tersedia, false);
 });
 
 bagian("D. API v1: autentikasi, scope, batas laju, idempotensi, paginasi");
