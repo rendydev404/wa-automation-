@@ -823,6 +823,15 @@ const MIGRASI: string[] = [
   `
   CREATE INDEX ai_pakai_waktu_brin ON ai_pakai USING brin (waktu) WITH (pages_per_range = 32);
   `,
+  // v36: rujukan ke users(id) tanpa indeks = setiap akun yang dihapus memindai penuh tabel perujuknya (ON DELETE SET
+  //   NULL). Diukur di uji-developer-api: hapus 20 rb akun dengan 20 rb api_aplikasi 54,5 dtk. Indeks parsial (hanya baris
+  //   yang terisi) kecil & murah ditulis; tabelnya kecil di produksi, jadi dibuat langsung dalam transaksi migrasi.
+  `
+  CREATE INDEX api_aplikasi_ditinjau_oleh_idx      ON api_aplikasi (ditinjau_oleh)         WHERE ditinjau_oleh IS NOT NULL;
+  CREATE INDEX komisi_afiliasi_referred_user_idx  ON komisi_afiliasi (referred_user_id)   WHERE referred_user_id IS NOT NULL;
+  CREATE INDEX kuota_bonus_oleh_idx               ON kuota_bonus (oleh)                   WHERE oleh IS NOT NULL;
+  CREATE INDEX pengembalian_dana_user_idx         ON pengembalian_dana (user_id)          WHERE user_id IS NOT NULL;
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

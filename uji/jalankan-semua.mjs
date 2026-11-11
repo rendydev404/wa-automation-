@@ -11,7 +11,7 @@ import { mulaiPg } from "./pg-lokal.mjs";
 
 const JALUR = {
   // Alur WhatsApp <-> AI (termasuk follow-up nomor CS): sebagian besar menunggu timer jembatan (dipercepat lewat WA_SKALA_WAKTU).
-  alur: { berkas: ["uji/uji-alur.mjs", "uji/uji-followup.mjs"], sekaligus: 1 },
+  alur: { berkas: ["uji/uji-alur.mjs", "uji/uji-followup.mjs"], sekaligus: 2 },
   // Tolok ukur latensi ketat (< 20 ms di uji-data, < 15 ms di uji-pengguna): berurutan, tidak berebut CPU sesamanya.
   tolok: { berkas: ["uji/uji-data.mjs", "uji/uji-pengguna.mjs"], sekaligus: 1 },
   // Kebenaran fitur tanpa tolok ukur waktu: boleh berjalan bersamaan.

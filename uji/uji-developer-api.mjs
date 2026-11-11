@@ -18,6 +18,8 @@ mkdirSync(tmp, { recursive: true });
 const pg = await mulaiPg({ dir: path.join(tmp, "pg"), sementara: true });
 const { publicKey, privateKey } = generateKeyPairSync("ed25519");
 Object.assign(process.env, {
+  // Batas jawaban mesin diperkecil (bawaan 5 dtk) supaya uji "jawaban lambat" tidak menunggu 5 dtk sungguhan.
+  LISENSI_BATAS_KIRIM_MS: "300",
   DATABASE_URL: pg.url,
   DATA_DIR: path.join(tmp, "data"),
   AUTH_SECRET: "x".repeat(40),
@@ -53,7 +55,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(s, { "content-type": "application/json" });
       res.end(JSON.stringify(j));
     };
-    if (mesin.lambat) return setTimeout(() => kirim(200, {}), 6000);
+    if (mesin.lambat) return setTimeout(() => kirim(200, {}), 1500);
     if (mesin.tolak) return kirim(503, { galat: "mati" });
     if (b.jenis === "tantangan") return kirim(200, { jawaban: mesin.jawabSalah ? "salah" : L.jawabTantangan(mesin.key, b.nonce) });
     if (b.jenis === "lisensi") {
@@ -240,14 +242,14 @@ await cek("mesin mati: dicoba ulang dengan jeda bertambah, galat tercatat; satu 
   assert.equal(mesin.lisensi.at(-1).status, "ditangguhkan");
 });
 
-await cek("jawaban lambat (> 5 dtk) dianggap gagal, tidak menggantung putaran", async () => {
+await cek("jawaban lambat (> batas waktu) dianggap gagal, tidak menggantung putaran", async () => {
   mesin.lambat = true;
   await D.jadwalkanAplikasi(appId);
   const t0 = performance.now();
   await D.putaranKirim();
   const ms = performance.now() - t0;
   mesin.lambat = false;
-  assert.ok(ms < 6500, `${ms} ms`);
+  assert.ok(ms < 1200, `${ms} ms`);
   const [r] = await sql`SELECT galat FROM api_kirim_lisensi`;
   assert.match(r.galat, /batas waktu/);
   await sql`UPDATE api_kirim_lisensi SET berikut_pada = 0`;

@@ -702,6 +702,9 @@ async function periksaAlamatMesin(alamat: string): Promise<void> {
 
 const BATAS_JAWABAN = 4096;
 
+/** Batas waktu jawaban mesin (bawaan 5 dtk). Hanya uji yang memperkecilnya lewat LISENSI_BATAS_KIRIM_MS. */
+const batasKirimMs = (): number => Number(process.env.LISENSI_BATAS_KIRIM_MS) || 5000;
+
 /** POST JSON ke mesin: tanpa ikut redirect, batas waktu 5 dtk, jawaban maks 4 KB. */
 async function kirimKeMesin(alamat: string, isi: unknown): Promise<{ ok: boolean; status: number; json: unknown; galat?: string }> {
   try {
@@ -711,7 +714,7 @@ async function kirimKeMesin(alamat: string, isi: unknown): Promise<{ ok: boolean
       headers: { "content-type": "application/json", "user-agent": "ChatGerCep-Lisensi/1" },
       body: JSON.stringify(isi),
       redirect: "manual",
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(batasKirimMs()),
     });
     const teks = (await r.text()).slice(0, BATAS_JAWABAN);
     let json: unknown = null;
