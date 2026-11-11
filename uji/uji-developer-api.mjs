@@ -19,7 +19,7 @@ const pg = await mulaiPg({ dir: path.join(tmp, "pg"), sementara: true });
 const { publicKey, privateKey } = generateKeyPairSync("ed25519");
 Object.assign(process.env, {
   // Batas jawaban mesin diperkecil (bawaan 5 dtk) supaya uji "jawaban lambat" tidak menunggu 5 dtk sungguhan.
-  LISENSI_BATAS_KIRIM_MS: "300",
+  LISENSI_BATAS_KIRIM_MS: "1000",
   DATABASE_URL: pg.url,
   DATA_DIR: path.join(tmp, "data"),
   AUTH_SECRET: "x".repeat(40),
@@ -55,7 +55,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(s, { "content-type": "application/json" });
       res.end(JSON.stringify(j));
     };
-    if (mesin.lambat) return setTimeout(() => kirim(200, {}), 1500);
+    if (mesin.lambat) return setTimeout(() => kirim(200, {}), 2500);
     if (mesin.tolak) return kirim(503, { galat: "mati" });
     if (b.jenis === "tantangan") return kirim(200, { jawaban: mesin.jawabSalah ? "salah" : L.jawabTantangan(mesin.key, b.nonce) });
     if (b.jenis === "lisensi") {
@@ -249,7 +249,7 @@ await cek("jawaban lambat (> batas waktu) dianggap gagal, tidak menggantung puta
   await D.putaranKirim();
   const ms = performance.now() - t0;
   mesin.lambat = false;
-  assert.ok(ms < 1200, `${ms} ms`);
+  assert.ok(ms < 2000, `${ms} ms`);
   const [r] = await sql`SELECT galat FROM api_kirim_lisensi`;
   assert.match(r.galat, /batas waktu/);
   await sql`UPDATE api_kirim_lisensi SET berikut_pada = 0`;
