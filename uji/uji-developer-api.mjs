@@ -268,11 +268,13 @@ await cek("aktifkan lagi lalu jadikan berbayar: belum bayar -> status lisensi be
   await D.ubahStatus(DV, appId, "aktifkan");
   await D.ubahAplikasi(A, appId, { fitur: ["nomor", "ai"], biaya: "berbayar", harga_bulan: 75000, batas: {} });
   await D.putaranKirim();
-  assert.equal(mesin.lisensi.at(-1).status, "belum_bayar");
+  // Lisensi terbaru = versi_urut tertinggi: kiriman latar (pantik) yang lebih lama bisa tiba belakangan di CI yang sibuk.
+  const terbaru = () => mesin.lisensi.reduce((a, b) => (b.versi_urut > a.versi_urut ? b : a));
+  assert.equal(terbaru().status, "belum_bayar");
   await sql.begin((tx) => D.perpanjangDibayar(tx, appId));
   await D.setelahDibayar(appId);
   await D.putaranKirim();
-  const l = mesin.lisensi.at(-1);
+  const l = terbaru();
   assert.equal(l.status, "aktif");
   assert.equal(l.biaya, "berbayar");
   assert.ok(l.dibayar_sampai > sekarang() + 29 * 86400);

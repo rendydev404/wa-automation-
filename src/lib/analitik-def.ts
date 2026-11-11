@@ -56,6 +56,7 @@ export const POLA_HALAMAN = [
   "/docs/api/sandbox",
   "/docs/api/ui-sendiri",
   "/docs/api/lisensi",
+  "/developer-api",
   "/dashboard",
   "/akun",
   "/afiliasi",

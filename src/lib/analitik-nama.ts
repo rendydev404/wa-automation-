@@ -32,6 +32,7 @@ export const NAMA_HALAMAN: Record<PolaHalaman, string> = {
   "/langganan/tagihan/[order]": "Tagihan pembayaran",
   "/nomor/[id]": "Kelola nomor WhatsApp",
   "/developer": "Developer API (portal)",
+  "/developer-api": "Developer API · Landing page",
   "/developer/[id]": "Developer API · Detail aplikasi",
   "/developer/[id]/bayar": "Developer API · Pembayaran",
   "/admin": "Admin · Ringkasan",
