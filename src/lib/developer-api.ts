@@ -71,13 +71,21 @@ export interface PengaturanApi {
 export const MAKS_HARGA_API = 100_000_000;
 
 export async function pengaturanApi(): Promise<PengaturanApi> {
-  const [b, h, f, kenal] = await Promise.all([getSetting("api_biaya_bawaan"), getSetting("api_harga_bawaan"), getSetting("api_fitur_global"), getSetting("api_fitur_dashboard_kenal")]);
+  const [b, h, f, kenal, kenalPecah] = await Promise.all([
+    getSetting("api_biaya_bawaan"),
+    getSetting("api_harga_bawaan"),
+    getSetting("api_fitur_global"),
+    getSetting("api_fitur_dashboard_kenal"),
+    getSetting("api_fitur_pecah_bot_kenal"),
+  ]);
   let fitur: FiturApi[] = [...KODE_FITUR];
   if (f !== null) {
     try {
       const x = JSON.parse(f);
       // Daftar yang disimpan sebelum fitur `dashboard` ada: dashboard bawaan tetap menyala (tidak tiba-tiba tertutup).
-      if (Array.isArray(x)) fitur = KODE_FITUR.filter((k) => x.includes(k) || (k === "dashboard" && kenal === null));
+      // Disimpan sebelum `bot` dipecah: `bot` yang dibagikan berarti spam/belajar/ml juga dibagikan.
+      const pecah = (k: string) => kenalPecah === null && x.includes("bot") && (k === "spam" || k === "belajar" || k === "ml");
+      if (Array.isArray(x)) fitur = KODE_FITUR.filter((k) => x.includes(k) || (k === "dashboard" && kenal === null) || pecah(k));
     } catch {}
   }
   const harga = Number(h);
@@ -94,6 +102,7 @@ export async function simpanPengaturanApi(pelaku: User, p: Omit<PengaturanApi, "
   if (fitur) {
     await setSetting("api_fitur_global", JSON.stringify(fitur));
     await setSetting("api_fitur_dashboard_kenal", "1");
+    await setSetting("api_fitur_pecah_bot_kenal", "1");
   }
   await catatLog(pelaku, "ubah pengaturan Developer API", null, `biaya bawaan ${p.biaya}, harga Rp${p.harga.toLocaleString("id-ID")}${fitur ? `, fitur ${fitur.join(", ") || "-"}` : ""}`);
   // Biaya/fitur umum bisa mengubah lisensi semua aplikasi aktif: kirim ulang.
@@ -110,6 +119,7 @@ export async function simpanFiturGlobal(pelaku: User, masukan: readonly string[]
   const lama = (await pengaturanApi()).fitur;
   await setSetting("api_fitur_global", JSON.stringify(fitur));
   await setSetting("api_fitur_dashboard_kenal", "1");
+  await setSetting("api_fitur_pecah_bot_kenal", "1");
   const nyala = fitur.filter((f) => !lama.includes(f));
   const mati = lama.filter((f) => !fitur.includes(f));
   await catatLog(pelaku, "ubah fitur Developer API", null, `dibagikan ${fitur.length}/${KODE_FITUR.length}${nyala.length ? ` · nyala ${nyala.join(", ")}` : ""}${mati.length ? ` · mati ${mati.join(", ")}` : ""}`);
@@ -140,6 +150,8 @@ export interface Aplikasi {
   alamat_mesin: string | null;
   fitur_diminta: FiturApi[];
   fitur: FiturApi[];
+  /** Sandbox: true = fitur diatur khusus untuk pengguna ini (`fitur`), false = ikut daftar global. */
+  fitur_khusus: boolean;
   batas: BatasApi;
   biaya: BiayaAplikasi;
   harga_bulan: number | null;
@@ -163,7 +175,7 @@ export interface AplikasiDenganPemilik extends Aplikasi {
 }
 
 const KOLOM_APLIKASI =
-  "a.id, a.user_id, a.nama, a.kegunaan, a.situs, a.pemilik, a.kontak_wa, a.perkiraan_nomor, a.alamat_mesin, a.fitur_diminta, a.fitur, a.batas, a.biaya, a.harga_bulan, a.dibayar_sampai, a.status, a.alasan, a.ditinjau_pada, a.created_at, a.mode, a.sandbox_sampai, a.uji_telepon, a.uji_alamat, a.uji_diverifikasi, a.uji_kode_sampai";
+  "a.id, a.user_id, a.nama, a.kegunaan, a.situs, a.pemilik, a.kontak_wa, a.perkiraan_nomor, a.alamat_mesin, a.fitur_diminta, a.fitur, a.batas, a.biaya, a.harga_bulan, a.dibayar_sampai, a.status, a.alasan, a.ditinjau_pada, a.created_at, a.mode, a.sandbox_sampai, a.uji_telepon, a.uji_alamat, a.uji_diverifikasi, a.uji_kode_sampai, a.fitur_khusus";
 
 const rapikan = <T extends Aplikasi>(a: T): T => ({ ...a, batas: rapikanBatas(a.batas), fitur: a.fitur.filter(fiturSah), fitur_diminta: a.fitur_diminta.filter(fiturSah) });
 
@@ -654,13 +666,15 @@ async function terbitkan(instalasiId: string): Promise<{ token: string; isi: Isi
         nama_aplikasi: a.nama,
         id_instalasi: instalasiId,
         status,
-        fitur: [...umum.fitur],
+        // Per pengguna: sandbox yang diatur khusus hanya mendapat fitur pilihannya (tetap dibatasi daftar global).
+        fitur: a.fitur_khusus ? umum.fitur.filter((f) => a.fitur.includes(f)) : [...umum.fitur],
         batas: { ...BATAS_BAWAAN, ...BATAS_TETAP_SANDBOX },
         biaya: "gratis",
         dibayar_sampai: null,
         kunci: daftarKunci,
         uji: a.uji_diverifikasi ? { telepon: a.uji_telepon, alamat: a.uji_alamat } : null,
         rilis,
+        fitur_v: 2,
         diterbitkan: kini,
         berlaku_sampai: a.sandbox_sampai ?? kini,
       }
@@ -677,6 +691,7 @@ async function terbitkan(instalasiId: string): Promise<{ token: string; isi: Isi
         dibayar_sampai: a.dibayar_sampai,
         kunci: daftarKunci,
         rilis,
+        fitur_v: 2,
         diterbitkan: kini,
         berlaku_sampai: kini + MASA_LISENSI_DETIK,
       };
@@ -1168,6 +1183,8 @@ export interface SandboxPanel {
   terakhir_menyala: number | null;
   versi_mesin: string | null;
   created_at: number;
+  fitur: FiturApi[];
+  fitur_khusus: boolean;
 }
 
 /** Daftar sandbox untuk panel developer internal: indeks parsial api_aplikasi_sandbox_idx, kursor id, tanpa OFFSET. */
@@ -1180,7 +1197,7 @@ export async function daftarSandbox(o: { cari?: string; setelah?: number; batas?
   const [baris, [{ n }]] = await Promise.all([
     sql<SandboxPanel[]>`
       SELECT a.id, a.user_id, u.email, u.nama AS nama_akun, a.status, a.sandbox_sampai, a.uji_telepon, a.uji_alamat, a.uji_diverifikasi,
-             i.terakhir_sukses AS terakhir_menyala, i.versi_mesin, a.created_at
+             i.terakhir_sukses AS terakhir_menyala, i.versi_mesin, a.created_at, a.fitur, a.fitur_khusus
         FROM api_aplikasi a
         JOIN users u ON u.id = a.user_id
         LEFT JOIN LATERAL (
@@ -1195,7 +1212,18 @@ export async function daftarSandbox(o: { cari?: string; setelah?: number; batas?
 }
 
 /** Developer internal: perpanjang masa sandbox satu akun. Berlaku di mesin saat menyala / Perbarui lisensi (tanpa webhook). */
-export async function ubahSandbox(pelaku: User, id: number, u: { perpanjang?: boolean }): Promise<void> {
+export async function ubahSandbox(pelaku: User, id: number, u: { perpanjang?: boolean; fitur?: readonly string[] | null }): Promise<void> {
+  if (u.fitur !== undefined) {
+    // Per pengguna: null = ikut daftar global; daftar = hanya fitur ini (yang tidak dibagikan global tetap tertutup).
+    const fitur = u.fitur === null ? [] : KODE_FITUR.filter((k) => u.fitur!.includes(k));
+    const a = await transaksi(async (tx) => {
+      const a = await wajibAplikasi(tx, id, "sandbox");
+      await tx`UPDATE api_aplikasi SET fitur = ${fitur}, fitur_khusus = ${u.fitur !== null}, versi_lisensi = versi_lisensi + 1 WHERE id = ${id}`;
+      return a;
+    });
+    await catatLog(pelaku, "ubah fitur sandbox API", a.email, u.fitur === null ? "ikut daftar global" : fitur.join(", ") || "(tanpa fitur)");
+    return;
+  }
   if (!u.perpanjang) return;
   const umum = await pengaturanSandbox();
   const a = await transaksi(async (tx) => {

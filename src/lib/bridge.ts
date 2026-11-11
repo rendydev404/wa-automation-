@@ -19,7 +19,7 @@ import { sttTerkonfigurasi, transkripsi } from "./stt";
 import type { Foto } from "./types";
 import type { WAMessage } from "baileys";
 import { type EventWa, digitWa, kirimGambar, kirimTeks, mengetik, padaEvent, tandaiDibaca } from "./wa";
-import { botBoleh, lawanNomorUji, sandboxAktif, verifikasiNomorUjiKePusat } from "./mesin/lisensi";
+import { botBoleh, fiturBoleh, lawanNomorUji, sandboxAktif, verifikasiNomorUjiKePusat } from "./mesin/lisensi";
 import { POLA_PESAN_UJI } from "./api-def";
 
 /**
@@ -511,10 +511,10 @@ async function proses(kunci: string): Promise<void> {
         // Penyaring spam lewat AI hanya untuk chat yang belum dipercaya (lihat chatDipercaya); gagal membaca = jangan menyaring.
         // Katalog produk hanya untuk akun berbayar (dan admin); daftarnya dibaca tanpa foto.
         // Penyaring prospek: AI memberi label di jawabannya; ML menilai pesan yang sama (±6 ms) untuk belajar.
-        const pakaiNilai = nomor.saring_prospek;
+        const pakaiNilai = nomor.saring_prospek && fiturBoleh("ml");
         const [ai, saringSpam, katalog, penilaian] = await Promise.all([
           aiUntukAkun(nomor.user_id),
-          nomor.saring_spam ? st.tulis.then(() => chatDipercaya(kunci)).then((p) => !p, () => false) : false,
+          nomor.saring_spam && fiturBoleh("spam") ? st.tulis.then(() => chatDipercaya(kunci)).then((p) => !p, () => false) : false,
           katalogBoleh(nomor.user_id).then((ok) => (ok ? daftarProduk(nomor.id) : []), () => []),
           pakaiNilai && pesan.trim() ? nilaiPesan(nomor.id, pesan) : null,
         ]);
@@ -741,7 +741,7 @@ function chatDibukaManusia(kunci: string): void {
  * tercatat di histori, tidak dibalas, tidak ditandai dibaca, tidak memanggil AI.
  */
 async function saringProspek(kunci: string, a: Antrean, nomor: Nomor, teks: string): Promise<boolean> {
-  if (!nomor.saring_prospek || a.dikenal) return false;
+  if (!nomor.saring_prospek || a.dikenal || !fiturBoleh("ml")) return false;
   const t = sekarang();
 
   // Detektor pola tanpa AI: lawan bicara yang bukan manusia.
@@ -998,7 +998,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
     const waktu = ev.waktu || sekarang();
     if (teksLog) tulisLatar(() => catatPesan({ numberId: nomor.id, kunci, peran: 2, teks: teksLog, waktu, telepon }));
     // AI belajar dari balasan manusia; sesudah balasan itu tercatat, supaya pertanyaannya bisa dirunut.
-    if (nomor.belajar && ev.teks.trim()) tulisLatar(() => pelajariBalasan({ numberId: nomor.id, kunci, jawaban: ev.teks, waktu }));
+    if (nomor.belajar && fiturBoleh("belajar") && ev.teks.trim()) tulisLatar(() => pelajariBalasan({ numberId: nomor.id, kunci, jawaban: ev.teks, waktu }));
     // Manusia mengambil alih: batalkan jawaban AI yang sedang menunggu/disiapkan, lalu AI mundur.
     const a = await antreanUntuk(kunci, nomor.id, sesi, ev.alamat);
     // Pemilik membalas sendiri: lawan bicara dikenal (penyaring prospek tidak berlaku lagi). Bila chat ini sedang
@@ -1043,7 +1043,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   }
 
   // Promosi judi yang jelas: tidak diantrekan (tanpa memanggil AI), kecuali chat ini sudah dipercaya pemilik.
-  if (nomor.saring_spam && ev.teks) {
+  if (nomor.saring_spam && fiturBoleh("spam") && ev.teks) {
     const h = periksaSpam(ev.teks);
     // Balasan manusia yang masih antre ditulis harus ikut terbaca; gagal membaca = anggap dipercaya (jangan menyaring).
     if (h.spam && !(await st.tulis.then(() => chatDipercaya(kunci)).catch(() => true))) {

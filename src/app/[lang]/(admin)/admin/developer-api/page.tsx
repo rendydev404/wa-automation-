@@ -15,7 +15,7 @@ import { AksesPengguna } from "./akses-pengguna";
 import { CariLangsung } from "./cari-langsung";
 import { type EndpointRingkas, FormFiturGlobal } from "./fitur-global";
 import { FormPengaturanApi, FormStatus } from "./form-developer-api";
-import { FormPengaturanSandbox, FormUbahSandbox } from "./sandbox-panel";
+import { FormFiturSandbox, FormPengaturanSandbox, FormUbahSandbox } from "./sandbox-panel";
 import { NADA_STATUS } from "./umum";
 
 type SP = Record<string, string | string[] | undefined>;
@@ -203,9 +203,10 @@ async function Aplikasi({ sp, jumlah }: { sp: SP; jumlah: Record<FilterAplikasi,
 async function Sandbox({ sp }: { sp: SP }) {
   const cari = typeof sp.q === "string" ? sp.q.slice(0, 100) : "";
   const setelah = Number(sp.setelah);
-  const [umum, { daftar, adaLagi, jumlah }] = await Promise.all([
+  const [umum, { daftar, adaLagi, jumlah }, api] = await Promise.all([
     pengaturanSandbox(),
     daftarSandbox({ cari, setelah: Number.isInteger(setelah) && setelah > 0 ? setelah : undefined }),
+    pengaturanApi(),
   ]);
   const kini = sekarang();
   const terakhir = daftar.at(-1);
@@ -276,6 +277,7 @@ async function Sandbox({ sp }: { sp: SP }) {
                         <>
                           <FormUbahSandbox id={s.id} hari={umum.hari} />
                           <FormStatus id={s.id} status={s.status === "ditangguhkan" ? "ditangguhkan" : "disetujui"} />
+                          <FormFiturSandbox id={s.id} khusus={s.fitur_khusus} fitur={s.fitur} global={api.fitur} />
                         </>
                       )}
                     </div>

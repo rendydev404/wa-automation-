@@ -651,6 +651,37 @@ await cek("fitur baru tertutup sampai dibuka lisensi: 403 fitur_tidak_dibuka", a
   await kirimLisensi(tokenPusat(idMesin));
 });
 
+await cek("spam / belajar / ml berdiri sendiri: lisensi baru tanpa fiturnya = sakelar 403 & nilai efektif false; lisensi lama dengan bot = tetap boleh", async () => {
+  const id = String(N1.id);
+  const dasar = pusat.fitur.filter((f) => f !== "spam" && f !== "belajar" && f !== "ml");
+  // Lisensi dari pusat lama (tanpa fitur_v): bot masih mencakup ketiganya.
+  await kirimLisensi(tokenPusat(idMesin, { fitur: dasar }));
+  assert.deepEqual([ML.fiturBoleh("spam"), ML.fiturBoleh("belajar"), ML.fiturBoleh("ml")], [true, true, true]);
+  // Lisensi baru: hanya belajar yang dibuka.
+  await kirimLisensi(tokenPusat(idMesin, { fitur: [...dasar, "belajar"], fitur_v: 2 }));
+  assert.deepEqual([ML.fiturBoleh("spam"), ML.fiturBoleh("belajar"), ML.fiturBoleh("ml")], [false, true, false]);
+  const ditolak = await json(await rute.bot.PATCH(minta(`/nomor/${id}/bot`, { metode: "PATCH", body: { saring_spam: true } }), ctx({ id })));
+  assert.equal(ditolak.status, 403);
+  assert.equal(ditolak.j.galat.kode, "fitur_tidak_dibuka");
+  assert.match(ditolak.j.galat.pesan, /spam/);
+  const boleh = await json(await rute.bot.PATCH(minta(`/nomor/${id}/bot`, { metode: "PATCH", body: { belajar: true } }), ctx({ id })));
+  assert.equal(boleh.status, 200);
+  assert.equal(boleh.j.belajar, true);
+  await sql`UPDATE numbers SET saring_spam = true, saring_prospek = true WHERE id = ${N1.id}`;
+  globalThis.__waNomor.janji = null; // cache nomor dibaca ulang setelah SQL langsung
+  const g = await json(await rute.bot.GET(minta(`/nomor/${id}/bot`), ctx({ id })));
+  assert.equal(g.j.saring_spam, false); // tersimpan menyala, efektif mati
+  assert.equal(g.j.saring_prospek, false);
+  // Dibuka lagi: nilai tersimpan langsung berlaku tanpa diatur ulang.
+  await kirimLisensi(tokenPusat(idMesin, { fitur: [...dasar, "spam", "belajar", "ml"], fitur_v: 2 }));
+  const g2 = await json(await rute.bot.GET(minta(`/nomor/${id}/bot`), ctx({ id })));
+  assert.equal(g2.j.saring_spam, true);
+  assert.equal(g2.j.saring_prospek, true);
+  await sql`UPDATE numbers SET saring_prospek = false WHERE id = ${N1.id}`;
+  globalThis.__waNomor.janji = null;
+  await kirimLisensi(tokenPusat(idMesin));
+});
+
 await cek("bot: GET & PATCH sebagian (sakelar saring/belajar, validasi angka & tipe)", async () => {
   const id = String(N1.id);
   const awal = await json(await rute.bot.GET(minta(`/nomor/${id}/bot`), ctx({ id })));

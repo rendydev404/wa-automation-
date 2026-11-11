@@ -853,6 +853,21 @@ const KOLOM_PASTI: readonly { tabel: string; kolom: string; sql: string }[] = [
       UPDATE api_aplikasi SET fitur = array_append(fitur, 'dashboard') WHERE status <> 'menunggu' AND NOT ('dashboard' = ANY(fitur));
     `,
   },
+  // Fitur `bot` dipecah: `spam`, `belajar`, `ml` berdiri sendiri. Aplikasi yang sudah punya `bot` mendapatkannya sekali
+  // supaya penyaring & belajar di mesin mereka tidak tiba-tiba berhenti. Kolom penanda = jalankan sekali.
+  {
+    tabel: "api_aplikasi",
+    kolom: "fitur_pecah_bot_v1",
+    sql: `
+      ALTER TABLE api_aplikasi ADD COLUMN IF NOT EXISTS fitur_pecah_bot_v1 boolean NOT NULL DEFAULT true;
+      UPDATE api_aplikasi SET fitur = fitur || ARRAY(SELECT x FROM unnest(ARRAY['spam', 'belajar', 'ml']) x WHERE NOT (x = ANY(fitur)))
+       WHERE 'bot' = ANY(fitur);
+      UPDATE api_aplikasi SET fitur_diminta = fitur_diminta || ARRAY(SELECT x FROM unnest(ARRAY['spam', 'belajar', 'ml']) x WHERE NOT (x = ANY(fitur_diminta)))
+       WHERE 'bot' = ANY(fitur_diminta);
+    `,
+  },
+  // Fitur per pengguna untuk sandbox: false = ikut daftar global; true = hanya `fitur` sandbox ini (tetap dibatasi global).
+  { tabel: "api_aplikasi", kolom: "fitur_khusus", sql: "ALTER TABLE api_aplikasi ADD COLUMN IF NOT EXISTS fitur_khusus boolean NOT NULL DEFAULT false" },
   // Nomor bot (WA yang terhubung di mesin) yang dilaporkan mesin saat menyala / nomor terhubung: tampil di portal Developer.
   { tabel: "api_instalasi", kolom: "nomor_bot", sql: "ALTER TABLE api_instalasi ADD COLUMN IF NOT EXISTS nomor_bot text" },
   // Mode sandbox Developer API (docs/plans/2026-11-10-sandbox-developer-api.md). Pusat: sandbox = baris api_aplikasi

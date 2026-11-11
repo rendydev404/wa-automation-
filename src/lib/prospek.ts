@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { db, sekarang } from "./db";
 import { embed, mlSiap } from "./ml/embed";
+import { fiturBoleh } from "./mesin/lisensi";
 import {
   AMBANG_AWAL,
   AMBANG_BANGUN,
@@ -463,7 +464,7 @@ export async function ujiNomor(numberId: number): Promise<HasilUjian> {
 
 /** Ujian semua nomor yang penyaringnya aktif dan punya pengalaman, satu per satu. */
 export async function ujiSemua(): Promise<void> {
-  if (!(await mlSiap())) return;
+  if (!fiturBoleh("ml") || !(await mlSiap())) return;
   const sql = await db();
   const nomor = await sql<{ id: number }[]>`
     SELECT n.id FROM numbers n WHERE n.saring_prospek AND EXISTS (SELECT 1 FROM ml_contoh c WHERE c.number_id = n.id)`;

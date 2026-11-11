@@ -230,15 +230,17 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                 ) : (
                   <div data-tur="knowledge">{knowledge}</div>
                 )}
-                <PanelPelajaran
-                  key={`${totalPelajaran}-${pelajaran.daftar[0]?.id ?? 0}-${nomor.belajar}`}
-                  numberId={nomor.id}
-                  aktif={nomor.belajar}
-                  total={totalPelajaran}
-                  daftarAwal={pelajaran.daftar}
-                  adaLagiAwal={pelajaran.adaLagi}
-                  kini={sekarang()}
-                />
+                {fiturBoleh("belajar") && (
+                  <PanelPelajaran
+                    key={`${totalPelajaran}-${pelajaran.daftar[0]?.id ?? 0}-${nomor.belajar}`}
+                    numberId={nomor.id}
+                    aktif={nomor.belajar}
+                    total={totalPelajaran}
+                    daftarAwal={pelajaran.daftar}
+                    adaLagiAwal={pelajaran.adaLagi}
+                    kini={sekarang()}
+                  />
+                )}
               </div>
               )
             ),
@@ -317,6 +319,8 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                     saringSpam={nomor.saring_spam}
                     saringProspek={nomor.saring_prospek}
                     ml={ml}
+                    spamBoleh={fiturBoleh("spam")}
+                    mlBoleh={fiturBoleh("ml")}
                   />
                 </div>
                 <HapusNomor id={nomor.id} />

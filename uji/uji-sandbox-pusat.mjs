@@ -243,6 +243,34 @@ await cek("developer internal bisa perpanjang sandbox satu akun", async () => {
   assert.equal(log.n, 1);
 });
 
+await cek("fitur per pengguna: sandbox diatur khusus hanya mendapat fitur pilihannya (tetap dibatasi global); kembali ikut global", async () => {
+  const fiturLisensi = async () => L.verifikasiLisensi(await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" })).fitur;
+  const global = (await D.pengaturanApi()).fitur;
+  assert.ok(global.includes("nomor") && global.includes("spam"));
+  assert.equal(L.verifikasiLisensi(await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" })).fitur_v, 2);
+  assert.deepEqual(await fiturLisensi(), global);
+  await D.ubahSandbox(DV, sb.id, { fitur: ["nomor", "spam", "tidak-ada"] });
+  assert.deepEqual(await fiturLisensi(), ["nomor", "spam"]);
+  // Fitur yang tidak dibagikan global tetap tertutup walau dicentang khusus.
+  await D.simpanFiturGlobal(DV, global.filter((f) => f !== "spam"));
+  assert.deepEqual(await fiturLisensi(), ["nomor"]);
+  await D.simpanFiturGlobal(DV, global);
+  await D.ubahSandbox(DV, sb.id, { fitur: null });
+  assert.deepEqual(await fiturLisensi(), global);
+  const log = await sql`SELECT detail FROM admin_log WHERE aksi = 'ubah fitur sandbox API' ORDER BY id`;
+  assert.deepEqual(log.map((r) => r.detail), ["nomor, spam", "ikut daftar global"]);
+});
+
+await cek("daftar fitur global lama (sebelum bot dipecah): bot yang dibagikan = spam, belajar, ml ikut dibagikan", async () => {
+  await sql`DELETE FROM settings WHERE kunci = 'api_fitur_pecah_bot_kenal'`;
+  await sql`INSERT INTO settings (kunci, nilai) VALUES ('api_fitur_global', '["nomor","bot"]') ON CONFLICT (kunci) DO UPDATE SET nilai = EXCLUDED.nilai`;
+  globalThis.__waPg?.setelan?.clear?.();
+  const f = (await D.pengaturanApi()).fitur;
+  assert.ok(["nomor", "bot", "spam", "belajar", "ml"].every((k) => f.includes(k)), f.join(","));
+  await D.simpanFiturGlobal(DV, ["nomor", "bot"]);
+  assert.deepEqual((await D.pengaturanApi()).fitur, ["nomor", "bot"]); // disimpan sesudah dipecah = apa adanya
+});
+
 await cek("tangguhkan / aktifkan / cabut sandbox oleh developer internal; dicabut = tidak bisa dibuat lagi", async () => {
   await D.ubahStatus(DV, sb.id, "tangguhkan", "uji penangguhan");
   assert.equal(L.verifikasiLisensi(await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" })).status, "ditangguhkan");

@@ -682,7 +682,7 @@ export async function bangunkanChatAction(numberId: number, percakapanId: number
 }
 
 export async function setSaringProspekAction(id: number, aktif: boolean): Promise<Hasil> {
-  { const kunci = await fiturTerkunci("bot"); if (kunci) return kunci; }
+  { const kunci = await fiturTerkunci("ml"); if (kunci) return kunci; }
   const user = await requireUser();
   if (!(await nomorUntuk(user, id))) return nomorTidakAda((await teksPermintaan()).t);
   await setSaringProspek(id, aktif);
@@ -692,7 +692,7 @@ export async function setSaringProspekAction(id: number, aktif: boolean): Promis
 }
 
 export async function setSaringSpamAction(id: number, aktif: boolean): Promise<Hasil> {
-  { const kunci = await fiturTerkunci("bot"); if (kunci) return kunci; }
+  { const kunci = await fiturTerkunci("spam"); if (kunci) return kunci; }
   const user = await requireUser();
   if (!(await nomorUntuk(user, id))) return nomorTidakAda((await teksPermintaan()).t);
   await setSaringSpam(id, aktif);
@@ -704,7 +704,7 @@ export async function setSaringSpamAction(id: number, aktif: boolean): Promise<H
 // ---------- Belajar dari balasan manusia ----------
 
 export async function setBelajarAction(id: number, aktif: boolean): Promise<Hasil> {
-  { const kunci = await fiturTerkunci("bot"); if (kunci) return kunci; }
+  { const kunci = await fiturTerkunci("belajar"); if (kunci) return kunci; }
   const user = await requireUser();
   if (!(await nomorUntuk(user, id))) return nomorTidakAda((await teksPermintaan()).t);
   await setBelajar(id, aktif);

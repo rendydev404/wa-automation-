@@ -9,6 +9,7 @@ import { ATURAN_NILAI } from "./prospek-def";
 import { type Produk, blokKatalog } from "./katalog-def";
 import { ATURAN_SERAH_TIM } from "./teruskan";
 import { ATURAN_TOPIK } from "./penjaga";
+import { fiturBoleh } from "./mesin/lisensi";
 
 /**
  * Base knowledge per nomor WhatsApp. Teks dipotong jadi potongan ±900 karakter dan diindeks
@@ -358,7 +359,7 @@ export async function susunSistem(
 ): Promise<{ sistem: string; konteks: Konteks; pelajaran: number }> {
   const [konteks, pelajaran, riwayat, global] = await Promise.all([
     konteksPengetahuan(nomor.id, kueri),
-    nomor.belajar ? konteksPelajaran(nomor.id, kueriCari(saringKueri(kueri))) : { teks: "", n: 0 },
+    nomor.belajar && fiturBoleh("belajar") ? konteksPelajaran(nomor.id, kueriCari(saringKueri(kueri))) : { teks: "", n: 0 },
     opsi.riwayat ?? [],
     aturanGlobal(),
   ]);

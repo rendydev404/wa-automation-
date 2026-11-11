@@ -12,6 +12,10 @@ import {
 } from "@/lib/numbers";
 import { MAKS_INSTRUKSI } from "@/lib/templat-ai-def";
 import { aman, bacaJson, bukanKonteks, galat, nomorAtau404, ok, otorisasi } from "@/lib/mesin/api";
+import { fiturBoleh } from "@/lib/mesin/lisensi";
+
+/** Sakelar yang dikunci fitur katalognya sendiri (spam/belajar/ml berdiri sendiri, terpisah dari `bot`). */
+const FITUR_SAKELAR = { saring_spam: "spam", saring_prospek: "ml", belajar: "belajar" } as const;
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -22,9 +26,10 @@ const bentukBot = (n: Nomor) => ({
   tunggu_detik: n.tunggu_detik,
   tunggu_baca_detik: n.tunggu_baca_detik,
   jeda_detik: n.jeda_detik,
-  saring_spam: n.saring_spam,
-  saring_prospek: n.saring_prospek,
-  belajar: n.belajar,
+  // Nilai efektif: fitur yang tidak dibuka = false, walau tersimpan menyala (dipakai lagi begitu fitur dibuka).
+  saring_spam: n.saring_spam && fiturBoleh("spam"),
+  saring_prospek: n.saring_prospek && fiturBoleh("ml"),
+  belajar: n.belajar && fiturBoleh("belajar"),
 });
 
 /** GET /api/v1/nomor/{id}/bot: pengaturan bot AI nomor ini. */
@@ -60,6 +65,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const d = b.data;
     const salah = (pesan: string) => galat("isian_tidak_sah", pesan, k.id, k.kepala);
     for (const s of SAKELAR) if (d[s] !== undefined && typeof d[s] !== "boolean") return salah(`${s} harus true/false.`);
+    for (const [kolom, fitur] of Object.entries(FITUR_SAKELAR) as [keyof typeof FITUR_SAKELAR, (typeof FITUR_SAKELAR)[keyof typeof FITUR_SAKELAR]][])
+      if (d[kolom] !== undefined && !fiturBoleh(fitur)) return galat("fitur_tidak_dibuka", `Fitur '${fitur}' belum dibuka untuk aplikasi ini (kolom ${kolom}).`, k.id, k.kepala);
     if (d.instruksi !== undefined && typeof d.instruksi !== "string") return salah(`instruksi harus teks (maks ${MAKS_INSTRUKSI.toLocaleString("id-ID")} karakter).`);
     const instruksi = d.instruksi === undefined ? n.instruksi : String(d.instruksi).trim().slice(0, MAKS_INSTRUKSI);
     const tunggu = d.tunggu_detik === undefined ? n.tunggu_detik : angkaDalam(d.tunggu_detik, BATAS_TUNGGU_DETIK);

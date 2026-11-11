@@ -27,7 +27,10 @@ export const FITUR_API = [
   { kode: "profil", grup: "wa", label: "Profil WhatsApp", keterangan: "Nama & foto profil nomor yang terhubung" },
   { kode: "percakapan", grup: "wa", label: "Riwayat percakapan", keterangan: "Daftar chat & isi pesan, balas manual, jeda/lanjutkan bot per chat (API + halaman Percakapan di dashboard mesin)" },
   { kode: "ai", grup: "ai", label: "Tanya AI", keterangan: "Jawaban bot berdasarkan Informasi Usaha nomor, tanpa lewat WhatsApp" },
-  { kode: "bot", grup: "ai", label: "Pengaturan bot", keterangan: "Bot nyala/mati, instruksi, waktu tunggu, saring spam & prospek, belajar dari admin" },
+  { kode: "bot", grup: "ai", label: "Pengaturan bot", keterangan: "Bot nyala/mati, instruksi, waktu tunggu, jeda setelah manusia membalas" },
+  { kode: "spam", grup: "ai", label: "Saring spam", keterangan: "Promosi judi & pesan sampah tidak dibalas AI (hemat kuota), tercatat dengan tanda Spam" },
+  { kode: "belajar", grup: "ai", label: "Belajar dari admin", keterangan: "Balasan admin dari HP dipelajari & dipakai AI untuk pertanyaan serupa" },
+  { kode: "ml", grup: "ai", label: "Machine learning prospek", keterangan: "Penyaring prospek ML lokal: chat iseng dibisukan tanpa memanggil AI" },
   { kode: "templat", grup: "ai", label: "Template instruksi industri", keterangan: "Template instruksi bot siap pakai per jenis usaha (laundry, klinik, travel, dll.)" },
   { kode: "ai.rapikan", grup: "ai", label: "Rapikan tulisan usaha", keterangan: "Tulisan bebas pemilik usaha disusun AI jadi dokumen siap pakai + daftar info yang kurang" },
   { kode: "ai.transkripsi", grup: "ai", label: "Transkripsi suara", keterangan: "Rekaman suara (maks 10 MB) jadi teks, memakai kunci STT di mesin" },
@@ -41,7 +44,8 @@ export const FITUR_API = [
 
 export type FiturApi = (typeof FITUR_API)[number]["kode"];
 /** Fitur yang tidak punya endpoint API (berlaku di mesin saja); dikecualikan dari aturan "tiap fitur punya endpoint". */
-export const FITUR_TANPA_ENDPOINT: readonly FiturApi[] = ["dashboard"];
+// spam/belajar/ml diatur lewat kolom saring_spam/belajar/saring_prospek di PATCH /nomor/{id}/bot (lihat api-dok).
+export const FITUR_TANPA_ENDPOINT: readonly FiturApi[] = ["dashboard", "spam", "belajar", "ml"];
 /** Jalur yang ikut berhenti saat fitur dimatikan (ditampilkan di panel developer internal). */
 export const DAMPAK_FITUR: Record<FiturApi, string> = {
   nomor: "API nomor/QR/pairing/logout + tab Koneksi & tambah/hapus nomor di dashboard",
@@ -52,6 +56,9 @@ export const DAMPAK_FITUR: Record<FiturApi, string> = {
   percakapan: "API riwayat percakapan + tab Percakapan di dashboard",
   ai: "API tanya AI + Uji bot di dashboard",
   bot: "Bot WhatsApp berhenti membalas otomatis + pengaturan bot (API & dashboard)",
+  spam: "Penyaring spam berhenti (semua pesan diteruskan ke AI) + sakelar Saring spam (API & dashboard)",
+  belajar: "Balasan admin tidak dipelajari lagi & yang tersimpan tidak dipakai AI + sakelar Belajar (API & dashboard)",
+  ml: "Penyaring prospek ML berhenti (semua chat dilayani AI) + sakelar Saring prospek (API & dashboard)",
   templat: "API & pilihan template instruksi",
   "ai.rapikan": "API & tombol Rapikan tulisan",
   "ai.transkripsi": "API transkripsi suara",
@@ -191,6 +198,11 @@ export interface IsiLisensi {
   uji?: NomorUji | null;
   /** Rolling release (src/lib/rilis-def.ts): versi terbaru & minimal. Tidak ada = pusat lama. */
   rilis?: InfoRilis;
+  /**
+   * 2 = katalog dengan `spam`/`belajar`/`ml` terpisah. Tidak ada = lisensi lama: `bot` masih mencakup ketiganya
+   * (mesin baru menghormatinya supaya penyaring tidak mati sebelum pusat mengirim lisensi baru).
+   */
+  fitur_v?: 2;
 }
 
 /** Mode lisensi (lisensi v1 lama selalu produksi). */

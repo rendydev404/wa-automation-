@@ -213,6 +213,8 @@ export function NumberSettings({
   saringSpam,
   saringProspek,
   ml,
+  spamBoleh = true,
+  mlBoleh = true,
 }: {
   id: number;
   label: string;
@@ -223,6 +225,9 @@ export function NumberSettings({
   saringSpam: boolean;
   saringProspek: boolean;
   ml: StatusMl;
+  /** Mesin self-host: fitur `spam` / `ml` dibuka lisensi (pusat: selalu true). Ditutup = sakelarnya tidak tampil. */
+  spamBoleh?: boolean;
+  mlBoleh?: boolean;
 }) {
   const [hasil, aksi] = useActionState(ubahNomorAction, null);
   const { t } = useBahasa();
@@ -314,9 +319,9 @@ export function NumberSettings({
           </p>
         </fieldset>
 
-        <SaklarProspek id={id} aktif={saringProspek} ml={ml} />
+        {mlBoleh && <SaklarProspek id={id} aktif={saringProspek} ml={ml} />}
 
-        <SaklarSpam id={id} aktif={saringSpam} />
+        {spamBoleh && <SaklarSpam id={id} aktif={saringSpam} />}
 
         <InstruksiNomor awal={instruksi} />
         <div className="flex items-center gap-3">

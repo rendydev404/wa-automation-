@@ -377,6 +377,23 @@ export async function simpanPengaturanSandboxAction(_lalu: Hasil | null, form: F
 }
 
 /** Perpanjang satu sandbox. */
+/** Fitur per pengguna untuk satu sandbox: "global" = ikut daftar global, selain itu daftar centang. */
+export async function aturFiturSandboxAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const m = await tolakMesin();
+  if (m) return m;
+  const pelaku = await requireDeveloper();
+  const id = idSah(form.get("id"));
+  if (!id) return { ok: false, pesan: "Sandbox tidak valid." };
+  const ikutGlobal = form.get("mode") === "global";
+  try {
+    await ubahSandbox(pelaku, id, { fitur: ikutGlobal ? null : form.getAll("fitur").map(String) });
+    segarkanPanel();
+    return { ok: true, pesan: ikutGlobal ? "Sandbox ini kembali mengikuti fitur global." : "Fitur khusus sandbox ini disimpan." };
+  } catch (e) {
+    return galat(e);
+  }
+}
+
 export async function ubahSandboxAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
   const m = await tolakMesin();
   if (m) return m;

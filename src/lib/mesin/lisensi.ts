@@ -103,7 +103,10 @@ function lisensiAktif(kini = sekarang()): boolean {
  */
 export function fiturBoleh(kode: FiturApi): boolean {
   if (!modeMesin()) return true;
-  return lisensiAktif() && !!st.isi?.fitur.includes(kode);
+  if (!lisensiAktif() || !st.isi) return false;
+  if (st.isi.fitur.includes(kode)) return true;
+  // Lisensi dari pusat lama (sebelum `bot` dipecah): `bot` masih mencakup saring spam, belajar, dan ML prospek.
+  return !st.isi.fitur_v && (kode === "spam" || kode === "belajar" || kode === "ml") && st.isi.fitur.includes("bot");
 }
 
 /** Bot WhatsApp boleh membalas otomatis: layanan aktif + fitur `bot` dibuka. Pusat: sama dengan layananBoleh (true). */
