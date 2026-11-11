@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # Image mesin ChatGerCep self-host (MODE=mesin). Dibangun CI (.github/workflows/mesin.yml) untuk linux/amd64 & arm64,
 # dari repo yang sama dengan chatgercep.com (satu basis kode). Konteks build = akar repo:
-#   docker build -f deploy/mesin/Dockerfile --build-arg VERSI=1.0.0 -t chatgercep-mesin .
+#   docker build -f deploy/mesin/Dockerfile --build-arg VERSI=1.0.0 -t chatgercep-engine .
 
 FROM node:24-bookworm-slim AS bangun
 WORKDIR /src

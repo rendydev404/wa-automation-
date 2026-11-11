@@ -1,5 +1,5 @@
 # Image mesin ChatGerCep self-host (deploy/mesin/Dockerfile) -> GitHub Container Registry.
-#   - Tag git `mesin-v1.2.3`  -> ghcr.io/<pemilik>/chatgercep-mesin:1.2.3 + :1.2 + :stable
+#   - Tag git `mesin-v1.2.3`  -> ghcr.io/<pemilik>/chatgercep-engine:1.2.3 + :1.2 + :stable
 #   - Jalankan manual (tab Actions) -> tag "uji-<sha>" (tidak menggeser :stable)
 # Multi-arsitektur: linux/amd64 & linux/arm64 (onnxruntime-node punya biner untuk keduanya).
 # Tidak menyentuh deploy chatgercep.com (deploy.yml) sama sekali.
@@ -46,7 +46,7 @@ jobs:
       - name: Daftar tag image
         id: tags
         run: |
-          IMG="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/chatgercep-mesin"
+          IMG="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/chatgercep-engine"
           echo "daftar=$(echo '${{ steps.v.outputs.tag }}' | tr ',' '\n' | sed "s|^|${IMG}:|" | paste -sd, -)" >> "$GITHUB_OUTPUT"
 
       - uses: docker/build-push-action@v6

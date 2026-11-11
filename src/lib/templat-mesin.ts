@@ -6,14 +6,14 @@ import { randomBytes } from "node:crypto";
  * API key TIDAK diisikan: key hanya tampil sekali di portal dan pusat hanya menyimpan hash-nya.
  */
 
-export const IMAGE_MESIN = process.env.IMAGE_MESIN || "ghcr.io/rendydev404/chatgercep-mesin";
+export const IMAGE_MESIN = process.env.IMAGE_MESIN || "ghcr.io/rendydev404/chatgercep-engine";
 
 export function composeMesin(): string {
   return `# ChatGerCep Mesin (self-host). Semua resource di server Anda: WhatsApp, database, dan kunci AI milik Anda.
 # Pasang: isi .env (salin dari .env.contoh), lalu jalankan:  docker compose up -d
 # Update:  docker compose pull && docker compose up -d   (migrasi database berjalan otomatis; WhatsApp tidak terputus)
 # Panduan lengkap & dokumentasi API: https://chatgercep.com/docs/api
-name: chatgercep-mesin
+name: chatgercep-engine
 
 services:
   mesin:
