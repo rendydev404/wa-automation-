@@ -61,10 +61,23 @@ export interface QrPixel {
 }
 
 /**
- * Susun jalur SVG bergaya grafik piksel (tiap modul berupa piksel terpisah yang tajam) dengan ruang
- * khusus 9×9 modul di tengah untuk logo aplikasi. Pada QR versi 11 (65×65 termasuk border 2),
- * area tengah 9×9 bertepatan dengan alignment pattern tengah (5×5) sehingga hanya menutup <2% kode
- * data dan tetap sangat mudah dipindai kamera iPhone (iOS) maupun Android.
+ * Palet warna gelap QR bergaya piksel (seluruhnya < 17% luminansi Rec.709, rasio kontras > 11,8:1 terhadap putih)
+ * agar sensor luma kamera iPhone (iOS Vision / AVCaptureMetadataOutput) & Android selalu membacanya hitam pekat.
+ */
+export const WARNA_QR = {
+  pikselUtama: "#0b1813",
+  pikselAksen: "#0d3326",
+  mataLuar: "#0b1813",
+  mataDalam: "#0d291e",
+  mataPusat: "#0b1813",
+} as const;
+
+/**
+ * Susun jalur SVG bergaya grafik piksel dengan ruang 9×9 modul di tengah untuk logo aplikasi.
+ * Dipasangkan dengan koreksi galat tinggi (`ecc: "Q"`, ~25%, `border: 3` -> QR Versi 15 berukuran 83×83):
+ * - Seluruh 13 alignment pattern Versi 15 (`[6, 26, 48, 70]`) berada di luar area logo pusat (0% tertutup).
+ * - Ketiga mata sudut 7×7 digambar utuh 1×1 tanpa celah internal (`pad = 0`) sehingga rasio wajib ISO `1:1:3:1:1`
+ *   terjaga sempurna pada kamera iPhone (WA biasa maupun WA Business) dan Android.
  */
 export function jalurQrPixel({ n, bit }: BitQr): QrPixel {
   const s = atob(bit);
@@ -73,9 +86,11 @@ export function jalurQrPixel({ n, bit }: BitQr): QrPixel {
     return (s.charCodeAt(i >> 3) & (0x80 >> (i & 7))) !== 0;
   };
 
-  const tepi = 2;
+  let tepi = 0;
+  while (tepi < 8 && !gelap(tepi, tepi)) tepi += 1;
+  if (tepi >= 8) tepi = 2;
   const pusat = Math.floor(n / 2);
-  const radiusLogo = 4; // 9x9 modul di pusat (28..36 pada n=65)
+  const radiusLogo = 4; // 9x9 modul di pusat (bebas alignment pattern pada V14-V17)
   const mata = [
     { x0: tepi, y0: tepi },
     { x0: n - tepi - 7, y0: tepi },
@@ -83,6 +98,7 @@ export function jalurQrPixel({ n, bit }: BitQr): QrPixel {
   ];
 
   const kotak = (x: number, y: number, pad: number): string => {
+    if (pad === 0) return `M${x} ${y}h1v1h-1z`;
     const u = +(1 - pad * 2).toFixed(2);
     const ox = +(x + pad).toFixed(2);
     const oy = +(y + pad).toFixed(2);
@@ -106,20 +122,20 @@ export function jalurQrPixel({ n, bit }: BitQr): QrPixel {
         const dx = x - m.x0;
         const dy = y - m.y0;
         if (dx === 3 && dy === 3) {
-          mataPusat += kotak(x, y, 0.04);
+          mataPusat += kotak(x, y, 0);
         } else if (dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4) {
-          mataDalam += kotak(x, y, 0.05);
+          mataDalam += kotak(x, y, 0);
         } else {
-          mataLuar += kotak(x, y, 0.04);
+          mataLuar += kotak(x, y, 0);
         }
         continue;
       }
 
-      // Modul data digambar sebagai ubin piksel mandiri (0.84x0.84) agar tampak bergrafik piksel tajam.
+      // Modul data 0.92x0.92: tetap tampak bergrafik piksel tajam tanpa menggerus kontras gelap modul.
       if ((x + y * 3) % 7 === 0) {
-        pikselAksen += kotak(x, y, 0.08);
+        pikselAksen += kotak(x, y, 0.04);
       } else {
-        pikselUtama += kotak(x, y, 0.08);
+        pikselUtama += kotak(x, y, 0.04);
       }
     }
   }

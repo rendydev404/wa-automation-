@@ -1,7 +1,7 @@
 import "server-only";
 import { skala } from "./skala-waktu";
 import { createHash } from "node:crypto";
-import type { ConnectionState, SocketConfig, WAMessage, WAPatchName, WASocket, proto } from "baileys";
+import type { AuthenticationCreds, ConnectionState, SocketConfig, WAMessage, WAPatchName, WASocket, proto } from "baileys";
 import { type BitQr, kemasQr } from "./qr";
 import { rapikanNomorWa } from "./format";
 import { pancarkan } from "./peristiwa";
@@ -201,6 +201,92 @@ function simpanPemetaanPasangan(B: Baileys, sock: WASocket, pn: string | undefin
 
 function simpanPemetaanDiri(B: Baileys, sock: WASocket, creds: { me?: { id?: string; lid?: string } }): void {
   simpanPemetaanPasangan(B, sock, creds.me?.id, creds.me?.lid);
+}
+
+/**
+ * Baileys 7.0.0-rc14 (`validate-connection.js:161`) meng-hardcode `WA_ADV_DEVICE_SIG_PREFIX` (`[6, 1]`) saat
+ * menandatangani `pair-device-sign`, padahal akun WA Business Coexistence / Cloud Hosted (`ADVEncryptionType.HOSTED`)
+ * wajib memakai `WA_ADV_HOSTED_DEVICE_SIG_PREFIX` (`[6, 6]`). Mengembalikan `true` bila stanza `HOSTED` sudah ditangani.
+ */
+function tanganiPairSuccessHosted(B: Baileys, namaSesi: string, sock: WASocket, creds: AuthenticationCreds, stanza: unknown): boolean {
+  type BNode = { tag: string; attrs: Record<string, string>; content?: unknown };
+  const sNode = stanza as BNode | undefined;
+  const pairNode = sNode ? (B.getBinaryNodeChild(sNode as never, "pair-success") as BNode | undefined) : undefined;
+  const devIdNode = pairNode ? (B.getBinaryNodeChild(pairNode as never, "device-identity") as BNode | undefined) : undefined;
+  const devNode = pairNode ? (B.getBinaryNodeChild(pairNode as never, "device") as BNode | undefined) : undefined;
+  if (!pairNode || !devIdNode?.content || !devNode) return false;
+
+  const isiHmac = devIdNode.content instanceof Uint8Array ? devIdNode.content : null;
+  if (!isiHmac) return false;
+  const { details, hmac, accountType } = B.proto.ADVSignedDeviceIdentityHMAC.decode(isiHmac);
+  if (!details || !hmac) return false;
+  const account = B.proto.ADVSignedDeviceIdentity.decode(details);
+  if (!account.details || !account.accountSignatureKey || !account.accountSignature) return false;
+  const deviceIdentity = B.proto.ADVDeviceIdentity.decode(account.details);
+  const isHostedAccount = accountType === B.proto.ADVEncryptionType.HOSTED;
+  const isHostedDevice = deviceIdentity.deviceType === B.proto.ADVEncryptionType.HOSTED;
+  if (!isHostedAccount && !isHostedDevice) return false;
+
+  const sockInternal = sock as unknown as {
+    sendNode?: (n: unknown) => Promise<void>;
+    sendUnifiedSession?: () => Promise<void>;
+    updateServerTimeOffset?: (n: unknown) => void;
+    end?: (e: Error) => void;
+  };
+  if (typeof sockInternal.sendNode !== "function") return false;
+
+  try {
+    sockInternal.updateServerTimeOffset?.(sNode);
+    const hmacPrefix = isHostedAccount ? B.WA_ADV_HOSTED_ACCOUNT_SIG_PREFIX : Buffer.alloc(0);
+    const advSign = B.hmacSign(Buffer.concat([hmacPrefix, details]), Buffer.from(creds.advSecretKey, "base64"));
+    if (!hmac || Buffer.compare(hmac, advSign) !== 0) throw new Error("Invalid account signature");
+
+    const accSigPrefix = isHostedDevice ? B.WA_ADV_HOSTED_ACCOUNT_SIG_PREFIX : B.WA_ADV_ACCOUNT_SIG_PREFIX;
+    const accountMsg = Buffer.concat([accSigPrefix, account.details, creds.signedIdentityKey.public]);
+    if (!B.Curve.verify(account.accountSignatureKey, accountMsg, account.accountSignature)) {
+      throw new Error("Failed to verify account signature");
+    }
+
+    const devSigPrefix = isHostedDevice ? B.WA_ADV_HOSTED_DEVICE_SIG_PREFIX : B.WA_ADV_DEVICE_SIG_PREFIX;
+    const deviceMsg = Buffer.concat([devSigPrefix, account.details, creds.signedIdentityKey.public, account.accountSignatureKey]);
+    account.deviceSignature = B.Curve.sign(creds.signedIdentityKey.private, deviceMsg);
+
+    const jid = devNode.attrs?.jid;
+    const lid = devNode.attrs?.lid;
+    const bizNode = B.getBinaryNodeChild(pairNode as never, "biz") as BNode | undefined;
+    const platformNode = B.getBinaryNodeChild(pairNode as never, "platform") as BNode | undefined;
+    const platform = platformNode?.attrs?.name;
+    const identity = B.createSignalIdentity(lid || jid, account.accountSignatureKey);
+    const accountEnc = B.encodeSignedDeviceIdentity(account, false);
+    const reply = {
+      tag: "iq",
+      attrs: { to: B.S_WHATSAPP_NET, type: "result", id: sNode?.attrs?.id },
+      content: [
+        {
+          tag: "pair-device-sign",
+          attrs: {},
+          content: [{ tag: "device-identity", attrs: { "key-index": String(deviceIdentity.keyIndex ?? 0) }, content: accountEnc }],
+        },
+      ],
+    };
+
+    console.info(`[wa ${namaSesi}] pairing configured successfully, expect to restart the connection...${platform ? ` (platform ${platform})` : ""}`);
+    sock.ev.emit("creds.update", {
+      account,
+      me: { id: jid, name: bizNode?.attrs?.name, lid },
+      signalIdentities: [...(creds.signalIdentities || []), identity],
+      platform,
+    });
+    sock.ev.emit("connection.update", { isNewLogin: true, qr: undefined });
+    void sockInternal
+      .sendNode(reply)
+      .then(() => sockInternal.sendUnifiedSession?.())
+      .catch((err: unknown) => sockInternal.end?.(err instanceof Error ? err : new Error(String(err))));
+  } catch (err) {
+    console.error(`[wa ${namaSesi}] error in pairing:`, err instanceof Error ? err.message : err);
+    sockInternal.end?.(err instanceof Error ? err : new Error(String(err)));
+  }
+  return true;
 }
 
 const tidur = (ms: number) => new Promise<null>((r) => setTimeout(() => r(null), ms));
@@ -715,6 +801,10 @@ async function sambung(s: Sesi): Promise<void> {
             diag.frame.set(tag, (diag.frame.get(tag) ?? 0) + 1);
             diag.frameTerakhir = Date.now();
           }
+        } else if (ev === "CB:iq,,pair-success") {
+          if (tanganiPairSuccessHosted(B, s.nama, sock, auth.creds, args[0])) return true;
+        } else if (ev === "CB:failure") {
+          console.warn(`[wa ${s.nama}] kegagalan koneksi dari WhatsApp: ${ringkasNode(args[0])}`);
         } else if (ev === "CB:success") {
           diag.login = Math.round((Date.now() - diag.mulai) / 1000);
           // Baileys 7 baru menyalin `node.attrs.lid` ke `creds.me.lid` setelah 3 round-trip jaringan
@@ -818,6 +908,74 @@ async function sambung(s: Sesi): Promise<void> {
   }
   s.sock = sock;
 
+  // Baileys 7 (`socket.js:843-856`) menembakkan `<presence name="..."/>` setiap kali `creds.me?.name !== update.me?.name`:
+  // 1) Pada WA Business (`<biz name="..."/>`), `pair-success` memicu `<presence>` di soket registrasi SEBELUM `pair-device-sign`!
+  // 2) Setiap `creds.update` parsial tanpa `me` (`uploadPreKeys`, `dirty`, `myAppStateKeyId`) memicu `<presence/>` kosong cacat!
+  // Samakan `me.name` & jaga `me.lid` / `signalIdentities` sebelum pendengar internal Baileys berjalan agar protokol iPhone (smbi) bersih.
+  const evMentah = sock.ev as unknown as { emit?: (ev: string, ...args: unknown[]) => boolean };
+  if (typeof evMentah?.emit === "function") {
+    const emitEvAsli = evMentah.emit.bind(sock.ev);
+    evMentah.emit = (ev: string, ...args: unknown[]) => {
+      if (ev === "creds.update" && args[0] && typeof args[0] === "object" && args[0] !== auth.creds) {
+        const u = args[0] as Partial<AuthenticationCreds>;
+        const lidJaga = u.me?.lid || auth.creds.me?.lid || s.lidTersimpan;
+        if (u.me) {
+          const meBaru = { ...auth.creds.me, ...u.me, ...(lidJaga ? { lid: lidJaga } : {}) } as NonNullable<AuthenticationCreds["me"]>;
+          auth.creds.me = meBaru;
+          args[0] = { ...u, me: meBaru };
+        } else if (auth.creds.me?.name !== undefined) {
+          args[0] = { ...u, me: { ...auth.creds.me, ...(lidJaga ? { lid: lidJaga } : {}) } };
+        }
+        const idents = (args[0] as Partial<AuthenticationCreds>).signalIdentities;
+        if (idents?.[0]?.identifier && !idents[0].identifier.name) {
+          const fallbackNama = lidJaga || (args[0] as Partial<AuthenticationCreds>).me?.id || auth.creds.me?.id;
+          if (fallbackNama) idents[0].identifier.name = fallbackNama;
+        }
+      }
+      return emitEvAsli(ev, ...args);
+    };
+  }
+
+  let dirtyTerbersih = 0;
+  let sinkronAktif: { janji: Promise<void>; denganKunci: boolean } | null = null;
+  const bersihkanDirtyAkun = (ts?: number): void => {
+    const target = ts ?? auth.creds.lastAccountSyncTimestamp;
+    if (!target || target === dirtyTerbersih || typeof sock.cleanDirtyBits !== "function") return;
+    dirtyTerbersih = target;
+    void sock.cleanDirtyBits("account_sync", target).catch(() => {});
+  };
+  const jalankanSinkron = (koleksi: readonly WAPatchName[]): void => {
+    if (typeof sock.resyncAppState !== "function") return;
+    const punyaKunci = !!auth.creds.myAppStateKeyId;
+    if (sinkronAktif) {
+      // Bila sinkron dengan kunci sudah berjalan, cukup tunggu selesai; bila sinkron tanpa kunci sedang jalan dan
+      // kunci baru saja tiba dari iPhone, antrekan tepat sesudahnya agar tidak balapan mutex.
+      if (!sinkronAktif.denganKunci && punyaKunci) {
+        const setelah = sinkronAktif.janji.then(() => jalankanSinkron(koleksi));
+        sinkronAktif = { janji: setelah, denganKunci: true };
+      }
+      return;
+    }
+    const janji = sock
+      .resyncAppState(koleksi, false)
+      .then(() => {
+        // Hanya tandai selesai & bersihkan dirty bit bila myAppStateKeyId sudah tiba dari HP; bila dipanggil saat
+        // `open` sebelum iPhone mengirim APP_STATE_SYNC_KEY_SHARE, biarkan 0 agar disinkronkan ulang begitu kunci tiba.
+        if (auth.creds.myAppStateKeyId) {
+          if (!auth.creds.accountSyncCounter) {
+            auth.creds.accountSyncCounter = 1;
+            auth.simpanCreds();
+          }
+          bersihkanDirtyAkun();
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (sinkronAktif?.janji === janji) sinkronAktif = null;
+      });
+    sinkronAktif = { janji, denganKunci: punyaKunci };
+  };
+
   sock.ev.on("creds.update", (u) => {
     if (s.gen !== gen) return;
     const lidBaru = u.me?.lid || auth.creds.me?.lid || u.signalIdentities?.[0]?.identifier?.name || auth.creds.signalIdentities?.[0]?.identifier?.name;
@@ -849,17 +1007,19 @@ async function sambung(s: Sesi): Promise<void> {
       if (s.status === "WORKING" && s.waId) void kabari({ jenis: "terhubung", sesi: s.nama, waId: s.waId, nama });
     }
     // Saat kunci app-state pertama tiba dari HP (baik iPhone/Android biasa maupun WA Business),
-    // wajib jalankan resync awal SEMUA koleksi dan bersihkan dirty bit account_sync agar tautan tidak gagal/dicabut WA.
+    // wajib jalankan resync awal SEMUA koleksi lalu bersihkan dirty bit account_sync sesudahnya.
     if (u.myAppStateKeyId && !auth.creds.accountSyncCounter) {
-      sinkronAwal(sock, auth, KOLEKSI_APP_STATE);
+      jalankanSinkron(KOLEKSI_APP_STATE);
     }
-    if (u.lastAccountSyncTimestamp && typeof sock.cleanDirtyBits === "function") {
-      void sock.cleanDirtyBits("account_sync", u.lastAccountSyncTimestamp).catch(() => {});
+    // Pada tautan pertama (accountSyncCounter 0), JANGAN bersihkan dirty bit sebelum kunci app-state tiba & sinkron selesai:
+    // di iPhone WA Business (smbi), `<ib><dirty type="account_sync">` tiba lebih dulu dan pembersihan prematur menggagalkan tautan.
+    if (u.lastAccountSyncTimestamp && auth.creds.accountSyncCounter) {
+      bersihkanDirtyAkun(u.lastAccountSyncTimestamp);
     }
   });
 
   sock.ev.on("connection.update", (u) => {
-    if (s.gen === gen) koneksiBerubah(B, s, sock, auth, gen, u);
+    if (s.gen === gen) koneksiBerubah(B, s, sock, auth, gen, u, jalankanSinkron);
   });
 
   sock.ev.on("messages.upsert", ({ messages }) => {
@@ -893,22 +1053,15 @@ async function sambung(s: Sesi): Promise<void> {
 /** Kelima koleksi app-state WhatsApp (sama dengan ALL_WA_PATCH_NAMES Baileys): yang diminta WA Web saat tautan pertama. */
 const KOLEKSI_APP_STATE = ["critical_block", "critical_unblock_low", "regular_high", "regular_low", "regular"] as const satisfies readonly WAPatchName[];
 
-function sinkronAwal(sock: WASocket, auth: AuthSesi, koleksi: readonly WAPatchName[]): void {
-  if (typeof sock.resyncAppState !== "function") return;
-  void sock
-    .resyncAppState(koleksi, false)
-    .then(() => {
-      // Hanya tandai selesai bila myAppStateKeyId sudah ada; bila dipanggil saat `open` sebelum HP mengirim
-      // APP_STATE_SYNC_KEY_SHARE (umum di iOS), biarkan 0 agar disinkronkan ulang begitu kunci tiba.
-      if (!auth.creds.accountSyncCounter && auth.creds.myAppStateKeyId) {
-        auth.creds.accountSyncCounter = 1;
-        auth.simpanCreds();
-      }
-    })
-    .catch(() => {});
-}
-
-function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen: number, u: Partial<ConnectionState>): void {
+function koneksiBerubah(
+  B: Baileys,
+  s: Sesi,
+  sock: WASocket,
+  auth: AuthSesi,
+  gen: number,
+  u: Partial<ConnectionState>,
+  jalankanSinkron: (koleksi: readonly WAPatchName[]) => void,
+): void {
   if (u.qr) {
     s.qr = u.qr;
     qrSejak.set(s.nama, Date.now());
@@ -947,8 +1100,8 @@ function koneksiBerubah(B: Baileys, s: Sesi, sock: WASocket, auth: AuthSesi, gen
     // menunggu kunci app-state dikirim HP; iPhone (smbi) mengirimnya terlambat atau tidak sama sekali pada tautan
     // pertama, sehingga tautan tidak pernah tuntas. Koleksi yang kuncinya belum ada diparkir Baileys dan
     // disinkronkan ulang otomatis begitu kunci tiba. Tersambung ulang tanpa nama profil: cukup critical_block.
-    if (!auth.creds.accountSyncCounter) sinkronAwal(sock, auth, KOLEKSI_APP_STATE);
-    else if (!nama) sinkronAwal(sock, auth, ["critical_block"]);
+    if (!auth.creds.accountSyncCounter) jalankanSinkron(KOLEKSI_APP_STATE);
+    else if (!nama) jalankanSinkron(["critical_block"]);
     lepasTunggu(s);
     return;
   }
@@ -1218,7 +1371,7 @@ export async function qr(nama: string): Promise<{ hash: string; kode: BitQr } | 
     const { encode } = await import("uqr");
     s.qrBit = {
       hash: createHash("sha1").update(s.qr).digest("hex").slice(0, 12),
-      kode: kemasQr(encode(s.qr, { ecc: "L", border: 2 }).data),
+      kode: kemasQr(encode(s.qr, { ecc: "Q", border: 3, boostEcc: true }).data),
     };
   }
   return s.qrBit;

@@ -7,7 +7,7 @@ import { hubungkanWaAction, kodePairingWaAction, logoutWaAction } from "@/app/ac
 import type { T } from "@/lib/bahasa";
 import { alasanWa } from "@/lib/alasan-wa";
 import { formatNomor } from "@/lib/format";
-import { type QrPixel, jalurQrPixel } from "@/lib/qr";
+import { type QrPixel, WARNA_QR, jalurQrPixel } from "@/lib/qr";
 import type { QrWa, StatusSesiWa } from "@/lib/types";
 import { useBahasa } from "./bahasa";
 import { PATH_TANDA } from "./logo";
@@ -16,7 +16,10 @@ import { useSesiNomor, useWaStatus } from "./wa-status";
 
 // Label versi Inggris mengikuti teks resmi WhatsApp: Linked devices, Link a device, Link with phone number instead.
 const langkahQr = (t: T) => [
-  t("Buka WhatsApp di HP nomor ini", "Open WhatsApp on the phone that uses this number"),
+  t(
+    "Buka aplikasi WhatsApp atau WhatsApp Business langsung di HP nomor ini (bukan kamera bawaan HP)",
+    "Open WhatsApp or WhatsApp Business directly on the phone for this number (not the phone's Camera app)",
+  ),
   t(
     "Android: ketuk menu titik tiga di kanan atas. iPhone (iOS): buka Pengaturan di kanan bawah, lalu pilih Perangkat Tertaut",
     "Android: tap the ⋮ menu (More options) at the top right, then Linked devices. iPhone (iOS): open Settings at the bottom right, then tap Linked Devices",
@@ -282,7 +285,7 @@ export function ConnectionCard({ id }: { id: number }) {
 
             {metode === "qr" ? (
               <div className="flex flex-col items-center gap-7 sm:flex-row sm:items-start">
-                <div className="relative grid size-[244px] shrink-0 place-items-center rounded-2xl border-2 border-line-strong bg-white p-3.5 shadow-card">
+                <div className="relative grid size-[256px] shrink-0 place-items-center rounded-2xl border-2 border-line-strong bg-white p-3 shadow-card">
                   {/* Siku bidik piksel di 4 sudut kartu QR */}
                   <span aria-hidden className="pointer-events-none absolute top-2 left-2 size-3 border-t-2 border-l-2 border-accent" />
                   <span aria-hidden className="pointer-events-none absolute top-2 right-2 size-3 border-t-2 border-r-2 border-accent" />
@@ -292,9 +295,9 @@ export function ConnectionCard({ id }: { id: number }) {
                   {qr ? (
                     <svg
                       viewBox={`0 0 ${qr.n} ${qr.n}`}
-                      width={216}
-                      height={216}
-                      shapeRendering="crispEdges"
+                      width={232}
+                      height={232}
+                      shapeRendering="geometricPrecision"
                       role="img"
                       aria-label={t(
                         "Kode QR bergaya piksel dengan logo aplikasi di tengah untuk menautkan WhatsApp",
@@ -304,12 +307,12 @@ export function ConnectionCard({ id }: { id: number }) {
                     >
                       <rect width={qr.n} height={qr.n} fill="#ffffff" />
                       {/* Matriks piksel data dua nada gelap (kontras tinggi untuk kamera iOS & Android) */}
-                      <path d={qr.pikselUtama} fill="#0b1813" />
-                      <path d={qr.pikselAksen} fill="#0b4f3b" />
-                      {/* 3 mata sudut QR bergaya ubin piksel */}
-                      <path d={qr.mataLuar} fill="#0b1813" />
-                      <path d={qr.mataDalam} fill="#0b6249" />
-                      <path d={qr.mataPusat} fill="#0aa878" />
+                      <path d={qr.pikselUtama} fill={WARNA_QR.pikselUtama} />
+                      <path d={qr.pikselAksen} fill={WARNA_QR.pikselAksen} />
+                      {/* 3 mata sudut QR utuh kontras tinggi agar rasio 1:1:3:1:1 terbaca sempurna di iPhone */}
+                      <path d={qr.mataLuar} fill={WARNA_QR.mataLuar} />
+                      <path d={qr.mataDalam} fill={WARNA_QR.mataDalam} />
+                      <path d={qr.mataPusat} fill={WARNA_QR.mataPusat} />
                       {/* Lencana piksel berundak di pusat QR berisi logo resmi aplikasi */}
                       <path d={poligonPiksel(qr.logo.x, qr.logo.y, qr.logo.ukuran, 1)} fill="#ffffff" />
                       <path d={poligonPiksel(qr.logo.x + 0.5, qr.logo.y + 0.5, qr.logo.ukuran - 1, 1)} fill="#0aa878" />

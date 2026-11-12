@@ -110,6 +110,8 @@ function buatSoket(config) {
     urutan: [],
     acks: [],
     dirtyCleaned: [],
+    nodes: [],
+    presenceMentah: [],
     keluar: 0,
     ditutup: 0,
     gagalKirim: false,
@@ -120,6 +122,9 @@ function buatSoket(config) {
     signalRepository: { lidMapping: { getLIDForPN: async (pn) => petaLid.get(pn) ?? null, storeLIDPNMappings: async (daftar) => void s.peta.push(...daftar) } },
     async sendMessageAck(node, errorCode) {
       s.acks.push({ from: node?.attrs?.from, errorCode });
+    },
+    async sendNode(node) {
+      s.nodes.push(node);
     },
     async cleanDirtyBits(type, ts) {
       s.dirtyCleaned.push({ type, ts });
@@ -154,15 +159,20 @@ function buatSoket(config) {
     async end() {
       s.ditutup += 1;
     },
-    // Seperti soket asli: kredensial di memori diperbarui dulu, baru pendengar dipanggil.
+    // Sama persis dengan pendengar internal `socket.js:843-856` di Baileys 7 (terdaftar sebelum makeWASocket kembali):
+    // memeriksa perubahan `me.name` lalu menyalin `Object.assign(creds, update)`.
     pancar(nama, data) {
-      if (nama === "creds.update") Object.assign(config.auth.creds, data);
-      ev.emit(nama, data);
+      s.ev.emit(nama, data);
     },
     tutup(kode) {
-      ev.emit("connection.update", { connection: "close", lastDisconnect: { error: { output: { statusCode: kode } }, date: new Date() } });
+      s.ev.emit("connection.update", { connection: "close", lastDisconnect: { error: { output: { statusCode: kode } }, date: new Date() } });
     },
   };
+  ev.on("creds.update", (u) => {
+    const name = u?.me?.name;
+    if (config.auth.creds.me?.name !== name) s.presenceMentah.push(name ?? null);
+    Object.assign(config.auth.creds, u);
+  });
   soket.push(s);
   return s;
 }
@@ -305,18 +315,66 @@ await cek("qr(): matriks ringkas + hash, di-cache per kode, berganti bila kode b
 await cek("gambar QR di browser (jalurQr) sama persis dengan matriks kode QR aslinya", async () => {
   const { encode } = await lib("node_modules/uqr/dist/index.mjs");
   const { jalurQr } = await lib("src/lib/qr.ts");
-  const teks = `2@${"R".repeat(140)},${"n".repeat(44)},${"i".repeat(44)},${"a".repeat(44)},1`; // seukuran QR WhatsApp asli
+  const teks = `https://wa.me/settings/linked_devices#2@${"R".repeat(100)},${"n".repeat(44)},${"i".repeat(44)},${"a".repeat(44)},1`; // seukuran QR WhatsApp Baileys 7 asli
   soket[0].pancar("connection.update", { qr: teks });
   const { kode } = await wa.qr(A.sesi);
-  const asli = encode(teks, { ecc: "L", border: 2 });
+  const asli = encode(teks, { ecc: "Q", border: 3, boostEcc: true });
   assert.equal(kode.n, asli.size);
   // gambar ulang path SVG ke kisi lalu bandingkan modul demi modul
   const kisi = Array.from({ length: kode.n }, () => new Array(kode.n).fill(false));
   for (const [, x, y, p] of jalurQr(kode).matchAll(/M(\d+) (\d+)h(\d+)v1h-\d+z/g)) for (let i = 0; i < +p; i++) kisi[+y][+x + i] = true;
   assert.deepEqual(kisi, asli.data);
   const muatan = JSON.stringify({ status: "SCAN_QR_CODE", hash: "x".repeat(12), qr: kode }).length;
-  assert.ok(muatan < 900, `muatan respons QR ${muatan} B`);
-  console.log(`        (QR ${kode.n}x${kode.n} modul: respons ${muatan} B)`);
+  assert.ok(muatan < 1500, `muatan respons QR ${muatan} B`);
+  console.log(`        (QR ${kode.n}x${kode.n} modul ECC-Q: respons ${muatan} B)`);
+});
+
+await cek("QR piksel berlogo (jalurQrPixel) untuk iOS & WA Business: mata sudut 1:1:3:1:1 utuh kontras tinggi & bebas tabrakan alignment pattern", async () => {
+  const { jalurQrPixel, WARNA_QR } = await lib("src/lib/qr.ts");
+  assert.ok(WARNA_QR, "palet warna QR diekspor terpusat dari qr.ts");
+  const luma = (hex) => {
+    const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+    assert.ok(m, `warna hex valid: ${hex}`);
+    return (0.2126 * parseInt(m[1], 16) + 0.7152 * parseInt(m[2], 16) + 0.0722 * parseInt(m[3], 16)) / 255;
+  };
+  for (const [k, hex] of Object.entries(WARNA_QR)) {
+    assert.ok(luma(hex) < 0.2, `warna QR ${k} (${hex}) wajib gelap pekat untuk luma kamera iOS (< 0.20, aktual ${luma(hex).toFixed(3)})`);
+  }
+
+  const teks = `https://wa.me/settings/linked_devices#2@${"Q".repeat(100)},${"n".repeat(44)},${"i".repeat(44)},${"a".repeat(44)},1`;
+  soket[0].pancar("connection.update", { qr: teks });
+  const { kode } = await wa.qr(A.sesi);
+  const qp = jalurQrPixel(kode);
+
+  // Semua ubin pada 3 mata sudut (finder pattern 7x7) wajib penuh 1x1 tanpa celah putih internal (pad = 0)
+  // agar rasio ISO 1:1:3:1:1 tidak pernah pecah di kamera iPhone.
+  const ubinMata = [...`${qp.mataLuar}${qp.mataDalam}${qp.mataPusat}`.matchAll(/M([\d.]+) ([\d.]+)h([\d.]+)v([\d.]+)h-[\d.]+z/g)];
+  assert.equal(ubinMata.length, 3 * (24 + 8 + 1), "seluruh modul gelap pada 3 mata sudut 7x7 tergambar");
+  for (const [, , , wUbin, hUbin] of ubinMata) {
+    assert.equal(+wUbin, 1, "modul mata sudut harus utuh lebar 1 tanpa celah putih");
+    assert.equal(+hUbin, 1, "modul mata sudut harus utuh tinggi 1 tanpa celah putih");
+  }
+
+  // Quiet zone >= 3 modul di sekeliling matriks QR
+  const tepi = Math.min(...ubinMata.map((m) => +m[1]));
+  assert.ok(tepi >= 3, `quiet zone tepi >= 3 modul (aktual ${tepi})`);
+
+  // Pastikan lencana logo di pusat TIDAK menabrak satu pun Alignment Pattern QR (mis. Version 15: [6, 26, 48, 70])
+  const sisiMatriks = qp.n - tepi * 2;
+  const versi = (sisiMatriks - 17) / 4;
+  assert.ok(versi >= 14, `versi QR >= 14 dengan ECC-Q (aktual V${versi})`);
+  const tabelAlign = { 14: [6, 26, 46, 66], 15: [6, 26, 48, 70], 16: [6, 26, 50, 74], 17: [6, 30, 54, 78] };
+  const posAlign = tabelAlign[versi] ?? [];
+  for (let i = 0; i < posAlign.length; i++) {
+    for (let j = 0; j < posAlign.length; j++) {
+      if ((i === 0 && j === 0) || (i === 0 && j === posAlign.length - 1) || (i === posAlign.length - 1 && j === 0)) continue;
+      const ax = posAlign[i] + tepi;
+      const ay = posAlign[j] + tepi;
+      const tabrakX = ax + 2 >= qp.logo.x && ax - 2 < qp.logo.x + qp.logo.ukuran;
+      const tabrakY = ay + 2 >= qp.logo.y && ay - 2 < qp.logo.y + qp.logo.ukuran;
+      assert.equal(tabrakX && tabrakY, false, `alignment pattern (${ax},${ay}) tidak boleh tertutup logo tengah`);
+    }
+  }
 });
 
 await cek("QR tidak dipindai (408): sesi berhenti, kunci dibuang, tidak menyambung ulang sendiri", async () => {
@@ -1716,33 +1774,133 @@ await cek("kompatibilitas iOS (iPhone) & kode tautan nomor telepon (pairing code
   await wa.hapusSesi(n.sesi);
 });
 
-await cek("WA Business iPhone: tautan pertama langsung meminta semua koleksi walau nama bisnis sudah terisi", async () => {
+await cek("WA Business iPhone (smbi): tanpa stanza <presence> liar, dirty bit ditunda sampai kunci tiba, & dukung akun HOSTED Coexistence", async () => {
   const n = await nomorCepat("Toko Bisnis iOS");
   const awal = soket.length;
   const p = wa.hubungkan(n.sesi);
   const s1 = await tunggu(() => soket[awal], 2000);
-  s1.pancar("connection.update", { qr: "2@BIZ-QR-1,a,b,c,1" });
+  s1.pancar("connection.update", { qr: "https://wa.me/settings/linked_devices#2@BIZ-QR-1,a,b,c,1" });
   await p;
-  // pair-success WA Business: nama bisnis ikut terisi dari sertifikat, platform smbi (WA Business iOS)
-  s1.pancar("creds.update", { me: { id: "6281100000098:3@s.whatsapp.net", lid: "777000198:3@lid", name: "Toko Bisnis Resmi" }, platform: "smbi" });
+  // pair-success WA Business: nama bisnis ikut terisi dari sertifikat (<biz name="..."/>), platform smbi (WA Business iOS)
+  s1.pancar("creds.update", {
+    account: { details: "x" },
+    me: { id: "6281100000098:3@s.whatsapp.net", lid: "777000198:3@lid", name: "Toko Bisnis Resmi" },
+    platform: "smbi",
+  });
+  // Soket registrasi belum login: TIDAK boleh mengirim stanza `<presence name="Toko Bisnis Resmi"/>` sebelum pair-device-sign!
+  assert.deepEqual(s1.presenceMentah, [], "tidak ada stanza <presence> liar di soket registrasi WA Business");
   s1.pancar("connection.update", { isNewLogin: true, qr: undefined });
   s1.tutup(515);
+
   const s2 = await tunggu(() => soket[awal + 1], 2000);
+  // Di iPhone WA Business (smbi), `<ib><dirty type="account_sync">` tiba LEBIH DULU sebelum kunci app-state dikirim HP.
+  // Dirty bit TIDAK boleh dibersihkan prematur sebelum `myAppStateKeyId` tiba & sinkron awal tuntas!
+  s2.pancar("creds.update", { nextPreKeyId: 31 });
+  s2.pancar("creds.update", { lastAccountSyncTimestamp: 1777700888 });
+  assert.deepEqual(s2.presenceMentah, [], "update kredensial parsial di WA Business tidak memicu <presence/> kosong");
+  assert.deepEqual(s2.dirtyCleaned, [], "dirty bit belum dibersihkan sebelum kunci app-state iOS tiba");
+
   s2.pancar("connection.update", { connection: "open" });
   await tidur(30);
   // Dulu Business tidak meminta apa pun di sini dan hanya menunggu kunci dari iPhone -> tautan tidak tuntas.
   assert.deepEqual(s2.resync, ["critical_block", "critical_unblock_low", "regular_high", "regular_low", "regular"]);
   assert.equal(s2.config.auth.creds.accountSyncCounter ?? 0, 0, "belum selesai sebelum kunci app-state tiba");
+  assert.deepEqual(s2.dirtyCleaned, [], "dirty bit masih ditahan sampai kunci app-state tiba");
 
-  // Sudah pernah tersinkron & nama ada: tersambung ulang tidak meminta sinkron lagi.
-  s2.pancar("creds.update", { accountSyncCounter: 1 });
+  // Kunci app-state akhirnya tiba belakangan dari iPhone (tanpa mengirim ulang lastAccountSyncTimestamp):
+  // sinkron awal dijalankan, accountSyncCounter naik ke 1, dan dirty bit yang tertunda langsung dibersihkan!
+  s2.pancar("creds.update", { myAppStateKeyId: "SMBI-KEY-LATE-1" });
+  await tidur(50);
+  assert.equal(s2.config.auth.creds.accountSyncCounter, 1, "sinkron awal tuntas setelah kunci iOS tiba");
+  assert.deepEqual(s2.dirtyCleaned, [{ type: "account_sync", ts: 1777700888 }], "dirty bit yang tertunda dibersihkan sesudah sinkron");
+  assert.deepEqual(s2.presenceMentah, [], "tetap bersih tanpa stanza <presence/> cacat");
+
+  // Sudah pernah tersinkron & nama ada: tersambung ulang tidak meminta sinkron lagi, dan dirty bit baru langsung dibersihkan.
   s2.tutup(428);
   const s3 = await tunggu(() => soket[awal + 2], 5000, "sambung ulang");
   s3.pancar("connection.update", { connection: "open" });
   await tidur(30);
   assert.equal(s3.resync, undefined);
+  s3.pancar("creds.update", { lastAccountSyncTimestamp: 1777700999 });
+  await tidur(30);
+  assert.deepEqual(s3.dirtyCleaned, [{ type: "account_sync", ts: 1777700999 }]);
 
   await wa.hapusSesi(n.sesi);
+
+  // Uji kriptografi pair-success untuk akun WA Business Coexistence / Cloud API (ADVEncryptionType.HOSTED = 1)
+  // + fallback bila atribut `lid` absen pada `<device>`.
+  const nHosted = await nomorCepat("Toko Bisnis Hosted");
+  const awalH = soket.length;
+  const pH = wa.hubungkan(nHosted.sesi);
+  const sH = await tunggu(() => soket[awalH], 2000);
+  sH.pancar("connection.update", { qr: "https://wa.me/settings/linked_devices#2@HOSTED-QR,a,b,c,1" });
+  await pH;
+
+  const accountKey = B.Curve.generateKeyPair();
+  const deviceDetails = B.proto.ADVDeviceIdentity.encode({
+    rawId: 7,
+    timestamp: 1777700000,
+    keyIndex: 2,
+    accountType: B.proto.ADVEncryptionType.HOSTED,
+    deviceType: B.proto.ADVEncryptionType.HOSTED,
+  }).finish();
+  const accountMsg = Buffer.concat([B.WA_ADV_HOSTED_ACCOUNT_SIG_PREFIX, deviceDetails, sH.config.auth.creds.signedIdentityKey.public]);
+  const accountSignature = B.Curve.sign(accountKey.private, accountMsg);
+  const details = B.proto.ADVSignedDeviceIdentity.encode({
+    details: deviceDetails,
+    accountSignatureKey: accountKey.public,
+    accountSignature,
+  }).finish();
+  const hmac = B.hmacSign(
+    Buffer.concat([B.WA_ADV_HOSTED_ACCOUNT_SIG_PREFIX, details]),
+    Buffer.from(sH.config.auth.creds.advSecretKey, "base64"),
+  );
+  const hmacPayload = B.proto.ADVSignedDeviceIdentityHMAC.encode({
+    details,
+    hmac,
+    accountType: B.proto.ADVEncryptionType.HOSTED,
+  }).finish();
+
+  sH.ws.emit("CB:iq,,pair-success", {
+    tag: "iq",
+    attrs: { id: "PAIR-HOSTED-1", from: "s.whatsapp.net", type: "set" },
+    content: [
+      {
+        tag: "pair-success",
+        attrs: {},
+        content: [
+          { tag: "device-identity", attrs: {}, content: hmacPayload },
+          { tag: "device", attrs: { jid: "6281100000999:2@s.whatsapp.net" } }, // tanpa lid
+          { tag: "platform", attrs: { name: "smbi" } },
+          { tag: "biz", attrs: { name: "Toko Hosted Coexistence" } },
+        ],
+      },
+    ],
+  });
+  await tunggu(() => sH.nodes.length === 1, 2000, "balasan pair-device-sign terkirim");
+  const balasan = sH.nodes[0];
+  assert.equal(balasan.attrs.id, "PAIR-HOSTED-1");
+  const signNode = balasan.content[0].content[0];
+  const decodedAcc = B.proto.ADVSignedDeviceIdentity.decode(signNode.content);
+  const expectedDeviceMsg = Buffer.concat([
+    B.WA_ADV_HOSTED_DEVICE_SIG_PREFIX,
+    deviceDetails,
+    sH.config.auth.creds.signedIdentityKey.public,
+    accountKey.public,
+  ]);
+  assert.equal(
+    B.Curve.verify(sH.config.auth.creds.signedIdentityKey.public, expectedDeviceMsg, decodedAcc.deviceSignature),
+    true,
+    "akun WA Business HOSTED ditandatangani dengan prefix [6, 6] (WA_ADV_HOSTED_DEVICE_SIG_PREFIX)",
+  );
+  assert.equal(
+    sH.config.auth.creds.signalIdentities?.[0]?.identifier?.name,
+    "6281100000999:2@s.whatsapp.net",
+    "signalIdentities[0].identifier.name tetap terisi walau lid tidak dikirim di pair-success",
+  );
+  assert.deepEqual(sH.presenceMentah, [], "pair-success HOSTED juga bebas dari <presence> liar");
+
+  await wa.hapusSesi(nHosted.sesi);
 });
 
 // =====================================================================================
