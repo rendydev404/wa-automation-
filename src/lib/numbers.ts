@@ -1,7 +1,7 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { catatAktivitas } from "./aktivitas";
-import { db, sekarang, transaksi } from "./db";
+import { type Tx, db, sekarang, transaksi } from "./db";
 
 export interface Nomor {
   id: number;
@@ -182,6 +182,22 @@ export async function setBotAktif(id: number, aktif: boolean): Promise<void> {
   const sql = await db();
   await sql`UPDATE numbers SET bot_aktif = ${aktif} WHERE id = ${id}`;
   basi();
+}
+
+/**
+ * Nyalakan otomatis `bot_aktif` pada nomor milik `userId` yang sudah punya Informasi Usaha berisi,
+ * dipanggil saat akun beralih dari tanpa kuota/langganan ke berlangganan/punya kuota aktif.
+ * Lewat numbers_user_idx + semi-join documents_number_idx; tanpa tulis bila sudah aktif.
+ */
+export async function aktifkanBotSiap(userId: number, tx?: Tx): Promise<boolean> {
+  const q = tx ?? (await db());
+  const diubah = await q<{ id: number }[]>`
+    UPDATE numbers n SET bot_aktif = true
+     WHERE n.user_id = ${userId} AND NOT n.bot_aktif
+       AND EXISTS (SELECT 1 FROM documents d WHERE d.number_id = n.id AND d.jumlah_karakter > 0)
+     RETURNING n.id`;
+  if (diubah.length && !tx) basi();
+  return diubah.length > 0;
 }
 
 export async function setSaringSpam(id: number, aktif: boolean): Promise<void> {

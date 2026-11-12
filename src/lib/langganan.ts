@@ -16,6 +16,8 @@ import { MASA_ID, MASA_EN_ADJ } from "./jaminan-def";
 import { labelPeran, staf } from "./peran";
 import { modeMesin } from "./mode";
 import { perpanjangDibayar, setelahDibayar } from "./developer-api";
+import { adaKnowledge } from "./knowledge";
+import { aktifkanBotSiap, nomorById, segarkanNomor } from "./numbers";
 
 /**
  * Paket langganan, masa aktif, transaksi Midtrans, dan kuota.
@@ -305,6 +307,25 @@ export async function sisaKuotaAi(userId: number): Promise<number | null> {
     if (gen === genKuota.n) cacheKuota.set(userId, c);
   }
   return c.batas === null ? null : Math.max(0, c.batas - c.terpakai);
+}
+
+export type StatusSyaratBot = "siap" | "knowledge_kosong" | "tanpa_kuota" | "tidak_ada";
+
+/** Saklar balasan AI hanya boleh menyala bila kedua syarat terpenuhi: ada Informasi Usaha DAN ada langganan/kuota aktif. */
+export function syaratBotTerpenuhi(adaInfoUsaha: boolean, sisaAi: number | null): boolean {
+  return adaInfoUsaha && (sisaAi === null || sisaAi > 0);
+}
+
+/** Periksa syarat menyalakan saklar balasan AI sebuah nomor dari sisi server (tanpa N+1, memakai indeks & cache kuota). */
+export async function cekSyaratBot(numberId: number): Promise<StatusSyaratBot> {
+  const [nomor, punyaKnowledge] = await Promise.all([nomorById(numberId), adaKnowledge(numberId)]);
+  if (!nomor) return "tidak_ada";
+  if (!punyaKnowledge) return "knowledge_kosong";
+  if (nomor.user_id !== null) {
+    const sisa = await sisaKuotaAi(nomor.user_id);
+    if (!syaratBotTerpenuhi(true, sisa)) return "tanpa_kuota";
+  }
+  return "siap";
 }
 
 /**
@@ -652,6 +673,7 @@ export async function terapkanStatus(
   let infoCapi: InfoCapiBeli | null = null;
   let infoRefund: InfoRefund | null = null;
   let apiDibayar: number | null = null;
+  let botDinyalakan = false;
   const hasil = await transaksiDb(async (tx) => {
     const [t] = await tx<(Transaksi & { aktif_id: number | null; meta_konteks: KonteksMeta | null; api_aplikasi_id: number | null })[]>`
       SELECT ${tx.unsafe(KOLOM_TRX)}, langganan_id AS aktif_id, meta_konteks, api_aplikasi_id FROM transaksi WHERE order_id = ${orderId} FOR UPDATE`;
@@ -679,14 +701,16 @@ export async function terapkanStatus(
       return { status, baruAktif: false };
     }
     if (status !== "lunas" || t.aktif_id) return { status, baruAktif: false };
-    const { id } = await aktifkan(tx, { userId: t.user_id, paketId: t.paket_id, sumber: "midtrans" });
-    await tx`UPDATE transaksi SET langganan_id = ${id}, meta_konteks = NULL WHERE id = ${t.id}`;
+    const akt = await aktifkan(tx, { userId: t.user_id, paketId: t.paket_id, sumber: "midtrans" });
+    botDinyalakan = akt.botDinyalakan;
+    await tx`UPDATE transaksi SET langganan_id = ${akt.id}, meta_konteks = NULL WHERE id = ${t.id}`;
     await prosesKomisiTransaksi(tx, { transaksiId: t.id, userId: t.user_id, paketId: t.paket_id, namaPaket: t.nama_paket, jumlahBayar: t.jumlah });
     segarkanKuota(t.user_id);
     const [u] = await tx<{ email: string; asal_industri: string | null }[]>`SELECT email, asal_industri FROM users WHERE id = ${t.user_id}`;
     infoCapi = { jumlah: t.jumlah, namaPaket: t.nama_paket, userId: t.user_id, email: u?.email, industri: u?.asal_industri ?? null, konteks: t.meta_konteks };
     return { status, baruAktif: true };
   });
+  if (botDinyalakan) segarkanNomor();
   if (infoRefund) notifRefund(infoRefund);
   if (apiDibayar) void setelahDibayar(apiDibayar).catch((e) => console.warn("[devapi] setelah bayar:", e instanceof Error ? e.message : e));
   if (hasil?.baruAktif) void notifPaketAktif(orderId, "midtrans");
@@ -862,7 +886,7 @@ export interface IsiKhusus {
 async function aktifkan(
   tx: Tx,
   a: { userId: number; paketId: number | null; sumber: "midtrans" | "admin"; hari?: number; isi?: IsiKhusus }
-): Promise<{ id: number; nama: string; mulai: number; sampai: number; kuota_nomor: number; kuota_balasan: number; diperpanjang: boolean }> {
+): Promise<{ id: number; nama: string; mulai: number; sampai: number; kuota_nomor: number; kuota_balasan: number; diperpanjang: boolean; botDinyalakan: boolean }> {
   const [p] = a.paketId ? await tx<Paket[]>`SELECT ${tx.unsafe(KOLOM_PAKET)} FROM paket WHERE id = ${a.paketId}` : [];
   if (!p && !a.isi) throw new Error("Paket tidak ditemukan.");
   const nama = a.isi?.nama ?? p.nama;
@@ -875,23 +899,37 @@ async function aktifkan(
   const [l] = await tx<Langganan[]>`
     SELECT id, user_id, paket_id, nama_paket, mulai, sampai, kuota_nomor, kuota_balasan, sumber FROM langganan
      WHERE user_id = ${a.userId} AND sampai > ${kini} ORDER BY sampai DESC, id DESC LIMIT 1 FOR UPDATE`;
+  // Bila sebelumnya akun belum punya langganan aktif ATAU kuota langganannya sudah habis, otomatis nyalakan
+  // saklar balasan AI pada nomor miliknya yang sudah memiliki Informasi Usaha berisi.
+  let sebelumnyaHabis = !l;
+  if (l && kuotaBalasan > 0) {
+    const [[b], [pk]] = await Promise.all([
+      tx<{ n: number }[]>`SELECT COALESCE(SUM(jumlah), 0)::int AS n FROM kuota_bonus WHERE user_id = ${a.userId} AND dibuat >= ${l.mulai}`,
+      tx<{ n: number }[]>`
+        SELECT COUNT(*)::int AS n FROM numbers n JOIN ai_pakai ap ON ap.number_id = n.id AND ap.waktu >= ${l.mulai}
+         WHERE n.user_id = ${a.userId} AND NOT ap.abaikan`,
+    ]);
+    sebelumnyaHabis = pk.n >= l.kuota_balasan + b.n;
+  }
+  const botDinyalakan = sebelumnyaHabis && kuotaBalasan > 0 ? await aktifkanBotSiap(a.userId, tx) : false;
   if (l && !a.isi && p && l.paket_id === p.id) {
     const [d] = await tx<{ sampai: number; kuota_balasan: number }[]>`
       UPDATE langganan SET sampai = sampai + ${durasi}, kuota_balasan = kuota_balasan + ${kuotaBalasan} WHERE id = ${l.id}
       RETURNING sampai, kuota_balasan`;
-    return { id: l.id, nama: l.nama_paket, mulai: l.mulai, sampai: d.sampai, kuota_nomor: l.kuota_nomor, kuota_balasan: d.kuota_balasan, diperpanjang: true };
+    return { id: l.id, nama: l.nama_paket, mulai: l.mulai, sampai: d.sampai, kuota_nomor: l.kuota_nomor, kuota_balasan: d.kuota_balasan, diperpanjang: true, botDinyalakan };
   }
   if (l) await tx`UPDATE langganan SET sampai = ${kini} WHERE id = ${l.id}`; // diganti paket baru
   const [baru] = await tx<{ id: number }[]>`
     INSERT INTO langganan(user_id, paket_id, nama_paket, mulai, sampai, kuota_nomor, kuota_balasan, sumber)
     VALUES (${a.userId}, ${p?.id ?? null}, ${nama}, ${kini}, ${kini + durasi}, ${kuotaNomor}, ${kuotaBalasan}, ${a.sumber})
     RETURNING id`;
-  return { id: baru.id, nama, mulai: kini, sampai: kini + durasi, kuota_nomor: kuotaNomor, kuota_balasan: kuotaBalasan, diperpanjang: false };
+  return { id: baru.id, nama, mulai: kini, sampai: kini + durasi, kuota_nomor: kuotaNomor, kuota_balasan: kuotaBalasan, diperpanjang: false, botDinyalakan };
 }
 
 /** Admin memberi/memperpanjang paket secara manual tanpa catatan pembayaran (dipakai uji & kompensasi lama). */
 export async function berikanPaket(userId: number, paketId: number, hari?: number): Promise<void> {
-  await transaksiDb((tx) => aktifkan(tx, { userId, paketId, sumber: "admin", hari }));
+  const { botDinyalakan } = await transaksiDb((tx) => aktifkan(tx, { userId, paketId, sumber: "admin", hari }));
+  if (botDinyalakan) segarkanNomor();
   segarkanKuota(userId);
 }
 
@@ -938,11 +976,14 @@ export async function berikanPaketManual(
     if (jumlah > 0 && o.metode !== "kompensasi") {
       await prosesKomisiTransaksi(tx, { transaksiId: trx.id, userId, paketId: o.paketId, namaPaket: l.nama, jumlahBayar: jumlah });
     }
-    return { langgananId: l.id, orderId, nama: l.nama, mulai: l.mulai, sampai: l.sampai, kuota_nomor: l.kuota_nomor, kuota_balasan: l.kuota_balasan, diperpanjang: l.diperpanjang, jumlah };
+    return { langgananId: l.id, orderId, nama: l.nama, mulai: l.mulai, sampai: l.sampai, kuota_nomor: l.kuota_nomor, kuota_balasan: l.kuota_balasan, diperpanjang: l.diperpanjang, jumlah, botDinyalakan: l.botDinyalakan };
   });
+  if (hasil.botDinyalakan) segarkanNomor();
   segarkanKuota(userId);
   void notifPaketAktif(hasil.orderId, "admin");
-  return hasil;
+  const { botDinyalakan: _, ...keluar } = hasil;
+  void _;
+  return keluar;
 }
 
 /**

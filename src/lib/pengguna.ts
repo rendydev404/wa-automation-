@@ -2,9 +2,9 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import type { PenyediaAkun } from "./ai";
 import { db, sekarang } from "./db";
-import { segarkanAiAkun, segarkanKuota } from "./langganan";
+import { segarkanAiAkun, segarkanKuota, sisaKuotaAi } from "./langganan";
 import { kirimNotif } from "./notifikasi";
-import { segarkanNomor } from "./numbers";
+import { aktifkanBotSiap, segarkanNomor } from "./numbers";
 import { hashPassword } from "./password";
 import { staf } from "./peran";
 import type { Peran, User } from "./session";
@@ -257,10 +257,12 @@ export async function beriBonusKuota(admin: User, id: number, jumlah: number, ca
   if (!Number.isInteger(jumlah) || jumlah < 1 || jumlah > MAKS_BONUS_KUOTA) throw new PenggunaError(`Jumlah bonus harus 1–${MAKS_BONUS_KUOTA.toLocaleString("id-ID")} balasan.`);
   const u = await wajib(id);
   if (staf(u.peran)) throw new PenggunaError("Admin & developer tidak memakai kuota balasan AI.");
+  const sisaSebelum = await sisaKuotaAi(id);
   const sql = await db();
   const isiCatatan = catatan.trim().slice(0, 200) || null;
   await sql`INSERT INTO kuota_bonus(user_id, jumlah, catatan, oleh, dibuat) VALUES (${id}, ${jumlah}, ${isiCatatan}, ${admin.id}, ${sekarang()})`;
   segarkanKuota(id);
+  if (sisaSebelum !== null && sisaSebelum <= 0) await aktifkanBotSiap(id);
   await catatLog(admin, "beri bonus kuota", u.email, `${jumlah.toLocaleString("id-ID")} balasan AI${isiCatatan ? ` · ${isiCatatan}` : ""}`);
   await kirimNotif(id, {
     jenis: "bonus",

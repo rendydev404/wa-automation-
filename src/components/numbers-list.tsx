@@ -2,7 +2,7 @@
 
 import { useOptimistic, useTransition } from "react";
 import Link from "@/components/link";
-import { ArrowUpRight, BookOpen, QrCode } from "lucide-react";
+import { ArrowUpRight, BookOpen, CreditCard, QrCode } from "lucide-react";
 import { setBotAktifAction } from "@/app/actions";
 import { angka, formatNomor } from "@/lib/format";
 import { useBahasa } from "./bahasa";
@@ -26,7 +26,7 @@ export interface KartuNomor {
   tren: number[];
 }
 
-export function NumbersList({ nomor }: { nomor: KartuNomor[] }) {
+export function NumbersList({ nomor, adaKuota = true }: { nomor: KartuNomor[]; adaKuota?: boolean }) {
   const { t } = useBahasa();
   return (
     <section aria-labelledby="judul-nomor">
@@ -59,7 +59,7 @@ export function NumbersList({ nomor }: { nomor: KartuNomor[] }) {
       ) : (
         <ul className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
           {nomor.map((n) => (
-            <Kartu key={n.id} n={n} />
+            <Kartu key={n.id} n={n} adaKuota={adaKuota} />
           ))}
         </ul>
       )}
@@ -77,13 +77,14 @@ function Angka({ label, nilai }: { label: string; nilai: number }) {
   );
 }
 
-function Kartu({ n }: { n: KartuNomor }) {
+function Kartu({ n, adaKuota }: { n: KartuNomor; adaKuota: boolean }) {
   const { b, t } = useBahasa();
   const sesi = useSesiNomor(n.id);
   const [aktif, setAktif] = useOptimistic(n.bot_aktif);
   const [, mulai] = useTransition();
   const wa = sesi?.status === "WORKING" && sesi.waId ? sesi.waId : n.wa_id;
   const perluScan = sesi && sesi.status !== "WORKING";
+  const siap = n.jumlah_karakter > 0 && adaKuota;
   return (
     <li className="card group flex min-w-0 flex-col overflow-hidden transition-[border-color,box-shadow] duration-200 hover:border-line-strong hover:shadow-[0_14px_34px_-20px_rgba(21,32,27,0.4)]">
       <Link href={`/nomor/${n.id}`} prefetch data-analitik="Kartu nomor: buka" className="flex items-start gap-3 p-5 pb-4">
@@ -129,6 +130,10 @@ function Kartu({ n }: { n: KartuNomor }) {
           <Link href={`/nomor/${n.id}#knowledge`} data-analitik="Kartu nomor: isi knowledge" className="flex items-center gap-1.5 text-[13px] font-semibold text-warning hover:underline">
             {t("Isi Informasi Usaha dulu", "Add Business Info first")}
           </Link>
+        ) : !adaKuota ? (
+          <Link href="/langganan" data-analitik="Kartu nomor: pilih paket" className="flex items-center gap-1.5 text-[13px] font-semibold text-warning hover:underline">
+            <CreditCard className="size-4 shrink-0" aria-hidden /> {t("Pilih paket agar AI aktif", "Choose a plan to activate AI")}
+          </Link>
         ) : perluScan ? (
           <Link href={`/nomor/${n.id}`} data-analitik="Kartu nomor: scan QR" className="flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:underline">
             <QrCode className="size-4" aria-hidden /> {t("Scan QR untuk menautkan", "Scan QR to link")}
@@ -137,8 +142,8 @@ function Kartu({ n }: { n: KartuNomor }) {
           <span className="text-[13px] font-medium">{aktif ? t("Balasan otomatis aktif", "Auto-reply on") : t("Balasan otomatis mati", "Auto-reply off")}</span>
         )}
         <Saklar
-          aktif={aktif && n.jumlah_karakter > 0}
-          disabled={n.jumlah_karakter === 0}
+          aktif={aktif && siap}
+          disabled={!siap}
           label={t(`Balasan otomatis ${n.label}`, `Auto-reply for ${n.label}`)}
           analitik="Kartu nomor: saklar balasan otomatis"
           onUbah={(v) =>

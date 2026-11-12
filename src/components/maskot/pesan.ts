@@ -187,15 +187,16 @@ function masalahPengguna(d: DataPengguna, l: Langsung, t: T): Pesan[] {
         ),
         aksi: { label: t("Isi Informasi Usaha", "Add Business Info"), href: `/nomor/${n.id}#knowledge` },
       });
-  for (const n of d.nomor)
-    if (!n.botAktif)
-      out.push({
-        id: `bot-mati-${n.id}`,
-        pose: "tunjuk",
-        nada: "info",
-        teks: t(`Balasan AI di "${n.label}" sedang dimatikan, jadi chat di sana kamu balas sendiri.`, `AI replies are switched off for "${n.label}", so you're answering chats there yourself.`),
-        aksi: { label: t("Nyalakan", "Turn on"), href: `/nomor/${n.id}` },
-      });
+  if (d.kuota.aktif && d.kuota.sisa !== 0)
+    for (const n of d.nomor)
+      if (n.knowledge && !n.botAktif)
+        out.push({
+          id: `bot-mati-${n.id}`,
+          pose: "tunjuk",
+          nada: "info",
+          teks: t(`Balasan AI di "${n.label}" sedang dimatikan, jadi chat di sana kamu balas sendiri.`, `AI replies are switched off for "${n.label}", so you're answering chats there yourself.`),
+          aksi: { label: t("Nyalakan", "Turn on"), href: `/nomor/${n.id}` },
+        });
   return out;
 }
 

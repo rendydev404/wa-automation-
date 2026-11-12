@@ -16,7 +16,7 @@ import { TurOtomatis } from "@/components/tur";
 import { teksHalaman } from "@/lib/bahasa-halaman";
 import { turSelesai } from "@/lib/pengguna";
 import { Maskot } from "@/components/maskot/maskot";
-import { hakAkunSekali, sisaKuotaAi } from "@/lib/langganan";
+import { hakAkunSekali, sisaKuotaAi, syaratBotTerpenuhi } from "@/lib/langganan";
 import { kuotaNomor, requireUser } from "@/lib/session";
 import { deretHarian, hariTerakhir, persen } from "@/lib/tren";
 import { staf } from "@/lib/peran";
@@ -99,6 +99,7 @@ async function Ringkasan() {
   const pelanggan = nomor.reduce((a, n) => a + n.jumlah_percakapan, 0);
   const dokumen = nomor.reduce((a, n) => a + n.jumlah_dokumen, 0);
   const karakter = nomor.reduce((a, n) => a + n.jumlah_karakter, 0);
+  const adaKuota = syaratBotTerpenuhi(true, sisaAi);
 
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -150,13 +151,14 @@ async function Ringkasan() {
       {staf(user.peran) ? (
         <div className="grid gap-4 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <GrafikAktivitas titik={tren} />
-          <PanelSistem botAktif={nomor.filter((n) => n.bot_aktif).length} total={nomor.length} dokumen={dokumen} karakter={karakter} />
+          <PanelSistem botAktif={nomor.filter((n) => n.bot_aktif && n.jumlah_karakter > 0 && adaKuota).length} total={nomor.length} dokumen={dokumen} karakter={karakter} />
         </div>
       ) : (
         <GrafikAktivitas titik={tren} />
       )}
 
       <NumbersList
+        adaKuota={adaKuota}
         nomor={nomor.map((n) => ({
           id: n.id,
           wa_id: n.wa_id,

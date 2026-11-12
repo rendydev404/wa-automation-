@@ -2,6 +2,7 @@
 
 import { Check, ChevronRight, Smartphone } from "lucide-react";
 import { useBahasa } from "./bahasa";
+import Link from "./link";
 import { bukaTabNomor } from "./tab-nomor";
 import { useSesiNomor } from "./wa-status";
 
@@ -9,34 +10,58 @@ import { useSesiNomor } from "./wa-status";
  * Kartu "Langkah memulai" di tab Koneksi: urutan yang perlu dilakukan supaya AI mulai membalas, dengan tanda selesai.
  * Status WhatsApp diambil langsung dari pemantau status yang sudah berjalan (tanpa permintaan tambahan).
  */
-export function LangkahMulai({ id, adaKnowledge, botAktif }: { id: number; adaKnowledge: boolean; botAktif: boolean }) {
+export function LangkahMulai({
+  id,
+  adaKnowledge,
+  adaKuota = true,
+  botAktif,
+}: {
+  id: number;
+  adaKnowledge: boolean;
+  adaKuota?: boolean;
+  botAktif: boolean;
+}) {
   const { t } = useBahasa();
   const sesi = useSesiNomor(id);
   const tersambung = sesi?.status === "WORKING";
+  const siap = adaKnowledge && adaKuota;
   const langkah = [
     {
       judul: t("Sambungkan WhatsApp", "Connect WhatsApp"),
       teks: t("Pindai QR atau pakai kode dari HP.", "Scan the QR code or use a code from your phone."),
       selesai: tersambung,
-      tab: "koneksi",
+      tab: "koneksi" as const,
+      href: null as string | null,
     },
     {
       judul: t("Isi Informasi Usaha", "Add your Business Info"),
       teks: t("Produk, harga, jam buka, cara pesan.", "Products, prices, opening hours, how to order."),
       selesai: adaKnowledge,
-      tab: "knowledge",
+      tab: "knowledge" as const,
+      href: null as string | null,
+    },
+    {
+      judul: t("Aktifkan paket langganan", "Activate subscription plan"),
+      teks: t("Pilih paket agar kuota balasan AI aktif.", "Choose a plan to activate your AI reply quota."),
+      selesai: adaKuota,
+      tab: null,
+      href: "/langganan",
     },
     {
       judul: t("Coba tanya di Uji bot", "Try it in Test bot"),
       teks: t("Pastikan jawabannya sudah pas.", "Make sure the answers look right."),
       selesai: null,
-      tab: "uji-bot",
+      tab: "uji-bot" as const,
+      href: null as string | null,
     },
     {
-      judul: t("Nyalakan balasan otomatis", "Turn on auto-reply"),
-      teks: t("Saklar \"Balasan otomatis\" di atas halaman ini.", "The \"Auto-reply\" switch at the top of this page."),
-      selesai: botAktif,
+      judul: t("Balasan otomatis menyala", "Auto-reply active"),
+      teks: siap
+        ? t("Otomatis aktif. Bisa diatur lewat saklar di atas.", "Automatically on. Toggle anytime at the top.")
+        : t("Otomatis menyala begitu Informasi Usaha & langganan aktif.", "Turns on automatically once Business Info & plan are active."),
+      selesai: botAktif && siap,
       tab: null,
+      href: null as string | null,
     },
   ];
   const beres = langkah.filter((l) => l.selesai).length;
@@ -57,6 +82,7 @@ export function LangkahMulai({ id, adaKnowledge, botAktif }: { id: number; adaKn
       </div>
       <ol className="divide-y divide-line">
         {langkah.map((l, i) => {
+          const bisaKlik = (l.tab && l.tab !== "koneksi") || (l.href && !l.selesai);
           const isi = (
             <>
               <span
@@ -70,7 +96,7 @@ export function LangkahMulai({ id, adaKnowledge, botAktif }: { id: number; adaKn
                 <span className={`block text-[13.5px] font-semibold ${l.selesai ? "text-muted line-through decoration-line-strong" : ""}`}>{l.judul}</span>
                 <span className="block text-[12.5px] text-muted">{l.teks}</span>
               </span>
-              {l.tab && l.tab !== "koneksi" && <ChevronRight className="size-4 shrink-0 text-faint" aria-hidden />}
+              {bisaKlik && <ChevronRight className="size-4 shrink-0 text-faint" aria-hidden />}
               {l.tab === "koneksi" && !l.selesai && <Smartphone className="size-4 shrink-0 text-faint" aria-hidden />}
             </>
           );
@@ -80,6 +106,10 @@ export function LangkahMulai({ id, adaKnowledge, botAktif }: { id: number; adaKn
                 <button type="button" onClick={() => bukaTabNomor(l.tab!)} className="flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-subtle/60">
                   {isi}
                 </button>
+              ) : l.href && !l.selesai ? (
+                <Link href={l.href} className="flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-subtle/60">
+                  {isi}
+                </Link>
               ) : (
                 <div className="flex items-center gap-3 px-5 py-3.5">{isi}</div>
               )}

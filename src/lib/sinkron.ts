@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { db, getSetting, sekarang, setSetting, transaksi } from "./db";
 import { potong, rapikanTeks } from "./knowledge";
+import { segarkanNomor } from "./numbers";
 import { skala } from "./skala-waktu";
 
 /**
@@ -237,7 +238,14 @@ export async function perbaruiDokumenOtomatis(o: { penanda: string; judul: strin
   if (!ids.length) return 0;
   const potongan = potong(o.teks);
   const kini = sekarang();
+  let botDinyalakan = false;
   await transaksi(async (tx) => {
+    const baruPertama = (
+      await tx<{ id: number }[]>`
+        SELECT n.id FROM numbers n
+         WHERE n.id = ANY(${ids}) AND NOT n.bot_aktif
+           AND NOT EXISTS (SELECT 1 FROM documents d WHERE d.number_id = n.id AND d.jumlah_karakter > 0)`
+    ).map((r) => r.id);
     await tx`DELETE FROM documents WHERE nama_berkas = ${o.penanda} AND number_id = ANY(${ids})`;
     const hidup = await tx<{ id: number }[]>`SELECT id FROM numbers WHERE id = ANY(${ids})`;
     for (const { id } of hidup) {
@@ -249,7 +257,12 @@ export async function perbaruiDokumenOtomatis(o: { penanda: string; judul: strin
       for (let i = 0; i < baris.length; i += 500) await tx`INSERT INTO chunks ${tx(baris.slice(i, i + 500), "document_id", "number_id", "urutan", "isi")}`;
       await tx`INSERT INTO settings(kunci, nilai) VALUES (${`${o.kunciHash}${id}`}, ${o.hash}) ON CONFLICT (kunci) DO UPDATE SET nilai = EXCLUDED.nilai`;
     }
+    if (baruPertama.length && o.teks.length > 0) {
+      const diubah = await tx<{ id: number }[]>`UPDATE numbers SET bot_aktif = true WHERE id = ANY(${baruPertama}) AND NOT bot_aktif RETURNING id`;
+      botDinyalakan = diubah.length > 0;
+    }
   });
+  if (botDinyalakan) segarkanNomor();
   return ids.length;
 }
 

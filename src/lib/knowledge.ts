@@ -1,6 +1,6 @@
 import "server-only";
 import { db, sekarang, transaksi } from "./db";
-import type { Nomor } from "./numbers";
+import { type Nomor, segarkanNomor } from "./numbers";
 import { konteksPelajaran, saringKueri } from "./pelajaran";
 import { aturanGlobal, blokAturanAdmin } from "./aturan";
 import { ATURAN_INTI } from "./pemeriksa";
@@ -136,11 +136,13 @@ export async function tambahDokumen(d: {
       `Dokumen terlalu besar (${teks.length.toLocaleString("id-ID")} karakter, maksimal ${BATAS_DOKUMEN_KARAKTER.toLocaleString("id-ID")}).`,
       `Document is too large (${teks.length.toLocaleString("en-US")} characters, max ${BATAS_DOKUMEN_KARAKTER.toLocaleString("en-US")}).`
     );
-  if ((await totalKarakter(d.numberId)) + teks.length > BATAS_NOMOR_KARAKTER)
+  const karakterSebelum = await totalKarakter(d.numberId);
+  if (karakterSebelum + teks.length > BATAS_NOMOR_KARAKTER)
     throw new KnowledgeError("Total Informasi Usaha nomor ini sudah mencapai batas 1 juta karakter.", "This number's Business Info has reached the 1 million character limit.");
 
   const potongan = potong(teks);
-  return transaksi(async (tx) => {
+  let botDinyalakan = false;
+  const hasil = await transaksi(async (tx) => {
     const [{ id }] = await tx<{ id: number }[]>`
       INSERT INTO documents(number_id, judul, sumber, nama_berkas, ukuran_byte, jumlah_karakter, created_at)
       VALUES (${d.numberId}, ${d.judul.trim().slice(0, 120) || "Tanpa judul"}, ${d.sumber}, ${d.namaBerkas ?? null}, ${d.ukuranByte ?? 0}, ${teks.length}, ${sekarang()})
@@ -148,8 +150,15 @@ export async function tambahDokumen(d: {
     // Potongan disisipkan 500 baris per pernyataan, bukan satu INSERT per potongan.
     const baris = potongan.map((isi, urutan) => ({ document_id: id, number_id: d.numberId, urutan, isi }));
     for (let i = 0; i < baris.length; i += 500) await tx`INSERT INTO chunks ${tx(baris.slice(i, i + 500), "document_id", "number_id", "urutan", "isi")}`;
+    // Transisi pertama kali 0 -> >0 karakter: nyalakan bot_aktif otomatis (tetap dijaga kuota/langganan di UI & bridge).
+    if (karakterSebelum === 0) {
+      const diubah = await tx<{ id: number }[]>`UPDATE numbers SET bot_aktif = true WHERE id = ${d.numberId} AND NOT bot_aktif RETURNING id`;
+      botDinyalakan = diubah.length > 0;
+    }
     return { id, karakter: teks.length, potongan: potongan.length };
   });
+  if (botDinyalakan) segarkanNomor();
+  return hasil;
 }
 
 export async function hapusDokumen(id: number, numberId: number, otomatis: boolean): Promise<void> {

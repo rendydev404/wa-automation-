@@ -16,6 +16,7 @@ import { KartuStat, Meter, Sparkline } from "@/components/stat";
 import { TestChat } from "@/components/test-chat";
 import { PanelKatalog } from "@/components/panel-katalog";
 import { daftarProduk, katalogBoleh } from "@/lib/katalog";
+import { sisaKuotaAi, syaratBotTerpenuhi } from "@/lib/langganan";
 import { sekarang } from "@/lib/db";
 import { angka, formatNomor, tanggal } from "@/lib/format";
 import { teksHalaman } from "@/lib/bahasa-halaman";
@@ -75,7 +76,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
   const admin = staf(user.peran);
 
   const hari = hariTerakhir(tanggalWib(), 7);
-  const [dokumen, sinkronIds, statusSs, sinkronCgIds, statusCg, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran, tur, produk, katalogAktif, ml] = await Promise.all([
+  const [dokumen, sinkronIds, statusSs, sinkronCgIds, statusCg, ringkasanChat, daftarChat, stat, totalPelajaran, pelajaran, tur, produk, katalogAktif, ml, sisaAi] = await Promise.all([
     daftarDokumen(id, admin),
     admin ? nomorSinkron() : Promise.resolve([] as number[]),
     admin ? statusSinkron() : Promise.resolve(null),
@@ -90,9 +91,13 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
     daftarProduk(id),
     admin ? Promise.resolve(true) : katalogBoleh(nomor.user_id),
     statusMl(id),
+    nomor.user_id === null ? Promise.resolve(null) : sisaKuotaAi(nomor.user_id),
   ]);
   const chatPertama = daftarChat.daftar[0] ? await ambilPesanPercakapan(id, daftarChat.daftar[0].id) : null;
   const total = dokumen.reduce((n, d) => n + d.jumlah_karakter, 0);
+  const adaKnowledge = total > 0;
+  const adaKuota = syaratBotTerpenuhi(true, sisaAi);
+  const siap = syaratBotTerpenuhi(adaKnowledge, sisaAi);
   const tren = deretHarian(hari, stat);
   const kini = tren[tren.length - 1];
   const rasio = persen(kini.dibalas, kini.masuk);
@@ -148,7 +153,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
           </div>
         </div>
         <div className="rounded-xl border border-line bg-subtle/50 px-4 py-3 sm:min-w-64" data-tur="saklar-bot">
-          <SaklarBot id={nomor.id} aktif={!!nomor.bot_aktif} label={nomor.label} adaKnowledge={total > 0} />
+          <SaklarBot id={nomor.id} aktif={!!nomor.bot_aktif} label={nomor.label} adaKnowledge={adaKnowledge} adaKuota={adaKuota} />
         </div>
       </header>
 
@@ -206,7 +211,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                 <div className="min-w-0" data-tur="koneksi">
                   <ConnectionCard id={nomor.id} />
                 </div>
-                <LangkahMulai id={nomor.id} adaKnowledge={total > 0} botAktif={!!nomor.bot_aktif && total > 0} />
+                <LangkahMulai id={nomor.id} adaKnowledge={adaKnowledge} adaKuota={adaKuota} botAktif={!!nomor.bot_aktif && siap} />
               </div>
               )
             ),

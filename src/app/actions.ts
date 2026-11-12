@@ -47,14 +47,14 @@ import {
 import { konteksMetaPermintaan } from "@/lib/meta-pixel-konteks";
 import { notifPendaftarBaru } from "@/lib/notifikasi";
 import { ATURAN_ANGKA, MAKS_ATURAN_GLOBAL } from "@/lib/aturan";
-import { type IsiKhusus, METODE_MANUAL, type MetodeManual, batalkanBayar, berikanPaketManual, hapusPaket, hentikanLangganan, mulaiBayar, ORDER_SAH, paketById, segarkanKuota, simpanPaket, terapkanSimulasi } from "@/lib/langganan";
+import { type IsiKhusus, METODE_MANUAL, type MetodeManual, batalkanBayar, berikanPaketManual, cekSyaratBot, hapusPaket, hentikanLangganan, mulaiBayar, ORDER_SAH, paketById, segarkanKuota, simpanPaket, terapkanSimulasi } from "@/lib/langganan";
 import { GATEWAY, GatewayError, adapter, gatewaySah, kanalMati, lupakanStatusKanal, modeGateway, modeGatewaySah, penyediaKanal, rencanaKanal, setKanalMati, setModeGateway, setPenyediaHybrid, terpasang } from "@/lib/gateway";
 import { MODE_GATEWAY } from "@/lib/gateway-def";
 import { ajukanJaminan, selesaikanManual, setModeRefund, tolakPengembalian, ulangiPengembalian } from "@/lib/jaminan";
 import { teksProsesRefund } from "@/lib/jaminan-def";
 import { tanggal, uang } from "@/lib/format";
 import { GalatCustom, customTampil, periksaCustom, ringkasCustom, simpanPaketCustom } from "@/lib/paket-custom";
-import { KnowledgeError, adaKnowledge, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
+import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
 import { geserProduk, hapusProduk, katalogBoleh, setTersedia } from "@/lib/katalog";
 import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringProspek, setSaringSpam, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { cekPassword, verifyPassword } from "@/lib/password";
@@ -507,9 +507,15 @@ export async function setBotAktifAction(id: number, aktif: boolean): Promise<Has
   const nomor = await nomorUntuk(user, id);
   const { t } = await teksPermintaan();
   if (!nomor) return nomorTidakAda(t);
-  // Aturan pakai: balasan otomatis hanya bisa dinyalakan setelah product knowledge diisi.
-  if (aktif && !(await adaKnowledge(id))) {
-    return { ok: false, pesan: t("Isi Informasi Usaha dulu supaya AI tahu apa yang harus dijawab.", "Add your Business Info first so the AI knows what to answer.") };
+  // Aturan pakai: balasan otomatis hanya bisa dinyalakan setelah kedua syarat terpenuhi (Informasi Usaha + langganan/kuota).
+  if (aktif) {
+    const syarat = await cekSyaratBot(id);
+    if (syarat === "knowledge_kosong") {
+      return { ok: false, pesan: t("Isi Informasi Usaha dulu supaya AI tahu apa yang harus dijawab.", "Add your Business Info first so the AI knows what to answer.") };
+    }
+    if (syarat === "tanpa_kuota") {
+      return { ok: false, pesan: t("Pilih paket langganan dulu supaya balasan AI bisa aktif.", "Choose a subscription plan first so AI replies can turn on.") };
+    }
   }
   await setBotAktif(id, aktif);
   revalidatePath("/dashboard");

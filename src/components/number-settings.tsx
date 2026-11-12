@@ -1,13 +1,14 @@
 "use client";
 
 import { useActionState, useOptimistic, useState, useTransition } from "react";
-import { Trash2 } from "lucide-react";
+import { ArrowRight, Trash2 } from "lucide-react";
 import { hapusNomorAction, setBotAktifAction, setSaringProspekAction, setSaringSpamAction, setSinkronAction, setSinkronCgAction, ubahNomorAction } from "@/app/actions";
 import { angka } from "@/lib/format";
 import type { StatusMl } from "@/lib/prospek";
 import { useBahasa } from "./bahasa";
 import { InstruksiNomor } from "./instruksi-nomor";
 import { LencanaSesi } from "./connection-card";
+import Link from "./link";
 import { bukaTabNomor } from "./tab-nomor";
 import { Pesan, Saklar, SubmitButton, TombolKonfirmasi } from "./ui";
 import { useSesiNomor } from "./wa-status";
@@ -17,30 +18,46 @@ export function LencanaTerhubung({ id }: { id: number }) {
 }
 
 /**
- * Saklar utama AI nomor ini. Aturan pakai: tanpa product knowledge saklar terkunci (server juga menolak menyalakannya,
- * dan jembatan WhatsApp tidak membalas), dengan tautan langsung ke tab Knowledge.
+ * Saklar utama AI nomor ini. Aturan pakai: saklar terkunci sampai kedua syarat terpenuhi (Informasi Usaha terisi &
+ * langganan/kuota AI aktif), lalu otomatis menyala begitu keduanya beres.
  */
-export function SaklarBot({ id, aktif: awal, label, adaKnowledge = true }: { id: number; aktif: boolean; label: string; adaKnowledge?: boolean }) {
+export function SaklarBot({
+  id,
+  aktif: awal,
+  label,
+  adaKnowledge = true,
+  adaKuota = true,
+}: {
+  id: number;
+  aktif: boolean;
+  label: string;
+  adaKnowledge?: boolean;
+  adaKuota?: boolean;
+}) {
   const [aktif, setAktif] = useOptimistic(awal);
   const [galat, setGalat] = useState<string | null>(null);
   const [, mulai] = useTransition();
   const { t } = useBahasa();
+  const siap = adaKnowledge && adaKuota;
+  const keterangan = !adaKnowledge && !adaKuota
+    ? t("Otomatis menyala setelah langganan aktif & Informasi Usaha diisi", "Turns on automatically once plan is active & Business Info is added")
+    : !adaKnowledge
+      ? t("Belum bisa aktif: Informasi Usaha kosong", "Can't turn on yet: no Business Info")
+      : !adaKuota
+        ? t("Belum bisa aktif: paket langganan belum aktif", "Can't turn on yet: no active subscription")
+        : aktif
+          ? t("AI membalas chat masuk", "AI replies to incoming chats")
+          : t("AI tidak membalas", "AI doesn't reply");
   return (
     <div className="w-full">
       <label data-analitik-privat className="flex w-full items-center justify-between gap-4">
         <span className="text-[13px] leading-tight">
           <span className="block font-semibold text-fg">{t("Balasan otomatis", "Auto-reply")}</span>
-          <span className={`block text-xs ${adaKnowledge ? "text-muted" : "text-warning"}`}>
-            {!adaKnowledge
-              ? t("Belum bisa aktif: Informasi Usaha kosong", "Can't turn on yet: no Business Info")
-              : aktif
-                ? t("AI membalas chat masuk", "AI replies to incoming chats")
-                : t("AI tidak membalas", "AI doesn't reply")}
-          </span>
+          <span className={`block text-xs ${siap ? "text-muted" : "text-warning"}`}>{keterangan}</span>
         </span>
         <Saklar
-          aktif={aktif && adaKnowledge}
-          disabled={!adaKnowledge}
+          aktif={aktif && siap}
+          disabled={!siap}
           label={t(`Balasan otomatis ${label}`, `Auto-reply for ${label}`)}
           analitik="Saklar balasan otomatis"
           onUbah={(v) =>
@@ -53,10 +70,21 @@ export function SaklarBot({ id, aktif: awal, label, adaKnowledge = true }: { id:
           }
         />
       </label>
-      {!adaKnowledge && (
-        <button type="button" onClick={() => bukaTabNomor("knowledge")} className="mt-1.5 text-[12px] font-semibold text-accent hover:underline">
-          {t("Isi Informasi Usaha →", "Add Business Info →")}
-        </button>
+      {!siap && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+          {!adaKnowledge && (
+            <button type="button" onClick={() => bukaTabNomor("knowledge")} className="inline-flex items-center gap-1 text-[12px] font-semibold text-accent hover:underline">
+              {t("Isi Informasi Usaha", "Add Business Info")}
+              <ArrowRight className="size-3.5" aria-hidden />
+            </button>
+          )}
+          {!adaKuota && (
+            <Link href="/langganan" className="inline-flex items-center gap-1 text-[12px] font-semibold text-accent hover:underline">
+              {t("Pilih paket langganan", "Choose a plan")}
+              <ArrowRight className="size-3.5" aria-hidden />
+            </Link>
+          )}
+        </div>
       )}
       {galat && <p className="mt-1.5 text-[12px] font-semibold text-danger">{galat}</p>}
     </div>

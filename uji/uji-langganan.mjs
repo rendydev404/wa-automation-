@@ -1158,6 +1158,61 @@ await cek("notifikasi otomatis: paket dari admin, paket akan berakhir (H-3, seka
   assert.match(daftar[0].judul, /gratis sudah habis/);
 });
 
+await cek("saklar balasan AI otomatis menyala saat syarat terpenuhi (bayar langganan + isi Informasi Usaha), kedua urutan, & terkunci sebelumnya", async () => {
+  const N0 = await lib("src/lib/numbers.ts");
+  const K = await lib("src/lib/knowledge.ts");
+  await setSetting("kuota_percobaan", "0");
+  L.segarkanKuota();
+
+  // --- Urutan 1: Isi Informasi Usaha dulu, baru bayar langganan ---
+  const u1 = await P.buatAkun({ email: "syarat1@uji.test", nama: "Syarat Satu", password: "rahasia-syarat-01" });
+  const n1Siap = await tambahNomor("Toko Utama", u1.id);
+  const n1Kosong = await tambahNomor("Cabang Kosong", u1.id);
+  await N0.setBotAktif(n1Siap.id, false);
+  await N0.setBotAktif(n1Kosong.id, false);
+
+  // Belum bayar & belum isi Informasi Usaha -> ditolak karena knowledge kosong dulu
+  assert.equal(await L.cekSyaratBot(n1Siap.id), "knowledge_kosong");
+  assert.equal(L.syaratBotTerpenuhi(false, await L.sisaKuotaAi(u1.id)), false);
+
+  // Isi Informasi Usaha di n1Siap, tapi belum bayar langganan -> masih terkunci ("tanpa_kuota")
+  await K.tambahDokumen({ numberId: n1Siap.id, judul: "Menu", sumber: "teks", teks: "Kami menjual kopi susu gula aren Rp18.000, buka pukul 08.00-21.00 WIB." });
+  assert.equal(await L.cekSyaratBot(n1Siap.id), "tanpa_kuota");
+  assert.equal(L.syaratBotTerpenuhi(true, await L.sisaKuotaAi(u1.id)), false, "belum bayar langganan: saklar belum boleh menyala");
+
+  // Bayar / aktifkan langganan -> n1Siap otomatis menyala, n1Kosong (tanpa Informasi Usaha) tetap belum memenuhi syarat
+  await L.berikanPaketManual(u1.id, { paketId: bisnis.id, metode: "manual_qris", jumlah: bisnis.harga, catatan: "lunas" });
+  assert.equal((await N0.nomorById(n1Siap.id)).bot_aktif, true, "otomatis menyala begitu langganan aktif & Informasi Usaha ada");
+  assert.equal(await L.cekSyaratBot(n1Siap.id), "siap");
+  assert.equal(L.syaratBotTerpenuhi(true, await L.sisaKuotaAi(u1.id)), true);
+  assert.equal(await L.cekSyaratBot(n1Kosong.id), "knowledge_kosong", "nomor tanpa Informasi Usaha tetap terkunci");
+  assert.equal(L.syaratBotTerpenuhi(false, await L.sisaKuotaAi(u1.id)), false);
+
+  // --- Urutan 2: Bayar langganan dulu, baru isi Informasi Usaha ---
+  // n1Kosong milik u1 (yang sudah berlangganan Bisnis) sengaja masih bot_aktif=false & tanpa knowledge.
+  assert.equal((await N0.nomorById(n1Kosong.id)).bot_aktif, false);
+  await K.tambahDokumen({ numberId: n1Kosong.id, judul: "Jam Buka", sumber: "teks", teks: "Cabang kedua buka setiap hari pukul 09.00 sampai 22.00 WIB di Jl. Merdeka 10." });
+  assert.equal((await N0.nomorById(n1Kosong.id)).bot_aktif, true, "otomatis menyala begitu Informasi Usaha pertama disimpan pada akun berlangganan");
+  assert.equal(await L.cekSyaratBot(n1Kosong.id), "siap");
+
+  // --- Kendali manual pemilik tetap dihormati saat kedua syarat sudah terpenuhi ---
+  await N0.setBotAktif(n1Siap.id, false);
+  assert.equal((await N0.nomorById(n1Siap.id)).bot_aktif, false);
+  // Menambah dokumen ke-2 atau memperpanjang paket saat masih aktif TIDAK menimpa paksa pilihan manual pemilik
+  await K.tambahDokumen({ numberId: n1Siap.id, judul: "Promo", sumber: "teks", teks: "Promo beli 2 kopi susu gratis 1 roti bakar setiap hari Jumat." });
+  assert.equal((await N0.nomorById(n1Siap.id)).bot_aktif, false, "dokumen kedua tidak menimpa saklar yang dimatikan manual");
+  await L.berikanPaket(u1.id, bisnis.id);
+  assert.equal((await N0.nomorById(n1Siap.id)).bot_aktif, false, "perpanjangan saat kuota masih aktif menghormati pilihan manual");
+
+  // Namun bila langganan dihentikan (kuota jadi 0) lalu berlangganan lagi / diberi bonus kuota, otomatis menyala kembali
+  await L.hentikanLangganan(u1.id);
+  assert.equal(await L.cekSyaratBot(n1Siap.id), "tanpa_kuota");
+  const [adm] = await sql`SELECT id, email, nama, peran, status, kuota_nomor, sesi_versi, created_at, login_terakhir FROM users WHERE id = ${admin.id}`;
+  await P.beriBonusKuota(adm, u1.id, 50, "bonus aktif lagi");
+  assert.equal((await N0.nomorById(n1Siap.id)).bot_aktif, true, "otomatis menyala kembali saat kuota pulih dari 0");
+  assert.equal(await L.cekSyaratBot(n1Siap.id), "siap");
+});
+
 void AI;
 await sql.end({ timeout: 2 });
 await pg.berhenti();
