@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import type { AuthenticationCreds, ConnectionState, SocketConfig, WAMessage, WAPatchName, WASocket, proto } from "baileys";
 import { type BitQr, kemasQr } from "./qr";
 import { rapikanNomorWa } from "./format";
+import { catatMengetik } from "./aktivitas";
 import { pancarkan } from "./peristiwa";
 import { type Foto, MAKS_FOTO_BYTE, MIME_FOTO, type SesiNomor } from "./types";
 import { type AuthSesi, bukaAuth, hapusAuth, rapikanAuthYatim, sesiTerpasang, tungguSemuaTulis } from "./wa-auth";
@@ -1407,6 +1408,8 @@ export function mengetik(nama: string, alamat: string, nyala: boolean): Promise<
   } else {
     s.mengetik = Math.max(0, s.mengetik - 1);
   }
+  // Maskot dashboard: "sedang membalas" hanya selama nomor ini benar-benar mengetik (tanpa I/O).
+  catatMengetik(nama, s.mengetik > 0);
   // Berurutan per nomor: "berhenti mengetik" tidak boleh mendahului "mengetik" yang dipanggil lebih dulu.
   s.presensi = s.presensi
     .then(async () => {

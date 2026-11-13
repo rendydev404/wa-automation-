@@ -419,6 +419,26 @@ await cek("admin: status mesin, riwayat, edit draf, hentikan", async () => {
   await assert.rejects(() => fp.hentikanProspek(jalan.kunci));
 });
 
+await cek("maskot: 'mengetik' menyala hanya selama AI benar-benar mengetik di nomor itu, padam saat balasan terkirim", async () => {
+  const { dengarDetak, ringkasAktivitas } = await lib("src/lib/aktivitas.ts");
+  const nomorCs = [{ id: CS.id, sesi: CS.sesi }];
+  const lain = [{ id: 999_999, sesi: "sesi-lain" }];
+  const jejak = [];
+  const lepas = dengarDetak((u) => {
+    if ("sesi" in u && u.sesi === CS.sesi) jejak.push(ringkasAktivitas(nomorCs).mengetik);
+  });
+  assert.equal(ringkasAktivitas(nomorCs).mengetik, null, "diam: tidak mengetik");
+  await ngobrol("628333000009", "kak ada paket untuk 2 nomor?", "Yoga");
+  await tunggu(() => ringkasAktivitas(nomorCs).mengetik === null, 3000, "mengetik padam");
+  lepas();
+  assert.ok(jejak.includes(CS.id), `sempat mengetik di nomor CS: ${JSON.stringify(jejak)}`);
+  assert.equal(jejak.at(-1), null, "terakhir: berhenti mengetik");
+  const r = ringkasAktivitas(nomorCs);
+  assert.ok(r.kini - r.tDibalas < 5, "balasan baru terkirim tercatat");
+  assert.equal(ringkasAktivitas(lain).mengetik, null, "nomor akun lain tidak ikut");
+  assert.equal(ringkasAktivitas(lain).tDibalas, 0, "detak akun lain tidak bocor");
+});
+
 await cek("efisiensi: pemindaian lewat indeks parsial lead (20.000 chat di nomor CS)", async () => {
   const t = kini();
   await sql`

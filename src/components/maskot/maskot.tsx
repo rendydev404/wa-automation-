@@ -7,6 +7,7 @@ import Link from "@/components/link";
 import { useBahasa } from "@/components/bahasa";
 import { type IsiTur, useTurOpsional } from "@/components/tur";
 import { useWaStatus } from "@/components/wa-status";
+import type { RingkasAktivitas } from "@/lib/aktivitas";
 import { EfekPose, GambarPose, type Pose, siapkanPose } from "./pose";
 import { type Aksi, type DataMaskot, type Langsung, type Nada, type Pesan, type Topik, celoteh, jawab, keadaan, sapaan } from "./pesan";
 
@@ -87,6 +88,42 @@ interface Tombol {
   tur?: true;
 }
 
+/**
+ * Detak AI langsung (Server-Sent Events /api/wa/detak): nomor akun ini sedang mengetik / balasan baru terkirim, saat
+ * itu juga. Aliran hanya dibuka selama tab terlihat (tab di latar = koneksi ditutup, tanpa beban server); putus =
+ * EventSource menyambung lagi sendiri. Polling status 20 detik tetap jadi cadangan.
+ */
+function useDetakLangsung(): RingkasAktivitas | null {
+  const [nilai, setNilai] = useState<RingkasAktivitas | null>(null);
+  useEffect(() => {
+    if (typeof EventSource === "undefined") return;
+    let es: EventSource | null = null;
+    const buka = () => {
+      if (es || document.visibilityState !== "visible") return;
+      es = new EventSource("/api/wa/detak");
+      es.onmessage = (e) => {
+        try {
+          setNilai(JSON.parse(e.data) as RingkasAktivitas);
+        } catch {
+          // kiriman rusak diabaikan
+        }
+      };
+    };
+    const tutup = () => {
+      es?.close();
+      es = null;
+    };
+    const ubah = () => (document.visibilityState === "visible" ? buka() : tutup());
+    buka();
+    document.addEventListener("visibilitychange", ubah);
+    return () => {
+      document.removeEventListener("visibilitychange", ubah);
+      tutup();
+    };
+  }, []);
+  return nilai;
+}
+
 export function Maskot({ data, tur }: { data: DataMaskot; tur?: { nama: string; langkah: IsiTur } }) {
   const { b, t } = useBahasa();
   const { data: status } = useWaStatus();
@@ -95,7 +132,10 @@ export function Maskot({ data, tur }: { data: DataMaskot; tur?: { nama: string; 
   const terhidrasi = useSyncExternalStore(tanpaLangganan, () => true, () => false);
 
   // ---- Data hidup: detak balasan sejak halaman dimuat ----
-  const a = status?.aktivitas ?? null;
+  const langsungSse = useDetakLangsung();
+  // Yang terbaru (jam server) antara polling status dan aliran langsung.
+  const ap = status?.aktivitas ?? null;
+  const a = langsungSse && (!ap || langsungSse.kini >= ap.kini) ? langsungSse : ap;
   // Hitungan detak pertama yang terlihat = titik nol; selisih berikutnya ditambahkan ke angka hari ini dari server.
   const [dasar, setDasar] = useState<{ masuk: number; dibalas: number } | null>(null);
   if (a && !dasar) setDasar({ masuk: a.masuk, dibalas: a.dibalas });

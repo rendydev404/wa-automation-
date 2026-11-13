@@ -90,10 +90,15 @@ const malam = (): boolean => {
 };
 
 /** Detak terbaru: sedang menyusun balasan (pesan masuk belum terbalas) atau baru saja membalas. */
+/**
+ * "menyusun" HANYA selama salah satu nomor akun ini benar-benar mengetik balasan di WhatsApp (status "composing" yang
+ * dikirim server, lewat aliran langsung /api/wa/detak); pesan masuk yang tidak dibalas AI (spam, chat dibisukan,
+ * ditangani manusia) tidak pernah memunculkannya. "terkirim" = balasan AI terkirim < 45 detik lalu.
+ */
 export function detak(l: Langsung): "menyusun" | "terkirim" | null {
   const a = l.aktivitas;
   if (!a) return null;
-  if (a.tMasuk > a.tDibalas && a.kini - a.tMasuk < 90) return "menyusun";
+  if (a.mengetik != null) return "menyusun";
   if (a.tDibalas && a.kini - a.tDibalas < 45) return "terkirim";
   return null;
 }

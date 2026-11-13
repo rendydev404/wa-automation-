@@ -50,7 +50,7 @@ export async function GET() {
     galatAi: galatAi && sekarang() - galatAi.at < 86400 ? galatAi : null,
     nomor: {},
     notif,
-    aktivitas: ringkasAktivitas(daftar.map((n) => n.id)),
+    aktivitas: ringkasAktivitas(daftar),
   };
 
   // Admin memantau semua nomor (juga saat membuka nomor milik pengguna lain); pengguna biasa hanya miliknya.
