@@ -1,5 +1,6 @@
 import "server-only";
-import { db, sekarang } from "./db";
+import { type Sql, db, sekarang } from "./db";
+import { LURUH_MINAT_DTK } from "./prospek-def";
 import { UMUR_HISTORI_HARI } from "./format";
 import { pancarkan } from "./peristiwa";
 
@@ -18,10 +19,16 @@ import { pancarkan } from "./peristiwa";
  *   4. Histori hanya disimpan `UMUR_HISTORI_HARI` hari: `hapusHistoriKedaluwarsa` berjalan berkala (lihat instrumentation.ts).
  */
 
+/** Kolom `minat` efektif (sama dengan prospek-def.ts minatEfektif): hanya untuk chat prospek, turun 1 per LURUH_MINAT_DTK diam. */
+const kolomMinat = (sql: Sql) =>
+  sql`CASE WHEN p.prospek = 1 AND p.minat IS NOT NULL
+           THEN GREATEST(0, p.minat - (${sekarang()} - COALESCE(p.minat_pada, ${sekarang()})) / ${LURUH_MINAT_DTK})::smallint END AS minat`;
+
 /** 0 = pelanggan, 1 = bot AI, 2 = manusia (HP pemilik nomor). */
 export type PeranPesan = 0 | 1 | 2;
 
-export type FilterPercakapan = "semua" | "bot" | "manusia";
+/** "lead" = lead serius: prospek dengan minat hangat/panas (setelah luruh), lewat percakapan_lead_idx. */
+export type FilterPercakapan = "semua" | "bot" | "manusia" | "lead";
 
 export interface ItemPercakapan {
   id: number;
@@ -42,6 +49,8 @@ export interface ItemPercakapan {
   /** Penyaring prospek (prospek-def.ts STATUS): 0 = baru, 1 = prospek, 2 = dibisukan (bukan prospek), 3 = bot/auto-reply. */
   prospek: 0 | 1 | 2 | 3;
   prospek_alasan: string | null;
+  /** Tingkat minat beli saat ini (sudah diluruhkan, prospek-def.ts minatEfektif): 0 dingin, 1 hangat, 2 panas; null = belum dinilai / bukan prospek. */
+  minat: 0 | 1 | 2 | null;
 }
 
 export interface ItemPesan {
@@ -162,10 +171,25 @@ export async function daftarPercakapan(
     baris = await sql<ItemPercakapan[]>`
       SELECT p.id, p.kunci, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir,
              p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, p.spam, p.spam_alasan, p.prospek, p.prospek_alasan,
+             ${kolomMinat(sql)},
              COALESCE(cs.jeda_sampai, 0) AS jeda_sampai
         FROM percakapan p
         LEFT JOIN chat_state cs ON cs.kunci = p.kunci
        WHERE p.number_id = ${numberId}
+       ORDER BY p.terakhir_pada DESC, p.id DESC
+       LIMIT ${batas + 1}`;
+  } else if (filter === "lead" && !cari) {
+    // Lead serius: indeks parsial percakapan_lead_idx (hanya chat prospek hangat/panas), urutan & kursor sama.
+    baris = await sql<ItemPercakapan[]>`
+      SELECT p.id, p.kunci, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir,
+             p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, p.spam, p.spam_alasan, p.prospek, p.prospek_alasan,
+             ${kolomMinat(sql)},
+             COALESCE(cs.jeda_sampai, 0) AS jeda_sampai
+        FROM percakapan p
+        LEFT JOIN chat_state cs ON cs.kunci = p.kunci
+       WHERE p.number_id = ${numberId} AND p.prospek = 1 AND p.minat >= 1
+         AND p.minat - (${sekarang()} - p.minat_pada) / ${LURUH_MINAT_DTK} >= 1
+         AND (${!adaKursor} OR (p.terakhir_pada, p.id) < (${sWaktu}, ${sId}))
        ORDER BY p.terakhir_pada DESC, p.id DESC
        LIMIT ${batas + 1}`;
   } else {
@@ -175,11 +199,14 @@ export async function daftarPercakapan(
     baris = await sql<ItemPercakapan[]>`
       SELECT p.id, p.kunci, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir,
              p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, p.spam, p.spam_alasan, p.prospek, p.prospek_alasan,
+             ${kolomMinat(sql)},
              COALESCE(cs.jeda_sampai, 0) AS jeda_sampai
         FROM percakapan p
         LEFT JOIN chat_state cs ON cs.kunci = p.kunci
        WHERE p.number_id = ${numberId}
-         AND (${filter === "semua"} OR (${filter === "bot"} AND p.bot_n > 0) OR (${filter === "manusia"} AND p.manusia_n > 0))
+         AND (${filter === "semua"} OR (${filter === "bot"} AND p.bot_n > 0) OR (${filter === "manusia"} AND p.manusia_n > 0)
+              OR (${filter === "lead"} AND p.prospek = 1 AND p.minat >= 1
+                  AND p.minat - (${sekarang()} - p.minat_pada) / ${LURUH_MINAT_DTK} >= 1))
          AND (${pola === null} OR p.nama ILIKE ${pola ?? ""} OR p.telepon LIKE ${polaDigit ?? ""} OR p.cuplikan ILIKE ${pola ?? ""})
          AND (${!adaKursor} OR (p.terakhir_pada, p.id) < (${sWaktu}, ${sId}))
        ORDER BY p.terakhir_pada DESC, p.id DESC
@@ -209,6 +236,7 @@ export async function ambilPesanPercakapan(
   const [percakapan] = await sql<ItemPercakapan[]>`
     SELECT p.id, p.kunci, p.telepon, p.nama, p.cuplikan, p.pengirim_akhir,
            p.masuk_n, p.bot_n, p.manusia_n, p.terakhir_pada, p.spam, p.spam_alasan, p.prospek, p.prospek_alasan,
+             ${kolomMinat(sql)},
            COALESCE(cs.jeda_sampai, 0) AS jeda_sampai
       FROM percakapan p
       LEFT JOIN chat_state cs ON cs.kunci = p.kunci
@@ -427,6 +455,12 @@ export async function tandaiBukanSpam(numberId: number, percakapanId: number): P
 }
 
 // ---------- Penyaring prospek (src/lib/prospek.ts) ----------
+
+/** Simpan tingkat minat beli sebuah chat (0 dingin, 1 hangat, 2 panas) dan waktunya; keadaan acuan di memori jembatan. */
+export async function tandaiMinat(kunci: string, minat: number, pada: number): Promise<void> {
+  const sql = await db();
+  await sql`UPDATE percakapan SET minat = ${minat}, minat_pada = ${pada} WHERE kunci = ${kunci}`;
+}
 
 /** Cerminan keadaan penyaring prospek sebuah chat untuk histori. Keadaan acuannya di chat_state (bridge.ts). */
 export async function tandaiProspek(kunci: string, status: 0 | 1 | 2 | 3, alasan: string | null): Promise<void> {

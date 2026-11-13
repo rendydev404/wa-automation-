@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { ItemPercakapan, ItemPesan } from "@/lib/percakapan";
 
 const PERAN = ["pelanggan", "ai", "manusia"] as const;
+const MINAT = ["dingin", "hangat", "panas"] as const;
 
 /** Bentuk percakapan di API v1 (id string, status bot ringkas). */
 export function percakapanApi(p: ItemPercakapan, kini = Math.floor(Date.now() / 1000)) {
@@ -17,6 +18,8 @@ export function percakapanApi(p: ItemPercakapan, kini = Math.floor(Date.now() / 
     bot: p.prospek === 2 ? "dibisukan" : p.jeda_sampai > kini ? "dijeda" : "aktif",
     jeda_sampai: p.jeda_sampai,
     spam: p.spam === 1,
+    /** Tingkat minat beli (lead): dingin | hangat | panas; null = belum dinilai / bukan prospek. */
+    minat: p.minat === null || p.minat === undefined ? null : MINAT[p.minat],
   };
 }
 

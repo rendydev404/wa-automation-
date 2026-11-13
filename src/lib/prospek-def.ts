@@ -25,16 +25,48 @@ Di BARIS PALING AKHIR setiap jawaban, tambahkan tepat satu tag penilaian untuk p
 <nilai>selesai</nilai> = HANYA ucapan penutup, terima kasih, atau konfirmasi singkat ("ok", "siap kak", "makasih 🙏") saat urusannya sudah tuntas dan kamu tidak sedang menunggu jawabannya. Untuk ini JANGAN menulis jawaban apa pun: balas HANYA dengan tag itu.
 <nilai>bukan</nilai> = jelas tidak berhubungan dengan usaha/peran nomor ini dan tidak mengarah ke sana: iseng, ngobrol kosong, ledekan, menguji atau mengerjai bot, topik umum di luar usaha (PR sekolah, politik, gosip, minta dibuatkan sesuatu). Tetap balas singkat, satu kalimat sopan yang mengarahkan ke hal yang bisa kamu bantu.
 Ragu antara prospek dan yang lain = prospek. Keluhan, pelanggan marah, atau berkata kasar soal layanan = prospek. Pertanyaan yang kamu jawab "belum ada infonya" tetap prospek bila menyangkut usaha ini.
+Khusus bila nilainya prospek, tulis LANGSUNG sesudahnya satu tag minat beli yang menilai SELURUH percakapan sejauh ini (bukan hanya pesan terakhir), contoh: <nilai>prospek</nilai><minat>hangat</minat>
+<minat>panas</minat> = siap membeli sekarang: menyebut jumlah, varian, ukuran, tanggal, atau alamat kirim; minta nomor rekening, QRIS, link bayar, atau total harga; bilang "jadi", "pesan", "ambil", "booking", "daftar", "mau bayar"; mengirim bukti bayar.
+<minat>hangat</minat> = menimbang serius: menanyakan harga, stok, ongkir, lokasi, jadwal, cara order, perbandingan pilihan/paket, atau bertanya lanjutan setelah dijawab.
+<minat>dingin</minat> = minatnya masih tipis: pertanyaan umum tanpa detail, sekadar lihat-lihat, bilang "nanti dulu"/"masih mikir", atau urusannya bukan membeli (keluhan atau bantuan pesanan yang sudah ada).
+Ragu antara dua tingkat minat = pilih yang lebih rendah.
 </penilaian_pesan>`;
+
+export const MINAT = ["dingin", "hangat", "panas"] as const;
+export type Minat = (typeof MINAT)[number];
+/** Nilai simpan (percakapan.minat): 0 = dingin, 1 = hangat, 2 = panas. */
+export const idMinat = (m: Minat): number => MINAT.indexOf(m);
+/** Tingkat minat turun satu tiap sekian detik chat diam (dihitung saat dibaca, tanpa UPDATE berkala). */
+export const LURUH_MINAT_DTK = 7 * 86400;
+/** Tingkat minat saat ini: tingkat tersimpan dikurangi satu per LURUH_MINAT_DTK sejak terakhir dinilai. null = belum dinilai. */
+export function minatEfektif(minat: number | null | undefined, pada: number | null | undefined, kini: number): number | null {
+  if (minat === null || minat === undefined) return null;
+  return Math.max(0, minat - Math.floor(Math.max(0, kini - (pada ?? kini)) / LURUH_MINAT_DTK));
+}
 
 const POLA_NILAI = /<nilai(?:\s+[a-z]+\s*=\s*["']?([a-z]+)["']?)?\s*\/?>\s*([a-z]*)\s*(?:<\/nilai>)?/gi;
 /** Cadangan: tag penilaian berpembatas rusak di baris terakhir ("[nilai: prospek]", "nilai=bukan", "|nilai>netral"). */
 const POLA_NILAI_LONGGAR = /(?:^|\n)[^\S\n]*[^\p{L}\p{N}\n]{0,3}nilai[^\p{L}\n]{0,4}(prospek|netral|selesai|bukan)[^\p{L}\n]*(?:nilai[^\p{L}\n]*)?$/iu;
 
-/** Pisahkan tag <nilai> dari jawaban AI: teks bersih + label (tag terakhir yang dikenal; null bila tidak ada). */
-export function ambilNilai(jawaban: string): { teks: string; nilai: Label | null } {
+const POLA_MINAT_TAG = /<minat(?:\s+[a-z]+\s*=\s*["']?([a-z]+)["']?)?\s*\/?>\s*([a-z]*)\s*(?:<\/minat>)?/gi;
+/** Cadangan: tag minat berpembatas rusak di baris terakhir ("[minat: panas]", "minat=hangat"). */
+const POLA_MINAT_LONGGAR = /[^\S\n]*[^\p{L}\p{N}\n]{0,3}minat[^\p{L}\n]{0,4}(dingin|hangat|panas)[^\p{L}\n]*(?:minat[^\p{L}\n]*)?$/iu;
+
+/**
+ * Pisahkan tag <nilai> & <minat> dari jawaban AI: teks bersih + label (tag terakhir yang dikenal; null bila tidak ada)
+ * + tingkat minat (hanya bila labelnya prospek).
+ */
+export function ambilNilai(jawaban: string): { teks: string; nilai: Label | null; minat: Minat | null } {
   let nilai: Label | null = null;
+  let minat: Minat | null = null;
   let teks = jawaban
+    .replace(/<\/minat>(?=\s*(?:dingin|hangat|panas)\b)/gi, "<minat>")
+    .replace(POLA_MINAT_TAG, (_, attr: string | undefined, isi: string) => {
+      const m = (isi || attr || "").toLowerCase();
+      if ((MINAT as readonly string[]).includes(m)) minat = m as Minat;
+      return "";
+    })
+    .replace(/<\/?minat[^>]*>/gi, "")
     .replace(/<\/nilai>(?=\s*(?:prospek|netral|selesai|bukan)\b)/gi, "<nilai>") // tag penutup dipakai sebagai pembuka
     .replace(POLA_NILAI, (_, attr: string | undefined, isi: string) => {
       const l = (isi || attr || "").toLowerCase();
@@ -44,12 +76,22 @@ export function ambilNilai(jawaban: string): { teks: string; nilai: Label | null
     .replace(/<\/?nilai[^>]*>/gi, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+  const mm = POLA_MINAT_LONGGAR.exec(teks);
+  if (mm) {
+    // Hanya di baris terakhir yang kosong selain tag itu, atau di belakang tag nilai longgar di baris yang sama.
+    const sebelum = teks.slice(0, mm.index);
+    const baris = sebelum.slice(sebelum.lastIndexOf("\n") + 1);
+    if (!baris.trim() || /nilai/i.test(baris)) {
+      minat = mm[1].toLowerCase() as Minat;
+      teks = sebelum.trimEnd();
+    }
+  }
   const m = POLA_NILAI_LONGGAR.exec(teks);
   if (m) {
     nilai = m[1].toLowerCase() as Label;
     teks = teks.slice(0, m.index).trim();
   }
-  return { teks, nilai };
+  return { teks, nilai, minat: nilai === "prospek" ? minat : null };
 }
 
 /** Bentuk baku untuk pembandingan pola: huruf kecil, tanpa aksen/emoji/tanda baca, huruf berulang dirapatkan. */

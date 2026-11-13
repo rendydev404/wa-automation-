@@ -13,6 +13,7 @@ import { nomorSinkronCg } from "@/lib/sinkron-cg";
 import { sekarang } from "@/lib/db";
 import { FormFollowup, LepasRem } from "./form-followup";
 import { PratinjauPesan } from "./pratinjau";
+import { TabFollowup } from "./tab-followup";
 
 export const metadata: Metadata = { title: `Follow-up WA · Admin · ${MEREK}` };
 
@@ -273,6 +274,7 @@ export default function HalamanFollowup(props: PageProps<"/[lang]/admin/followup
           Nomor CS {MEREK} menyapa pemilik akun gratis yang kuota balasan AI-nya habis, dengan aturan ketat supaya nomor CS tidak diblokir WhatsApp.
         </p>
       </div>
+      <TabFollowup aktif="akun" />
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <Suspense fallback={<div aria-hidden className="card h-[560px] animate-denyut" />}>
           <Mesin />

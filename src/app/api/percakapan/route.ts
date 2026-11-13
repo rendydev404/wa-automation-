@@ -4,7 +4,7 @@ import { sesiDanNomor } from "@/lib/akses";
 import { teksPermintaan } from "@/lib/bahasa-server";
 import { type FilterPercakapan, ambilPesanPercakapan, daftarPercakapan, ringkasanPercakapan } from "@/lib/percakapan";
 
-const FILTER_SAH = new Set<FilterPercakapan>(["semua", "bot", "manusia"]);
+const FILTER_SAH = new Set<FilterPercakapan>(["semua", "bot", "manusia", "lead"]);
 
 /**
  * Endpoint ringan untuk membaca daftar percakapan atau isi pesan sebuah percakapan per nomor bot.

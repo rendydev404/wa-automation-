@@ -85,3 +85,100 @@ export interface StatusMesinFollowup {
   kirimHariIni: number;
   hitung: Partial<Record<StatusFollowup, number>>;
 }
+
+/** Balasan atas follow-up yang berarti "jangan hubungi lagi" (dicatat permanen di followup_stop). */
+export const POLA_STOP =
+  /\b(stop|unsubscribe|berhenti|jangan\s+(di)?(hubungi|chat|kirim|ganggu|spam)\w*|(tidak|gak|ga|nggak|ngga|enggak)\s+tertarik)\b/i;
+export const POLA_STOP_PENDEK = /^\W*(gak|ga|nggak|ngga|enggak|tidak)\s+(usah|perlu)(\W*(kak|min|ya|deh|dulu|makasih|terima\s*kasih|thanks|tq))*\W*$/i;
+
+// ---------- Follow-up prospek (followup-prospek.ts) ----------
+
+/**
+ * Follow-up prospek nomor CS: orang yang chat duluan, dinilai prospek dengan minat hangat/panas, sudah dijawab, lalu
+ * diam. Paling banyak 3 pesan per siklus; berhenti begitu dibalas. Jam kirim, batas harian, jeda, dan rem dipakai
+ * bersama dengan follow-up akun (SetelanFollowup).
+ */
+export interface SetelanProspek {
+  aktif: boolean;
+  /** Pesan 1 setelah lead panas diam sekian jam. */
+  jedaPanasJam: number;
+  /** Pesan 1 setelah lead hangat diam sekian jam. */
+  jedaHangatJam: number;
+  /** Pesan 2 sekian jam setelah pesan 1 tidak dibalas. */
+  tahap2Jam: number;
+  /** Pesan 3 (pamit) sekian jam setelah pesan 2 tidak dibalas. */
+  tahap3Jam: number;
+  /** Jumlah pesan per siklus (1–3). */
+  maksTahap: number;
+}
+
+export const SETELAN_PROSPEK_AWAL: SetelanProspek = {
+  aktif: false,
+  jedaPanasJam: 1,
+  jedaHangatJam: 3,
+  tahap2Jam: 24,
+  tahap3Jam: 48,
+  maksTahap: 3,
+};
+
+export const BATAS_SETELAN_PROSPEK = {
+  jedaPanasJam: [1, 24],
+  jedaHangatJam: [1, 48],
+  tahap2Jam: [12, 120],
+  tahap3Jam: [24, 168],
+  maksTahap: [1, 3],
+} as const satisfies Record<string, readonly [number, number]>;
+
+export type StatusProspek = "jalan" | "dibalas" | "selesai" | "batal" | "stop" | "gagal";
+
+export const LABEL_STATUS_PROSPEK: Record<StatusProspek, string> = {
+  jalan: "Berjalan",
+  dibalas: "Dibalas",
+  selesai: "Selesai",
+  batal: "Dibatalkan",
+  stop: "Minta berhenti",
+  gagal: "Gagal",
+};
+
+/** Nama tahap pesan follow-up prospek (indeks = tahap - 1). */
+export const NAMA_TAHAP_PROSPEK = ["Lanjutan", "Nilai & bukti", "Pamit"] as const;
+
+export const LABEL_MINAT = ["Dingin", "Hangat", "Panas"] as const;
+
+export interface BarisProspek {
+  kunci: string;
+  status: StatusProspek;
+  tujuan: string | null;
+  nama: string | null;
+  /** Tingkat minat saat diantrekan: 1 hangat, 2 panas. */
+  minat: number;
+  /** Jumlah pesan yang sudah terkirim di siklus ini (0–3). */
+  tahap: number;
+  jadwal: number;
+  dibuat: number;
+  diperbarui: number;
+  /** Draf pesan berikutnya (bisa diedit admin; teks inilah yang dikirim). */
+  draf: string | null;
+  pesan1: string | null;
+  pesan2: string | null;
+  pesan3: string | null;
+  terkirim1: number | null;
+  terkirim2: number | null;
+  terkirim3: number | null;
+  ack1: number;
+  ack2: number;
+  ack3: number;
+  dibalas: number | null;
+  alasan: string | null;
+  /** Percakapan di histori (tautan ke chat). */
+  percakapan_id: number | null;
+}
+
+export interface StatusMesinProspek {
+  setelan: SetelanProspek;
+  hitung: Partial<Record<StatusProspek, number>>;
+  /** Siklus dengan minimal satu pesan terkirim, yang dibalas, dan nomornya kemudian berlangganan. */
+  terkirim: number;
+  dibalas: number;
+  berlangganan: number;
+}

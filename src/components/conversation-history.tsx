@@ -8,12 +8,15 @@ import {
   ChevronDown,
   Clock,
   Copy,
+  Flame,
   Loader2,
   MessagesSquare,
   MicOff,
   RefreshCw,
   Search,
   ShieldAlert,
+  Snowflake,
+  Sun,
   Smartphone,
   Trash2,
   User,
@@ -71,6 +74,8 @@ export function HistoriPercakapan({
   const [adaLagi, setAdaLagi] = useState<boolean>(adaLagiAwal);
   const [inputCari, setInputCari] = useState("");
   const [cariAktif, setCariAktif] = useState("");
+  /** Hanya lead serius (prospek hangat/panas, filter=lead). */
+  const [hanyaLead, setHanyaLead] = useState(false);
   const [memuatDaftar, setMemuatDaftar] = useState(false);
   const [memuatLagi, setMemuatLagi] = useState(false);
 
@@ -147,6 +152,7 @@ export function HistoriPercakapan({
       try {
         const params = new URLSearchParams({ number_id: String(numberId), ringkasan: "1" });
         if (q) params.set("cari", q);
+        if (hanyaLead) params.set("filter", "lead");
         const res = await fetch(`/api/percakapan?${params.toString()}`, { cache: "no-store" });
         if (!res.ok) return;
         const d = (await res.json()) as { daftar: ItemPercakapan[]; adaLagi: boolean; ringkasan?: RingkasanPercakapan };
@@ -167,7 +173,7 @@ export function HistoriPercakapan({
         setMemuatDaftar(false);
       }
     },
-    [numberId, muatPesan]
+    [numberId, muatPesan, hanyaLead]
   );
 
   // Jalankan query saat kata kunci pencarian berubah dari keadaan awal.
@@ -191,6 +197,7 @@ export function HistoriPercakapan({
         sebelum_id: String(terakhir.id),
       });
       if (cariAktif) params.set("cari", cariAktif);
+      if (hanyaLead) params.set("filter", "lead");
       const res = await fetch(`/api/percakapan?${params.toString()}`, { cache: "no-store" });
       if (!res.ok) return;
       const d = (await res.json()) as { daftar: ItemPercakapan[]; adaLagi: boolean };
@@ -234,6 +241,7 @@ export function HistoriPercakapan({
     try {
       const params = new URLSearchParams({ number_id: String(numberId), ringkasan: "1" });
       if (cariAktif) params.set("cari", cariAktif);
+      if (hanyaLead) params.set("filter", "lead");
       const janjiDaftar = fetch(`/api/percakapan?${params.toString()}`, { cache: "no-store" });
       const idTerakhir = pesan.length > 0 ? pesan[pesan.length - 1].id : 0;
       const janjiPesan =
@@ -270,7 +278,7 @@ export function HistoriPercakapan({
     } finally {
       setMenyegarkan(false);
     }
-  }, [menyegarkan, numberId, cariAktif, pesan, aktifId, muatPesan]);
+  }, [menyegarkan, numberId, cariAktif, hanyaLead, pesan, aktifId, muatPesan]);
 
   // Penyegaran ringan otomatis tiap 15 detik HANYA bila tab browser sedang terbuka/terlihat.
   useEffect(() => {
@@ -428,6 +436,24 @@ export function HistoriPercakapan({
                 </button>
               )}
             </div>
+            <div role="group" aria-label={t("Saring percakapan", "Filter conversations")} className="mt-2.5 flex gap-1.5">
+              {[
+                { lead: false, label: t("Semua", "All") },
+                { lead: true, label: t("Lead serius", "Serious leads") },
+              ].map((o) => (
+                <button
+                  key={String(o.lead)}
+                  type="button"
+                  aria-pressed={hanyaLead === o.lead}
+                  data-analitik={o.lead ? "Histori: filter lead serius" : "Histori: semua percakapan"}
+                  onClick={() => setHanyaLead(o.lead)}
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-[12px] font-semibold transition-colors sm:min-h-8 ${hanyaLead === o.lead ? "border-accent bg-accent-soft text-accent" : "border-line text-muted hover:bg-subtle hover:text-fg"}`}
+                >
+                  {o.lead && <Flame className="size-3.5" aria-hidden />}
+                  {o.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Daftar Percakapan */}
@@ -439,12 +465,21 @@ export function HistoriPercakapan({
             ) : daftar.length === 0 ? (
               <div className="px-5 py-14 text-center">
                 <p className="text-[13.5px] font-semibold text-fg">
-                  {cariAktif ? t("Tidak ada percakapan yang cocok", "No matching conversations") : t("Belum ada histori percakapan", "No conversation history yet")}
+                  {cariAktif
+                    ? t("Tidak ada percakapan yang cocok", "No matching conversations")
+                    : hanyaLead
+                      ? t("Belum ada lead serius", "No serious leads yet")
+                      : t("Belum ada histori percakapan", "No conversation history yet")}
                 </p>
                 <p className="hint mt-1">
                   {cariAktif
                     ? t("Coba ubah kata kunci pencarian.", "Try a different search term.")
-                    : t(
+                    : hanyaLead
+                      ? t(
+                          "Lead serius = calon pembeli yang sudah tanya harga, stok, atau cara order (Hangat), atau siap bayar (Panas). Dinilai AI otomatis.",
+                          "Serious leads are buyers who asked about price, stock, or ordering (Warm), or are ready to pay (Hot). Rated by the AI automatically.",
+                        )
+                      : t(
                         "Saat pelanggan mengirim chat ke nomor WhatsApp ini, percakapannya langsung tampil di sini.",
                         "When customers message this WhatsApp number, their conversations show up here right away.",
                       )}
@@ -502,6 +537,7 @@ export function HistoriPercakapan({
                                 <Clock className="size-3" aria-hidden /> {t("Dijeda manusia", "Paused by you")}
                               </span>
                             )}
+                            <LencanaMinat minat={item.minat} t={t} />
                             {item.spam === 1 && (
                               <span className="inline-flex items-center gap-1 rounded-md bg-danger-soft px-1.5 py-0.5 font-semibold text-danger">
                                 <ShieldAlert className="size-3" aria-hidden /> Spam
@@ -571,6 +607,7 @@ export function HistoriPercakapan({
                       {percakapanAktif.jeda_sampai > kini && <Pill nada="kuning">{t("AI sedang jeda (ditangani manusia)", "AI paused (handled by you)")}</Pill>}
                       {percakapanAktif.spam === 1 && <Pill nada="merah">Spam</Pill>}
                       {percakapanAktif.prospek === 1 && <Pill nada="hijau">{t("Prospek", "Lead")}</Pill>}
+                      <LencanaMinat minat={percakapanAktif.minat} t={t} besar />
                     </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
                       {percakapanAktif.telepon && (
@@ -743,5 +780,20 @@ export function HistoriPercakapan({
         </div>
       </div>
     </section>
+  );
+}
+
+/** Tingkat minat beli (lead): Panas / Hangat / Dingin; tanpa lencana bila belum dinilai. */
+function LencanaMinat({ minat, t, besar = false }: { minat: ItemPercakapan["minat"]; t: T; besar?: boolean }) {
+  if (minat === null || minat === undefined) return null;
+  const gaya = [
+    { Ikon: Snowflake, label: t("Dingin", "Cold"), kelas: "bg-subtle text-muted", judul: t("Minat beli masih tipis", "Low buying intent") },
+    { Ikon: Sun, label: t("Hangat", "Warm"), kelas: "bg-warning-soft text-warning", judul: t("Menimbang serius: tanya harga, stok, atau cara order", "Seriously considering: asked price, stock, or how to order") },
+    { Ikon: Flame, label: t("Panas", "Hot"), kelas: "bg-danger-soft text-danger", judul: t("Siap membeli: minta total, rekening, atau sudah menyebut pesanan", "Ready to buy: asked for total or payment, or named an order") },
+  ][minat];
+  return (
+    <span title={gaya.judul} className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-semibold ${besar ? "text-[11.5px]" : ""} ${gaya.kelas}`}>
+      <gaya.Ikon className="size-3" aria-hidden /> {gaya.label}
+    </span>
   );
 }

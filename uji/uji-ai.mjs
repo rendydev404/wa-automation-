@@ -849,17 +849,31 @@ await cek("penyaring spam lokal (uji/data-spam.json): 0 pesan pelanggan salah ta
 
 await cek("penyaring prospek: tag penilaian dipisah dari jawaban; penutup, kata minat, detektor bot; kNN & vektor int8", async () => {
   const P = await lib("src/lib/prospek-def.ts");
-  assert.deepEqual(P.ambilNilai("Halo kak, ada yang bisa dibantu?\n<nilai>netral</nilai>"), { teks: "Halo kak, ada yang bisa dibantu?", nilai: "netral" });
-  assert.deepEqual(P.ambilNilai("<nilai>selesai</nilai>"), { teks: "", nilai: "selesai" });
-  assert.deepEqual(P.ambilNilai('Maaf kak\n<nilai label="bukan"/>'), { teks: "Maaf kak", nilai: "bukan" });
-  assert.deepEqual(P.ambilNilai("Siap kak\n<nilai>entah</nilai>"), { teks: "Siap kak", nilai: null }, "label tak dikenal diabaikan, tag tetap dibuang");
+  assert.deepEqual(P.ambilNilai("Halo kak, ada yang bisa dibantu?\n<nilai>netral</nilai>"), { teks: "Halo kak, ada yang bisa dibantu?", nilai: "netral", minat: null });
+  assert.deepEqual(P.ambilNilai("<nilai>selesai</nilai>"), { teks: "", nilai: "selesai", minat: null });
+  assert.deepEqual(P.ambilNilai('Maaf kak\n<nilai label="bukan"/>'), { teks: "Maaf kak", nilai: "bukan", minat: null });
+  assert.deepEqual(P.ambilNilai("Siap kak\n<nilai>entah</nilai>"), { teks: "Siap kak", nilai: null, minat: null }, "label tak dikenal diabaikan, tag tetap dibuang");
   // Pembatas rusak dari model: dibakukan dulu (ai.ts), sisanya ditangkap cadangan baris terakhir.
   const yangMana = "Harga di outlet bervariasi, Kak. Menu yang Kakak mau yang mana?";
   for (const t of ["<|nilai>prospek", "<|nilai|>prospek<|/nilai|>", "<nilai|>prospek</nilai|>", "< nilai >prospek</ nilai >", "</|nilai>prospek"])
-    assert.deepEqual(P.ambilNilai(AI.bakukanTag(`${yangMana}\n${t}`)), { teks: yangMana, nilai: "prospek" }, t);
+    assert.deepEqual(P.ambilNilai(AI.bakukanTag(`${yangMana}\n${t}`)), { teks: yangMana, nilai: "prospek", minat: null }, t);
   for (const t of ["[nilai: prospek]", "nilai=prospek", "|nilai>prospek", "(nilai: prospek)"])
-    assert.deepEqual(P.ambilNilai(`${yangMana}\n${t}`), { teks: yangMana, nilai: "prospek" }, t);
-  assert.deepEqual(P.ambilNilai("Kami bantu menilai prospek usaha Kakak"), { teks: "Kami bantu menilai prospek usaha Kakak", nilai: null }, "kalimat biasa tidak dipotong");
+    assert.deepEqual(P.ambilNilai(`${yangMana}\n${t}`), { teks: yangMana, nilai: "prospek", minat: null }, t);
+  assert.deepEqual(P.ambilNilai("Kami bantu menilai prospek usaha Kakak"), { teks: "Kami bantu menilai prospek usaha Kakak", nilai: null, minat: null }, "kalimat biasa tidak dipotong");
+  // Tingkat minat beli: hanya bersama nilai prospek; bentuk rusak ditangkap; teks pelanggan tidak terpotong.
+  assert.deepEqual(P.ambilNilai(`${yangMana}\n<nilai>prospek</nilai><minat>panas</minat>`), { teks: yangMana, nilai: "prospek", minat: "panas" });
+  assert.deepEqual(P.ambilNilai(`${yangMana}\n<minat>hangat</minat>\n<nilai>prospek</nilai>`), { teks: yangMana, nilai: "prospek", minat: "hangat" });
+  assert.deepEqual(P.ambilNilai(AI.bakukanTag(`${yangMana}\n<|nilai>prospek<|minat>dingin`)), { teks: yangMana, nilai: "prospek", minat: "dingin" });
+  assert.deepEqual(P.ambilNilai(`${yangMana}\n[nilai: prospek] [minat: panas]`), { teks: yangMana, nilai: "prospek", minat: "panas" });
+  assert.deepEqual(P.ambilNilai("Maaf kak\n<nilai>bukan</nilai><minat>panas</minat>"), { teks: "Maaf kak", nilai: "bukan", minat: null }, "minat diabaikan bila bukan prospek");
+  assert.deepEqual(P.ambilNilai("Siap kak\n<nilai>prospek</nilai><minat>entah</minat>"), { teks: "Siap kak", nilai: "prospek", minat: null }, "tingkat tak dikenal diabaikan");
+  assert.deepEqual(P.ambilNilai("Saya minat panas-panasnya kak\n<nilai>prospek</nilai>"), { teks: "Saya minat panas-panasnya kak", nilai: "prospek", minat: null }, "kata minat di kalimat biasa tidak dipotong");
+  // Luruh: turun satu tingkat per 7 hari diam, tidak di bawah dingin.
+  assert.equal(P.minatEfektif(2, 1000, 1000 + 6 * 86400), 2);
+  assert.equal(P.minatEfektif(2, 1000, 1000 + 7 * 86400), 1);
+  assert.equal(P.minatEfektif(1, 1000, 1000 + 30 * 86400), 0);
+  assert.equal(P.minatEfektif(null, null, 1000), null);
+  assert.ok(P.ATURAN_NILAI.includes("<minat>panas</minat>"), "aturan prompt memuat tag minat");
   assert.equal(AI.bakukanTag('Oke\n<|teruskan jenis="pesanan"|>Nama: Rina<|/teruskan|>'), 'Oke\n<teruskan jenis="pesanan">Nama: Rina</teruskan>');
   assert.equal(AI.bakukanTag('Maaf kak\n<nilai label="bukan"/>'), 'Maaf kak\n<nilai label="bukan"/>', "tag baku tidak berubah");
   globalThis.fetch = async () => new Response(JSON.stringify({ content: [{ type: "text", text: `${yangMana}\n<|nilai>prospek` }], usage: {} }));

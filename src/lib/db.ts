@@ -832,6 +832,40 @@ const MIGRASI: string[] = [
   CREATE INDEX kuota_bonus_oleh_idx               ON kuota_bonus (oleh)                   WHERE oleh IS NOT NULL;
   CREATE INDEX pengembalian_dana_user_idx         ON pengembalian_dana (user_id)          WHERE user_id IS NOT NULL;
   `,
+  // v37: tingkat minat lead + follow-up prospek nomor CS (docs/plans/2026-11-13-minat-lead-dan-followup-prospek.md).
+  //   percakapan.minat: 0 = dingin, 1 = hangat, 2 = panas (tag <minat> AI utama), minat_pada = kapan terakhir dinilai;
+  //   tingkat turun satu per 7 hari diam, dihitung saat dibaca (prospek-def.ts minatEfektif), tanpa UPDATE berkala.
+  //   Kolom tanpa default = hanya katalog. Indeks parsial "lead serius" melayani filter histori dan pemindaian
+  //   follow-up prospek (number_id + rentang terakhir_pada), hanya memuat chat prospek yang hangat/panas.
+  //   followup_prospek: 1 baris per chat (siklus terakhir), paling banyak 3 pesan per siklus.
+  `
+  ALTER TABLE percakapan ADD COLUMN minat smallint, ADD COLUMN minat_pada bigint;
+  CREATE INDEX percakapan_lead_idx ON percakapan (number_id, terakhir_pada DESC, id DESC) WHERE prospek = 1 AND minat >= 1;
+
+  CREATE TABLE followup_prospek (
+    kunci       text PRIMARY KEY,
+    number_id   integer NOT NULL REFERENCES numbers(id) ON DELETE CASCADE,
+    status      text NOT NULL CHECK (status IN ('jalan', 'dibalas', 'selesai', 'batal', 'stop', 'gagal')),
+    tujuan      text,
+    nama        text,
+    minat       smallint NOT NULL,
+    tahap       smallint NOT NULL DEFAULT 0,
+    jadwal      bigint NOT NULL,
+    siklus      bigint NOT NULL,
+    dibuat      bigint NOT NULL,
+    diperbarui  bigint NOT NULL,
+    draf        text,
+    pesan1 text, pesan2 text, pesan3 text,
+    pesan1_id text, pesan2_id text, pesan3_id text,
+    terkirim1 bigint, terkirim2 bigint, terkirim3 bigint,
+    ack1 smallint NOT NULL DEFAULT 0, ack2 smallint NOT NULL DEFAULT 0, ack3 smallint NOT NULL DEFAULT 0,
+    dibalas     bigint,
+    alasan      text
+  );
+  CREATE INDEX followup_prospek_jalan_idx ON followup_prospek (jadwal) WHERE status = 'jalan';
+  CREATE INDEX followup_prospek_diperbarui_idx ON followup_prospek (diperbarui DESC, kunci DESC);
+  CREATE INDEX followup_prospek_number_idx ON followup_prospek (number_id);
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

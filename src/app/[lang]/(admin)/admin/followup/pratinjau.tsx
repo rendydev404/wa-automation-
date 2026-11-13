@@ -7,7 +7,7 @@ import { Pesan } from "@/components/ui";
 import { BATAS_PESAN } from "@/lib/followup-def";
 
 /** Gelembung pesan bergaya WhatsApp (bintang = tebal, garis bawah = miring), teks apa adanya tanpa HTML. */
-function Gelembung({ teks, label }: { teks: string; label: string }) {
+export function Gelembung({ teks, label }: { teks: string; label: string }) {
   const baris = teks.split(/(\*[^*\n]+\*|_[^_\n]+_)/g);
   return (
     <div>

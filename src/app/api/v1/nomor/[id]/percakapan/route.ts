@@ -5,7 +5,7 @@ import { percakapanApi } from "./umum";
 type Ctx = { params: Promise<{ id: string }> };
 
 /**
- * GET /api/v1/nomor/{id}/percakapan?batas=25&setelah=<kursor>&cari=&filter=semua|bot|manusia
+ * GET /api/v1/nomor/{id}/percakapan?batas=25&setelah=<kursor>&cari=&filter=semua|bot|manusia|lead
  *   -> { data: Percakapan[], berikutnya: string | null }. Terbaru dulu; kursor `<terakhir_pada>_<id>` (tanpa OFFSET,
  *   memakai indeks percakapan_nomor_waktu_idx).
  */
@@ -18,7 +18,7 @@ export async function GET(req: Request, ctx: Ctx) {
     const url = new URL(req.url);
     const b = Number(url.searchParams.get("batas") ?? 25);
     const filter = url.searchParams.get("filter") ?? "semua";
-    if (filter !== "semua" && filter !== "bot" && filter !== "manusia") return galat("isian_tidak_sah", "`filter` harus semua, bot, atau manusia.", k.id, k.kepala);
+    if (filter !== "semua" && filter !== "bot" && filter !== "manusia" && filter !== "lead") return galat("isian_tidak_sah", "`filter` harus semua, bot, manusia, atau lead.", k.id, k.kepala);
     const kursor = url.searchParams.get("setelah");
     let sebelumWaktu: number | undefined;
     let sebelumId: number | undefined;

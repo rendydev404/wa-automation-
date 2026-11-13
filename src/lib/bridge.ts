@@ -8,10 +8,10 @@ import { MEREK } from "./merek";
 import { adaKnowledge, susunSistem } from "./knowledge";
 import { type KirimProduk, bahanKirim, captionProduk, daftarProduk, katalogBoleh, perluDaftar, teksKatalog } from "./katalog";
 import { type Nomor, catatStat, catatTerhubung, nomorBySesi } from "./numbers";
-import { catatPesan, chatDipercaya, riwayatUntukAi, tandaiProspek, tandaiSpam } from "./percakapan";
+import { catatPesan, chatDipercaya, riwayatUntukAi, tandaiMinat, tandaiProspek, tandaiSpam } from "./percakapan";
 import { alasanSpam, periksaSpam } from "./spam";
 import { type Penilaian, PELUANG_AUDIT, catatAudit, catatPengalaman, hitung, layakDicek, nilaiPesan, setelanMl, yakinLewati } from "./prospek";
-import { BATAS_STRIKE, BISU_BOT_DTK, BOT_BERUNTUN, BOT_CEPAT_MS, STATUS, type StatusChat, ULANG_BERUNTUN, adaKataMinat, berulang, gema, penutupSaja } from "./prospek-def";
+import { BATAS_STRIKE, BISU_BOT_DTK, BOT_BERUNTUN, BOT_CEPAT_MS, STATUS, type StatusChat, ULANG_BERUNTUN, adaKataMinat, berulang, gema, idMinat, minatEfektif, penutupSaja } from "./prospek-def";
 import { skala } from "./skala-waktu";
 import { pelajariBalasan } from "./pelajaran";
 import { CATATAN_KODE_DIBLOKIR, TOLAK_KODE, adaKode } from "./penjaga";
@@ -153,6 +153,9 @@ interface Antrean {
   audit: boolean;
   /** Penilaian ML untuk pesan yang dilewati di chat yang dibisukan (dipelajari sebagai kesalahan bila pemilik membalas). */
   terlewat: Penilaian | null;
+  /** Tingkat minat beli tersimpan (percakapan.minat: 0 dingin, 1 hangat, 2 panas; null = belum dinilai) & kapan dinilai. */
+  minat: number | null;
+  minatPada: number;
 }
 
 interface Keadaan {
@@ -268,6 +271,19 @@ function ubahStatus(kunci: string, a: Antrean, status: StatusChat, alasan: strin
   a.chat = { ...(a.chat ?? chatBaru(sekarang())), prospek: status, strike: 0, bisu_sampai: bisuSampai };
   simpanChat(kunci, a.chat);
   tulisLatar(() => tandaiProspek(kunci, status, alasan));
+}
+
+/**
+ * Simpan tingkat minat bila naik dari tingkat saat ini (sesudah luruh), atau sama tetapi sudah > 1 hari sejak dinilai
+ * (menyegarkan waktunya supaya tidak luruh selagi chat masih aktif). Selain itu tanpa tulis ke database.
+ */
+function perbaruiMinat(kunci: string, a: Antrean, baru: number): void {
+  const t = sekarang();
+  const kini = minatEfektif(a.minat, a.minatPada, t);
+  if (kini !== null && (baru < kini || (baru === kini && t - a.minatPada < 86400))) return;
+  a.minat = baru;
+  a.minatPada = t;
+  tulisLatar(() => tandaiMinat(kunci, baru, t));
 }
 
 /** Rapikan keluaran model ke format WhatsApp. */
@@ -512,6 +528,9 @@ async function proses(kunci: string): Promise<void> {
         // Katalog produk hanya untuk akun berbayar (dan admin); daftarnya dibaca tanpa foto.
         // Penyaring prospek: AI memberi label di jawabannya; ML menilai pesan yang sama (±6 ms) untuk belajar.
         const pakaiNilai = nomor.saring_prospek && fiturBoleh("ml");
+        // Nomor CS ChatGerCep selalu dinilai (tingkat minat dipakai follow-up prospek), walau penyaringnya mati;
+        // strike/bisu & pengalaman ML tetap hanya bila penyaring aktif.
+        const mintaNilai = pakaiNilai || !!st.kaitCs?.nomorCs().ids.has(nomor.id);
         const [ai, saringSpam, katalog, penilaian] = await Promise.all([
           aiUntukAkun(nomor.user_id),
           nomor.saring_spam && fiturBoleh("spam") ? st.tulis.then(() => chatDipercaya(kunci)).then((p) => !p, () => false) : false,
@@ -524,11 +543,11 @@ async function proses(kunci: string): Promise<void> {
         const gambar = (await Promise.all(pemuatFoto.map((ambil) => ambil().catch(() => null)))).filter((f: Foto | null): f is Foto => !!f);
         const gagalFoto = pemuatFoto.length - gambar.length;
         const isiPesan = gagalFoto ? `${pesan}\n[${gagalFoto} foto gagal dimuat sehingga tidak bisa kamu lihat; minta pelanggan mengirim ulang bila perlu]` : pesan;
-        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0, riwayatLengkap: lengkap, saringSpam, katalog, nilaiPesan: pakaiNilai });
+        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0, riwayatLengkap: lengkap, saringSpam, katalog, nilaiPesan: mintaNilai });
         // Sumber fakta untuk pemeriksa: pesan sistem + pesan pelanggan + seluruh chat sesi ini (Hermes hanya diberi
         // yang belum ia lihat, jadi sisanya dibaca terpisah supaya angka yang pernah disebut di chat tetap sah).
         const sumber = [sistem, isiPesan, ...(lengkap ? [] : await riwayatUntukAi(kunci, { sesiBaru: false, tertunda, lengkap: true }))].join("\n");
-        const hasil = await tanyaAiTerjaga({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, sumber, { saringSpam, katalog: katalog.length > 0, gaya: true, nilai: pakaiNilai });
+        const hasil = await tanyaAiTerjaga({ sessionId: `wa-${kunci.slice(0, 24)}-${sesi}`, sistem, pesan: isiPesan, gambar, paksa: { penyedia: ai.penyedia }, cadanganHermes: ai.cadanganHermes }, sumber, { saringSpam, katalog: katalog.length > 0, gaya: true, nilai: mintaNilai });
         const modeCek = a.modeCek;
         const audit = a.audit;
         a.modeCek = false;
@@ -544,6 +563,15 @@ async function proses(kunci: string): Promise<void> {
           const nyata = katalog.length > 0 && !!hasil.kirimProduk;
           catatPengalaman(nomor.id, penilaian, nyata ? "prospek" : label, nyata ? "hasil" : modeCek && label === "prospek" ? "koreksi" : "ai");
           if (audit) catatAudit(nomor.id, label === "selesai" || label === "bukan");
+        }
+        // Tingkat minat beli (lead serius): dari tag AI; katalog yang dikirim = minimal hangat. Berlaku juga di chat
+        // yang pernah dibalas pemilik. Hanya naik (turunnya lewat luruh waktu, lihat minatEfektif).
+        if (label === "prospek" && !hasil.abaikan) {
+          const dariTag = hasil.minat ? idMinat(hasil.minat) : null;
+          const baru = katalog.length > 0 && hasil.kirimProduk ? Math.max(dariTag ?? 0, 1) : dariTag;
+          if (baru !== null) perbaruiMinat(kunci, a, baru);
+          // Penyaring mati (nomor CS) atau chat yang dikenal pemilik: status prospek tetap dicatat (lead), tanpa strike/bisu.
+          if ((!pakaiNilai || a.dikenal) && (a.chat?.prospek ?? STATUS.baru) === STATUS.baru) ubahStatus(kunci, a, STATUS.prospek, null);
         }
         if (pakaiNilai && !a.dikenal && label && !hasil.abaikan) {
           const c = a.chat;
@@ -668,13 +696,13 @@ async function antreanUntuk(kunci: string, numberId: number, sesi: string, alama
   await st.tulis; // tulis yang masih antre untuk chat ini (bila ada) harus sudah sampai sebelum dibaca
   const sql = await db();
   // Satu query lewat dua indeks unik: keadaan chat + apakah lawan bicara sudah dikenal pemilik (penyaring tidak berlaku).
-  const [r] = await sql<(Partial<BarisChat> & { tercatat: boolean; dikenal: boolean })[]>`
+  const [r] = await sql<(Partial<BarisChat> & { tercatat: boolean; dikenal: boolean; minat: number | null; minat_pada: number | null })[]>`
     SELECT c.sesi_ke, c.last_at, c.jeda_sampai, c.jendela_awal, c.jendela_n, c.prospek, c.strike, c.bisu_sampai,
-           c.kunci IS NOT NULL AS tercatat, COALESCE(p.manusia_n > 0 OR p.spam = 2, false) AS dikenal
+           c.kunci IS NOT NULL AS tercatat, COALESCE(p.manusia_n > 0 OR p.spam = 2, false) AS dikenal, p.minat, p.minat_pada
       FROM (SELECT ${kunci}::text AS k) x
       LEFT JOIN chat_state c ON c.kunci = x.k
       LEFT JOIN percakapan p ON p.kunci = x.k`;
-  const { tercatat, dikenal, ...chat } = r;
+  const { tercatat, dikenal, minat, minat_pada, ...chat } = r;
   // Selagi menunggu database, event lain untuk chat yang sama tidak mungkin lewat (event satu nomor
   // diproses berurutan), tetapi tetap dijaga supaya tidak pernah ada dua antrean untuk satu chat.
   const sudah = st.antre.get(kunci);
@@ -713,6 +741,8 @@ async function antreanUntuk(kunci: string, numberId: number, sesi: string, alama
     modeCek: false,
     audit: false,
     terlewat: null,
+    minat: minat ?? null,
+    minatPada: minat_pada ?? 0,
   };
   st.antre.set(kunci, a);
   if (st.antre.size > 500) rapikanAntrean();

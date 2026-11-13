@@ -1804,3 +1804,77 @@ export async function adminSimpanPesanFollowupAction(id: number, teks: string): 
     "/admin/followup",
   );
 }
+
+// ---------- Follow-up prospek nomor CS (followup-prospek.ts) ----------
+
+const kunciChatSah = (v: unknown): string | null => (typeof v === "string" && /^[0-9a-f]{32}$/.test(v) ? v : null);
+
+export async function adminFollowupProspekAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireStaf();
+  const angkaForm = (k: string): number => Number(String(form.get(k) ?? "").trim());
+  const setelan = {
+    aktif: form.get("aktif") === "on",
+    jedaPanasJam: angkaForm("jeda_panas_jam"),
+    jedaHangatJam: angkaForm("jeda_hangat_jam"),
+    tahap2Jam: angkaForm("tahap2_jam"),
+    tahap3Jam: angkaForm("tahap3_jam"),
+    maksTahap: angkaForm("maks_tahap"),
+  };
+  return jalankanAdmin(
+    [admin.id, "admin.followup_prospek_setelan"],
+    async () => {
+      const { simpanPengaturanProspek } = await import("@/lib/followup-prospek");
+      const s = await simpanPengaturanProspek(setelan);
+      await catatLog(admin, "followup_prospek_setelan", null, `${s.aktif ? "aktif" : "mati"}, panas ${s.jedaPanasJam} jam, hangat ${s.jedaHangatJam} jam, tahap 2 +${s.tahap2Jam} jam, tahap 3 +${s.tahap3Jam} jam, maks ${s.maksTahap} pesan`);
+      return s.aktif ? "Tersimpan. Follow-up prospek aktif: lead yang diam dipindai tiap 5 menit." : "Tersimpan. Follow-up prospek mati: tidak ada pesan yang dikirim.";
+    },
+    "/admin/followup/prospek",
+  );
+}
+
+export async function adminTulisUlangDrafProspekAction(kunci: string): Promise<Hasil & { teks?: string }> {
+  const admin = await requireStaf();
+  const k = kunciChatSah(kunci);
+  if (!k) return { ok: false, pesan: "Chat tidak valid." };
+  try {
+    const { tulisUlangDrafProspek } = await import("@/lib/followup-prospek");
+    const teks = await tulisUlangDrafProspek(k);
+    revalidatePath("/admin/followup/prospek");
+    catatFitur(admin.id, "admin.followup_prospek_tulis_ulang");
+    return { ok: true, pesan: "Pesan ditulis ulang.", teks };
+  } catch (e) {
+    return { ok: false, pesan: pesanGalat(e) };
+  }
+}
+
+export async function adminSimpanDrafProspekAction(kunci: string, teks: string): Promise<Hasil> {
+  const admin = await requireStaf();
+  const k = kunciChatSah(kunci);
+  if (!k) return { ok: false, pesan: "Chat tidak valid." };
+  return jalankanAdmin(
+    [admin.id, "admin.followup_prospek_ubah_pesan"],
+    async () => {
+      const { simpanDrafProspek } = await import("@/lib/followup-prospek");
+      await simpanDrafProspek(k, String(teks ?? "").slice(0, 3000));
+      await catatLog(admin, "followup_prospek_ubah_pesan", k.slice(0, 12));
+      return "Pesan disimpan. Teks inilah yang akan dikirim.";
+    },
+    "/admin/followup/prospek",
+  );
+}
+
+export async function adminHentikanProspekAction(kunci: string): Promise<Hasil> {
+  const admin = await requireStaf();
+  const k = kunciChatSah(kunci);
+  if (!k) return { ok: false, pesan: "Chat tidak valid." };
+  return jalankanAdmin(
+    [admin.id, "admin.followup_prospek_hentikan"],
+    async () => {
+      const { hentikanProspek } = await import("@/lib/followup-prospek");
+      await hentikanProspek(k);
+      await catatLog(admin, "followup_prospek_hentikan", k.slice(0, 12));
+      return "Follow-up chat ini dihentikan.";
+    },
+    "/admin/followup/prospek",
+  );
+}

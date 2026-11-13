@@ -43,6 +43,7 @@ export const NAMA_HALAMAN: Record<PolaHalaman, string> = {
   "/admin/ai": "Admin · Mesin AI",
   "/admin/aturan": "Admin · Aturan",
   "/admin/followup": "Admin · Follow-up WA",
+  "/admin/followup/prospek": "Admin · Follow-up prospek",
   "/admin/log": "Admin · Log admin",
   "/admin/paket": "Admin · Paket & harga",
   "/admin/pengguna": "Admin · Daftar pengguna",

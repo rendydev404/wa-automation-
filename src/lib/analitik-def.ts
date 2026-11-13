@@ -77,6 +77,7 @@ export const POLA_HALAMAN = [
   "/admin/ai",
   "/admin/aturan",
   "/admin/followup",
+  "/admin/followup/prospek",
   "/admin/log",
   "/admin/paket",
   "/admin/pengguna",

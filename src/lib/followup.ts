@@ -9,6 +9,8 @@ import {
   BATAS_SETELAN,
   type BarisFollowup,
   JEDA_ANTARPESAN_MENIT,
+  POLA_STOP,
+  POLA_STOP_PENDEK,
   SETELAN_FOLLOWUP_AWAL,
   type SetelanFollowup,
   type StatusFollowup,
@@ -23,6 +25,7 @@ import { PenggunaError } from "./pengguna";
 import { adaKode } from "./penjaga";
 import { nomorSinkronCg } from "./sinkron-cg";
 import { WaError, infoSesi, padaAck } from "./wa";
+import { kirimanProspekRentang, kirimanProspekSejak, muatPantauan as muatPantauanProspek, pengaturanProspek, pesanMasukProspek, putaranProspek, terimaAckProspek } from "./followup-prospek";
 
 /**
  * Follow-up WhatsApp oleh nomor CS ChatGerCep ke pemilik akun gratis yang kuota balasan AI-nya habis.
@@ -378,7 +381,7 @@ async function kirimanHariIni(): Promise<number> {
       SELECT (COUNT(*) FILTER (WHERE terkirim1 >= ${awal}) + COUNT(*) FILTER (WHERE terkirim2 >= ${awal}))::int AS n
         FROM followup WHERE diperbarui >= ${awal}`;
     st.hari = kunci;
-    st.kirimHari = r?.n ?? 0;
+    st.kirimHari = (r?.n ?? 0) + (await kirimanProspekSejak(awal)); // batas harian bersama follow-up prospek
   }
   return st.kirimHari;
 }
@@ -521,12 +524,14 @@ async function periksaRem(): Promise<boolean> {
   const lepas = Number((await getSetting(KUNCI_LEPAS_REM)) || 0);
   const sejak = Math.max(t - 7 * 86400, lepas);
   const sql = await db();
-  const baris = await sql<{ ack: number }[]>`
-    SELECT ack FROM (
+  const akun = await sql<{ w: number; ack: number }[]>`
+    SELECT w, ack FROM (
       SELECT ack1 AS ack, terkirim1 AS w FROM followup WHERE terkirim1 >= ${sejak}
       UNION ALL
       SELECT ack2, terkirim2 FROM followup WHERE terkirim2 >= ${sejak}
     ) x WHERE w <= ${t - 6 * 3600} ORDER BY w DESC LIMIT 10`;
+  // Satu nomor CS = satu rem: kiriman follow-up prospek ikut dihitung (10 terbaru dari gabungan keduanya).
+  const baris = [...akun, ...(await kirimanProspekRentang(sejak, t - 6 * 3600))].sort((x, y) => y.w - x.w).slice(0, 10);
   const tak = baris.filter((r) => r.ack < 3).length;
   if (baris.length < 5 || tak < 3 || tak / baris.length < 0.4) return false;
   const alasan = `${tak} dari ${baris.length} pesan follow-up terakhir tidak sampai ke HP penerima (centang satu).`;
@@ -575,34 +580,48 @@ async function siapkanDraf(cs: Nomor): Promise<void> {
   if (st.lewatDraf.size > 2000) st.lewatDraf.clear();
 }
 
+/**
+ * Satu putaran: follow-up akun dulu (antrean lama), lalu follow-up prospek (followup-prospek.ts). Keduanya memakai
+ * nomor CS, jam kirim, batas harian, jeda acak, dan rem yang SAMA; satu putaran paling banyak mengirim satu pesan.
+ */
 async function putaran(): Promise<void> {
   if (st.jalan) return;
   st.jalan = true;
   try {
     await segarkanCs();
-    const s = await pengaturanFollowup();
-    if (!s.aktif) return;
-    const csDraf = await nomorCsDipakai(s);
-    if (csDraf) await siapkanDraf(csDraf).catch((e) => console.warn("[followup] draf gagal disiapkan:", e instanceof Error ? e.message : e));
-    if (Date.now() < st.bolehPada) return;
-    const jam = jamWibSekarang();
-    if (jam < s.jamMulai || jam >= s.jamSelesai) return;
+    const [s, sp] = await Promise.all([pengaturanFollowup(), pengaturanProspek()]);
+    if (!s.aktif && !sp.aktif) return;
     const cs = await nomorCsDipakai(s);
-    if (!cs?.wa_id || infoSesi(cs.sesi).status !== "WORKING") return;
-    if ((await remAktif()) || (await kirimanHariIni()) >= s.batasHarian) return;
-    const sql = await db();
-    const baris = await sql<BarisJalan[]>`
-      SELECT user_id, status, tahap, dibuat, terkirim1, ack1, kunci, pesan1, pesan2 FROM followup
-       WHERE status IN ('antre', 'terkirim') AND jadwal <= ${sekarang()}
-       ORDER BY jadwal, user_id LIMIT 10`;
-    if (!baris.length || (await periksaRem())) return;
-    for (const b of baris) {
-      if (await prosesSatu(b, s, cs)) {
-        st.kirimHari += 1;
-        st.bolehPada = Date.now() + jedaAcakMs();
-        return;
+    if (!cs) return;
+    if (s.aktif) await siapkanDraf(cs).catch((e) => console.warn("[followup] draf gagal disiapkan:", e instanceof Error ? e.message : e));
+    const jam = jamWibSekarang();
+    const boleh =
+      Date.now() >= st.bolehPada &&
+      jam >= s.jamMulai &&
+      jam < s.jamSelesai &&
+      !!cs.wa_id &&
+      infoSesi(cs.sesi).status === "WORKING" &&
+      !(await remAktif()) &&
+      (await kirimanHariIni()) < s.batasHarian;
+    const terkirim = (): void => {
+      st.kirimHari += 1;
+      st.bolehPada = Date.now() + jedaAcakMs();
+    };
+    if (boleh && s.aktif) {
+      const sql = await db();
+      const baris = await sql<BarisJalan[]>`
+        SELECT user_id, status, tahap, dibuat, terkirim1, ack1, kunci, pesan1, pesan2 FROM followup
+         WHERE status IN ('antre', 'terkirim') AND jadwal <= ${sekarang()}
+         ORDER BY jadwal, user_id LIMIT 10`;
+      if (baris.length) {
+        if (await periksaRem()) return;
+        for (const b of baris) {
+          if (await prosesSatu(b, s, cs)) return terkirim();
+        }
       }
     }
+    // Prospek: pemindaian & draf berjalan juga di luar jam kirim; pengiriman hanya bila `boleh` (dan rem tidak menyala).
+    if (sp.aktif && (await putaranProspek(cs, boleh && !(await periksaRem())))) terkirim();
   } catch (e) {
     console.error("[followup] putaran gagal:", e instanceof Error ? e.message : e);
   } finally {
@@ -679,10 +698,6 @@ export async function pindai(): Promise<number> {
 
 // ---------- Pesan masuk di nomor CS (dipanggil jembatan) ----------
 
-const POLA_STOP =
-  /\b(stop|unsubscribe|berhenti|jangan\s+(di)?(hubungi|chat|kirim|ganggu|spam)\w*|(tidak|gak|ga|nggak|ngga|enggak)\s+tertarik)\b/i;
-const POLA_STOP_PENDEK = /^\W*(gak|ga|nggak|ngga|enggak|tidak)\s+(usah|perlu)\W*(kak|min|ya|deh|dulu|makasih|terima\s*kasih)?\W*$/i;
-
 async function konteksAkun(userId: number): Promise<string | null> {
   const u = await akun(userId);
   if (!u) return null;
@@ -743,6 +758,8 @@ async function pesanMasuk(d: { numberId: number; kunci: string; teks: string; te
       if (k) catatan.push(`${f.teks ? `Kamu (CS) tadi mengirim follow-up ini ke chat ini: "${f.teks.slice(0, 400)}". Pesan berikut adalah balasannya. ` : ""}${k}`);
     }
   }
+  const prospek = await pesanMasukProspek({ kunci: d.kunci, teks });
+  if (prospek) catatan.push(prospek);
   return catatan.length ? `[Konteks CS ${MEREK}] ${catatan.join(" ")}` : null;
 }
 
@@ -750,7 +767,10 @@ async function pesanMasuk(d: { numberId: number; kunci: string; teks: string; te
 
 function terimaAck(_sesi: string, id: string, status: number): void {
   const x = st.ack.get(id);
-  if (!x) return;
+  if (!x) {
+    terimaAckProspek(id, status);
+    return;
+  }
   const nilai = Math.min(4, status);
   if (nilai <= x.ack) return;
   x.ack = nilai;
@@ -804,6 +824,7 @@ export function mulaiFollowup(): void {
   padaAck(terimaAck);
   void segarkanCs().catch(() => {});
   void muatPantauan().catch((e) => console.warn("[followup] pantauan gagal dimuat:", e instanceof Error ? e.message : e));
+  void muatPantauanProspek().catch((e) => console.warn("[followup-prospek] pantauan gagal dimuat:", e instanceof Error ? e.message : e));
   st.timer = setInterval(() => void putaran(), PUTARAN_MS);
   st.timer.unref?.();
   setTimeout(() => void pindai(), PINDAI_AWAL_MS).unref?.();
