@@ -1820,12 +1820,18 @@ export async function adminFollowupProspekAction(_lalu: Hasil | null, form: Form
     tahap3Jam: angkaForm("tahap3_jam"),
     maksTahap: angkaForm("maks_tahap"),
   };
+  // Nomor CS pengirim dipakai bersama follow-up akun: disimpan di setelan follow-up ("" = otomatis).
+  const nomorId = idSah(form.get("nomor_id"));
   return jalankanAdmin(
     [admin.id, "admin.followup_prospek_setelan"],
     async () => {
-      const { simpanPengaturanProspek } = await import("@/lib/followup-prospek");
+      const [{ simpanPengaturanProspek }, { pengaturanFollowup, simpanPengaturanFollowup }] = await Promise.all([import("@/lib/followup-prospek"), import("@/lib/followup")]);
+      if (form.has("nomor_id")) {
+        const fu = await pengaturanFollowup();
+        if (fu.nomorId !== nomorId) await simpanPengaturanFollowup({ ...fu, nomorId });
+      }
       const s = await simpanPengaturanProspek(setelan);
-      await catatLog(admin, "followup_prospek_setelan", null, `${s.aktif ? "aktif" : "mati"}, panas ${s.jedaPanasJam} jam, hangat ${s.jedaHangatJam} jam, tahap 2 +${s.tahap2Jam} jam, tahap 3 +${s.tahap3Jam} jam, maks ${s.maksTahap} pesan`);
+      await catatLog(admin, "followup_prospek_setelan", null, `nomor CS ${nomorId ?? "otomatis"}, ${s.aktif ? "aktif" : "mati"}, panas ${s.jedaPanasJam} jam, hangat ${s.jedaHangatJam} jam, tahap 2 +${s.tahap2Jam} jam, tahap 3 +${s.tahap3Jam} jam, maks ${s.maksTahap} pesan`);
       return s.aktif ? "Tersimpan. Follow-up prospek aktif: lead yang diam dipindai tiap 5 menit." : "Tersimpan. Follow-up prospek mati: tidak ada pesan yang dikirim.";
     },
     "/admin/followup/prospek",

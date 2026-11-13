@@ -8,7 +8,9 @@ import { statusMesinFollowup } from "@/lib/followup";
 import { LABEL_ACK, LABEL_STATUS_PROSPEK, type BarisProspek, type StatusProspek } from "@/lib/followup-def";
 import { daftarProspek, statusMesinProspek } from "@/lib/followup-prospek";
 import { MEREK } from "@/lib/merek";
+import { semuaNomor } from "@/lib/numbers";
 import { requireStaf } from "@/lib/session";
+import { nomorSinkronCg } from "@/lib/sinkron-cg";
 import { TabFollowup } from "../tab-followup";
 import { FormProspek } from "./form-prospek";
 import { PratinjauProspek } from "./pratinjau-prospek";
@@ -43,7 +45,9 @@ const ATURAN = [
 
 async function Mesin() {
   await requireStaf();
-  const [m, akun] = await Promise.all([statusMesinProspek(), statusMesinFollowup()]);
+  const [m, akun, semua, cg] = await Promise.all([statusMesinProspek(), statusMesinFollowup(), semuaNomor(), nomorSinkronCg()]);
+  const cgSet = new Set(cg);
+  const pilihan = semua.filter((n) => n.wa_id || cgSet.has(n.id)).map((n) => ({ id: n.id, label: n.label, wa_id: n.wa_id, cg: cgSet.has(n.id) }));
   const persen = (a: number, b: number): string => (b ? `${Math.round((a / b) * 100)}%` : "–");
   const jalan = m.setelan.aktif && !akun.rem && !!akun.nomor?.terhubung;
   return (
@@ -52,7 +56,7 @@ async function Mesin() {
         <Kotak
           judul="Status"
           isi={jalan ? "Berjalan" : akun.rem ? "Direm" : m.setelan.aktif ? "Tertahan" : "Mati"}
-          catatan={akun.nomor ? `${akun.nomor.label} · ${akun.nomor.terhubung ? "terhubung" : "TIDAK terhubung"}` : "Nomor CS belum diatur"}
+          catatan={akun.nomor ? `Nomor CS: ${akun.nomor.label} · ${akun.nomor.terhubung ? "terhubung" : "TIDAK terhubung"}` : "Nomor CS belum diatur"}
         />
         <Kotak judul="Terkirim hari ini" isi={`${akun.kirimHariIni} / ${akun.setelan.batasHarian}`} catatan="Gabungan dengan follow-up akun" />
         <Kotak judul="Dibalas" isi={persen(m.dibalas, m.terkirim)} catatan={`${m.dibalas} dari ${m.terkirim} lead yang di-follow-up`} />
@@ -61,7 +65,7 @@ async function Mesin() {
       <section className="card p-5 sm:p-6">
         <h2 className="text-[15px] font-bold">Pengaturan</h2>
         <div className="mt-4">
-          <FormProspek awal={m.setelan} />
+          <FormProspek awal={m.setelan} nomor={pilihan} nomorId={akun.setelan.nomorId} otomatisId={akun.setelan.nomorId ? null : (cg[0] ?? null)} />
         </div>
       </section>
     </div>

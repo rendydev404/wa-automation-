@@ -39,8 +39,10 @@ const t = sekarang();
 await sql`INSERT INTO langganan(user_id, nama_paket, mulai, sampai, kuota_nomor, kuota_balasan, sumber) VALUES (${budi.id}, 'Bisnis', ${t - 86400}, ${t + 30 * 86400}, 3, 4000, 'admin')`;
 const toko = await tambahNomor("Toko Kue Budi", budi.id);
 const kosong = await tambahNomor("Cabang Baru", budi.id);
-const cs = await tambahNomor("CS ChatGerCep", admin.id);
+const cs = await tambahNomor("GercepBot", admin.id);
 await sql`UPDATE numbers SET wa_id = '6281100002222' WHERE id = ${cs.id}`;
+const lain = await tambahNomor("Admin GCB", admin.id);
+await sql`UPDATE numbers SET wa_id = '6281100003333' WHERE id = ${lain.id}`;
 
 let urut = 0;
 /** Satu chat lengkap: [peran, teks, menit lalu]... (peran 0 pelanggan, 1 AI, 2 pemilik). */
@@ -280,6 +282,16 @@ try {
   await buka("/admin/followup/prospek");
   await tungguTeks("Hana Kusuma");
   await foto("09-admin-prospek-atas-desktop");
+  const FORM = `document.querySelector("#fp-nomor")?.closest("section")`;
+  await foto("09a-admin-prospek-pilih-nomor-desktop", { pilih: FORM });
+  await evaluasi(`document.querySelector("#fp-nomor").click()`);
+  await tidur(500);
+  await foto("09b-admin-prospek-pilih-nomor-terbuka-desktop", { pilih: FORM });
+  await evaluasi(`[...document.querySelectorAll('[role="option"]')].find((o) => o.textContent.includes("Admin GCB"))?.click()`);
+  await tidur(300);
+  await foto("09c-admin-prospek-belum-disimpan-desktop", { pilih: FORM });
+  await buka("/admin/followup/prospek");
+  await tungguTeks("Hana Kusuma");
   await foto("10-admin-prospek-halaman-penuh-desktop", { penuh: true });
   await evaluasi(`[...document.querySelectorAll("details")].forEach((d) => (d.open = true))`);
   await foto("11-admin-prospek-semua-pesan-dibuka-desktop", { pilih: `[...document.querySelectorAll("section")].find((s) => s.textContent.includes("Riwayat follow-up prospek"))` });

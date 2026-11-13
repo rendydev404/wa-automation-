@@ -2,15 +2,55 @@
 
 import { useActionState, useState } from "react";
 import { adminFollowupProspekAction } from "@/app/actions";
+import { PilihOpsi } from "@/components/pilih-opsi";
 import { Pesan, Saklar, SubmitButton } from "@/components/ui";
 import { BATAS_SETELAN_PROSPEK, type SetelanProspek } from "@/lib/followup-def";
+import type { PilihanNomor } from "../form-followup";
 
-/** Pengaturan follow-up prospek: saklar & ritme tiap pesan. Jam kirim & batas harian ikut tab Akun gratis. */
-export function FormProspek({ awal }: { awal: SetelanProspek }) {
+/**
+ * Pengaturan follow-up prospek: nomor CS pengirim (dipakai bersama follow-up akun), saklar, dan ritme tiap pesan.
+ * Jam kirim & batas harian ikut tab Akun gratis.
+ */
+export function FormProspek({
+  awal,
+  nomor,
+  nomorId,
+  otomatisId,
+}: {
+  awal: SetelanProspek;
+  nomor: PilihanNomor[];
+  /** Nomor CS yang diatur (null = otomatis). */
+  nomorId: number | null;
+  /** Nomor yang terpilih bila "Otomatis". */
+  otomatisId: number | null;
+}) {
   const [hasil, aksi] = useActionState(adminFollowupProspekAction, null);
   const [aktif, setAktif] = useState(awal.aktif);
+  const [berubah, setBerubah] = useState(false);
+  const [pilihNomor, setPilihNomor] = useState(nomorId ? String(nomorId) : "");
+  const otomatis = nomor.find((n) => n.id === otomatisId);
   return (
-    <form action={aksi} className="space-y-5">
+    <form action={aksi} onChange={() => setBerubah(true)} onSubmit={() => setBerubah(false)} className="space-y-5">
+      <div>
+        <label htmlFor="fp-nomor" className="label">
+          Nomor CS pengirim
+        </label>
+        <PilihOpsi
+          id="fp-nomor"
+          name="nomor_id"
+          nilai={pilihNomor}
+          onUbah={(v) => {
+            setPilihNomor(v);
+            setBerubah(true);
+          }}
+          label="Nomor CS pengirim"
+          opsi={[
+            { id: "", label: "Otomatis", sub: otomatis ? `${otomatis.label}${otomatis.wa_id ? ` · +${otomatis.wa_id}` : ""}` : "Nomor dengan data ChatGerCep otomatis" },
+            ...nomor.map((n) => ({ id: String(n.id), label: n.label, sub: n.wa_id ? `+${n.wa_id}` : "Belum tertaut", lencana: n.cg ? "ChatGerCep" : undefined })),
+          ]}
+        />
+        <p className="mt-1 text-[12px] text-muted">Nomor WhatsApp yang mengirim follow-up. Sama dengan nomor di tab Akun gratis: mengubahnya di sini mengubah keduanya.</p>
+      </div>
       {aktif && <input type="hidden" name="aktif" value="on" />}
       <div className="flex items-start justify-between gap-4 rounded-2xl border border-line bg-subtle/50 p-4">
         <div>
@@ -21,7 +61,14 @@ export function FormProspek({ awal }: { awal: SetelanProspek }) {
               : "Mati: tidak ada pesan follow-up prospek yang dikirim."}
           </p>
         </div>
-        <Saklar aktif={aktif} onUbah={setAktif} label="Follow-up prospek otomatis" />
+        <Saklar
+          aktif={aktif}
+          onUbah={(v) => {
+            setAktif(v);
+            setBerubah(true);
+          }}
+          label="Follow-up prospek otomatis"
+        />
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Isian id="fp-panas" nama="jeda_panas_jam" label="Pesan 1 untuk lead panas (jam diam)" nilai={awal.jedaPanasJam} batas={BATAS_SETELAN_PROSPEK.jedaPanasJam} catatan="Siap bayar tapi berhenti membalas." />
@@ -35,7 +82,7 @@ export function FormProspek({ awal }: { awal: SetelanProspek }) {
       </p>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <SubmitButton>Simpan</SubmitButton>
-        <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>
+        {berubah ? <span className="text-[12.5px] font-semibold text-warning">Belum disimpan</span> : <Pesan ok={!!hasil?.ok}>{hasil?.pesan}</Pesan>}
       </div>
     </form>
   );
