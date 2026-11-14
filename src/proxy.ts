@@ -16,7 +16,7 @@ import { JALUR_LP_PUBLIK } from "@/lib/lp/def";
 // tanda tangan cookie sesi, ukuran, dan batas laju).
 const BERKAS_STATIS = /\.(?:png|jpe?g|webp|avif|gif|svg|ico|mp4|webm|woff2?)$/i;
 // Landing page per industri (/laundry, /bengkel, ...), /garansi, dan /sitemap-lp.xml: halaman iklan, tanpa login.
-const PUBLIK = new Set([...JALUR_LP_PUBLIK, "/", "/program-afiliasi", "/panduan", "/api/health", "/api/pendaftar", "/api/sinkron", "/api/auth/google", "/api/auth/google/callback", "/api/midtrans/notifikasi", "/api/ipaymu/notifikasi", "/api/analitik", "/api/lp/event", "/mode-api"]);
+const PUBLIK = new Set([...JALUR_LP_PUBLIK, "/", "/program-afiliasi", "/panduan", "/api/health", "/api/pendaftar", "/api/sinkron", "/api/auth/google", "/api/auth/google/callback", "/api/midtrans/notifikasi", "/api/ipaymu/notifikasi", "/api/voucher/terbit", "/api/analitik", "/api/lp/event", "/mode-api"]);
 
 /**
  * Developer API: diautentikasi di handler masing-masing, bukan cookie. /api/v1/* = API mesin self-host (Bearer key);

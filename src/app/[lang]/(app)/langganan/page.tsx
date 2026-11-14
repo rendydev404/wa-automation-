@@ -23,6 +23,8 @@ import { sekarang } from "@/lib/db";
 import { FormJaminan } from "./jaminan";
 import { MEREK } from "@/lib/merek";
 import { staf } from "@/lib/peran";
+import { pengaturanVoucher, voucherBelumDiklaimEmail } from "@/lib/voucher";
+import { KotakKlaimVoucher } from "@/components/klaim-voucher";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await teksHalaman();
@@ -59,6 +61,9 @@ export default async function HalamanLangganan() {
         <KartuLangganan />
       </Suspense>
       <Suspense fallback={null}>
+        <BagianVoucher />
+      </Suspense>
+      <Suspense fallback={null}>
         <Jaminan />
       </Suspense>
       <Suspense fallback={<div aria-hidden className="grid gap-4 md:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="card h-80 animate-denyut" />)}</div>}>
@@ -69,6 +74,17 @@ export default async function HalamanLangganan() {
       </Suspense>
     </div>
   );
+}
+
+/**
+ * Kotak klaim voucher Panduan Produk Digital / Promo, termasuk deteksi 1-klik otomatis berdasarkan email akun.
+ */
+async function BagianVoucher() {
+  const user = await requireUser();
+  if (staf(user.peran)) return null;
+  const [cfg, voucherEmail] = await Promise.all([pengaturanVoucher(), voucherBelumDiklaimEmail(user.email)]);
+  if (!cfg.aktif) return null;
+  return <KotakKlaimVoucher voucherEmail={voucherEmail} />;
 }
 
 /**
@@ -250,11 +266,13 @@ async function Riwayat() {
   const metode = (x: (typeof daftar)[number]) =>
     x.kanal
       ? labelKanal(x.kanal, b)
-      : x.metode
-        ? x.metode in METODE_MANUAL
-          ? (b === "en" ? METODE_MANUAL_EN : METODE_MANUAL)[x.metode as keyof typeof METODE_MANUAL]
-          : x.metode.replace(/_/g, " ")
-        : "—";
+      : x.metode === "voucher"
+        ? t("Voucher Panduan", "Guide Voucher")
+        : x.metode
+          ? x.metode in METODE_MANUAL
+            ? (b === "en" ? METODE_MANUAL_EN : METODE_MANUAL)[x.metode as keyof typeof METODE_MANUAL]
+            : x.metode.replace(/_/g, " ")
+          : "—";
   return (
     <section className="card overflow-hidden">
       <div className="border-b border-line px-5 py-4">

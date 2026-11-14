@@ -15,7 +15,20 @@ export function LoginForm() {
   // ?lanjut= dari proxy (halaman yang dibuka sebelum login); dibaca di klien supaya halaman login tetap statis.
   const lanjut = useSyncExternalStore(
     tanpaLangganan,
-    () => jalurLanjut(new URLSearchParams(window.location.search).get("lanjut")) ?? "",
+    () => {
+      const dariUrl = jalurLanjut(new URLSearchParams(window.location.search).get("lanjut"));
+      if (dariUrl) {
+        try {
+          sessionStorage.setItem("cg_lanjut", dariUrl);
+        } catch {}
+        return dariUrl;
+      }
+      try {
+        return jalurLanjut(sessionStorage.getItem("cg_lanjut")) ?? "";
+      } catch {
+        return "";
+      }
+    },
     () => "",
   );
   return (

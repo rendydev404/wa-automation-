@@ -1,10 +1,13 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useSyncExternalStore } from "react";
 import { daftarAction } from "@/app/actions";
 import { useBahasa } from "@/components/bahasa";
 import { Pesan, SubmitButton } from "@/components/ui";
 import type { T } from "@/lib/bahasa";
+import { jalurLanjut } from "@/lib/lanjut";
+
+const tanpaLangganan = () => () => {};
 
 /** Petunjuk kekuatan password di browser; aturan sebenarnya diperiksa ulang di server (cekPassword). */
 function kekuatan(pw: string, t: T): { skor: number; teks: string } {
@@ -25,8 +28,22 @@ export function DaftarForm() {
   const [hasil, aksi] = useActionState(daftarAction, null);
   const [pw, setPw] = useState("");
   const k = kekuatan(pw, t);
+  const lanjut = useSyncExternalStore(
+    tanpaLangganan,
+    () => {
+      const dariUrl = jalurLanjut(new URLSearchParams(window.location.search).get("lanjut"));
+      if (dariUrl) return dariUrl;
+      try {
+        return jalurLanjut(sessionStorage.getItem("cg_lanjut")) ?? "";
+      } catch {
+        return "";
+      }
+    },
+    () => "",
+  );
   return (
     <form action={aksi} className="space-y-4">
+      {lanjut && <input type="hidden" name="lanjut" value={lanjut} />}
       <div>
         <label htmlFor="nama" className="label">
           {t("Nama", "Name")}

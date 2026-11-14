@@ -11,17 +11,23 @@ import { konteksMetaPermintaan } from "@/lib/meta-pixel-konteks";
 import { notifPendaftarBaru } from "@/lib/notifikasi";
 import { COOKIE_ASAL, bacaAsal } from "@/lib/asal-def";
 import { simpanAsal } from "@/lib/asal";
+import { jalurLanjut } from "@/lib/lanjut";
+import { staf } from "@/lib/peran";
+
+const COOKIE_GOOGLE_LANJUT = "cg_google_lanjut";
 
 /** Kembali dari Google: verifikasi, cari/tautkan/buat akun, lalu mulai sesi login biasa. */
 export async function GET(req: Request) {
   const app = asal(req);
   const toples = await cookies();
   const bahasaAsal = toples.get(COOKIE_GOOGLE_BAHASA)?.value;
+  const lanjutAsal = jalurLanjut(toples.get(COOKIE_GOOGLE_LANJUT)?.value);
   const b = bahasaSah(bahasaAsal) ? bahasaAsal : "id";
   const ke = (jalur: string) => {
     const res = NextResponse.redirect(`${app}${tautan(b, jalur)}`);
     res.cookies.delete({ name: COOKIE_GOOGLE, path: "/api/auth/google" }); // sekali pakai
     res.cookies.delete({ name: COOKIE_GOOGLE_BAHASA, path: "/api/auth/google" });
+    res.cookies.delete({ name: COOKIE_GOOGLE_LANJUT, path: "/api/auth/google" });
     return res;
   };
   if (!googleSiap()) return ke("/login?galat=belum");
@@ -59,7 +65,8 @@ export async function GET(req: Request) {
   await catatLoginBerhasil(akun.id);
   await mulaiSesi(akun, app.startsWith("https://"));
   catatFitur(akun.id, akun.baru ? "akun.daftar_google" : "akun.masuk_google");
-  const res = ke(halamanAwal(akun.peran));
+  const tujuan = !staf(akun.peran) && lanjutAsal ? lanjutAsal : halamanAwal(akun.peran);
+  const res = ke(tujuan);
   res.cookies.delete({ name: COOKIE_REF, path: "/" });
   if (akun.baru) res.cookies.delete({ name: COOKIE_ASAL, path: "/" });
   if (akun.baru) {

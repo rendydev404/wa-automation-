@@ -46,10 +46,10 @@ const KOLOM = `t.id, t.order_id, t.user_id, t.paket_id, t.nama_paket, t.jumlah, 
 
 const lolosLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
-/** Kata kunci -> syarat SQL. ID pembelian ("WA-…", "ADM-…") dicari dari awalannya lewat indeks pola. */
+/** Kata kunci -> syarat SQL. ID pembelian ("WA-…", "ADM-…", "VCR-…") dicari dari awalannya lewat indeks pola. */
 function syarat(sql: Awaited<ReturnType<typeof db>>, o: OpsiCariTrx, denganStatus: boolean) {
   const q = (o.q ?? "").trim().slice(0, 100);
-  const awalan = /^(wa|adm)-/i.exec(q);
+  const awalan = /^(wa|adm|vcr)-/i.exec(q);
   const cari = !q
     ? sql`true`
     : awalan
@@ -182,9 +182,10 @@ export async function detailTransaksi(orderId: string): Promise<DetailTrx | unde
 
 type Cari = Record<string, string | string[] | undefined>;
 
-/** Cara bayar yang dibaca manusia: kanal Midtrans, metode manual admin, atau kode metode lama. */
+/** Cara bayar yang dibaca manusia: kanal Midtrans, metode manual admin, klaim voucher, atau kode metode lama. */
 export function labelMetode(t: { kanal: string | null; metode: string | null }): string {
   if (t.kanal && kanalSah(t.kanal)) return labelKanal(t.kanal);
+  if (t.metode === "voucher") return "Voucher Panduan";
   if (t.metode && t.metode in METODE_MANUAL) return `${METODE_MANUAL[t.metode as keyof typeof METODE_MANUAL]} (dicatat admin)`;
   return t.metode ? t.metode.replace(/_/g, " ") : "—";
 }

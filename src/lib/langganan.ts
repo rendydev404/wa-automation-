@@ -497,8 +497,8 @@ export interface Transaksi {
 
 /** Bentuk order_id tagihan Midtrans aplikasi ini (lihat mulaiBayar). */
 export const ORDER_SAH = /^WA-\d+-\d+-[0-9a-f]+$/;
-/** ID pembelian yang boleh dibuka pemiliknya di halaman tagihan: tagihan Midtrans (WA-) + pembayaran dicatat admin (ADM-). */
-export const ORDER_TAMPIL = /^(WA|ADM)-\d+-\d+-[0-9a-f]+$/;
+/** ID pembelian yang boleh dibuka pemiliknya di halaman tagihan: tagihan Midtrans (WA-), pembayaran dicatat admin (ADM-), atau klaim voucher (VCR-). */
+export const ORDER_TAMPIL = /^(WA|ADM|VCR)-\d+-\d+-[0-9a-f]+$/;
 
 const KOLOM_TRX = "id, order_id, user_id, paket_id, nama_paket, jumlah, status, metode, kanal, redirect_url, dibuat, dibayar, kedaluwarsa, catatan";
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import LinkNiat from "@/components/link-niat";
-import { AlertTriangle, ArrowDown, Bot, CheckCircle2, ChevronRight, Info, Package, ShieldCheck, Sparkles, UserPlus, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowDown, Bot, CheckCircle2, ChevronRight, Info, Package, ShieldCheck, Sparkles, Ticket, UserPlus, Wallet } from "lucide-react";
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
 import { type FilterPengguna, daftarLog, daftarPengguna, hitungPaketPengguna, hitungPengguna } from "@/lib/pengguna";
 import { SaringPaket } from "./pengguna/saring-paket";
@@ -9,6 +9,8 @@ import { FormAi, FormBuatAkun, FormPaket, FormPengaturan, TombolHapusPengguna } 
 import { customTampil, hargaAngka, paketCustom } from "@/lib/paket-custom";
 import { labelKomisiPaket } from "@/lib/afiliasi-def";
 import { PembangunCustom } from "./paket-custom";
+import { PanelVoucherAdmin } from "./voucher-admin";
+import { daftarVoucherAdmin, pengaturanVoucher, ringkasanVoucherAdmin } from "@/lib/voucher";
 import { acuanHarga, aturanPercobaan, daftarPaket, pemakaianNyata } from "@/lib/langganan";
 import { SimulasiHarga } from "./simulasi-harga";
 import { konfigMidtrans } from "@/lib/midtrans";
@@ -276,6 +278,36 @@ export async function KelolaPaketCustom() {
           paketLain={paket.filter((p) => p.harga > 0).map((p) => ({ nama: p.nama, harga: p.harga, durasi_hari: p.durasi_hari, kuota_balasan: p.kuota_balasan }))}
           midtrans={!!midtrans}
         />
+      </div>
+    </section>
+  );
+}
+
+/** Voucher Panduan Produk Digital (akbaralatas.com) & Voucher Promo Admin: atur kuota, buat kode manual, dan pantau klaim. */
+export async function KelolaVoucher() {
+  await requireStaf();
+  const [pengaturan, ringkasan, daftar] = await Promise.all([
+    pengaturanVoucher(),
+    ringkasanVoucherAdmin(),
+    daftarVoucherAdmin({ batas: 50 }),
+  ]);
+  return (
+    <section id="voucher-panduan" className="card scroll-mt-24 p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="max-w-2xl">
+          <h2 className="flex items-center gap-2 text-[15px] font-bold">
+            <Ticket className="size-4 text-accent" aria-hidden /> Voucher Panduan Produk Digital & Promo
+          </h2>
+          <p className="mt-0.5 text-[13px] text-muted">
+            Atur spesifikasi paket dan kuota balasan AI yang didapatkan pembeli Panduan ChatGerCep di akbaralatas.com saat mengklaim voucher, atau buat kode voucher manual untuk kebutuhan promo.
+          </p>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold ${pengaturan.aktif ? "bg-success-soft text-success" : "bg-subtle text-muted"}`}>
+          {pengaturan.aktif ? "Klaim Voucher Aktif" : "Klaim Nonaktif"}
+        </span>
+      </div>
+      <div className="mt-5">
+        <PanelVoucherAdmin pengaturanAwal={pengaturan} ringkasanAwal={ringkasan} daftarAwal={daftar} />
       </div>
     </section>
   );

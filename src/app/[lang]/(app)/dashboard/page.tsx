@@ -20,6 +20,8 @@ import { hakAkunSekali, sisaKuotaAi, syaratBotTerpenuhi } from "@/lib/langganan"
 import { kuotaNomor, requireUser } from "@/lib/session";
 import { deretHarian, hariTerakhir, persen } from "@/lib/tren";
 import { staf } from "@/lib/peran";
+import { voucherBelumDiklaimEmail } from "@/lib/voucher";
+import { KotakKlaimVoucher } from "@/components/klaim-voucher";
 
 const fmtHariIni = {
   id: new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric" }),
@@ -32,6 +34,9 @@ export default async function Beranda() {
     <div className="space-y-6 lg:space-y-8">
       <Suspense fallback={null}>
         <BannerKuota />
+      </Suspense>
+      <Suspense fallback={null}>
+        <BannerVoucherDashboard />
       </Suspense>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -66,6 +71,14 @@ async function TanggalHariIni() {
   await connection();
   const { b } = await teksHalaman();
   return <p className="text-[11.5px] font-semibold tracking-[0.08em] text-accent uppercase">{fmtHariIni[b].format(new Date())}</p>;
+}
+
+async function BannerVoucherDashboard() {
+  const user = await requireUser();
+  if (staf(user.peran)) return null;
+  const voucherEmail = await voucherBelumDiklaimEmail(user.email);
+  if (voucherEmail.length === 0) return null;
+  return <KotakKlaimVoucher voucherEmail={voucherEmail} ringkas />;
 }
 
 /** Dua query paralel: ringkasan per nomor (satu query, tanpa N+1) dan statistik 7 hari (PK stats). */

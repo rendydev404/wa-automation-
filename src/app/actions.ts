@@ -216,7 +216,8 @@ export async function daftarAction(_lalu: Hasil | null, form: FormData): Promise
   await catatLoginBerhasil(akun.id);
   await mulaiSesi(akun, await lewatHttps());
   catatFitur(akun.id, "akun.daftar");
-  redirect(href(halamanAwal(akun.peran)));
+  const lanjut = staf(akun.peran) ? null : jalurLanjut(form.get("lanjut"));
+  redirect(href(lanjut ?? halamanAwal(akun.peran)));
 }
 
 export async function logoutAction(): Promise<void> {
@@ -2002,3 +2003,183 @@ export async function adminHentikanProspekAction(kunci: string): Promise<Hasil> 
     "/admin/followup/prospek",
   );
 }
+
+// ---------- Voucher Panduan Produk Digital & Promo ----------
+
+export async function klaimVoucherAction(
+  kodeMentah: string,
+): Promise<
+  Hasil & {
+    hasil?: {
+      kode: string;
+      orderId: string;
+      nama_paket: string;
+      sampai: number;
+      kuota_nomor: number;
+      kuota_balasan: number;
+      tambahan_balasan: number;
+      durasi_hari: number;
+      diperpanjang: boolean;
+    };
+  }
+> {
+  const user = await requireUser();
+  const { b, t } = await teksPermintaan();
+  if (staf(user.peran)) {
+    return {
+      ok: false,
+      pesan: t(
+        "Akun staf/admin sudah memiliki kuota tanpa batas dan tidak perlu mengklaim voucher.",
+        "Staff/admin accounts already have unlimited quota and do not need to claim vouchers.",
+      ),
+    };
+  }
+  if (terlaluSering(`klaim-voucher:${user.id}`, 10, 5 * 60_000)) {
+    return {
+      ok: false,
+      pesan: t(
+        "Terlalu banyak percobaan klaim voucher. Silakan tunggu beberapa menit.",
+        "Too many voucher claim attempts. Please wait a few minutes.",
+      ),
+    };
+  }
+  try {
+    const { klaimVoucher } = await import("@/lib/voucher");
+    const h = await klaimVoucher(user.id, kodeMentah);
+    revalidatePath("/langganan");
+    revalidatePath("/dashboard");
+    revalidatePath("/admin/paket");
+    revalidatePath("/admin/transaksi");
+    catatFitur(user.id, "langganan.klaim_voucher");
+    const tglSampai = new Intl.DateTimeFormat(b === "en" ? "en-US" : "id-ID", {
+      timeZone: "Asia/Jakarta",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(new Date(h.sampai * 1000));
+    return {
+      ok: true,
+      pesan:
+        b === "en"
+          ? `Voucher ${h.kode} activated! +${h.tambahan_balasan.toLocaleString("en-US")} AI replies (${h.nama_paket}), active until ${tglSampai}.`
+          : `Voucher ${h.kode} berhasil diaktifkan! +${h.tambahan_balasan.toLocaleString("id-ID")} kuota balasan AI (${h.nama_paket}), aktif sampai ${tglSampai}.`,
+      hasil: h,
+    };
+  } catch (e) {
+    return { ok: false, pesan: pesanGalat(e) };
+  }
+}
+
+export async function adminPengaturanVoucherAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const admin = await requireStaf();
+  const aktif = form.get("aktif") === "on";
+  const nama_paket = String(form.get("nama_paket") ?? "").trim().slice(0, 60);
+  const durasi_hari = Number(String(form.get("durasi_hari") ?? "").replace(/[^\d]/g, ""));
+  const kuota_nomor = Number(String(form.get("kuota_nomor") ?? "").replace(/[^\d]/g, ""));
+  const kuota_balasan = Number(String(form.get("kuota_balasan") ?? "").replace(/[^\d]/g, ""));
+  const mode_klaim = form.get("mode_klaim") === "ganti" ? "ganti" : "tambah";
+
+  if (!nama_paket) return { ok: false, pesan: "Nama paket voucher wajib diisi." };
+  if (!Number.isInteger(durasi_hari) || durasi_hari < 1 || durasi_hari > 3650) {
+    return { ok: false, pesan: "Durasi masa aktif harus antara 1 sampai 3650 hari." };
+  }
+  if (!Number.isInteger(kuota_nomor) || kuota_nomor < 1 || kuota_nomor > 100) {
+    return { ok: false, pesan: "Kuota nomor WhatsApp harus antara 1 sampai 100 nomor." };
+  }
+  if (!Number.isInteger(kuota_balasan) || kuota_balasan < 1 || kuota_balasan > 10_000_000) {
+    return { ok: false, pesan: "Kuota balasan AI harus antara 1 sampai 10.000.000 balasan." };
+  }
+
+  return jalankanAdmin(
+    [admin.id, "admin.pengaturan_voucher"],
+    async () => {
+      const { simpanPengaturanVoucher } = await import("@/lib/voucher");
+      const cfg = await simpanPengaturanVoucher({
+        aktif,
+        nama_paket,
+        durasi_hari,
+        kuota_nomor,
+        kuota_balasan,
+        mode_klaim,
+      });
+      mintaSinkronCg();
+      await catatLog(
+        admin,
+        "ubah pengaturan voucher",
+        cfg.nama_paket,
+        `${cfg.aktif ? "aktif" : "nonaktif"}, ${cfg.kuota_balasan.toLocaleString("id-ID")} balasan AI, ${cfg.kuota_nomor} nomor WA, ${cfg.durasi_hari} hari, mode ${cfg.mode_klaim}`,
+      );
+      return `Pengaturan Paket Voucher (${cfg.nama_paket}) tersimpan.`;
+    },
+    "/admin/paket",
+    "/langganan",
+  );
+}
+
+export async function adminBuatVoucherAction(opsi: {
+  jumlah?: number;
+  nama_paket?: string;
+  durasi_hari?: number;
+  kuota_nomor?: number;
+  kuota_balasan?: number;
+  pembeli_nama?: string;
+  pembeli_email?: string;
+  catatan?: string;
+}): Promise<Hasil & { daftar?: import("@/lib/voucher-def").BarisVoucher[] }> {
+  const admin = await requireStaf();
+  try {
+    const { buatVoucherAdmin } = await import("@/lib/voucher");
+    const daftar = await buatVoucherAdmin(opsi);
+    await catatLog(
+      admin,
+      "buat voucher manual",
+      daftar.length === 1 ? daftar[0].kode : `${daftar.length} voucher`,
+      `${daftar[0].nama_paket} · ${daftar[0].kuota_balasan.toLocaleString("id-ID")} balasan AI · ${daftar[0].durasi_hari} hari`,
+    );
+    revalidatePath("/admin/paket");
+    revalidatePath("/langganan");
+    catatFitur(admin.id, "admin.buat_voucher");
+    return {
+      ok: true,
+      pesan:
+        daftar.length === 1
+          ? `Kode voucher ${daftar[0].kode} berhasil dibuat.`
+          : `${daftar.length} kode voucher berhasil dibuat.`,
+      daftar,
+    };
+  } catch (e) {
+    return { ok: false, pesan: pesanGalat(e) };
+  }
+}
+
+export async function adminBatalVoucherAction(voucherId: number): Promise<Hasil> {
+  const admin = await requireStaf();
+  const id = idSah(voucherId);
+  if (!id) return { ok: false, pesan: "ID voucher tidak valid." };
+  return jalankanAdmin(
+    [admin.id, "admin.batal_voucher"],
+    async () => {
+      const { batalkanVoucher } = await import("@/lib/voucher");
+      await batalkanVoucher(id);
+      await catatLog(admin, "batalkan voucher", `#${id}`);
+      return "Voucher berhasil dibatalkan.";
+    },
+    "/admin/paket",
+    "/langganan",
+  );
+}
+
+export async function adminCariVoucherAction(filter: {
+  status?: import("@/lib/voucher-def").StatusVoucher | "semua";
+  q?: string;
+}): Promise<{ ok: boolean; daftar: import("@/lib/voucher-def").BarisVoucher[] }> {
+  await requireStaf();
+  const { daftarVoucherAdmin } = await import("@/lib/voucher");
+  const daftar = await daftarVoucherAdmin({
+    status: filter.status,
+    q: filter.q,
+    batas: 80,
+  });
+  return { ok: true, daftar };
+}
+
