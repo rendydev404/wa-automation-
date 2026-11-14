@@ -26,6 +26,7 @@ import { adaKode } from "./penjaga";
 import { nomorSinkronCg } from "./sinkron-cg";
 import { WaError, infoSesi, padaAck } from "./wa";
 import { kirimanProspekRentang, kirimanProspekSejak, muatPantauan as muatPantauanProspek, pengaturanProspek, pesanMasukProspek, putaranProspek, terimaAckProspek } from "./followup-prospek";
+import { muatPantauan as muatPantauanUsaha, nomorFollowupUsaha, pesanMasukUsaha, putaranUsaha, terimaAckUsaha } from "./followup-usaha";
 
 /**
  * Follow-up WhatsApp oleh nomor CS ChatGerCep ke pemilik akun gratis yang kuota balasan AI-nya habis.
@@ -78,6 +79,8 @@ interface Keadaan {
   mulai: boolean;
   timer: ReturnType<typeof setInterval> | null;
   timerPindai: ReturnType<typeof setInterval> | null;
+  /** Putaran follow-up nomor pengguna (followup-usaha.ts). */
+  timerUsaha?: ReturnType<typeof setInterval> | null;
   jalan: boolean;
   pindaiJalan: boolean;
   cs: { ids: Set<number>; wa: Set<string> };
@@ -707,6 +710,11 @@ async function konteksAkun(userId: number): Promise<string | null> {
 }
 
 async function pesanMasuk(d: { numberId: number; kunci: string; teks: string; telepon: string | null }): Promise<string | null> {
+  // Nomor pengguna dengan follow-up aktif (bukan nomor CS): hanya balasan atas follow-up-nya sendiri.
+  if (!st.cs.ids.has(d.numberId)) {
+    const c = await pesanMasukUsaha({ kunci: d.kunci, teks: d.teks });
+    return c ? `[Konteks follow-up] ${c}` : null;
+  }
   const catatan: string[] = [];
   const teks = d.teks.trim();
 
@@ -768,7 +776,7 @@ async function pesanMasuk(d: { numberId: number; kunci: string; teks: string; te
 function terimaAck(_sesi: string, id: string, status: number): void {
   const x = st.ack.get(id);
   if (!x) {
-    terimaAckProspek(id, status);
+    if (!terimaAckProspek(id, status)) terimaAckUsaha(id, status);
     return;
   }
   const nilai = Math.min(4, status);
@@ -816,17 +824,33 @@ async function muatPantauan(): Promise<void> {
 /** Satu putaran pengiriman sekarang (dipakai uji; di server dijalankan timer tiap menit). */
 export const putaranFollowup = (): Promise<void> => putaran();
 
+/** Satu putaran follow-up nomor pengguna (followup-usaha.ts); nomor CS ChatGerCep tidak ikut. */
+export async function putaranFollowupUsaha(): Promise<void> {
+  await segarkanCs().catch(() => {});
+  await putaranUsaha(st.cs.ids);
+}
+
+/** Nomor CS ChatGerCep (dari memori): tab Follow-up nomor pengguna tidak berlaku untuk nomor ini. */
+export async function nomorCsChatGercep(): Promise<ReadonlySet<number>> {
+  if (!st.cs.ids.size) await segarkanCs().catch(() => {});
+  return st.cs.ids;
+}
+
 /** Dijalankan sekali saat server mulai (instrumentation.ts). */
 export function mulaiFollowup(): void {
   if (st.mulai) return;
   st.mulai = true;
-  pasangKaitCs({ nomorCs: () => st.cs, pesanMasuk });
+  pasangKaitCs({ nomorCs: () => st.cs, nomorFollowup: nomorFollowupUsaha, pesanMasuk });
   padaAck(terimaAck);
   void segarkanCs().catch(() => {});
   void muatPantauan().catch((e) => console.warn("[followup] pantauan gagal dimuat:", e instanceof Error ? e.message : e));
   void muatPantauanProspek().catch((e) => console.warn("[followup-prospek] pantauan gagal dimuat:", e instanceof Error ? e.message : e));
+  void muatPantauanUsaha().catch((e) => console.warn("[followup-usaha] pantauan gagal dimuat:", e instanceof Error ? e.message : e));
   st.timer = setInterval(() => void putaran(), PUTARAN_MS);
   st.timer.unref?.();
+  // Follow-up nomor pengguna: timer sendiri (tidak bergantung pada saklar follow-up nomor CS), nomor CS dikecualikan.
+  st.timerUsaha = setInterval(() => void putaranUsaha(st.cs.ids), PUTARAN_MS);
+  st.timerUsaha.unref?.();
   setTimeout(() => void pindai(), PINDAI_AWAL_MS).unref?.();
   st.timerPindai = setInterval(() => void pindai(), PINDAI_MS);
   st.timerPindai.unref?.();

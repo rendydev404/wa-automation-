@@ -866,6 +866,53 @@ const MIGRASI: string[] = [
   CREATE INDEX followup_prospek_diperbarui_idx ON followup_prospek (diperbarui DESC, kunci DESC);
   CREATE INDEX followup_prospek_number_idx ON followup_prospek (number_id);
   `,
+  // v38: follow-up di nomor pengguna berbayar (docs/plans/2026-11-14-followup-nomor-pengguna.md, followup-usaha.ts).
+  //   followup_nomor: setelan + rem per nomor (1 baris per nomor yang pernah mengatur follow-up).
+  //   followup_prospek.usaha: baris milik nomor pengguna (false = nomor CS ChatGerCep, perilaku lama). Default konstan
+  //   = hanya katalog (PG 11+), tanpa menulis ulang tabel. Indeks parsial per nomor untuk putaran & daftar di tab.
+  //   percakapan.beli_pada: kapan terakhir pelanggan menyatakan sudah beli (tag <minat>beli</minat>); kolom tanpa
+  //   default. followup_ulang: pengingat order ulang, 1 baris per chat, 1 pesan per pembelian (beli_pada).
+  `
+  CREATE TABLE followup_nomor (
+    number_id   integer PRIMARY KEY REFERENCES numbers(id) ON DELETE CASCADE,
+    aktif       boolean NOT NULL DEFAULT false,
+    ulang_aktif boolean NOT NULL DEFAULT false,
+    setelan     jsonb NOT NULL DEFAULT '{}',
+    rem_pada    bigint,
+    rem_alasan  text,
+    rem_lepas   bigint NOT NULL DEFAULT 0,
+    diperbarui  bigint NOT NULL
+  );
+  CREATE INDEX followup_nomor_aktif_idx ON followup_nomor (number_id) WHERE aktif OR ulang_aktif;
+
+  ALTER TABLE followup_prospek ADD COLUMN usaha boolean NOT NULL DEFAULT false;
+  CREATE INDEX followup_prospek_usaha_jalan_idx ON followup_prospek (number_id, jadwal) WHERE status = 'jalan' AND usaha;
+  CREATE INDEX followup_prospek_usaha_idx ON followup_prospek (number_id, diperbarui DESC, kunci DESC) WHERE usaha;
+
+  ALTER TABLE percakapan ADD COLUMN beli_pada bigint;
+  CREATE INDEX percakapan_beli_idx ON percakapan (number_id, beli_pada) WHERE beli_pada IS NOT NULL;
+
+  CREATE TABLE followup_ulang (
+    kunci       text PRIMARY KEY,
+    number_id   integer NOT NULL REFERENCES numbers(id) ON DELETE CASCADE,
+    status      text NOT NULL CHECK (status IN ('jalan', 'terkirim', 'dibalas', 'selesai', 'batal', 'stop', 'gagal')),
+    tujuan      text,
+    nama        text,
+    beli_pada   bigint NOT NULL,
+    jadwal      bigint NOT NULL,
+    draf        text,
+    pesan       text,
+    pesan_id    text,
+    terkirim    bigint,
+    ack         smallint NOT NULL DEFAULT 0,
+    dibalas     bigint,
+    alasan      text,
+    dibuat      bigint NOT NULL,
+    diperbarui  bigint NOT NULL
+  );
+  CREATE INDEX followup_ulang_jalan_idx ON followup_ulang (number_id, jadwal) WHERE status = 'jalan';
+  CREATE INDEX followup_ulang_nomor_idx ON followup_ulang (number_id, diperbarui DESC, kunci DESC);
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

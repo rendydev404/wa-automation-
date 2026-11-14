@@ -11,12 +11,12 @@ import { mulaiPg } from "./pg-lokal.mjs";
 
 const JALUR = {
   // Alur WhatsApp <-> AI (termasuk follow-up nomor CS): sebagian besar menunggu timer jembatan (dipercepat lewat WA_SKALA_WAKTU).
-  alur: { berkas: ["uji/uji-alur.mjs", "uji/uji-followup.mjs", "uji/uji-followup-prospek.mjs"], sekaligus: 2 },
+  alur: { berkas: ["uji/uji-alur.mjs", "uji/uji-followup.mjs", "uji/uji-followup-prospek.mjs", "uji/uji-followup-usaha.mjs"], sekaligus: 2 },
   // CI: uji-alur dibagi 3 mesin per bagian (UJI_BAGIAN, seimbang menurut waktu) + follow-up sendiri. Tidak ikut tanpa --jalur.
   "alur-1": { berkas: ["uji/uji-alur.mjs"], env: { UJI_BAGIAN: "B,C,D2,D3,D4,D5" }, sekaligus: 1, ci: true },
   "alur-2": { berkas: ["uji/uji-alur.mjs"], env: { UJI_BAGIAN: "D,E" }, sekaligus: 1, ci: true },
   "alur-3": { berkas: ["uji/uji-alur.mjs"], env: { UJI_BAGIAN: "D6,F,G" }, sekaligus: 1, ci: true },
-  followup: { berkas: ["uji/uji-followup.mjs", "uji/uji-followup-prospek.mjs"], sekaligus: 1, ci: true },
+  followup: { berkas: ["uji/uji-followup.mjs", "uji/uji-followup-prospek.mjs", "uji/uji-followup-usaha.mjs"], sekaligus: 1, ci: true },
   // Tolok ukur latensi ketat (< 20 ms di uji-data, < 15 ms di uji-pengguna): berurutan, tidak berebut CPU sesamanya.
   tolok: { berkas: ["uji/uji-data.mjs", "uji/uji-pengguna.mjs"], sekaligus: 1 },
   // Kebenaran fitur tanpa tolok ukur waktu: boleh berjalan bersamaan.

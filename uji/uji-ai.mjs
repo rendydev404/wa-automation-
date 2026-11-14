@@ -874,6 +874,12 @@ await cek("penyaring prospek: tag penilaian dipisah dari jawaban; penutup, kata 
   assert.equal(P.minatEfektif(1, 1000, 1000 + 30 * 86400), 0);
   assert.equal(P.minatEfektif(null, null, 1000), null);
   assert.ok(P.ATURAN_NILAI.includes("<minat>panas</minat>"), "aturan prompt memuat tag minat");
+  // Sudah beli: kunci `beli` hanya ada bila benar, hanya bersama nilai prospek; bentuk rusak ditangkap.
+  assert.deepEqual(P.ambilNilai(`${yangMana}\n<nilai>prospek</nilai><minat>beli</minat>`), { teks: yangMana, nilai: "prospek", minat: null, beli: true });
+  assert.deepEqual(P.ambilNilai(`${yangMana}\n[nilai: prospek] [minat: beli]`), { teks: yangMana, nilai: "prospek", minat: null, beli: true });
+  assert.deepEqual(P.ambilNilai("Maaf kak\n<nilai>bukan</nilai><minat>beli</minat>"), { teks: "Maaf kak", nilai: "bukan", minat: null }, "beli diabaikan bila bukan prospek");
+  assert.deepEqual(P.ambilNilai("Terima kasih sudah beli kak\n<nilai>prospek</nilai><minat>hangat</minat>"), { teks: "Terima kasih sudah beli kak", nilai: "prospek", minat: "hangat" }, "kata beli di kalimat biasa bukan tag");
+  assert.ok(P.ATURAN_NILAI.includes("<minat>beli</minat>"), "aturan prompt memuat tag beli");
   assert.equal(AI.bakukanTag('Oke\n<|teruskan jenis="pesanan"|>Nama: Rina<|/teruskan|>'), 'Oke\n<teruskan jenis="pesanan">Nama: Rina</teruskan>');
   assert.equal(AI.bakukanTag('Maaf kak\n<nilai label="bukan"/>'), 'Maaf kak\n<nilai label="bukan"/>', "tag baku tidak berubah");
   globalThis.fetch = async () => new Response(JSON.stringify({ content: [{ type: "text", text: `${yangMana}\n<|nilai>prospek` }], usage: {} }));

@@ -4,7 +4,7 @@ import type { FiturApi } from "@/lib/api-def";
 import { fiturBoleh } from "@/lib/mesin/lisensi";
 import Link from "@/components/link";
 import { notFound } from "next/navigation";
-import { BookOpenText, Bot, ChevronRight, FileText, FlaskConical, Lightbulb, MessageCircleMore, MessagesSquare, Package, Settings2, Smartphone, Users } from "lucide-react";
+import { BookOpenText, Bot, ChevronRight, FileText, FlaskConical, Lightbulb, MessageCircleMore, MessagesSquare, Package, Repeat, Settings2, Smartphone, Users } from "lucide-react";
 import { ConnectionCard } from "@/components/connection-card";
 import { HistoriPercakapan } from "@/components/conversation-history";
 import { KnowledgePanel } from "@/components/knowledge-panel";
@@ -15,13 +15,16 @@ import { HapusNomor, LencanaTerhubung, NumberSettings, SaklarBot, SaklarSinkron 
 import { KartuStat, Meter, Sparkline } from "@/components/stat";
 import { TestChat } from "@/components/test-chat";
 import { PanelKatalog } from "@/components/panel-katalog";
+import { PanelFollowup } from "@/components/panel-followup";
+import { nomorCsChatGercep } from "@/lib/followup";
+import { daftarUsaha, statusUsaha } from "@/lib/followup-usaha";
 import { daftarProduk, katalogBoleh } from "@/lib/katalog";
 import { sisaKuotaAi, syaratBotTerpenuhi } from "@/lib/langganan";
 import { sekarang } from "@/lib/db";
 import { angka, formatNomor, tanggal } from "@/lib/format";
 import { teksHalaman } from "@/lib/bahasa-halaman";
 import { BATAS_UTUH, daftarDokumen } from "@/lib/knowledge";
-import { statHarian, tanggalWib } from "@/lib/numbers";
+import { type Nomor, statHarian, tanggalWib } from "@/lib/numbers";
 import { nomorUntuk } from "@/lib/akses";
 import { daftarPelajaran, jumlahPelajaran } from "@/lib/pelajaran";
 import { ambilPesanPercakapan, daftarPercakapan, ringkasanPercakapan } from "@/lib/percakapan";
@@ -306,6 +309,17 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             isi: kunci("katalog", <PanelKatalog numberId={nomor.id} produk={produk} boleh={katalogAktif} />),
           },
           {
+            id: "followup",
+            label: { id: "Follow-up", en: "Follow-up" },
+            ikon: <Repeat aria-hidden />,
+            isi: kunci(
+              "bot",
+              <Suspense fallback={<div aria-hidden className="card h-[520px] animate-denyut" />}>
+                <TabFollowup nomor={nomor} />
+              </Suspense>,
+            ),
+          },
+          {
             id: "pengaturan",
             label: { id: "Pengaturan", en: "Settings" },
             ikon: <Settings2 aria-hidden />,
@@ -337,6 +351,22 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
       />
     </div>
   );
+}
+
+/**
+ * Tab Follow-up: dimuat terpisah (streaming) supaya halaman nomor tidak menunggu query follow-up. Nomor CS ChatGerCep
+ * diatur dari panel admin, jadi di sini hanya diberi keterangan.
+ */
+async function TabFollowup({ nomor }: { nomor: Nomor }) {
+  const { t } = await teksHalaman();
+  if ((await nomorCsChatGercep()).has(nomor.id))
+    return (
+      <div className="card p-6 text-[13.5px] text-muted">
+        {t("Follow-up nomor CS ChatGerCep diatur dari panel admin (Follow-up WA).", "Follow-up for the ChatGerCep CS number is managed from the admin panel (WA Follow-up).")}
+      </div>
+    );
+  const [status, daftar] = await Promise.all([statusUsaha(nomor), daftarUsaha(nomor.id)]);
+  return <PanelFollowup numberId={nomor.id} status={status} daftar={daftar} kini={sekarang()} />;
 }
 
 function Kerangka() {

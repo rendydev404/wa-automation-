@@ -143,6 +143,7 @@ export async function pindaiProspek(cs: Nomor, s: SetelanProspek): Promise<numbe
        AND p.terakhir_pada >= ${t - JENDELA_DTK} AND p.terakhir_pada <= ${t - jedaMin}
        AND p.minat - (${t} - p.minat_pada) / ${LURUH_MINAT_DTK} >= 1
        AND p.pengirim_akhir = 1 AND p.spam <> 1 AND p.masuk_n > 0
+       AND (p.beli_pada IS NULL OR p.beli_pada < p.minat_pada)
        AND (SELECT m.peran FROM pesan_chat m WHERE m.percakapan_id = p.id ORDER BY m.id LIMIT 1) = 0
        AND NOT EXISTS (SELECT 1 FROM followup_stop fs WHERE fs.kunci = p.kunci)
        AND NOT EXISTS (SELECT 1 FROM followup f WHERE f.kunci = p.kunci AND f.status IN ('antre', 'terkirim', 'dibalas'))
@@ -214,9 +215,9 @@ async function buktiNyata(): Promise<string> {
   return teks;
 }
 
-const POLA_TAUTAN = /(https?:\/\/[^\s]+|www\.[^\s]+|wa\.me\/[^\s]*)/gi;
+export const POLA_TAUTAN = /(https?:\/\/[^\s]+|www\.[^\s]+|wa\.me\/[^\s]*)/gi;
 /** Kelangkaan / batas waktu buatan: tidak pernah boleh (promo nyata pun cukup disebut tanpa desakan waktu karangan). */
-const POLA_DESAK =
+export const POLA_DESAK =
   /\b((hanya|cuma|khusus|berlaku)\s+(hari ini|malam ini|sampai (nanti )?malam|besok)|sisa\s+\d+\s*(slot|kuota|kursi|tempat)|(promo|diskon|harga)\s+(ini\s+)?(berakhir|habis|naik)\s+(hari ini|malam ini|besok|segera)|kesempatan terakhir|terbatas hari ini)\b/i;
 
 type Tahap = 1 | 2 | 3;
@@ -474,7 +475,7 @@ export async function putaranProspek(cs: Nomor, bolehKirim: boolean): Promise<bo
   const sql = await db();
   const baris = await sql<BarisJalan[]>`
     SELECT kunci, number_id, status, tahap, minat, jadwal, siklus, draf, pesan1, pesan2, pesan3, ack1, ack2, ack3
-      FROM followup_prospek WHERE status = 'jalan' AND jadwal <= ${sekarang()}
+      FROM followup_prospek WHERE status = 'jalan' AND jadwal <= ${sekarang()} AND NOT usaha
      ORDER BY minat DESC, jadwal, kunci LIMIT 10`;
   for (const b of baris) {
     if (b.number_id !== cs.id) {
@@ -492,7 +493,7 @@ async function siapkanDraf(cs: Nomor): Promise<void> {
   const t = sekarang();
   const baris = await sql<BarisJalan[]>`
     SELECT kunci, number_id, status, tahap, minat, jadwal, siklus, draf, pesan1, pesan2, pesan3, ack1, ack2, ack3
-      FROM followup_prospek WHERE status = 'jalan' AND jadwal <= ${t + DRAF_SEBELUM_DTK} AND draf IS NULL AND number_id = ${cs.id}
+      FROM followup_prospek WHERE status = 'jalan' AND jadwal <= ${t + DRAF_SEBELUM_DTK} AND draf IS NULL AND number_id = ${cs.id} AND NOT usaha
      ORDER BY jadwal, kunci LIMIT ${DRAF_PER_PUTARAN}`;
   for (const b of baris) {
     const chat = await chatLead(b.kunci);
@@ -560,7 +561,7 @@ export async function muatPantauan(): Promise<void> {
     (Pick<BarisProspek, "kunci" | "status" | "tahap" | "pesan1" | "pesan2" | "pesan3" | "ack1" | "ack2" | "ack3" | "dibalas"> & { pesan1_id: string | null; pesan2_id: string | null; pesan3_id: string | null })[]
   >`
     SELECT kunci, status, tahap, pesan1, pesan2, pesan3, pesan1_id, pesan2_id, pesan3_id, ack1, ack2, ack3, dibalas
-      FROM followup_prospek WHERE tahap > 0 AND diperbarui >= ${sejak}`;
+      FROM followup_prospek WHERE tahap > 0 AND diperbarui >= ${sejak} AND NOT usaha`;
   for (const b of baris) {
     const teks = [b.pesan1, b.pesan2, b.pesan3][b.tahap - 1] ?? null;
     st.aktif.set(b.kunci, { teks, dicatat: b.dibalas !== null || b.status === "stop" || b.status === "dibalas" });
@@ -577,7 +578,7 @@ export async function kirimanProspekSejak(awal: number): Promise<number> {
   const sql = await db();
   const [r] = await sql<{ n: number }[]>`
     SELECT (COUNT(*) FILTER (WHERE terkirim1 >= ${awal}) + COUNT(*) FILTER (WHERE terkirim2 >= ${awal}) + COUNT(*) FILTER (WHERE terkirim3 >= ${awal}))::int AS n
-      FROM followup_prospek WHERE diperbarui >= ${awal}`;
+      FROM followup_prospek WHERE diperbarui >= ${awal} AND NOT usaha`;
   return r?.n ?? 0;
 }
 
@@ -587,9 +588,9 @@ export async function kirimanProspekRentang(sejak: number, sampai: number): Prom
   return [
     ...(await sql<{ w: number; ack: number }[]>`
       SELECT w, ack FROM (
-        SELECT terkirim1 AS w, ack1 AS ack FROM followup_prospek WHERE terkirim1 >= ${sejak}
-        UNION ALL SELECT terkirim2, ack2 FROM followup_prospek WHERE terkirim2 >= ${sejak}
-        UNION ALL SELECT terkirim3, ack3 FROM followup_prospek WHERE terkirim3 >= ${sejak}
+        SELECT terkirim1 AS w, ack1 AS ack FROM followup_prospek WHERE terkirim1 >= ${sejak} AND NOT usaha
+        UNION ALL SELECT terkirim2, ack2 FROM followup_prospek WHERE terkirim2 >= ${sejak} AND NOT usaha
+        UNION ALL SELECT terkirim3, ack3 FROM followup_prospek WHERE terkirim3 >= ${sejak} AND NOT usaha
       ) x WHERE w <= ${sampai} ORDER BY w DESC LIMIT 10`),
   ];
 }
@@ -599,14 +600,14 @@ export async function kirimanProspekRentang(sejak: number, sampai: number): Prom
 export async function statusMesinProspek(): Promise<StatusMesinProspek> {
   const [setelan, sql] = await Promise.all([pengaturanProspek(), db()]);
   const [hitung, [k]] = await Promise.all([
-    sql<{ status: StatusProspek; n: number }[]>`SELECT status, COUNT(*)::int AS n FROM followup_prospek GROUP BY status`,
+    sql<{ status: StatusProspek; n: number }[]>`SELECT status, COUNT(*)::int AS n FROM followup_prospek WHERE NOT usaha GROUP BY status`,
     sql<{ terkirim: number; dibalas: number; berlangganan: number }[]>`
       SELECT COUNT(*) FILTER (WHERE fp.tahap > 0)::int AS terkirim,
              COUNT(*) FILTER (WHERE fp.tahap > 0 AND fp.dibalas IS NOT NULL)::int AS dibalas,
              COUNT(*) FILTER (WHERE fp.tahap > 0 AND fp.tujuan IS NOT NULL AND EXISTS (
                SELECT 1 FROM numbers n JOIN langganan l ON l.user_id = n.user_id AND l.mulai >= fp.dibuat
                 WHERE n.wa_id = fp.tujuan OR n.teruskan_ke = fp.tujuan))::int AS berlangganan
-        FROM followup_prospek fp`,
+        FROM followup_prospek fp WHERE NOT fp.usaha`,
   ]);
   return {
     setelan,
@@ -628,7 +629,7 @@ export async function daftarProspek(opsi: { status?: StatusProspek | null; batas
              fp.pesan1, fp.pesan2, fp.pesan3, fp.terkirim1, fp.terkirim2, fp.terkirim3, fp.ack1, fp.ack2, fp.ack3,
              fp.dibalas, fp.alasan, p.id AS percakapan_id
         FROM followup_prospek fp LEFT JOIN percakapan p ON p.kunci = fp.kunci
-       WHERE ${status}::text IS NULL OR fp.status = ${status}
+       WHERE NOT fp.usaha AND (${status}::text IS NULL OR fp.status = ${status})
        ORDER BY fp.diperbarui DESC, fp.kunci DESC LIMIT ${batas}`),
   ];
 }
@@ -638,7 +639,7 @@ export async function tulisUlangDrafProspek(kunci: string): Promise<string> {
   const sql = await db();
   const [b] = await sql<(BarisJalan & { number_id: number })[]>`
     SELECT kunci, number_id, status, tahap, minat, jadwal, siklus, draf, pesan1, pesan2, pesan3, ack1, ack2, ack3
-      FROM followup_prospek WHERE kunci = ${kunci}`;
+      FROM followup_prospek WHERE kunci = ${kunci} AND NOT usaha`;
   if (!b || b.status !== "jalan") throw new PenggunaError("Tidak ada pesan yang menunggu dikirim untuk chat ini.");
   const [cs, chat] = await Promise.all([nomorById(b.number_id), chatLead(kunci)]);
   if (!cs) throw new PenggunaError("Nomor CS tidak ditemukan.");
@@ -653,13 +654,13 @@ export async function simpanDrafProspek(kunci: string, teks: string): Promise<vo
   const bersih = teks.replace(/\u0000/g, "").replace(/\r\n/g, "\n").trim();
   if (bersih.length < BATAS_PESAN[0] || bersih.length > BATAS_PESAN[1]) throw new PenggunaError(`Pesan harus ${BATAS_PESAN[0]}–${BATAS_PESAN[1]} karakter.`);
   const sql = await db();
-  const r = await sql`UPDATE followup_prospek SET draf = ${bersih} WHERE kunci = ${kunci} AND status = 'jalan'`;
+  const r = await sql`UPDATE followup_prospek SET draf = ${bersih} WHERE kunci = ${kunci} AND status = 'jalan' AND NOT usaha`;
   if (!r.count) throw new PenggunaError("Follow-up chat ini sudah selesai, jadi pesannya tidak bisa diubah lagi.");
 }
 
 /** Admin: hentikan follow-up satu chat (tidak dikirimi apa pun lagi di siklus ini). */
 export async function hentikanProspek(kunci: string): Promise<void> {
   const sql = await db();
-  const r = await sql`UPDATE followup_prospek SET status = 'batal', alasan = 'Dihentikan admin', diperbarui = ${sekarang()} WHERE kunci = ${kunci} AND status = 'jalan'`;
+  const r = await sql`UPDATE followup_prospek SET status = 'batal', alasan = 'Dihentikan admin', diperbarui = ${sekarang()} WHERE kunci = ${kunci} AND status = 'jalan' AND NOT usaha`;
   if (!r.count) throw new PenggunaError("Follow-up chat ini sudah tidak berjalan.");
 }

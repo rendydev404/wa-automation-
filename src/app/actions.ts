@@ -56,7 +56,7 @@ import { tanggal, uang } from "@/lib/format";
 import { GalatCustom, customTampil, periksaCustom, ringkasCustom, simpanPaketCustom } from "@/lib/paket-custom";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
 import { geserProduk, hapusProduk, katalogBoleh, setTersedia } from "@/lib/katalog";
-import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringProspek, setSaringSpam, tambahNomor, ubahNomor } from "@/lib/numbers";
+import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, type Nomor, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringProspek, setSaringSpam, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { cekPassword, verifyPassword } from "@/lib/password";
 import { type ItemPelajaran, daftarPelajaran, hapusPelajaran } from "@/lib/pelajaran";
 import {
@@ -99,6 +99,7 @@ import {
   requireAdminUtama,
   requireStaf,
   requireUser,
+  type User,
 } from "@/lib/session";
 import { WaError, hapusSesi, hubungkan, logout, mintaKodePairing } from "@/lib/wa";
 import { type Peran, labelPeran, peranSah, staf } from "@/lib/peran";
@@ -695,6 +696,123 @@ export async function setSaringProspekAction(id: number, aktif: boolean): Promis
   revalidatePath(`/nomor/${id}`);
   catatFitur(user.id, aktif ? "penyaring.prospek_nyalakan" : "penyaring.prospek_matikan");
   return { ok: true };
+}
+
+// ---------- Follow-up pelanggan di nomor pengguna (followup-usaha.ts) ----------
+
+const jenisFollowupSah = (v: unknown): "prospek" | "ulang" | null => (v === "prospek" || v === "ulang" ? v : null);
+const kunciFollowupSah = (v: unknown): string | null => (typeof v === "string" && /^[0-9a-f]{32}$/.test(v) ? v : null);
+
+/** Nomor milik pengguna ini (atau staf) yang boleh memakai follow-up; bukan nomor CS ChatGerCep. */
+async function nomorFollowup(id: unknown): Promise<{ user: User; nomor: Nomor; t: T; b: Bahasa } | Hasil> {
+  { const kunci = await fiturTerkunci("bot"); if (kunci) return kunci; }
+  const user = await requireUser();
+  const { t, b } = await teksPermintaan();
+  const nomor = await nomorUntuk(user, id);
+  if (!nomor) return nomorTidakAda(t);
+  const { nomorCsChatGercep } = await import("@/lib/followup");
+  if ((await nomorCsChatGercep()).has(nomor.id))
+    return { ok: false, pesan: t("Nomor CS ChatGerCep diatur dari panel admin Follow-up WA.", "The ChatGerCep CS number is managed from the admin Follow-up panel.") };
+  return { user, nomor, t, b };
+}
+
+export async function simpanFollowupNomorAction(_lalu: Hasil | null, form: FormData): Promise<Hasil> {
+  const x = await nomorFollowup(form.get("number_id"));
+  if ("ok" in x) return x;
+  const { user, nomor, t, b } = x;
+  const angkaForm = (k: string): number => Number(String(form.get(k) ?? "").trim());
+  const setelan = {
+    aktif: form.get("aktif") === "on",
+    ulangAktif: form.get("ulang_aktif") === "on",
+    jamMulai: angkaForm("jam_mulai"),
+    jamSelesai: angkaForm("jam_selesai"),
+    batasHarian: angkaForm("batas_harian"),
+    jedaPanasJam: angkaForm("jeda_panas_jam"),
+    jedaHangatJam: angkaForm("jeda_hangat_jam"),
+    tahap2Jam: angkaForm("tahap2_jam"),
+    tahap3Jam: angkaForm("tahap3_jam"),
+    maksTahap: angkaForm("maks_tahap"),
+    siklusUlangHari: angkaForm("siklus_ulang_hari"),
+  };
+  try {
+    const { followupBoleh, simpanSetelanNomor, setelanNomor } = await import("@/lib/followup-usaha");
+    const lama = (await setelanNomor(nomor.id)).setelan;
+    if ((setelan.aktif || setelan.ulangAktif) && !(await followupBoleh(nomor.user_id)))
+      return { ok: false, pesan: t("Follow-up otomatis tersedia untuk akun berlangganan. Aktifkan paket dulu di menu Langganan.", "Automatic follow-up is available on paid plans. Activate a plan first from the Subscription menu.") };
+    const s = await simpanSetelanNomor(nomor.id, setelan);
+    revalidatePath(`/nomor/${nomor.id}`);
+    catatFitur(user.id, "followup.setelan");
+    if (s.aktif && !lama.aktif) catatFitur(user.id, "followup.nyalakan");
+    if (s.ulangAktif && !lama.ulangAktif) catatFitur(user.id, "followup.ulang_nyalakan");
+    return {
+      ok: true,
+      pesan:
+        s.aktif || s.ulangAktif
+          ? t("Tersimpan. Follow-up berjalan di jam kirim yang dipilih.", "Saved. Follow-up runs during the sending hours you chose.")
+          : t("Tersimpan. Follow-up mati: tidak ada pesan yang dikirim.", "Saved. Follow-up is off: no messages will be sent."),
+    };
+  } catch (e) {
+    return { ok: false, pesan: pesanGalat(e, b) };
+  }
+}
+
+export async function lepasRemFollowupNomorAction(numberId: number): Promise<Hasil> {
+  const x = await nomorFollowup(numberId);
+  if ("ok" in x) return x;
+  const { lepasRemNomor } = await import("@/lib/followup-usaha");
+  await lepasRemNomor(x.nomor.id);
+  revalidatePath(`/nomor/${x.nomor.id}`);
+  catatFitur(x.user.id, "followup.lepas_rem");
+  return { ok: true, pesan: x.t("Follow-up dilanjutkan.", "Follow-up resumed.") };
+}
+
+export async function tulisUlangFollowupNomorAction(numberId: number, jenis: string, kunci: string): Promise<Hasil & { teks?: string }> {
+  const x = await nomorFollowup(numberId);
+  if ("ok" in x) return x;
+  const j = jenisFollowupSah(jenis);
+  const k = kunciFollowupSah(kunci);
+  if (!j || !k) return { ok: false, pesan: x.t("Chat tidak valid.", "Invalid chat.") };
+  try {
+    const { tulisUlangDrafUsaha } = await import("@/lib/followup-usaha");
+    const teks = await tulisUlangDrafUsaha(x.nomor.id, j, k);
+    catatFitur(x.user.id, "followup.tulis_ulang");
+    return { ok: true, pesan: x.t("Pesan ditulis ulang.", "Message rewritten."), teks };
+  } catch (e) {
+    return { ok: false, pesan: pesanGalat(e, x.b) };
+  }
+}
+
+export async function simpanPesanFollowupNomorAction(numberId: number, jenis: string, kunci: string, teks: string): Promise<Hasil> {
+  const x = await nomorFollowup(numberId);
+  if ("ok" in x) return x;
+  const j = jenisFollowupSah(jenis);
+  const k = kunciFollowupSah(kunci);
+  if (!j || !k) return { ok: false, pesan: x.t("Chat tidak valid.", "Invalid chat.") };
+  try {
+    const { simpanDrafUsaha } = await import("@/lib/followup-usaha");
+    await simpanDrafUsaha(x.nomor.id, j, k, String(teks ?? "").slice(0, 3000));
+    catatFitur(x.user.id, "followup.ubah_pesan");
+    return { ok: true, pesan: x.t("Pesan disimpan. Teks inilah yang akan dikirim.", "Message saved. This exact text will be sent.") };
+  } catch (e) {
+    return { ok: false, pesan: pesanGalat(e, x.b) };
+  }
+}
+
+export async function hentikanFollowupNomorAction(numberId: number, jenis: string, kunci: string): Promise<Hasil> {
+  const x = await nomorFollowup(numberId);
+  if ("ok" in x) return x;
+  const j = jenisFollowupSah(jenis);
+  const k = kunciFollowupSah(kunci);
+  if (!j || !k) return { ok: false, pesan: x.t("Chat tidak valid.", "Invalid chat.") };
+  try {
+    const { hentikanUsaha } = await import("@/lib/followup-usaha");
+    await hentikanUsaha(x.nomor.id, j, k);
+    revalidatePath(`/nomor/${x.nomor.id}`);
+    catatFitur(x.user.id, "followup.hentikan");
+    return { ok: true, pesan: x.t("Follow-up chat ini dihentikan.", "Follow-up for this chat has been stopped.") };
+  } catch (e) {
+    return { ok: false, pesan: pesanGalat(e, x.b) };
+  }
 }
 
 export async function setSaringSpamAction(id: number, aktif: boolean): Promise<Hasil> {

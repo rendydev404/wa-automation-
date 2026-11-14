@@ -8,7 +8,7 @@ import { MEREK } from "./merek";
 import { adaKnowledge, susunSistem } from "./knowledge";
 import { type KirimProduk, bahanKirim, captionProduk, daftarProduk, katalogBoleh, perluDaftar, teksKatalog } from "./katalog";
 import { type Nomor, catatStat, catatTerhubung, nomorBySesi } from "./numbers";
-import { catatPesan, chatDipercaya, riwayatUntukAi, tandaiMinat, tandaiProspek, tandaiSpam } from "./percakapan";
+import { catatPesan, chatDipercaya, riwayatUntukAi, tandaiBeli, tandaiMinat, tandaiProspek, tandaiSpam } from "./percakapan";
 import { alasanSpam, periksaSpam } from "./spam";
 import { type Penilaian, PELUANG_AUDIT, catatAudit, catatPengalaman, hitung, layakDicek, nilaiPesan, setelanMl, yakinLewati } from "./prospek";
 import { BATAS_STRIKE, BISU_BOT_DTK, BOT_BERUNTUN, BOT_CEPAT_MS, STATUS, type StatusChat, ULANG_BERUNTUN, adaKataMinat, berulang, gema, idMinat, minatEfektif, penutupSaja } from "./prospek-def";
@@ -55,6 +55,8 @@ import { POLA_PESAN_UJI } from "./api-def";
  * baru kirim; waktu tunggu dan lama mengetik diacak (tidak pernah tepat sama).
  *   Satu-satunya pengecualian: follow-up nomor CS ChatGerCep (followup.ts, lewat kirimSapaan) ke chat yang SUDAH
  *   pernah ada dengan pemilik akun gratis yang kuotanya habis; paling banyak 2 pesan per akun, pelan, dan berjam kerja.
+ *   Begitu juga follow-up di nomor pengguna berbayar (followup-usaha.ts): hanya chat yang pelanggannya chat duluan,
+ *   lead yang diam (maks 3 pesan) atau pengingat order ulang (1 pesan per pembelian), dengan batas & rem per nomor.
  *
  * Keadaan tiap chat (jeda, nomor sesi Hermes) dipegang di memori selama chat itu aktif
  * dan ditulis ke tabel chat_state di latar. Dengan begitu keputusan serah-terima tetap seketika
@@ -180,7 +182,12 @@ export interface KaitCs {
   /** Nomor CS (id) & digit WA-nya, dari memori tanpa I/O. */
   nomorCs: () => { ids: ReadonlySet<number>; wa: ReadonlySet<string> };
   /**
-   * Pesan masuk di nomor CS. Mengembalikan catatan untuk AI (siapa lawan bicaranya, balasan atas follow-up, permintaan
+   * Nomor pengguna dengan follow-up aktif (followup-usaha.ts), dari memori tanpa I/O: tingkat minat & "sudah beli"
+   * dinilai di sana walau penyaring prospeknya mati, dan pesan masuknya diteruskan ke pesanMasuk.
+   */
+  nomorFollowup?: () => ReadonlySet<number>;
+  /**
+   * Pesan masuk di nomor CS (dan nomor di nomorFollowup). Mengembalikan catatan untuk AI (siapa lawan bicaranya, balasan atas follow-up, permintaan
    * berhenti) atau null. Chat yang tidak sedang di-follow-up dan tanpa kode akun selesai tanpa I/O.
    */
   pesanMasuk: (d: { numberId: number; kunci: string; teks: string; telepon: string | null }) => Promise<string | null>;
@@ -530,7 +537,8 @@ async function proses(kunci: string): Promise<void> {
         const pakaiNilai = nomor.saring_prospek && fiturBoleh("ml");
         // Nomor CS ChatGerCep selalu dinilai (tingkat minat dipakai follow-up prospek), walau penyaringnya mati;
         // strike/bisu & pengalaman ML tetap hanya bila penyaring aktif.
-        const mintaNilai = pakaiNilai || !!st.kaitCs?.nomorCs().ids.has(nomor.id);
+        // Begitu juga nomor pengguna yang follow-up-nya aktif (followup-usaha.ts memakai minat & "sudah beli").
+        const mintaNilai = pakaiNilai || !!st.kaitCs?.nomorCs().ids.has(nomor.id) || !!st.kaitCs?.nomorFollowup?.().has(nomor.id);
         const [ai, saringSpam, katalog, penilaian] = await Promise.all([
           aiUntukAkun(nomor.user_id),
           nomor.saring_spam && fiturBoleh("spam") ? st.tulis.then(() => chatDipercaya(kunci)).then((p) => !p, () => false) : false,
@@ -570,6 +578,12 @@ async function proses(kunci: string): Promise<void> {
           const dariTag = hasil.minat ? idMinat(hasil.minat) : null;
           const baru = katalog.length > 0 && hasil.kirimProduk ? Math.max(dariTag ?? 0, 1) : dariTag;
           if (baru !== null) perbaruiMinat(kunci, a, baru);
+          // Sudah beli: tidak dibujuk lagi sebagai lead, jadi bahan pengingat order ulang (followup-usaha.ts).
+          if (hasil.beli) {
+            const t = sekarang();
+            perbaruiMinat(kunci, a, 2);
+            tulisLatar(() => tandaiBeli(kunci, t));
+          }
           // Penyaring mati (nomor CS) atau chat yang dikenal pemilik: status prospek tetap dicatat (lead), tanpa strike/bisu.
           if ((!pakaiNilai || a.dikenal) && (a.chat?.prospek ?? STATUS.baru) === STATUS.baru) ubahStatus(kunci, a, STATUS.prospek, null);
         }
@@ -1091,7 +1105,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
 
   const a = await antreanUntuk(kunci, nomor.id, sesi, ev.alamat);
   // Nomor CS ChatGerCep: balasan atas follow-up / kode akun dari tombol "Chat CS" -> konteks untuk AI.
-  if (cs?.ids.has(nomor.id) && st.kaitCs) {
+  if ((cs?.ids.has(nomor.id) || st.kaitCs?.nomorFollowup?.().has(nomor.id)) && st.kaitCs) {
     const c = await st.kaitCs.pesanMasuk({ numberId: nomor.id, kunci, teks: ev.teks, telepon }).catch((e) => {
       console.warn(`[bridge] kait CS gagal sesi=${sesi}: ${e instanceof Error ? e.message : e}`);
       return null;

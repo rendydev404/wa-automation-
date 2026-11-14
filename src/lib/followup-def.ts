@@ -182,3 +182,118 @@ export interface StatusMesinProspek {
   dibalas: number;
   berlangganan: number;
 }
+
+// ---------- Follow-up di nomor pengguna berbayar (followup-usaha.ts) ----------
+
+/**
+ * Setelan follow-up satu nomor pengguna (followup_nomor). Aturan anti-blokir sama dengan nomor CS ChatGerCep, ditambah
+ * batas yang lebih ketat per nomor (pemanasan nomor baru, rasio terhadap balasan biasa, rem sendiri).
+ */
+export interface SetelanUsaha {
+  /** Follow-up pelanggan yang tanya lalu diam (maks 3 pesan). */
+  aktif: boolean;
+  /** Pengingat order ulang ke pembeli lama (1 pesan per pembelian). */
+  ulangAktif: boolean;
+  /** Jam kirim WIB: mulai (termasuk) dan selesai (tidak termasuk). */
+  jamMulai: number;
+  jamSelesai: number;
+  /** Paling banyak pesan follow-up (prospek + order ulang) per hari WIB, sebelum batas otomatis. */
+  batasHarian: number;
+  jedaPanasJam: number;
+  jedaHangatJam: number;
+  tahap2Jam: number;
+  tahap3Jam: number;
+  maksTahap: number;
+  /** Pengingat order ulang dikirim setelah pembeli diam sekian hari sejak terakhir beli. */
+  siklusUlangHari: number;
+}
+
+export const SETELAN_USAHA_AWAL: SetelanUsaha = {
+  aktif: false,
+  ulangAktif: false,
+  jamMulai: 9,
+  jamSelesai: 20,
+  batasHarian: 10,
+  jedaPanasJam: 1,
+  jedaHangatJam: 3,
+  tahap2Jam: 24,
+  tahap3Jam: 48,
+  maksTahap: 3,
+  siklusUlangHari: 30,
+};
+
+export const BATAS_SETELAN_USAHA = {
+  jamMulai: [0, 23],
+  jamSelesai: [1, 24],
+  batasHarian: [1, 40],
+  jedaPanasJam: [1, 24],
+  jedaHangatJam: [1, 48],
+  tahap2Jam: [12, 120],
+  tahap3Jam: [24, 168],
+  maksTahap: [1, 3],
+  siklusUlangHari: [7, 90],
+} as const satisfies Record<string, readonly [number, number]>;
+
+/** Ritme sederhana di tab Follow-up (angka detail tetap bisa diubah di "Lanjutan"). */
+export const RITME_USAHA = {
+  cepat: { jedaPanasJam: 1, jedaHangatJam: 2, tahap2Jam: 24, tahap3Jam: 48 },
+  normal: { jedaPanasJam: 1, jedaHangatJam: 3, tahap2Jam: 24, tahap3Jam: 48 },
+  santai: { jedaPanasJam: 3, jedaHangatJam: 6, tahap2Jam: 48, tahap3Jam: 96 },
+} as const;
+
+/** Nomor yang baru ditambahkan kurang dari sekian hari dibatasi BATAS_PEMANASAN pesan follow-up per hari. */
+export const PEMANASAN_HARI = 7;
+export const BATAS_PEMANASAN = 3;
+/** Pesan follow-up per hari paling banyak sekian bagian dari balasan biasa nomor itu (paling sedikit RASIO_MIN). */
+export const RASIO_KIRIMAN = 0.2;
+export const RASIO_MIN = 3;
+/** Pengingat order ulang paling banyak sekian bagian dari batas harian (lead baru didahulukan). */
+export const PORSI_ULANG = 0.5;
+/** Chat yang terakhir aktif lebih lama dari ini tidak diberi pengingat order ulang. */
+export const UMUR_ULANG_HARI = 90;
+
+/** Nama tahap pesan follow-up prospek nomor pengguna (indeks = tahap - 1). */
+export const NAMA_TAHAP_USAHA = { id: ["Lanjutan", "Manfaat", "Pamit"], en: ["Follow-up", "Value", "Goodbye"] } as const;
+
+export type StatusUlang = "jalan" | "terkirim" | "dibalas" | "selesai" | "batal" | "stop" | "gagal";
+
+/** Satu baris di daftar tab Follow-up: siklus prospek (followup_prospek) atau pengingat order ulang (followup_ulang). */
+export interface BarisUsaha {
+  jenis: "prospek" | "ulang";
+  kunci: string;
+  status: StatusProspek | StatusUlang;
+  tujuan: string | null;
+  nama: string | null;
+  /** Prospek: tingkat minat saat diantrekan (1 hangat, 2 panas). Order ulang: null. */
+  minat: number | null;
+  /** Pesan yang sudah terkirim di siklus ini. */
+  tahap: number;
+  /** Paling banyak pesan untuk baris ini (prospek: maksTahap, order ulang: 1). */
+  maks: number;
+  jadwal: number;
+  diperbarui: number;
+  draf: string | null;
+  pesan: { teks: string; pada: number; ack: number }[];
+  dibalas: number | null;
+  alasan: string | null;
+  percakapan_id: number | null;
+}
+
+export interface StatusUsaha {
+  setelan: SetelanUsaha;
+  /** Akun boleh memakai follow-up (langganan aktif / staf / mesin self-host). */
+  boleh: boolean;
+  terhubung: boolean;
+  rem: { pada: number; alasan: string } | null;
+  kirimHariIni: number;
+  /** Batas efektif hari ini dan penyebabnya. */
+  batasHariIni: number;
+  sebabBatas: "setelan" | "pemanasan" | "rasio";
+  /** Sisa kuota balasan AI (null = tanpa batas). 0 = follow-up berhenti. */
+  sisaKuota: number | null;
+  /** Angka sepanjang waktu (baris yang pernah mengirim minimal satu pesan). */
+  terkirim: number;
+  dibalas: number;
+  stop: number;
+  berjalan: number;
+}

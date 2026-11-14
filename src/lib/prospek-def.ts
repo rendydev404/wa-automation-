@@ -26,7 +26,8 @@ Di BARIS PALING AKHIR setiap jawaban, tambahkan tepat satu tag penilaian untuk p
 <nilai>bukan</nilai> = jelas tidak berhubungan dengan usaha/peran nomor ini dan tidak mengarah ke sana: iseng, ngobrol kosong, ledekan, menguji atau mengerjai bot, topik umum di luar usaha (PR sekolah, politik, gosip, minta dibuatkan sesuatu). Tetap balas singkat, satu kalimat sopan yang mengarahkan ke hal yang bisa kamu bantu.
 Ragu antara prospek dan yang lain = prospek. Keluhan, pelanggan marah, atau berkata kasar soal layanan = prospek. Pertanyaan yang kamu jawab "belum ada infonya" tetap prospek bila menyangkut usaha ini.
 Khusus bila nilainya prospek, tulis LANGSUNG sesudahnya satu tag minat beli yang menilai SELURUH percakapan sejauh ini (bukan hanya pesan terakhir), contoh: <nilai>prospek</nilai><minat>hangat</minat>
-<minat>panas</minat> = siap membeli sekarang: menyebut jumlah, varian, ukuran, tanggal, atau alamat kirim; minta nomor rekening, QRIS, link bayar, atau total harga; bilang "jadi", "pesan", "ambil", "booking", "daftar", "mau bayar"; mengirim bukti bayar.
+<minat>panas</minat> = siap membeli sekarang: menyebut jumlah, varian, ukuran, tanggal, atau alamat kirim; minta nomor rekening, QRIS, link bayar, atau total harga; bilang "jadi", "pesan", "ambil", "booking", "daftar", "mau bayar".
+<minat>beli</minat> = transaksinya SUDAH terjadi: ia mengirim bukti bayar, bilang sudah transfer/sudah bayar, atau mengonfirmasi pesanan/layanannya sudah diterima atau selesai dikerjakan.
 <minat>hangat</minat> = menimbang serius: menanyakan harga, stok, ongkir, lokasi, jadwal, cara order, perbandingan pilihan/paket, atau bertanya lanjutan setelah dijawab.
 <minat>dingin</minat> = minatnya masih tipis: pertanyaan umum tanpa detail, sekadar lihat-lihat, bilang "nanti dulu"/"masih mikir", atau urusannya bukan membeli (keluhan atau bantuan pesanan yang sudah ada).
 Ragu antara dua tingkat minat = pilih yang lebih rendah.
@@ -50,20 +51,23 @@ const POLA_NILAI_LONGGAR = /(?:^|\n)[^\S\n]*[^\p{L}\p{N}\n]{0,3}nilai[^\p{L}\n]{
 
 const POLA_MINAT_TAG = /<minat(?:\s+[a-z]+\s*=\s*["']?([a-z]+)["']?)?\s*\/?>\s*([a-z]*)\s*(?:<\/minat>)?/gi;
 /** Cadangan: tag minat berpembatas rusak di baris terakhir ("[minat: panas]", "minat=hangat"). */
-const POLA_MINAT_LONGGAR = /[^\S\n]*[^\p{L}\p{N}\n]{0,3}minat[^\p{L}\n]{0,4}(dingin|hangat|panas)[^\p{L}\n]*(?:minat[^\p{L}\n]*)?$/iu;
+const POLA_MINAT_LONGGAR = /[^\S\n]*[^\p{L}\p{N}\n]{0,3}minat[^\p{L}\n]{0,4}(dingin|hangat|panas|beli)[^\p{L}\n]*(?:minat[^\p{L}\n]*)?$/iu;
 
 /**
  * Pisahkan tag <nilai> & <minat> dari jawaban AI: teks bersih + label (tag terakhir yang dikenal; null bila tidak ada)
- * + tingkat minat (hanya bila labelnya prospek).
+ * + tingkat minat (hanya bila labelnya prospek) + `beli: true` bila tag minatnya "beli" (transaksi sudah terjadi;
+ * kunci ini hanya ada bila benar).
  */
-export function ambilNilai(jawaban: string): { teks: string; nilai: Label | null; minat: Minat | null } {
+export function ambilNilai(jawaban: string): { teks: string; nilai: Label | null; minat: Minat | null; beli?: true } {
   let nilai: Label | null = null;
   let minat: Minat | null = null;
+  let beli = false;
   let teks = jawaban
-    .replace(/<\/minat>(?=\s*(?:dingin|hangat|panas)\b)/gi, "<minat>")
+    .replace(/<\/minat>(?=\s*(?:dingin|hangat|panas|beli)\b)/gi, "<minat>")
     .replace(POLA_MINAT_TAG, (_, attr: string | undefined, isi: string) => {
       const m = (isi || attr || "").toLowerCase();
       if ((MINAT as readonly string[]).includes(m)) minat = m as Minat;
+      else if (m === "beli") beli = true;
       return "";
     })
     .replace(/<\/?minat[^>]*>/gi, "")
@@ -82,7 +86,9 @@ export function ambilNilai(jawaban: string): { teks: string; nilai: Label | null
     const sebelum = teks.slice(0, mm.index);
     const baris = sebelum.slice(sebelum.lastIndexOf("\n") + 1);
     if (!baris.trim() || /nilai/i.test(baris)) {
-      minat = mm[1].toLowerCase() as Minat;
+      const x = mm[1].toLowerCase();
+      if (x === "beli") beli = true;
+      else minat = x as Minat;
       teks = sebelum.trimEnd();
     }
   }
@@ -91,7 +97,9 @@ export function ambilNilai(jawaban: string): { teks: string; nilai: Label | null
     nilai = m[1].toLowerCase() as Label;
     teks = teks.slice(0, m.index).trim();
   }
-  return { teks, nilai, minat: nilai === "prospek" ? minat : null };
+  if (nilai !== "prospek") return { teks, nilai, minat: null };
+  // Sudah beli: tidak dibujuk lagi sebagai lead (follow-up prospek), bahan pengingat order ulang (followup-usaha.ts).
+  return beli ? { teks, nilai, minat, beli: true } : { teks, nilai, minat };
 }
 
 /** Bentuk baku untuk pembandingan pola: huruf kecil, tanpa aksen/emoji/tanda baca, huruf berulang dirapatkan. */

@@ -462,6 +462,12 @@ export async function tandaiMinat(kunci: string, minat: number, pada: number): P
   await sql`UPDATE percakapan SET minat = ${minat}, minat_pada = ${pada} WHERE kunci = ${kunci}`;
 }
 
+/** Pelanggan menyatakan sudah beli (tag <minat>beli</minat>): bahan pengingat order ulang (followup-usaha.ts). */
+export async function tandaiBeli(kunci: string, pada: number): Promise<void> {
+  const sql = await db();
+  await sql`UPDATE percakapan SET beli_pada = ${pada} WHERE kunci = ${kunci}`;
+}
+
 /** Cerminan keadaan penyaring prospek sebuah chat untuk histori. Keadaan acuannya di chat_state (bridge.ts). */
 export async function tandaiProspek(kunci: string, status: 0 | 1 | 2 | 3, alasan: string | null): Promise<void> {
   const sql = await db();
