@@ -42,13 +42,6 @@ export function KotakKlaimVoucher({ voucherEmail = [], ringkas = false }: Props)
     } catch {}
   }, []);
 
-  useEffect(() => {
-    if (voucherDariUrl) {
-      setKode(voucherDariUrl);
-      setTerbukaInput(true);
-    }
-  }, [voucherDariUrl]);
-
   function jalankanKlaim(targetKode: string) {
     const bersih = normalisasiKodeVoucher(targetKode);
     if (!bersih) {

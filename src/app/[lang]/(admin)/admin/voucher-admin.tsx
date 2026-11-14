@@ -5,14 +5,12 @@ import {
   Ban,
   Calendar,
   Check,
-  Copy,
   Link2,
   MessageSquare,
   Plus,
   Search,
   Smartphone,
   Sparkles,
-  Ticket,
   X,
 } from "lucide-react";
 import {
