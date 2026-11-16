@@ -185,9 +185,16 @@ try {
   const enLanding = await minta("GET", "/eng", { headers: { cookie: "", ...identitas } });
   assert.equal(enLanding.status, 200);
   assert.match(enLanding.teks, /<html lang="en"/);
-  assert.match(enLanding.teks, /AI that replies to your customers 24\/7/);
+  assert.match(enLanding.teks, /AI WhatsApp Chatbot That Replies to Customers 24\/7/);
+  assert.match(enLanding.teks, /"@type":"FAQPage"/, "beranda membawa data terstruktur FAQPage");
   assert.match(enLanding.teks, /hrefLang="id"|hreflang="id"/i);
   assert.match((await minta("GET", "/", { headers: { cookie: "", ...identitas } })).teks, /<html lang="id"/);
+  const peta = await minta("GET", "/sitemap.xml", { headers: { cookie: "", ...identitas } });
+  assert.equal(peta.status, 200, "/sitemap.xml publik tanpa login");
+  assert.match(peta.teks, /<loc>[^<]*\/panduan<\/loc>/);
+  const llms = await minta("GET", "/llms.txt", { headers: { cookie: "", ...identitas } });
+  assert.equal(llms.status, 200, "/llms.txt publik tanpa login");
+  assert.match(llms.teks, /^# ChatGerCep/);
   const enDash = await minta("GET", "/eng/dashboard", { headers: identitas });
   assert.equal(enDash.status, 200);
   assert.match(enDash.teks, /Overview/);
