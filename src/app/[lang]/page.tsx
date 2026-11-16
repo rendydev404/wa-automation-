@@ -17,27 +17,48 @@ import { type T, bahasaSah, pembuatT } from "@/lib/bahasa";
 import { teksHalaman } from "@/lib/bahasa-halaman";
 import { UMUR_HISTORI_HARI } from "@/lib/format";
 import { IkonWhatsApp } from "@/components/ikon-whatsapp";
-import { DataOrganisasi, KakiPerusahaan } from "@/components/kaki-perusahaan";
+import { KakiPerusahaan } from "@/components/kaki-perusahaan";
+import { DataProdukLanding, DataSitusLanding } from "@/components/landing/data-terstruktur";
+import { faqLanding } from "@/lib/faq-landing";
+import { ASAL_SITUS } from "@/lib/seo";
 import { MEREK, NOMOR_WA_DEMO, URL_WA_DEMO } from "@/lib/merek";
 import { MASA_ID, MASA_EN, MASA_EN_ADJ } from "@/lib/jaminan-def";
 
 /** Landing page publik: seluruhnya statis (prerender, kedua bahasa), animasi Remotion dimuat terpisah di sisi klien. */
 
-const ASAL = process.env.APP_URL?.replace(/\/+$/, "") || "https://chatgercep.com";
-
 export async function generateMetadata({ params }: PageProps<"/[lang]">): Promise<Metadata> {
   const { lang } = await params;
   const b = bahasaSah(lang) ? lang : "id";
   const t = pembuatT(b);
+  const judul = t(`${MEREK} · Chatbot AI WhatsApp yang Membalas Pelanggan 24/7`, `${MEREK} · AI WhatsApp Chatbot That Replies to Customers 24/7`);
+  const deskripsi = t(
+    "Chatbot AI WhatsApp untuk usaha: sambungkan nomor WA lewat scan QR, isi Informasi Usaha, dan AI membalas chat pelanggan otomatis 24 jam dalam hitungan detik. Garansi uang kembali.",
+    "AI WhatsApp chatbot for businesses: connect your number with a QR scan, add your Business Info, and the AI replies to customer chats automatically 24/7 within seconds. Money-back guarantee.",
+  );
+  const url = b === "en" ? "/eng" : "/";
+  const gambar = { url: "/og.jpg", width: 1200, height: 630, alt: judul };
   return {
-    metadataBase: new URL(ASAL),
-    title: t(`${MEREK} · AI yang membalas pelanggan Anda 24/7`, `${MEREK} · AI that replies to your customers 24/7`),
-    description: t(
-      "Sambungkan WhatsApp dengan scan QR, isi Informasi Usaha Anda, dan biarkan AI membalas pelanggan dalam hitungan detik.",
-      "Connect WhatsApp with a quick QR scan, teach the AI about your business, and let it answer customers in seconds.",
-    ),
-    robots: { index: true, follow: true },
-    alternates: { canonical: b === "en" ? "/eng" : "/", languages: { id: "/", en: "/eng", "x-default": "/" } },
+    metadataBase: new URL(ASAL_SITUS),
+    title: judul,
+    description: deskripsi,
+    keywords:
+      b === "en"
+        ? ["AI WhatsApp chatbot", "WhatsApp auto reply", "WhatsApp bot", "AI customer service WhatsApp", "WhatsApp Business AI"]
+        : ["chatbot WhatsApp AI", "auto reply WhatsApp", "bot WA otomatis", "AI customer service WhatsApp", "balas chat otomatis", "WhatsApp Business AI"],
+    applicationName: MEREK,
+    robots: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+    alternates: { canonical: url, languages: { id: "/", en: "/eng", "x-default": "/" } },
+    openGraph: {
+      type: "website",
+      url,
+      siteName: MEREK,
+      title: judul,
+      description: deskripsi,
+      locale: b === "en" ? "en_US" : "id_ID",
+      alternateLocale: b === "en" ? "id_ID" : "en_US",
+      images: [gambar],
+    },
+    twitter: { card: "summary_large_image", title: judul, description: deskripsi, images: [gambar.url] },
   };
 }
 
@@ -111,51 +132,6 @@ const keamanan = (t: T) => [
     ikon: Smartphone,
     judul: t("Kontrol penuh perangkat", "Full device control"),
     teks: t("Putuskan WhatsApp kapan saja dari dashboard atau dari HP.", "Disconnect WhatsApp anytime from the dashboard or your phone."),
-  },
-];
-
-const faq = (t: T) => [
-  {
-    t: t("Apakah nomor WhatsApp saya aman?", "Is my WhatsApp number safe?"),
-    j: t(
-      "Nomor tersambung sebagai perangkat tertaut, sama seperti WhatsApp Web. Anda bisa memutusnya kapan saja dari dashboard atau dari HP (Perangkat tertaut → Keluar).",
-      "Your number connects as a linked device, just like WhatsApp Web. You can disconnect it anytime from the dashboard or from your phone (Linked devices → Log out).",
-    ),
-  },
-  {
-    t: t("Bisa dipakai WhatsApp Business?", "Does it work with WhatsApp Business?"),
-    j: t(
-      "Bisa. WhatsApp biasa maupun WhatsApp Business, selama bisa membuka menu Perangkat tertaut. Matikan dulu balasan otomatis bawaan WhatsApp Business (Pesan salam & Pesan tidak di tempat) dan layanan auto-reply lain di nomor itu, supaya pelanggan tidak menerima balasan ganda.",
-      "Yes. Both regular WhatsApp and WhatsApp Business work, as long as you can open the Linked devices menu. Just turn off WhatsApp Business's built-in auto-replies (Greeting message and Away message) and any other auto-reply service on that number first, so customers don't get duplicate replies.",
-    ),
-  },
-  {
-    t: t("Bagaimana kalau AI tidak tahu jawabannya?", "What if the AI doesn't know the answer?"),
-    j: t(
-      "AI dilarang menebak. Bila informasinya tidak ada di Informasi Usaha, AI berkata terus terang dan meneruskan ke Anda.",
-      "The AI isn't allowed to guess. If the answer isn't in your Business Info, it says so honestly and hands the chat over to you.",
-    ),
-  },
-  {
-    t: t("Berapa nomor yang bisa saya sambungkan?", "How many numbers can I connect?"),
-    j: t(
-      "Setiap akun bisa menyambungkan 1 nomor untuk setup dan Uji bot, bahkan sebelum berlangganan. Butuh lebih banyak nomor untuk tim atau beberapa lini layanan? Pilih paket Bisnis atau Pro di bagian Harga.",
-      "Every account can connect 1 number to set up and test the bot, even before subscribing. Need more for your team or several service lines? Choose a larger plan in the Pricing section.",
-    ),
-  },
-  {
-    t: t("Apa yang terjadi kalau kuota balasan AI habis?", "What happens when my AI replies run out?"),
-    j: t(
-      "AI berhenti membalas sementara dan chat tetap masuk ke HP-mu seperti biasa. Perpanjang atau naikkan paket, AI langsung aktif lagi.",
-      "The AI pauses and chats keep arriving on your phone as usual. Renew or upgrade your plan and the AI is back on right away.",
-    ),
-  },
-  {
-    t: t("Bolehkah untuk broadcast/promo massal?", "Can I use it for broadcasts or bulk promotions?"),
-    j: t(
-      "Tidak. Layanan ini untuk membalas pelanggan yang menghubungi Anda. Akun yang dipakai untuk spam akan diblokir.",
-      "No. This service is for replying to customers who message you. Accounts used for spam will be banned.",
-    ),
   },
 ];
 
@@ -461,7 +437,7 @@ export default async function Landing() {
       <section id="faq" className="mx-auto max-w-3xl scroll-mt-8 px-4 py-20 sm:px-6 lg:py-28">
         <h2 className="text-center text-3xl font-extrabold tracking-tight sm:text-[40px]">{t("Pertanyaan yang sering diajukan", "Frequently asked questions")}</h2>
         <div className="mt-10 space-y-3">
-          {faq(t).map((f) => (
+          {faqLanding(t).map((f) => (
             <details key={f.t} className="group rounded-2xl border border-line bg-surface p-5 shadow-card open:shadow-pop">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[15px] font-bold [&::-webkit-details-marker]:hidden">
                 {f.t}
@@ -526,7 +502,10 @@ export default async function Landing() {
         }
         kedua={{ href: "/panduan", label: t("Lihat dulu panduan bergambarnya", "See the illustrated guide first") }}
       />
-      <DataOrganisasi />
+      <DataSitusLanding />
+      <Suspense fallback={null}>
+        <DataProdukLanding />
+      </Suspense>
     </div>
   );
 }

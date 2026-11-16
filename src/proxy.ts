@@ -16,8 +16,8 @@ import { COOKIE_VOUCHER, UMUR_COOKIE_VOUCHER, kodeVoucherSah, normalisasiKodeVou
 // /api/analitik = event analitik dari browser, juga pengunjung yang belum login (handler-nya sendiri memeriksa Origin,
 // tanda tangan cookie sesi, ukuran, dan batas laju).
 const BERKAS_STATIS = /\.(?:png|jpe?g|webp|avif|gif|svg|ico|mp4|webm|woff2?)$/i;
-// Landing page per industri (/laundry, /bengkel, ...), /garansi, dan /sitemap-lp.xml: halaman iklan, tanpa login.
-const PUBLIK = new Set([...JALUR_LP_PUBLIK, "/", "/program-afiliasi", "/panduan", "/api/health", "/api/pendaftar", "/api/sinkron", "/api/auth/google", "/api/auth/google/callback", "/api/midtrans/notifikasi", "/api/ipaymu/notifikasi", "/api/voucher/terbit", "/api/analitik", "/api/lp/event", "/mode-api"]);
+// Landing page per industri (/laundry, /bengkel, ...), /garansi, /sitemap(-lp).xml, dan /llms.txt: publik, tanpa login.
+const PUBLIK = new Set([...JALUR_LP_PUBLIK, "/", "/sitemap.xml", "/llms.txt", "/program-afiliasi", "/panduan", "/api/health", "/api/pendaftar", "/api/sinkron", "/api/auth/google", "/api/auth/google/callback", "/api/midtrans/notifikasi", "/api/ipaymu/notifikasi", "/api/voucher/terbit", "/api/analitik", "/api/lp/event", "/mode-api"]);
 
 /**
  * Developer API: diautentikasi di handler masing-masing, bukan cookie. /api/v1/* = API mesin self-host (Bearer key);
@@ -29,7 +29,7 @@ const publikDeveloperApi = (p: string): boolean =>
   p === "/api/v1" || p.startsWith("/api/v1/") || p.startsWith("/api/lisensi/") || p === "/docs/api" || p.startsWith("/docs/api/") || p === "/developer-api";
 
 /** Mode mesin self-host: halaman khusus chatgercep.com (landing, langganan, afiliasi, portal developer) tidak ada. */
-const HALAMAN_PUSAT = ["/program-afiliasi", "/panduan", "/langganan", "/afiliasi", "/developer", "/developer-api", "/trial-habis"];
+const HALAMAN_PUSAT = ["/llms.txt", "/sitemap.xml", "/program-afiliasi", "/panduan", "/langganan", "/afiliasi", "/developer", "/developer-api", "/trial-habis"];
 const halamanPusat = (p: string): boolean => p === "/" || HALAMAN_PUSAT.some((h) => p === h || p.startsWith(`${h}/`));
 /** Menu panel khusus pusat (paket berbayar, transaksi, afiliasi, follow-up penjualan, pixel, Developer API) di mesin = ke Ringkasan. */
 const PANEL_PUSAT = ["/admin/paket", "/admin/transaksi", "/admin/afiliasi", "/admin/followup", "/admin/pixel", "/admin/developer-api"];

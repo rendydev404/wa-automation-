@@ -12,17 +12,3 @@ export async function KakiPerusahaan({ className = "" }: { className?: string })
     </div>
   );
 }
-
-/** Data terstruktur Organization (schema.org) supaya mesin pencari mengaitkan merek dengan badan usahanya. */
-export function DataOrganisasi() {
-  const data = {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    name: PERUSAHAAN,
-    legalName: PERUSAHAAN,
-    url: "https://chatgercep.com",
-    logo: "https://chatgercep.com/icon.svg",
-    brand: { "@type": "Brand", name: MEREK },
-  };
-  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }} />;
-}

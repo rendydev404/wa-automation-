@@ -1,6 +1,35 @@
+# ChatGerCep: halaman publik boleh dirayapi mesin pencari dan asisten AI. Panel, akun, dan API tidak.
+# Grup khusus bot AI ditulis eksplisit supaya jelas diizinkan (bot yang punya grup sendiri tidak membaca grup "*",
+# jadi aturan Disallow-nya diulang).
+
 User-agent: *
 Allow: /
 Disallow: /api/
 Disallow: /admin
+Disallow: /eng/admin
 
+User-agent: Googlebot
+User-agent: Bingbot
+User-agent: Google-Extended
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: anthropic-ai
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Applebot
+User-agent: Applebot-Extended
+User-agent: meta-externalagent
+User-agent: DuckAssistBot
+User-agent: YouBot
+Allow: /
+Allow: /llms.txt
+Disallow: /api/
+Disallow: /admin
+Disallow: /eng/admin
+
+Sitemap: https://chatgercep.com/sitemap.xml
 Sitemap: https://chatgercep.com/sitemap-lp.xml
