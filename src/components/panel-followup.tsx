@@ -43,11 +43,17 @@ export function PanelFollowup({ numberId, status, daftar, kini }: { numberId: nu
         ? { label: t("Direm otomatis", "Auto-paused"), nada: "text-danger" }
         : kuotaHabis
           ? { label: t("Kuota AI habis", "AI quota used up"), nada: "text-warning" }
-          : !status.terhubung
+          : !status.terhubung || status.tahan || status.sebabBatas === "baru"
             ? { label: t("Tertahan", "On hold"), nada: "text-warning" }
             : { label: t("Berjalan", "Running"), nada: "text-success" };
   const sebab =
-    status.sebabBatas === "pemanasan"
+    status.tahan === "bahaya"
+      ? t("Ditahan: WhatsApp memberi tanda pembatasan pada nomor ini", "Held: WhatsApp signalled a restriction on this number")
+      : status.tahan === "stabil"
+        ? t("Menunggu koneksi nomor stabil 1 jam sebelum mengirim", "Waiting for the connection to be stable for 1 hour")
+        : status.sebabBatas === "baru"
+          ? t("Nomor baru: follow-up mulai setelah 3 hari pertama", "New number: follow-up starts after the first 3 days")
+          : status.sebabBatas === "pemanasan"
       ? t("Nomor baru: dibatasi selama 7 hari pertama", "New number: limited for the first 7 days")
       : status.sebabBatas === "rasio"
         ? t("Menyesuaikan jumlah balasan biasa nomor ini", "Matched to this number's normal reply volume")

@@ -429,24 +429,25 @@ await cek("event dari soket lama diabaikan", async () => {
 bagian("B. Balasan AI");
 const P1 = "555000111@lid";
 
-await cek("pesan masuk: menunggu manusia dulu (tanpa tanda-baca/mengetik), lalu AI membalas", async () => {
+await cek("pesan masuk: menunggu manusia dulu (tanpa tanda-baca/mengetik), lalu dibaca & 'mengetik' selagi AI menyusun, lalu dikirim", async () => {
   const id = idBaru();
   const t0 = Date.now();
   tiba(sA, pesan(P1, "Halo, buka jam berapa?", { id }));
-  await tidur(500);
+  await tidur(300);
   assert.equal(hermes.panggilan.length, 0);
   assert.deepEqual(sA.dibaca, []);
   assert.deepEqual(sA.presensi, []);
-  // AI baru menyusun jawaban: belum ada tanda-baca maupun "mengetik" (manusia tidak mengetik di chat yang belum dibuka).
+  // Masa tunggu habis: seperti manusia, pesan dibaca dulu lalu "mengetik" selagi AI menyusun jawaban.
   await tunggu(() => hermes.panggilan.length === 1, 3000, "AI dipanggil");
-  assert.deepEqual(sA.dibaca, []);
-  assert.deepEqual(sA.presensi, []);
+  assert.deepEqual(sA.dibaca, [[{ remoteJid: P1, id, fromMe: false }]], "dibaca sebelum AI dipanggil");
+  await tunggu(() => sA.presensi.includes(`composing:${P1}`), 1000, "mengetik selagi AI menyusun");
+  assert.equal(sA.terkirim.length, 0, "masih mengetik");
   await tunggu(() => sA.terkirim.length === 1, 7000, "balasan terkirim");
   const h = hermes.panggilan[0];
-  // tunggu_detik 1 dtk dipakai sebagai batas bawah, ditambah acak sampai 40%.
-  assert.ok(h.at - t0 >= w(950), `AI dipanggil setelah tunggu_detik (${h.at - t0} ms)`);
+  // tunggu_detik 1 dtk diacak ±1/3 (0,67–1,33 dtk; bawaan 3 dtk = 2–4 dtk).
+  assert.ok(h.at - t0 >= w(667) - 5, `AI dipanggil setelah tunggu_detik (${h.at - t0} ms)`);
   // Timer diskalakan, tetapi proses lain yang jalan paralel bisa menunda event loop di mesin sibuk.
-  assert.ok(h.at - t0 < w(1400 * 1.4) + 1500, `tanpa jeda tambahan dari database (${h.at - t0} ms)`);
+  assert.ok(h.at - t0 < w(1333) + 1500, `tanpa jeda tambahan dari database (${h.at - t0} ms)`);
   assert.equal(h.pesan, "Halo, buka jam berapa?");
   assert.equal(h.sesi, `wa-${kunciChat(A.sesi, P1).slice(0, 24)}-1`);
   assert.match(h.sistem, /KODEUNIK-A/);
@@ -454,8 +455,10 @@ await cek("pesan masuk: menunggu manusia dulu (tanpa tanda-baca/mengetik), lalu 
   assert.equal(k.jid, P1);
   assert.equal(k.isi.text, "*Jawaban* untuk: Halo, buka jam berapa?"); // markdown -> format WhatsApp
   assert.equal(k.isi.linkPreview, null);
-  // Lama mengetik ikut panjang jawaban (39 huruf: 1.500 + 39 x 25 ms = 2.475 ms, diacak ±20%), dihitung setelah dibaca.
-  assert.ok(k.at - h.at >= w(2475 * 0.8) - 50, `ada jeda mengetik sebelum balasan (${k.at - h.at} ms setelah AI dipanggil)`);
+  // AI menjawab dalam 40 ms, tetapi manusia tidak mengetik secepat itu: "mengetik" paling sedikit 1,5–3 dtk (acak)
+  // sejak mulai mengetik (sesaat sebelum AI dipanggil), lalu langsung dikirim.
+  assert.ok(k.at - h.at >= w(1500) - 200, `ada jeda mengetik sebelum balasan (${k.at - h.at} ms setelah AI dipanggil)`);
+  assert.ok(k.at - h.at < w(3000) + 1500, `tanpa jeda mengetik berlebihan (${k.at - h.at} ms setelah AI dipanggil)`);
   assert.deepEqual(sA.dibaca, [[{ remoteJid: P1, id, fromMe: false }]]);
   // Urutan seperti manusia: baca, mengetik, berhenti, baru kirim.
   assert.deepEqual(sA.urutan, ["baca", "ketik", "berhenti", "kirim"]);
@@ -496,7 +499,7 @@ await cek("pesan beruntun digabung jadi satu giliran AI; semuanya ditandai dibac
   );
 });
 
-// Setelah lama mengetik & tunggu_detik (1.000 ms + acak) terbukti di atas, percepat untuk Bagian C.
+// Setelah lama mengetik minimal & tunggu_detik (1.000 ms ± 1/3) terbukti di atas, percepat untuk Bagian C.
 globalThis.__waBridge.minMengetikMs = 20;
 globalThis.__waBridge.tungguMs = w(300);
 
@@ -635,6 +638,7 @@ await cek("spam yang dinilai AI (tag <abaikan>): tidak dikirim, tidak memotong k
   hermes.jawab = null;
   assert.match(hermes.panggilan.at(-1).sistem, /<aturan_spam>/);
   assert.equal(sA.terkirim.length, k0);
+  assert.equal(sA.presensi.filter((p) => p.endsWith(P)).at(-1), `paused:${P}`, "berhenti mengetik, tidak membalas");
   const [r] = await sql`SELECT spam, spam_alasan FROM percakapan WHERE kunci = ${kunciChat(A.sesi, P)}`;
   assert.deepEqual({ ...r }, { spam: 1, spam_alasan: "Dinilai AI: promosi (jual followers)" });
   const [u] = await sql`SELECT abaikan FROM ai_pakai WHERE number_id = ${A.id} ORDER BY id DESC LIMIT 1`;
@@ -815,37 +819,40 @@ await cek("chat dibuka di HP selagi menunggu: AI menahan diri selama tunggu_baca
   tiba(sA, pesan(P3, "permisi", { id }));
   await tidur(300);
   dibaca(sA, P3, { id });
-  await tidur(2200);
+  const tBuka = Date.now();
+  await tidur(1500);
   assert.equal(hermes.panggilan.length, n0, "belum dijawab: manusia sedang membuka chat");
+  assert.ok(!sA.presensi.includes(`composing:${P3}`), "bot tidak mengetik selagi manusia memegang chat");
   await tunggu(() => hermes.panggilan.length === n0 + 1, 3000);
-  const selang = hermes.panggilan.at(-1).at - t0;
-  // tunggu_baca_detik 3 dtk = batas bawah, ditambah acak sampai 40% (3–4,2 dtk setelah dibuka).
-  assert.ok(selang >= w(3200) && selang < w(4200 + 1300) + 150, `diambil alih 3–4,2 dtk setelah dibuka (${selang} ms)`);
+  const selang = hermes.panggilan.at(-1).at - tBuka;
+  // tunggu_baca_detik 3 dtk diacak ±1 dtk (2–4 dtk setelah dibuka).
+  assert.ok(selang >= w(2000) - 5 && selang < w(4000) + 1300, `diambil alih 2–4 dtk setelah dibuka (${selang} ms, t0+${Date.now() - t0})`);
   await tunggu(() => sA.terkirim.at(-1)?.jid === P3, 4000);
 });
 
 const P4 = "555000403@lid";
-await cek("chat dibuka saat AI sedang menyusun: jawaban ditahan, dikirim tanpa memanggil AI lagi", async () => {
-  hermes.jedaMs = 1500;
+await cek("AI lama menyusun: 'mengetik' diulang terus; tanda-baca HP atas pesan yang sudah dibaca bot bukan tanda manusia", async () => {
+  hermes.jedaMs = 2500;
   const n0 = hermes.panggilan.length;
   const k0 = sA.terkirim.length;
-  tiba(sA, pesan(P4, "stok masih ada?"));
+  const id = idBaru();
+  tiba(sA, pesan(P4, "stok masih ada?", { id }));
   await tunggu(() => hermes.panggilan.length === n0 + 1, 3000);
+  assert.ok(sA.dibaca.some((ks) => ks.some((k) => k.id === id)), "dibaca sebelum AI dipanggil");
   await tidur(300);
-  const tBuka = Date.now();
-  dibaca(sA, P4);
-  await tidur(2300); // AI sudah selesai (1,5 dtk), tetapi jawabannya tidak boleh terkirim dulu
-  assert.equal(sA.terkirim.length, k0);
-  await tunggu(() => sA.terkirim.length === k0 + 1, 3000);
-  const selang = sA.terkirim.at(-1).at - tBuka;
-  assert.ok(selang >= w(2900), `dikirim setelah masa tunggu baca (${selang} ms)`);
+  dibaca(sA, P4, { id }); // tanda-baca pesan yang sudah dibaca bot (gema / HP): jawaban tidak ditahan
+  await tunggu(() => sA.terkirim.length === k0 + 1, 5000);
   assert.equal(sA.terkirim.at(-1).isi.text, "*Jawaban* untuk: stok masih ada?");
   assert.equal(hermes.panggilan.length, n0 + 1);
+  const ketik = sA.presensi.filter((p) => p === `composing:${P4}`).length;
+  assert.ok(ketik >= 2, `status mengetik diulang selama AI menyusun 2,5 dtk (${ketik}x)`);
+  await tidur(100);
+  assert.equal(sA.presensi.filter((p) => p.endsWith(P4)).at(-1), `paused:${P4}`);
   hermes.jedaMs = 40;
 });
 
 const P5 = "555000404@lid";
-await cek("chat dibuka lalu manusia membalas: jawaban yang ditahan dibuang", async () => {
+await cek("manusia membalas dari HP selagi AI menyusun ('mengetik'): jawaban AI dibuang, berhenti mengetik, chat dijeda", async () => {
   hermes.jedaMs = 800;
   const n0 = hermes.panggilan.length;
   const k0 = sA.terkirim.length;
@@ -857,6 +864,7 @@ await cek("chat dibuka lalu manusia membalas: jawaban yang ditahan dibuang", asy
   await tidur(3500);
   assert.equal(sA.terkirim.length, k0);
   assert.ok(chatMemori(A.sesi, P5).jeda_sampai > kini());
+  assert.equal(sA.presensi.filter((p) => p.endsWith(P5)).at(-1), `paused:${P5}`, "tidak tertinggal 'mengetik'");
   hermes.jedaMs = 40;
 });
 
@@ -881,10 +889,12 @@ await cek("PN dan LID lawan bicara yang sama = satu percakapan; balasan ke alama
   tiba(sA, pesan(PN, "halo dari nomor", { alt: LID })); // pesan beralamat nomor telepon, LID di atribut
   await tidur(300);
   dibaca(sA, LID); // tanda-baca tiba dalam bentuk LID
-  await tidur(1900);
+  const tBuka = Date.now();
+  await tidur(1500);
   assert.equal(hermes.panggilan.length, n0, "tanda-baca LID mengenai percakapan yang masuk lewat PN");
   await tunggu(() => hermes.panggilan.length === n0 + 1, 3000);
-  assert.ok(hermes.panggilan.at(-1).at - t0 >= w(3200));
+  // Ditahan tunggu_baca_detik (3 dtk ± 1 dtk) sejak dibuka.
+  assert.ok(hermes.panggilan.at(-1).at - tBuka >= w(2000) - 5, `ditahan setelah dibuka (${hermes.panggilan.at(-1).at - tBuka} ms, t0+${hermes.panggilan.at(-1).at - t0})`);
   assert.equal(hermes.panggilan.at(-1).sesi, `wa-${kunciChat(A.sesi, LID).slice(0, 24)}-1`);
   await tunggu(() => sA.terkirim.at(-1)?.jid === PN, 4000);
   // sebaliknya: tanda-baca berbentuk PN tanpa LID, pemetaannya dikenal penyimpanan Baileys
@@ -895,7 +905,7 @@ await cek("PN dan LID lawan bicara yang sama = satu percakapan; balasan ke alama
   tiba(sA, pesan(LID2, "halo dari lid"));
   await tidur(300);
   dibaca(sA, PN2);
-  await tidur(1900);
+  await tidur(1500);
   assert.equal(hermes.panggilan.length, n1, "tanda-baca PN mengenai percakapan yang masuk lewat LID");
   await tunggu(() => sA.terkirim.at(-1)?.jid === LID2, 5000);
 });

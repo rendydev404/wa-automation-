@@ -5,7 +5,7 @@ import { ArrowLeft, Check, Circle, Loader2, PencilLine, RotateCcw, Sparkles, Tri
 import { tambahTeksAction } from "@/app/actions";
 import type { T } from "@/lib/bahasa";
 import { angka } from "@/lib/format";
-import { JENIS_USAHA, KELENGKAPAN, type KunciUsaha, bersihkanKerangka, cekKelengkapan, infoUsaha, kerangka } from "@/lib/templat-usaha";
+import { JENIS_USAHA, KELENGKAPAN, type KunciUsaha, bersihkanKerangka, cekKelengkapan, infoUsaha, jenisUsahaSah, kerangka } from "@/lib/templat-usaha";
 import { useBahasa } from "./bahasa";
 import { LoadingAi } from "./loading-ai";
 import { Pesan } from "./ui";
@@ -51,6 +51,17 @@ export function EditorKnowledge({ numberId, edit, tutup }: { numberId: number; e
   const [tahap, setTahap] = useState<Tahap>(edit ? "proses" : "tulis");
   const [teks, setTeks] = useState("");
   const [jenis, setJenis] = useState<KunciUsaha | null>(null);
+  // Industri LP asal pengunjung (localStorage cg_industry, ditulis lp/aset/lp.js): pilihannya ditaruh paling depan.
+  const [dariLp, setDariLp] = useState<KunciUsaha | null>(null);
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("cg_industry");
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage hanya terbaca setelah hidrasi
+      if (jenisUsahaSah(v)) setDariLp(v);
+    } catch {
+      /* penyimpanan diblokir: urutan bawaan */
+    }
+  }, []);
   const [hasil, setHasil] = useState<Hasil | null>(null);
   const [judul, setJudul] = useState(edit?.judul ?? "");
   const [galat, setGalat] = useState<string | null>(null);
@@ -267,7 +278,7 @@ export function EditorKnowledge({ numberId, edit, tutup }: { numberId: number; e
             {t("Bingung mulai dari mana? Pilih jenis usaha untuk mendapat kerangka isian:", "Not sure where to start? Pick a business type to get a template:")}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
-            {(Object.keys(JENIS_USAHA) as KunciUsaha[]).map((k) => (
+            {(Object.keys(JENIS_USAHA) as KunciUsaha[]).sort((x, y) => Number(y === dariLp) - Number(x === dariLp)).map((k) => (
               <button
                 key={k}
                 type="button"

@@ -2,12 +2,14 @@ import "server-only";
 import { db, sekarang } from "./db";
 import { bakukanTag, catatPakai, tanyaAi } from "./ai";
 import { formatWa, kirimSapaan } from "./bridge";
+import { ATURAN_LEWATI, type HasilSusun, alasanTahan, ambilLewati } from "./followup-aman";
 import {
   BATAS_PEMANASAN,
   BATAS_PESAN,
   BATAS_SETELAN_USAHA,
   type BarisUsaha,
   JEDA_ANTARPESAN_MENIT,
+  NOMOR_BARU_HARI,
   PEMANASAN_HARI,
   POLA_STOP,
   POLA_STOP_PENDEK,
@@ -22,6 +24,8 @@ import {
   UMUR_ULANG_HARI,
 } from "./followup-def";
 import { POLA_DESAK, POLA_TAUTAN } from "./followup-prospek";
+import { daftarProduk, katalogBoleh } from "./katalog";
+import { ambilKirimProduk } from "./katalog-def";
 import { susunSistem } from "./knowledge";
 import { aiUntukAkun, akunBerbayar, sisaKuotaAi } from "./langganan";
 import { botBoleh } from "./mesin/lisensi";
@@ -49,12 +53,18 @@ import { WaError, infoSesi } from "./wa";
  * Anti-blokir, lebih ketat dari nomor CS karena nomor pengguna belum tentu "matang":
  *   - Batas harian, jeda acak, jam kirim, dan rem centang satu PER NOMOR. Rem satu nomor tidak menghentikan nomor lain;
  *     pemilik nomor diberi notifikasi dan melanjutkan sendiri dari tab Follow-up.
- *   - Pemanasan: nomor yang ditambahkan < PEMANASAN_HARI hari dibatasi BATAS_PEMANASAN pesan/hari.
+ *   - Nomor sehat (followup-aman.ts): soket tersambung stabil >= STABIL_MENIT dan tanpa tanda bahaya WhatsApp (401
+ *     dicabut / 403 / error 463). Tanda bahaya = rem nomor itu langsung menyala (remBahayaUsaha) + pemilik diberi tahu.
+ *   - Nomor baru: < NOMOR_BARU_HARI hari tanpa follow-up sama sekali, lalu sampai PEMANASAN_HARI hari dibatasi
+ *     BATAS_PEMANASAN pesan/hari.
  *   - Rasio: pesan follow-up per hari paling banyak RASIO_KIRIMAN x balasan biasa (minimal RASIO_MIN).
  *   - Order ulang paling banyak PORSI_ULANG batas harian: lead baru didahulukan.
  *   - Menghormati pemilik: chat yang bot-nya sedang dijeda atau dibalas pemilik dari HP dalam 24 jam dilewati.
- *   - Isi ditulis AI dari riwayat chat & Informasi Usaha nomor itu; tanpa tautan, tanpa kelangkaan/batas waktu palsu,
- *     fakta diperiksa pemeriksa.ts (gagal dua kali = templat netral).
+ *   - Isi: hard selling produk milik pemilik nomor, ditulis AI dari riwayat chat, Informasi Usaha, dan katalog nomor itu
+ *     (rekomendasi satu produk yang paling cocok + harga persis, jawab keberatan, pertanyaan penutupan, pembalik risiko
+ *     hanya bila tertulis). Tanpa tautan, tanpa kelangkaan/batas waktu palsu, fakta diperiksa pemeriksa.ts (gagal dua
+ *     kali = templat netral). AI lebih dulu menilai riwayat: chat yang sudah menolak / sudah beli / komplain / bukan
+ *     soal membeli dilewati (<lewati>), karena orang yang merasa terganggu itulah yang melaporkan nomor.
  *
  * Kuota: tiap pesan yang ditulis AI dan dipakai = 1 balasan AI akun itu (draf yang ditolak pemeriksa tidak dihitung).
  * Kuota habis = tidak ada follow-up yang dikirim.
@@ -288,6 +298,7 @@ async function batasRasio(numberId: number, p: PerNomor): Promise<number> {
 async function batasHariIni(nomor: Nomor, p: PerNomor): Promise<{ batas: number; sebab: StatusUsaha["sebabBatas"] }> {
   let batas = p.setelan.batasHarian;
   let sebab: StatusUsaha["sebabBatas"] = "setelan";
+  if (sekarang() - nomor.created_at < NOMOR_BARU_HARI * 86400) return { batas: 0, sebab: "baru" };
   if (sekarang() - nomor.created_at < PEMANASAN_HARI * 86400 && BATAS_PEMANASAN < batas) {
     batas = BATAS_PEMANASAN;
     sebab = "pemanasan";
@@ -338,6 +349,34 @@ async function periksaRem(nomor: Nomor, p: PerNomor): Promise<boolean> {
       kunci: `followup-rem:${nomor.id}:${t}`,
     });
   return true;
+}
+
+/**
+ * Tanda bahaya dari WhatsApp untuk nomor ini (wa.ts lewat followup.ts): rem nomor langsung menyala, tersimpan di
+ * database (bertahan setelah server dimulai ulang), dan pemilik diberi tahu. Nomor tanpa follow-up aktif tidak disentuh.
+ */
+export async function remBahayaUsaha(nomor: Nomor, alasan: string): Promise<void> {
+  const sql = await db();
+  const t = sekarang();
+  const teks = `${alasan}. Follow-up dihentikan supaya nomor tidak makin dibatasi.`;
+  const r = await sql`
+    UPDATE followup_nomor SET rem_pada = ${t}, rem_alasan = ${teks}, diperbarui = ${t}
+     WHERE number_id = ${nomor.id} AND (aktif OR ulang_aktif) AND rem_pada IS NULL`;
+  const p = st.per.get(nomor.id);
+  if (p && !p.rem) p.rem = { pada: t, alasan: teks };
+  if (!r.count) return;
+  console.error(`[followup-usaha] REM BAHAYA nomor ${nomor.id}: ${alasan}`);
+  if (nomor.user_id)
+    await kirimNotif(nomor.user_id, {
+      jenis: "nomor",
+      judul: { id: `Follow-up ${nomor.label} dihentikan otomatis`, en: `Follow-up on ${nomor.label} stopped automatically` },
+      isi: {
+        id: `${teks} Pastikan nomornya normal di HP dan tersambung stabil minimal sehari, lalu lanjutkan dari tab Follow-up.`,
+        en: `WhatsApp signalled a restriction on this number (${alasan}), so follow-up was paused. Make sure the number works normally on the phone and stays connected for a day, then resume from the Follow-up tab.`,
+      },
+      tautan: `/nomor/${nomor.id}#followup`,
+      kunci: `followup-bahaya:${nomor.id}:${t}`,
+    });
 }
 
 // ---------- Pemindaian ----------
@@ -453,25 +492,26 @@ async function chatDari(kunci: string): Promise<Chat | undefined> {
 
 const PANDUAN_TAHAP: Record<Tahap, string> = {
   1: [
-    "Ini pesan follow-up PERTAMA (lanjutan). Teknik:",
-    "- Lanjutkan TEPAT dari hal terakhir yang ia tanyakan atau bahas (sebut produk/layanannya), jangan menyapa seperti orang baru.",
-    "- Beri satu hal berguna dari pengetahuan yang belum ia dapat (pilihan varian, jadwal, cara pesan, estimasi waktu, dsb.).",
-    "- Jawab duluan satu keberatan yang paling mungkin membuatnya ragu (harga, waktu, ribet), singkat dan pakai fakta dari pengetahuan.",
-    "- Tutup dengan SATU pertanyaan yang gampang dijawab (ya/tidak, atau pilih A/B). Jangan menutup dengan \"ada yang bisa dibantu?\".",
+    "Ini pesan follow-up PERTAMA (lanjutan + rekomendasi). Teknik:",
+    "- Lanjutkan TEPAT dari produk/layanan yang terakhir ia tanyakan (sebut namanya), jangan menyapa seperti orang baru.",
+    "- Rekomendasikan SATU pilihan yang paling cocok dengan kebutuhannya (nama + harga PERSIS dari pengetahuan/katalog) beserta satu alasan kuat kenapa cocok untuknya.",
+    "- Jawab duluan satu keberatan yang paling mungkin membuatnya ragu (harga, waktu, ongkir, ribet, ragu kualitas), singkat dan pakai fakta dari pengetahuan.",
+    "- Tutup dengan pertanyaan penutupan yang gampang dijawab dan mengarah ke pesanan (pilih A/B, jumlah, atau waktu kirim). Jangan menutup dengan \"ada yang bisa dibantu?\".",
     "- 2 sampai 4 kalimat, paling panjang 420 karakter.",
   ].join("\n"),
   2: [
-    "Ini pesan follow-up KEDUA (manfaat), pesan pertamamu belum dibalas. Teknik:",
-    "- Tunjukkan manfaat nyata produk/layanan yang ia tanyakan untuk kebutuhannya, HANYA dari pengetahuan nomor ini.",
-    "- Bila menyebut harga, pakai harga PERSIS dari pengetahuan atau dari chat ini. Promo hanya bila tertulis di pengetahuan.",
-    "- Ajakan tegas ke langkah berikut yang jelas (konfirmasi pesanan, pilih jadwal, kirim detail yang masih kurang).",
+    "Ini pesan follow-up KEDUA (nilai & dorongan), pesan pertamamu belum dibalas. Teknik:",
+    "- Takut rugi yang wajar: apa yang ia lewatkan bila menunda (kebutuhannya tetap belum beres, manfaat yang belum ia rasakan), kaitkan dengan kebutuhan yang ia sebut di chat. Jangan menakut-nakuti.",
+    "- Jangkar nilai HANYA dari data yang ada: harga coret / harga normal, promo, bonus, gratis ongkir, paket hemat, atau harga per pemakaian (hitung dengan benar).",
+    "- Bukti sosial (testimoni, jumlah pembeli, rating) HANYA bila tertulis di pengetahuan. Tidak ada = jangan disebut.",
+    "- Ajakan tegas ke SATU langkah berikut yang jelas (konfirmasi pesanan, kirim alamat, pilih varian, cara bayar yang ada di pengetahuan).",
     "- Jangan mengulang kalimat pesan follow-up sebelumnya. 3 sampai 5 kalimat, paling panjang 560 karakter.",
   ].join("\n"),
   3: [
-    "Ini pesan follow-up TERAKHIR (pamit), dua pesan sebelumnya belum dibalas. Teknik:",
+    "Ini pesan follow-up TERAKHIR (pamit + pembalik risiko), dua pesan sebelumnya belum dibalas. Teknik:",
     "- Bilang terus terang ini pesan terakhirmu soal ini, kamu tidak akan mengganggu lagi.",
-    "- Garansi, jaminan, atau kemudahan (mis. bisa COD) hanya bila tertulis di pengetahuan.",
-    "- Pintu tetap terbuka: cukup balas chat ini kapan pun ia siap.",
+    "- Pembalik risiko HANYA bila tertulis di pengetahuan: garansi, retur/tukar, COD/bayar di tempat, uang kembali, bisa coba dulu.",
+    "- Pintu tetap terbuka: cukup balas chat ini kapan pun ia siap, plus satu ajakan ringan.",
     "- Jangan mengulang kalimat pesan sebelumnya. 2 sampai 3 kalimat, paling panjang 400 karakter.",
   ].join("\n"),
 };
@@ -518,39 +558,46 @@ export function periksaPesanUsaha(teks: string, jenis: Tahap | "ulang"): string 
 }
 
 /**
- * Satu pesan yang ditulis AI dari riwayat chat orang ini dan Informasi Usaha nomor ini. Draf yang ditolak tidak
- * memotong kuota; draf yang dipakai = 1 balasan AI. Gagal / melanggar dua kali = templat (gratis).
+ * Satu pesan hard selling yang ditulis AI dari riwayat chat orang ini, Informasi Usaha, dan katalog nomor ini. Draf yang
+ * ditolak tidak memotong kuota; draf yang dipakai = 1 balasan AI. Gagal / melanggar dua kali = templat (gratis).
+ * `bolehLewati` (bawaan): AI boleh memutuskan chat ini tidak pantas di-follow-up ({ lewati }); tidak memotong kuota.
  */
-async function susunPesan(nomor: Nomor, chat: Chat, jenis: Tahap | "ulang", minat: number, sebelumnya: string[]): Promise<string> {
+async function susunPesan(nomor: Nomor, chat: Chat, jenis: Tahap | "ulang", minat: number, sebelumnya: string[], bolehLewati = true): Promise<HasilSusun> {
   const panas = minat >= 2;
-  const cadangan = templat(jenis, panas);
+  const cadangan = { teks: templat(jenis, panas) };
   try {
     const riwayat = await riwayatUntukAi(chat.kunci, { sesiBaru: false, tertunda: 0, lengkap: true });
     const kueri = riwayat.slice(-6).join("\n");
-    const [{ sistem: dasar }, ai] = await Promise.all([susunSistem(nomor, kueri, { riwayat, riwayatLengkap: true }), aiUntukAkun(nomor.user_id)]);
+    const [katalog, ai] = await Promise.all([
+      katalogBoleh(nomor.user_id).then((ok) => (ok ? daftarProduk(nomor.id) : []), () => []),
+      aiUntukAkun(nomor.user_id),
+    ]);
+    const { sistem: dasar } = await susunSistem(nomor, kueri, { riwayat, riwayatLengkap: true, katalog });
     const tugas =
       jenis === "ulang"
         ? [
-            "Lawan bicara di chat ini pernah membeli / memakai layanan usaha ini (lihat riwayat chat), lalu sudah lama tidak chat.",
-            "Tulis SATU pesan WhatsApp singkat yang menawarkan pesan lagi (order ulang):",
-            "- Sebut produk/layanan yang dulu ia beli bila terlihat di riwayat; bila tidak jelas, sebut secara umum.",
-            "- Tawarkan bantuan untuk memesan lagi dan tutup dengan SATU pertanyaan ringan (ya/tidak atau pilih waktu).",
+            "Lawan bicara di chat ini pernah membeli / memakai produk usaha ini (lihat riwayat chat), lalu sudah lama tidak chat.",
+            "Tulis SATU pesan WhatsApp order ulang. Ini hard selling yang ramah: buat ia ingin pesan lagi sekarang.",
+            "- Sebut produk/layanan yang dulu ia beli bila terlihat di riwayat dan tawarkan cara paling gampang memesan lagi (mis. disiapkan sama seperti sebelumnya).",
+            "- Boleh tawarkan SATU produk pelengkap atau produk baru yang relevan dengan pembeliannya (nama + harga PERSIS dari pengetahuan/katalog), atau promo yang memang tertulis.",
+            "- Tutup dengan SATU pertanyaan ya/tidak atau pilih waktu.",
             "- Jangan menulis seolah ia baru saja chat, jangan menyebut sudah berapa lama ia tidak pesan, jangan menyindir.",
             "- 2 sampai 3 kalimat, paling panjang 380 karakter.",
           ].join("\n")
         : [
             `Lawan bicara di chat ini tadi bertanya soal produk/layanan usaha ini (dinilai ${panas ? "SIAP MEMBELI (lead panas)" : "tertarik serius (lead hangat)"}), sudah kamu jawab, lalu tidak membalas lagi.`,
-            "Tulis SATU pesan WhatsApp follow-up yang membantunya melanjutkan pembelian. Yakinkan dengan tegas, tetapi jujur dan sopan.",
+            "Tulis SATU pesan WhatsApp follow-up untuk membuatnya membeli. Ini hard selling: yakin, tegas, dan mengarah ke keputusan, tetapi jujur dan sopan seperti penjual terbaik di toko ini.",
             PANDUAN_TAHAP[jenis],
-            ...(panas ? ["Karena ia sudah siap membeli: bantu menuntaskan pesanan (ringkas pilihan yang ia sebut, tanyakan detail yang masih kurang, sebut cara pesan/bayar yang ada di pengetahuan)."] : []),
+            ...(panas ? ["Karena ia sudah siap membeli: langsung ke penutupan. Ringkas pilihan yang ia sebut, tanyakan satu detail yang masih kurang (jumlah, varian, alamat), dan sebut cara pesan/bayar yang ada di pengetahuan."] : []),
           ].join("\n");
     const instruksi = [
       "<tugas_follow_up>",
+      ...(bolehLewati ? [ATURAN_LEWATI] : []),
       tugas,
       "Aturan wajib:",
       "- Bahasa Indonesia santai seperti CS manusia, ikuti cara menyapa yang sudah dipakai di chat ini (mis. \"Kak\"). Paling banyak 1 emoji.",
       "- Semua harga, produk, promo, garansi, dan jadwal HANYA dari pengetahuan nomor ini atau chat ini. Tidak ada di sana = jangan disebut.",
-      "- JANGAN menulis tautan apa pun.",
+      "- JANGAN menulis tautan apa pun, dan JANGAN memakai tag <kirim_produk> (foto dikirim bila ia membalas).",
       "- DILARANG: kelangkaan atau batas waktu yang dibuat-buat (\"hanya hari ini\", \"sisa 3\", \"promo berakhir malam ini\"), testimoni / nama pelanggan / angka penjualan karangan, janji hasil, menyebut dirimu bot, pesan otomatis, atau follow-up.",
       ...(sebelumnya.length ? ["Pesan yang sudah kamu kirim sebelumnya (jangan diulang):", ...sebelumnya.map((p, i) => `${i + 1}. ${p}`)] : []),
       "Tulis isi pesannya saja, tanpa tanda kutip, judul, tag, atau penjelasan.",
@@ -568,14 +615,20 @@ async function susunPesan(nomor: Nomor, chat: Chat, jenis: Tahap | "ulang", mina
         paksa: { penyedia: ai.penyedia },
         cadanganHermes: ai.cadanganHermes,
       });
-      const teks = formatWa(ambilNilai(bakukanTag(hasil.teks)).teks.replace(/<\/?[a-z_]+[^>]*>/gi, "").replace(/^["'“”]+|["'“”]+$/g, "").trim());
+      const lewati = bolehLewati ? ambilLewati(hasil.teks) : null;
+      if (lewati) {
+        void catatPakai(nomor.id, hasil, false, true).catch(() => {}); // penilaian saja: tidak memotong kuota
+        console.info(`[followup-usaha] AI melewati chat ${chat.id}: ${lewati}`);
+        return { lewati };
+      }
+      const teks = formatWa(ambilKirimProduk(ambilNilai(bakukanTag(hasil.teks)).teks).teks.replace(/<\/?[a-z_]+[^>]*>/gi, "").replace(/^["'“”]+|["'“”]+$/g, "").trim());
       const salah = periksaPesanUsaha(teks, jenis);
       // Tawaran membantu ("aku bantu siapkan") memang inti follow-up, jadi pemeriksaan "janji" & gaya tidak dipakai.
       const fakta = salah ? [] : periksaJawaban(teks, sumber).filter((p) => p.jenis !== "robotik" && p.jenis !== "janji");
       const lolos = !salah && !fakta.length;
       // Hanya draf yang dipakai memotong kuota (abaikan = false); yang ditolak tetap tercatat biayanya.
       void catatPakai(nomor.id, hasil, false, !lolos).catch(() => {});
-      if (lolos) return teks;
+      if (lolos) return { teks };
       console.warn(`[followup-usaha] pesan AI ${jenis} ditolak (${salah ?? fakta.map((f) => f.jenis).join(",")})`);
       umpan = `Draf sebelumnya DITOLAK: ${salah ?? `ada fakta yang tidak ada di sumber (${fakta.map((f) => `"${f.kutipan}"`).join(", ")})`}. Tulis ulang dan patuhi semua aturan.`;
     }
@@ -710,7 +763,9 @@ async function prosesProspek(nomor: Nomor, p: PerNomor, b: BarisJalan): Promise<
   const c = chat as Chat;
   if (!alamatDari(c)) return ubahProspek(b.kunci, "batal", "Alamat chat tidak diketahui");
   const tahap = (b.tahap + 1) as Tahap;
-  const teks = b.draf ?? (await susunPesan(nomor, c, tahap, b.minat, sebelumnyaDari(b)));
+  const susun = b.draf ? { teks: b.draf } : await susunPesan(nomor, c, tahap, b.minat, sebelumnyaDari(b));
+  if ("lewati" in susun) return ubahProspek(b.kunci, b.tahap > 0 ? "selesai" : "batal", `Dilewati AI: ${susun.lewati}`);
+  const teks = susun.teks;
   // Pemeriksaan terakhir: selagi AI menulis, ia bisa saja membalas.
   if (await masukSejak(c.id, b.siklus)) return ubahProspek(b.kunci, b.tahap > 0 ? "dibalas" : "batal", b.tahap > 0 ? null : "Pelanggan chat lagi sebelum follow-up", b.tahap > 0 ? sekarang() : undefined);
   if (infoSesi(nomor.sesi).status !== "WORKING") return false;
@@ -750,7 +805,9 @@ async function prosesUlang(nomor: Nomor, b: BarisUlangJalan): Promise<boolean> {
   if (await periksaUlang(b, chat)) return false;
   const c = chat as Chat;
   if (!alamatDari(c)) return ubahUlang(b.kunci, "batal", "Alamat chat tidak diketahui");
-  const teks = b.draf ?? (await susunPesan(nomor, c, "ulang", 0, []));
+  const susun = b.draf ? { teks: b.draf } : await susunPesan(nomor, c, "ulang", 0, []);
+  if ("lewati" in susun) return ubahUlang(b.kunci, "batal", `Dilewati AI: ${susun.lewati}`);
+  const teks = susun.teks;
   if (await masukSejak(c.id, b.dibuat)) return ubahUlang(b.kunci, "batal", "Pelanggan chat lagi sebelum pengingat dikirim");
   if (infoSesi(nomor.sesi).status !== "WORKING") return false;
   const h = await kirim(nomor, c, teks);
@@ -786,8 +843,9 @@ async function siapkanDraf(nomor: Nomor, p: PerNomor): Promise<void> {
     for (const b of baris) {
       const chat = await chatDari(b.kunci);
       if (await periksaProspek(b, chat)) continue;
-      const teks = await susunPesan(nomor, chat as Chat, (b.tahap + 1) as Tahap, b.minat, sebelumnyaDari(b));
-      await sql`UPDATE followup_prospek SET draf = ${teks} WHERE kunci = ${b.kunci} AND usaha AND tahap = ${b.tahap} AND status = 'jalan' AND draf IS NULL`;
+      const h = await susunPesan(nomor, chat as Chat, (b.tahap + 1) as Tahap, b.minat, sebelumnyaDari(b));
+      if ("lewati" in h) await ubahProspek(b.kunci, b.tahap > 0 ? "selesai" : "batal", `Dilewati AI: ${h.lewati}`);
+      else await sql`UPDATE followup_prospek SET draf = ${h.teks} WHERE kunci = ${b.kunci} AND usaha AND tahap = ${b.tahap} AND status = 'jalan' AND draf IS NULL`;
       dibuat += 1;
     }
   }
@@ -799,8 +857,9 @@ async function siapkanDraf(nomor: Nomor, p: PerNomor): Promise<void> {
     for (const b of baris) {
       const chat = await chatDari(b.kunci);
       if (await periksaUlang(b, chat)) continue;
-      const teks = await susunPesan(nomor, chat as Chat, "ulang", 0, []);
-      await sql`UPDATE followup_ulang SET draf = ${teks} WHERE kunci = ${b.kunci} AND status = 'jalan' AND draf IS NULL`;
+      const h = await susunPesan(nomor, chat as Chat, "ulang", 0, []);
+      if ("lewati" in h) await ubahUlang(b.kunci, "batal", `Dilewati AI: ${h.lewati}`);
+      else await sql`UPDATE followup_ulang SET draf = ${h.teks} WHERE kunci = ${b.kunci} AND status = 'jalan' AND draf IS NULL`;
     }
   }
 }
@@ -826,6 +885,7 @@ async function satuNomor(numberId: number, p: PerNomor): Promise<void> {
 
   const jam = jamWibSekarang();
   if (Date.now() < p.bolehPada || jam < s.jamMulai || jam >= s.jamSelesai || !nomor.wa_id || infoSesi(nomor.sesi).status !== "WORKING" || p.rem) return;
+  if (alasanTahan(nomor.sesi)) return; // koneksi belum stabil / ada tanda bahaya dari WhatsApp
   const [{ batas }, kiriman] = await Promise.all([batasHariIni(nomor, p), kirimanHariIni(nomor.id, p)]);
   if (kiriman.total >= batas) return;
   const sql = await db();
@@ -988,10 +1048,13 @@ export async function statusUsaha(nomor: Nomor): Promise<StatusUsaha> {
   const p = st.per.get(nomor.id) ?? perBaru({ number_id: nomor.id, aktif: setelan.aktif, ulang_aktif: setelan.ulangAktif, setelan, rem_pada: rem?.pada ?? null, rem_alasan: rem?.alasan ?? null, rem_lepas: 0 });
   p.setelan = setelan;
   const [b, kirim] = await Promise.all([batasHariIni(nomor, p), kirimanHariIni(nomor.id, p)]);
+  const terhubung = !!nomor.wa_id && infoSesi(nomor.sesi).status === "WORKING";
+  const tahan = terhubung ? alasanTahan(nomor.sesi) : null;
   return {
     setelan,
     boleh,
-    terhubung: !!nomor.wa_id && infoSesi(nomor.sesi).status === "WORKING",
+    terhubung,
+    tahan: tahan ? (tahan.startsWith("Tanda bahaya") ? "bahaya" : "stabil") : null,
     rem,
     kirimHariIni: kirim.total,
     batasHariIni: b.batas,
@@ -1120,13 +1183,13 @@ export async function tulisUlangDrafUsaha(numberId: number, jenis: "prospek" | "
       SELECT kunci, number_id, tahap, minat, jadwal, siklus, draf, pesan1, pesan2, pesan3, ack1, ack2, ack3
         FROM followup_prospek WHERE kunci = ${kunci} AND number_id = ${numberId} AND usaha AND status = 'jalan'`;
     if (!b) throw galat("Tidak ada pesan yang menunggu dikirim untuk chat ini.", "There is no message waiting to be sent for this chat.");
-    const teks = await susunPesan(nomor, chat, (b.tahap + 1) as Tahap, b.minat, sebelumnyaDari(b));
+    const { teks } = (await susunPesan(nomor, chat, (b.tahap + 1) as Tahap, b.minat, sebelumnyaDari(b), false)) as { teks: string };
     await sql`UPDATE followup_prospek SET draf = ${teks} WHERE kunci = ${kunci} AND usaha AND tahap = ${b.tahap} AND status = 'jalan'`;
     return teks;
   }
   const [b] = await sql`SELECT 1 FROM followup_ulang WHERE kunci = ${kunci} AND number_id = ${numberId} AND status = 'jalan'`;
   if (!b) throw galat("Tidak ada pesan yang menunggu dikirim untuk chat ini.", "There is no message waiting to be sent for this chat.");
-  const teks = await susunPesan(nomor, chat, "ulang", 0, []);
+  const { teks } = (await susunPesan(nomor, chat, "ulang", 0, [], false)) as { teks: string };
   await sql`UPDATE followup_ulang SET draf = ${teks} WHERE kunci = ${kunci} AND status = 'jalan'`;
   return teks;
 }

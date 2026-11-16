@@ -241,9 +241,18 @@ export const RITME_USAHA = {
   santai: { jedaPanasJam: 3, jedaHangatJam: 6, tahap2Jam: 48, tahap3Jam: 96 },
 } as const;
 
-/** Nomor yang baru ditambahkan kurang dari sekian hari dibatasi BATAS_PEMANASAN pesan follow-up per hari. */
+/**
+ * Nomor yang baru ditambahkan kurang dari NOMOR_BARU_HARI hari belum boleh mengirim follow-up sama sekali (akun / tautan
+ * baru yang langsung mengirim pesan duluan adalah pola yang paling cepat dibatasi WhatsApp); sampai PEMANASAN_HARI hari
+ * dibatasi BATAS_PEMANASAN pesan per hari.
+ */
+export const NOMOR_BARU_HARI = 3;
 export const PEMANASAN_HARI = 7;
 export const BATAS_PEMANASAN = 3;
+/** Follow-up hanya dikirim bila soket nomor sudah tersambung tanpa putus selama ini (bukan tepat setelah scan / putus). */
+export const STABIL_MENIT = 60;
+/** Setelah tanda bahaya (perangkat dicabut, 403, error 463) follow-up nomor itu berhenti sampai pemilik/admin melepas rem. */
+export const BAHAYA_JAM = 24;
 /** Pesan follow-up per hari paling banyak sekian bagian dari balasan biasa nomor itu (paling sedikit RASIO_MIN). */
 export const RASIO_KIRIMAN = 0.2;
 export const RASIO_MIN = 3;
@@ -288,7 +297,9 @@ export interface StatusUsaha {
   kirimHariIni: number;
   /** Batas efektif hari ini dan penyebabnya. */
   batasHariIni: number;
-  sebabBatas: "setelan" | "pemanasan" | "rasio";
+  sebabBatas: "setelan" | "baru" | "pemanasan" | "rasio";
+  /** Pengiriman sedang ditahan pengaman (followup-aman.ts): "stabil" = koneksi belum stabil, "bahaya" = tanda pembatasan WhatsApp. */
+  tahan: "stabil" | "bahaya" | null;
   /** Sisa kuota balasan AI (null = tanpa batas). 0 = follow-up berhenti. */
   sisaKuota: number | null;
   /** Angka sepanjang waktu (baris yang pernah mengirim minimal satu pesan). */

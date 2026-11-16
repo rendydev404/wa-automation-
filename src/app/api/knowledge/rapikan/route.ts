@@ -7,7 +7,7 @@ import { teksDokumen } from "@/lib/knowledge";
 import { BATAS_RAPIKAN, GalatRapikan, rapikanKnowledge } from "@/lib/rapikan-knowledge";
 import { getUser } from "@/lib/session";
 import { teksPermintaan } from "@/lib/bahasa-server";
-import { JENIS_USAHA, type KunciUsaha } from "@/lib/templat-usaha";
+import { jenisUsahaSah } from "@/lib/templat-usaha";
 import { staf } from "@/lib/peran";
 
 const galat = (pesan: string, status = 400) => NextResponse.json({ error: pesan }, { status });
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
       );
     teks = d.teks;
   }
-  const jenis = b?.jenis && b.jenis in JENIS_USAHA ? (b.jenis as KunciUsaha) : null;
+  const jenis = jenisUsahaSah(b?.jenis) ? b.jenis : null;
   try {
     const hasil = await rapikanKnowledge({ teks, jenis, userId: user.id });
     catatFitur(user.id, b?.dokumenId ? "knowledge.sempurnakan_ai" : "knowledge.rapikan_ai");

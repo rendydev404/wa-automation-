@@ -113,6 +113,12 @@ interface Sesi {
   presensi: Promise<void>;
   /** Stanza yang tiba vs yang sampai ke `messages.upsert`, dan pendeteksi nomor diam (lihat catatDiag). */
   diag: Diag | null;
+  /** Sejak kapan (ms) soket terakhir WORKING tanpa putus; 0 = tidak terhubung. Follow-up menunggu koneksi stabil. */
+  terhubungPada: number;
+  /** Tanda terakhir WhatsApp membatasi nomor ini (perangkat dicabut 401, ditolak 403, error 463), lihat tandaiBahaya. */
+  bahaya: { pada: number; alasan: string } | null;
+  /** 403 beruntun: WhatsApp menolak login (nomor dibatasi/diblokir). Dari DITOLAK_LAMBAT dan seterusnya jedanya panjang. */
+  ditolak: number;
 }
 
 interface Diag {
@@ -150,6 +156,8 @@ interface Keadaan {
   penangan: ((ev: EventWa) => void | Promise<void>) | null;
   /** Status kiriman pesan KELUAR (2 = sampai server, 3 = sampai HP, 4 = dibaca); dipakai follow-up CS (followup.ts). */
   padaAck?: ((sesi: string, id: string, status: number) => void) | null;
+  /** Tanda WhatsApp membatasi sebuah nomor (followup.ts menghentikan follow-up nomor itu). */
+  padaBahaya?: ((sesi: string, alasan: string) => void) | null;
   dimulai: boolean;
   timerJaga?: ReturnType<typeof setInterval> | null;
   timerDiag?: ReturnType<typeof setInterval> | null;
@@ -164,6 +172,13 @@ const st: Keadaan = (g.__waGerbang ??= { sesi: new Map(), versiPada: 0, penangan
 const JEDA_MULAI_MS = 700; // jarak antar-nomor saat menyambungkan semuanya di awal
 const JEDA_ULANG_MAKS_MS = 60_000;
 const JEDA_DIGANTIKAN_MAKS_MS = 300_000;
+/**
+ * 403 = WhatsApp menolak login nomor ini (dibatasi/diblokir). Mencoba tiap menit berjam-jam tidak membuka blokir dan
+ * justru terlihat seperti klien yang memaksa masuk; dari 403 ke-DITOLAK_LAMBAT jedanya JEDA_DITOLAK_MS (tetap mencoba
+ * sendiri, jadi begitu blokir dibuka nomor tersambung lagi tanpa scan ulang).
+ */
+const DITOLAK_LAMBAT = 3;
+const JEDA_DITOLAK_MS = 15 * 60_000;
 const KODE = { keluar: 401, ditolak: 403, versiDitolak: 405, waktuHabis: 408, tidakCocok: 411, digantikan: 440, mulaiUlang: 515 } as const;
 
 /** Pustaka dimuat saat pertama dibutuhkan, bukan saat server mulai atau saat build. */
@@ -312,6 +327,35 @@ export function padaAck(fn: (sesi: string, id: string, status: number) => void):
   st.padaAck = fn;
 }
 
+/** Penerima tanda bahaya nomor (lihat tandaiBahaya). */
+export function padaBahaya(fn: (sesi: string, alasan: string) => void): void {
+  st.padaBahaya = fn;
+}
+
+/**
+ * WhatsApp memberi tanda membatasi nomor ini: perangkat dicabut (401 device_removed), login ditolak (403), atau pesan
+ * ditolak karena akun dibatasi (error 463). Disimpan di memori dan diteruskan ke follow-up (berhenti + pemilik diberi
+ * tahu). Pesan yang kita mulai sendiri adalah pemicu blokir paling kuat, jadi saat seperti ini tidak boleh ada.
+ */
+function tandaiBahaya(s: Sesi, alasan: string): void {
+  s.bahaya = { pada: Date.now(), alasan };
+  try {
+    st.padaBahaya?.(s.nama, alasan);
+  } catch (e) {
+    console.warn(`[wa ${s.nama}] penanda bahaya gagal:`, e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * Kesehatan nomor untuk pesan yang kita MULAI sendiri (follow-up): berapa lama soketnya tersambung tanpa putus dan
+ * tanda bahaya terakhir. Dari memori, tanpa I/O.
+ */
+export function kesehatanSesi(nama: string): { stabilMs: number; bahaya: { pada: number; alasan: string } | null } {
+  const s = st.sesi.get(nama);
+  if (!s) return { stabilMs: 0, bahaya: null };
+  return { stabilMs: s.status === "WORKING" && s.terhubungPada ? Date.now() - s.terhubungPada : 0, bahaya: s.bahaya };
+}
+
 /** Selesai setelah penangannya selesai, supaya event satu nomor benar-benar diproses berurutan. */
 async function kabari(ev: EventWa): Promise<void> {
   // Bus peristiwa (webhook aplikasi di mesin self-host); tanpa pendengar biayanya nol.
@@ -360,6 +404,11 @@ function pencatat(nama: string): SocketConfig["logger"] {
     },
     warn(obj: unknown, msg?: string) {
       const teks = ringkas(obj, msg);
+      // Baileys: "error 463: account restricted or missing tctoken" = WhatsApp sedang membatasi akun ini.
+      if (/^error 463\b/.test(msg ?? "")) {
+        const s = st.sesi.get(nama);
+        if (s && (!s.bahaya || Date.now() - s.bahaya.pada > 60_000)) tandaiBahaya(s, "WhatsApp membatasi akun ini (error 463: pesan ditolak)");
+      }
       const kunci = `${nama}:${(msg ?? teks).slice(0, 80)}`;
       const kini = Date.now();
       if (kini - (peringatanTerakhir.get(kunci) ?? 0) < JEDA_PERINGATAN_MS) return;
@@ -419,6 +468,9 @@ function sesiAtauBaru(nama: string): Sesi {
       timerOffline: null,
       presensi: Promise.resolve(),
       diag: null,
+      terhubungPada: 0,
+      bahaya: null,
+      ditolak: 0,
     };
     st.sesi.set(nama, s);
   }
@@ -1083,6 +1135,8 @@ function koneksiBerubah(
 
   if (u.connection === "open") {
     s.status = "WORKING";
+    s.terhubungPada = Date.now();
+    s.ditolak = 0;
     s.terpasang = true;
     s.baruTertaut = false;
     s.qr = s.qrBit = null;
@@ -1112,6 +1166,7 @@ function koneksiBerubah(
   const terpasang = sudahTertaut(auth.creds);
   const pakaiKode = !!s.kodePairing;
   s.sock = null;
+  s.terhubungPada = 0;
   s.qr = s.qrBit = null;
   s.kodePairing = null;
   s.mengetik = 0;
@@ -1140,6 +1195,7 @@ function koneksiBerubah(
     s.lidTersimpan = null;
     void hapusAuth(s.nama).catch((e) => console.error(`[wa ${s.nama}] gagal membuang kredensial:`, e));
     s.status = terpasang ? "STOPPED" : "FAILED";
+    if (terpasang && kode === KODE.keluar) tandaiBahaya(s, "Perangkat dikeluarkan dari WhatsApp (401)");
     if (terpasang) void import("./notifikasi").then((m) => m.notifNomorTerputus(s.nama));
     if (terpasang) pancarkan({ jenis: "nomor.terputus", sesi: s.nama, kode, keluar: kode === KODE.keluar });
     s.alasan = terpasang
@@ -1157,19 +1213,29 @@ function koneksiBerubah(
   // Nomor sudah tertaut: TIDAK PERNAH berhenti menyambung ulang (kecuali pengguna sendiri yang logout / 401).
   // Bila gagal berulang atau ditolak edge server (403/405/411), buang routingInfo lama agar mencoba edge server baru.
   s.gagal += 1;
+  if (kode === KODE.ditolak) {
+    s.ditolak += 1;
+    if (s.ditolak === 1) tandaiBahaya(s, "WhatsApp menolak login nomor ini (403): kemungkinan dibatasi atau diblokir");
+    if (s.ditolak === DITOLAK_LAMBAT) void import("./notifikasi").then((m) => m.notifNomorDitolak(s.nama));
+  } else s.ditolak = 0;
   if ((s.gagal >= 2 || kode === KODE.ditolak || kode === KODE.versiDitolak || kode === KODE.tidakCocok) && auth.creds.routingInfo) {
     delete auth.creds.routingInfo;
     auth.simpanCreds();
   }
   const dasar =
-    kode === KODE.digantikan
+    s.ditolak >= DITOLAK_LAMBAT
+      ? JEDA_DITOLAK_MS
+      : kode === KODE.digantikan
       ? s.gagal > 5
         ? JEDA_DIGANTIKAN_MAKS_MS
         : JEDA_ULANG_MAKS_MS
       : Math.min(JEDA_ULANG_MAKS_MS, 1_000 * 2 ** Math.min(s.gagal - 1, 6));
   const jeda = skala(dasar + Math.floor(Math.random() * 1_000));
   s.status = "STARTING";
-  s.alasan = "Sedang menyambung ulang secara otomatis ke WhatsApp...";
+  s.alasan =
+    s.ditolak >= DITOLAK_LAMBAT
+      ? "WhatsApp menolak nomor ini (403): kemungkinan dibatasi atau diblokir. Cek WhatsApp di HP; sistem mencoba lagi tiap 15 menit."
+      : "Sedang menyambung ulang secara otomatis ke WhatsApp...";
   if (s.gagal === 1) pancarkan({ jenis: "nomor.terputus", sesi: s.nama, kode, keluar: false });
   console.warn(`[wa ${s.nama}] terputus (kode ${kode}), menyambung ulang dalam ${Math.round(jeda / 1000)} dtk`);
   s.timer = setTimeout(() => void sambung(s), jeda);
@@ -1437,6 +1503,20 @@ export function mengetik(nama: string, alamat: string, nyala: boolean): Promise<
       // indikator saja; kegagalannya tidak boleh menggagalkan balasan
     });
   return s.presensi;
+}
+
+/**
+ * Ulangi status "sedang mengetik" yang masih menyala (WhatsApp menghapusnya sendiri setelah beberapa detik) selama AI
+ * menyusun jawaban yang lama. Tanpa mengubah penghitung mengetik; diam bila sudah berhenti mengetik.
+ */
+export function mengetikLagi(nama: string, alamat: string): void {
+  const s = st.sesi.get(nama);
+  if (!s || s.mengetik === 0) return;
+  s.presensi = s.presensi
+    .then(async () => {
+      if (s.sock && s.status === "WORKING" && s.mengetik > 0) await s.sock.sendPresenceUpdate("composing", alamat);
+    })
+    .catch(() => {});
 }
 
 /**

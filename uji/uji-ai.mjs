@@ -753,6 +753,21 @@ await cek("editor knowledge: kerangka per jenis usaha tanpa data contoh yang ter
   const lk = TU.cekKelengkapan(b);
   assert.deepEqual([lk.nama, lk.harga, lk.lokasi, lk.bayar, lk.jam], [true, true, true, true, false]);
   assert.equal(TU.cekKelengkapan("Warung Bu Sari jual ayam geprek 18rb, buka jam 10-21, Jl. Melati 5, bayar QRIS").jam, true);
+  // Jenis usaha = 10 industri landing page (kunci = slug LP) + kuliner + lainnya; isian & pertanyaan khas tiap industri.
+  const { SLUG_LP } = await lib("src/lib/lp/def.ts");
+  assert.deepEqual(Object.keys(TU.JENIS_USAHA), [...SLUG_LP, "kuliner", "umum"], "urutan jenis usaha = urutan LP");
+  assert.equal(TU.jenisUsahaSah("laundry"), true);
+  assert.equal(TU.jenisUsahaSah("constructor"), false, "properti bawaan objek bukan jenis usaha");
+  assert.equal(TU.jenisUsahaSah("kecantikan"), false, "kunci lama tidak lagi dikenal");
+  const ld = TU.kerangka("laundry");
+  assert.match(ld, /^Antar-jemput: /m);
+  assert.match(ld, /^Saat pelanggan memesan, tanyakan: .*perkiraan berat/m);
+  assert.match(ld, /^Serahkan ke pemilik bila: keluhan cucian rusak/m);
+  assert.match(TU.kerangka("rental-mobil"), /^Saat pelanggan booking, tanyakan: .*tanggal dan jam ambil/m);
+  assert.match(TU.kerangka("travel-umrah"), /^Saat pelanggan mendaftar, tanyakan: .*jumlah jamaah/m);
+  assert.match(TU.kerangka("maklon-kosmetik"), /^Saat pelanggan minta konsultasi, tanyakan: /m);
+  assert.match(TU.kerangka("klinik-kecantikan", "en"), /^When a customer books, ask for: .*skin concern/m);
+  assert.match(TU.bersihkanKerangka(TU.kerangka("bengkel")), /^Serahkan ke pemilik bila: permintaan diagnosa/m, "saran serah-terima tetap ada setelah dibersihkan");
 });
 
 await cek("rapikan knowledge dengan AI: hanya merapikan; angka yang dikarang ditandai; kekurangan dicatat; galat jelas tanpa nama mesin", async () => {
@@ -762,8 +777,8 @@ await cek("rapikan knowledge dengan AI: hanya merapikan; angka yang dikarang dit
   assert.deepEqual(R.uraiRapikan("<knowledge>\n# TENTANG USAHA\nWarung Uji\n</knowledge>\n<kurang>\n- Jam buka?\n- Alamat lengkapnya di mana?\n</kurang>"), { teks: "# TENTANG USAHA\nWarung Uji", kurang: ["Jam buka?", "Alamat lengkapnya di mana?"] });
   assert.deepEqual(R.uraiRapikan("# MENU\n- Mie: Rp15.000"), { teks: "# MENU\n- Mie: Rp15.000", kurang: [] });
   assert.equal(R.uraiRapikan("Halo Kak, ada yang bisa dibantu?"), null);
-  assert.match(R.sistemRapikan("kecantikan"), /Jenis usaha: Salon/);
-  assert.match(R.sistemRapikan("kecantikan"), /# CARA BOOKING/);
+  assert.match(R.sistemRapikan("klinik-kecantikan"), /Jenis usaha: Klinik kecantikan/);
+  assert.match(R.sistemRapikan("klinik-kecantikan"), /# CARA BOOKING/);
   assert.match(R.sistemRapikan(null), /Pakai HANYA fakta yang ditulis pemilik/);
 
   process.env.HERMES_API_KEY ??= "uji";
@@ -786,7 +801,7 @@ await cek("rapikan knowledge dengan AI: hanya merapikan; angka yang dikarang dit
     // "15rb" -> Rp15.000 sah; Rp5.000 (es teh) tidak ada di tulisan asli -> ditandai
     assert.deepEqual(h.peringatan, ["Rp5.000"]);
     assert.doesNotMatch(h.asli, /contoh/i);
-    await assert.rejects(R.rapikanKnowledge({ teks: TU.kerangka("toko"), jenis: "toko", userId: 7 }), (e) => e instanceof R.GalatRapikan && /Tulis dulu/.test(e.message));
+    await assert.rejects(R.rapikanKnowledge({ teks: TU.kerangka("toko-online"), jenis: "toko-online", userId: 7 }), (e) => e instanceof R.GalatRapikan && /Tulis dulu/.test(e.message));
     globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: "Halo Kak 🙏" } }] }));
     await assert.rejects(R.rapikanKnowledge({ teks, jenis: null, userId: 7 }), (e) => e instanceof R.GalatRapikan && !/hermes|claude/i.test(e.message));
   } finally {

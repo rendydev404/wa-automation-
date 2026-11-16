@@ -19,6 +19,7 @@ const pg = await mulaiPg({ dir: path.join(tmp, "pg"), sementara: true });
 process.env.DATABASE_URL = pg.url;
 process.env.DATA_DIR = path.join(tmp, "data-kosong");
 process.env.WA_SKALA_WAKTU ??= "0.2";
+process.env.WA_FOLLOWUP_STABIL_MENIT ??= "0"; // uji: nomor tiruan langsung dianggap stabil (syarat koneksi stabil diuji tersendiri)
 process.env.ML_PELUANG_AUDIT = "0";
 process.env.AUTH_SECRET = "rahasia-uji-followup-usaha";
 const lib = (f) => import(pathToFileURL(path.join(akar, f)).href);
@@ -41,7 +42,7 @@ const TEKS = {
   ulang: "Kak Rina, kemarin cuci bedcover king di kami. Mau dijemput lagi minggu ini? Jadwal jemput pagi atau sore bisa kak.",
 };
 const TAUTAN = "Kak, cek katalog lengkap kami di https://contoh-laundry.id/katalog ya, nanti tinggal pilih dan pesan langsung dari sana.";
-const hermes = { panggilan: [], tautan: false };
+const hermes = { panggilan: [], tautan: false, lewati: false };
 const server = http.createServer((req, res) => {
   let b = "";
   req.on("data", (c) => (b += c));
@@ -52,7 +53,7 @@ const server = http.createServer((req, res) => {
     hermes.panggilan.push(p);
     let isi;
     if (p.sesi.startsWith("followup-usaha-")) {
-      isi = hermes.tautan ? TAUTAN : /order ulang/.test(p.pesan) ? TEKS.ulang : TEKS[Number(/tahap (\d)/.exec(p.pesan)?.[1] ?? 1)];
+      isi = hermes.lewati ? "<lewati>ia sudah bilang tidak jadi beli</lewati>" : hermes.tautan ? TAUTAN : /order ulang/.test(p.pesan) ? TEKS.ulang : TEKS[Number(/tahap (\d)/.exec(p.pesan)?.[1] ?? 1)];
     } else {
       const m = p.pesan.toLowerCase();
       const tag = /sudah transfer|sudah bayar/.test(m)
@@ -79,6 +80,7 @@ const bridge = await lib("src/lib/bridge.ts");
 const { tambahNomor, nomorById } = await lib("src/lib/numbers.ts");
 const { tambahDokumen } = await lib("src/lib/knowledge.ts");
 const { segarkanKuota } = await lib("src/lib/langganan.ts");
+const { simpanProduk } = await lib("src/lib/katalog.ts");
 const fu = await lib("src/lib/followup.ts");
 const fp = await lib("src/lib/followup-prospek.ts");
 const fx = await lib("src/lib/followup-usaha.ts");
@@ -349,7 +351,7 @@ await cek("tautan dari AI ditolak (dua kali) -> templat netral tanpa tautan; dra
   await assert.rejects(() => fx.simpanDrafUsaha(A.id, "prospek", kunciTari, "Kak, cek di https://contoh.id ya kak, lengkap di sana."), /tautan/);
 });
 
-await cek("batas: pemanasan nomor baru (3/hari) & rasio balasan biasa; akun tanpa paket tidak mengirim", async () => {
+await cek("batas: nomor baru (<3 hari: 0), pemanasan (3/hari), rasio balasan biasa; akun tanpa paket tidak mengirim", async () => {
   const s = await fx.statusUsaha(await nomorById(A.id));
   assert.equal(s.batasHariIni, 10);
   assert.equal(s.sebabBatas, "setelan");
@@ -358,8 +360,13 @@ await cek("batas: pemanasan nomor baru (3/hari) & rasio balasan biasa; akun tanp
   const { n: N } = await nomorTerhubung("Toko Baru", "628222000002", baru, { dibuat: kini() - 86400 });
   await fx.simpanSetelanNomor(N.id, { ...SETELAN, aktif: true });
   const sb = await fx.statusUsaha(await nomorById(N.id));
-  assert.equal(sb.batasHariIni, 3);
-  assert.equal(sb.sebabBatas, "pemanasan");
+  assert.equal(sb.batasHariIni, 0, "nomor 1 hari: belum boleh follow-up sama sekali");
+  assert.equal(sb.sebabBatas, "baru");
+  await sql`UPDATE numbers SET created_at = ${kini() - 4 * 86400} WHERE id = ${N.id}`;
+  cacheNomorBasi();
+  const sh = await fx.statusUsaha(await nomorById(N.id));
+  assert.equal(sh.batasHariIni, 3, "nomor 4 hari: pemanasan 3/hari");
+  assert.equal(sh.sebabBatas, "pemanasan");
   const sepi = await pengguna("sepi@uji.id", "Toko Sepi");
   const { n: Q } = await nomorTerhubung("Toko Sepi", "628222000003", sepi, { dibalas: 4 });
   await fx.simpanSetelanNomor(Q.id, { ...SETELAN, aktif: true });
@@ -417,6 +424,81 @@ await cek("kuota AI habis: tidak ada draf maupun kiriman", async () => {
   await putaran();
   assert.equal(sK.terkirim.length, awal);
   assert.equal((await fx.statusUsaha(await nomorById(K.id))).sisaKuota, 0);
+});
+
+await cek("pintar: katalog & Informasi Usaha di prompt hard selling; AI boleh melewati chat yang tidak pantas (tanpa kirim, tanpa potong kuota)", async () => {
+  const pL = await pengguna("lewati@uji.id", "Toko Lewati");
+  const { n: L, s: sL } = await nomorTerhubung("Toko Lewati", "628222000007", pL);
+  await simpanProduk(L.id, { nama: "Sepatu Kanvas Hitam", harga: 150000, deskripsi: "Ukuran 38-44", tersedia: true });
+  await fx.simpanSetelanNomor(L.id, { ...SETELAN, aktif: true });
+  await ngobrol(sL, "628444000101", "kak harga sepatu berapa?", "Tono");
+  await mundurkan(L.id, "628444000101", 4 * 3600);
+  const pakai = async () => (await sql`SELECT COUNT(*)::int AS n FROM ai_pakai WHERE number_id = ${L.id} AND NOT abaikan`)[0].n;
+  const pakai0 = await pakai();
+  const awal = sL.terkirim.length;
+  hermes.lewati = true;
+  try {
+    await putaran();
+  } finally {
+    hermes.lewati = false;
+  }
+  assert.equal(sL.terkirim.length, awal, "tidak ada pesan terkirim");
+  const r = await prospekDari("628444000101");
+  assert.equal(r.status, "batal");
+  assert.match(r.alasan, /^Dilewati AI: ia sudah bilang tidak jadi beli/);
+  assert.equal(await pakai(), pakai0, "penilaian lewati tidak memotong kuota");
+  const ai = hermes.panggilan.findLast((x) => x.sesi.startsWith("followup-usaha-"));
+  assert.match(ai.sistem, /Sepatu Kanvas Hitam/, "katalog nomor ini ikut");
+  assert.match(ai.sistem, /hard selling/);
+  assert.match(ai.sistem, /<lewati>alasan singkat<\/lewati>/, "aturan penilaian ada");
+  assert.match(ai.sistem, /JANGAN memakai tag <kirim_produk>/);
+  // Pemilik menulis ulang draf: AI tidak boleh menolak (tanpa aturan lewati).
+  await sql`UPDATE followup_prospek SET status = 'jalan', alasan = NULL WHERE kunci = ${r.kunci}`;
+  await fx.tulisUlangDrafUsaha(L.id, "prospek", r.kunci);
+  assert.doesNotMatch(hermes.panggilan.findLast((x) => x.sesi.startsWith("followup-usaha-")).sistem, /<lewati>/);
+  await fx.simpanSetelanNomor(L.id, { ...SETELAN, aktif: false });
+});
+
+await cek("aman: koneksi belum stabil = tertahan; error 463 / 403 dari WhatsApp = rem nomor + notifikasi, login ulang diperlambat", async () => {
+  const pD = await pengguna("bahaya@uji.id", "Toko Bahaya");
+  const { n: D, s: sD } = await nomorTerhubung("Toko Bahaya", "628222000008", pD);
+  await fx.simpanSetelanNomor(D.id, { ...SETELAN, aktif: true });
+  await ngobrol(sD, "628444000102", "kak harga kaos polos berapa?", "Wati");
+  await mundurkan(D.id, "628444000102", 4 * 3600);
+  const awal = sD.terkirim.length;
+  // Baru tersambung (< 60 menit): tidak ada pesan yang kita mulai.
+  process.env.WA_FOLLOWUP_STABIL_MENIT = "60";
+  try {
+    await putaran();
+    assert.equal(sD.terkirim.length, awal, "koneksi belum stabil = tidak mengirim");
+    assert.equal((await fx.statusUsaha(await nomorById(D.id))).tahan, "stabil");
+  } finally {
+    process.env.WA_FOLLOWUP_STABIL_MENIT = "0";
+  }
+  // Baileys melaporkan error 463 (akun dibatasi).
+  sD.config.logger.warn({ msgId: "ABC", from: "1@lid" }, "error 463: account restricted or missing tctoken for contact");
+  await tunggu(async () => (await fx.statusUsaha(await nomorById(D.id))).rem, 3000, "rem bahaya menyala");
+  const sd = await fx.statusUsaha(await nomorById(D.id));
+  assert.match(sd.rem.alasan, /error 463/);
+  assert.equal(sd.tahan, "bahaya");
+  assert.equal(wa.kesehatanSesi(D.sesi).bahaya?.alasan.includes("463"), true);
+  const [nt] = await sql`SELECT judul, tautan FROM notifikasi WHERE user_id = ${pD} ORDER BY id DESC LIMIT 1`;
+  assert.match(nt.judul, /dihentikan otomatis/);
+  assert.equal(nt.tautan, `/nomor/${D.id}#followup`);
+  await putaran();
+  assert.equal(sD.terkirim.length, awal, "direm = tidak mengirim");
+  // 403 berulang: tetap mencoba sendiri, tetapi jedanya panjang dan pemilik diberi tahu nomornya ditolak.
+  let s = sD;
+  for (let i = 0; i < 3; i++) {
+    const n = soket.length;
+    s.tutup(403);
+    if (i < 2) s = await tunggu(() => soket[n], 5000, `soket setelah 403 ke-${i + 1}`);
+  }
+  assert.match(wa.infoSesi(D.sesi).alasan ?? "", /403/);
+  const n403 = soket.length;
+  await new Promise((r) => setTimeout(r, 1500));
+  assert.equal(soket.length, n403, "setelah 403 ke-3 tidak langsung mencoba lagi");
+  await tunggu(async () => (await sql`SELECT 1 FROM notifikasi WHERE user_id = ${pD} AND judul LIKE '%ditolak WhatsApp%'`).length, 3000, "notifikasi nomor ditolak");
 });
 
 await cek("pemilik: daftar, edit draf, hentikan; saklar mati membatalkan antrean", async () => {

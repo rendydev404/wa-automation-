@@ -18,6 +18,7 @@ const pg = await mulaiPg({ dir: path.join(tmp, "pg"), sementara: true });
 process.env.DATABASE_URL = pg.url;
 process.env.DATA_DIR = path.join(tmp, "data-kosong");
 process.env.WA_SKALA_WAKTU ??= "0.2";
+process.env.WA_FOLLOWUP_STABIL_MENIT ??= "0"; // uji: nomor tiruan langsung dianggap stabil (syarat koneksi stabil diuji tersendiri)
 process.env.ML_PELUANG_AUDIT = "0";
 process.env.AUTH_SECRET = "rahasia-uji-followup";
 const SKALA = Number(process.env.WA_SKALA_WAKTU);
@@ -286,6 +287,26 @@ await cek("sapaan: ditulis AI, dikirim ke chat lama dengan ritme manusia (online
   assert.equal(r.pesan1, SAPAAN_AI, "teks yang terkirim tersimpan untuk riwayat");
   const [pakai] = await sql`SELECT COUNT(*)::int AS n FROM ai_pakai WHERE number_id = ${CS.id} AND abaikan`;
   assert.ok(pakai.n >= 1, "biaya AI tercatat tanpa memotong kuota nomor CS");
+});
+
+await cek("hard selling akun: kerugian nyata & paket rekomendasi dihitung dari pemakaian (kuota & jumlah nomor), harga persis dari tabel paket", async () => {
+  const P = [
+    { id: 1, nama: "Starter", harga: 67000, durasi_hari: 30, kuota_nomor: 1, kuota_balasan: 1000 },
+    { id: 2, nama: "Bisnis", harga: 246000, durasi_hari: 30, kuota_nomor: 3, kuota_balasan: 4000 },
+    { id: 3, nama: "Pro", harga: 602000, durasi_hari: 30, kuota_nomor: 10, kuota_balasan: 12000 },
+  ];
+  const rek = (balasan30, tertahan, nomor) => fu.rekomendasiPaket(P, { balasan30, tertahan: { pesan: tertahan, chat: 1 }, nomor })?.paket.nama;
+  assert.equal(rek(300, 100, 1), "Starter");
+  assert.equal(rek(2500, 900, 1), "Bisnis", "kebutuhan 3.400 balasan sebulan");
+  assert.equal(rek(100, 0, 5), "Pro", "jumlah nomor ikut menentukan");
+  assert.equal(rek(50000, 0, 1), "Pro", "tidak ada yang cukup = paket terbesar");
+  assert.equal(fu.rekomendasiPaket([], { balasan30: 1, tertahan: { pesan: 0, chat: 0 }, nomor: 1 }), null);
+  const ai = hermes.panggilan.find((p) => p.sesi.startsWith(`followup-${akun.budi.id}-sapaan`));
+  assert.match(ai.sistem, /hard selling/);
+  assert.match(ai.sistem, /<rekomendasi>\nPaket .+: Rp[\d.]+ \/ \d+ hari/, "paket rekomendasi dengan harga dari tabel paket");
+  assert.match(ai.sistem, /<paket_nyata>/);
+  assert.match(ai.pesan, /Pesan tertahan \(masuk sejak AI berhenti, tidak dibalas AI\): \d+ pesan dari \d+ pelanggan/);
+  assert.match(ai.sistem, /<lewati>alasan singkat<\/lewati>/, "AI membaca chat CS-nya dan boleh melewati");
 });
 
 await cek("jeda acak antarpesan: putaran berikutnya tidak langsung mengirim walau ada yang jatuh tempo", async () => {

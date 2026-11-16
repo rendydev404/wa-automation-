@@ -185,6 +185,31 @@ export async function notifNomorTerputus(sesi: string): Promise<void> {
 }
 
 /**
+ * WhatsApp menolak login nomor ini berulang kali (403, lihat wa.ts): nomor dibatasi atau diblokir. Sekali per nomor
+ * per hari.
+ */
+export async function notifNomorDitolak(sesi: string): Promise<void> {
+  try {
+    const { nomorBySesi } = await import("./numbers");
+    const n = await nomorBySesi(sesi);
+    if (!n?.user_id) return;
+    const hari = new Date((sekarang() + 7 * 3600) * 1000).toISOString().slice(0, 10);
+    await kirimNotif(n.user_id, {
+      jenis: "nomor",
+      judul: { id: `Nomor ${n.label} ditolak WhatsApp`, en: `Number ${n.label} was rejected by WhatsApp` },
+      isi: {
+        id: "WhatsApp menolak login nomor ini (kode 403), biasanya karena nomornya dibatasi atau diblokir. Buka WhatsApp di HP: bila ada pemberitahuan pembatasan, ajukan peninjauan di sana. Follow-up nomor ini dihentikan, dan sistem mencoba menyambung lagi tiap 15 menit.",
+        en: "WhatsApp rejected this number's login (code 403), usually because it is restricted or banned. Open WhatsApp on the phone and request a review if a restriction notice is shown. Follow-up on this number is paused, and the system retries every 15 minutes.",
+      },
+      tautan: `/nomor/${n.id}`,
+      kunci: `nomor-ditolak:${n.id}:${hari}`,
+    });
+  } catch (e) {
+    console.warn("[notifikasi] nomor ditolak:", e instanceof Error ? e.message : e);
+  }
+}
+
+/**
  * Soket tersambung tetapi pesan tidak datang dari WhatsApp (lihat catatDiag di wa.ts). Sekali per nomor per hari,
  * supaya restart/deploy tidak mengulang notifikasi.
  */

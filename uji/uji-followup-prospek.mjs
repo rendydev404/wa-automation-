@@ -18,6 +18,7 @@ const pg = await mulaiPg({ dir: path.join(tmp, "pg"), sementara: true });
 process.env.DATABASE_URL = pg.url;
 process.env.DATA_DIR = path.join(tmp, "data-kosong");
 process.env.WA_SKALA_WAKTU ??= "0.2";
+process.env.WA_FOLLOWUP_STABIL_MENIT ??= "0"; // uji: nomor tiruan langsung dianggap stabil (syarat koneksi stabil diuji tersendiri)
 process.env.ML_PELUANG_AUDIT = "0";
 process.env.AUTH_SECRET = "rahasia-uji-followup-prospek";
 const SKALA = Number(process.env.WA_SKALA_WAKTU);

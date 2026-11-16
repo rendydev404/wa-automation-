@@ -18,7 +18,7 @@ import { CATATAN_KODE_DIBLOKIR, TOLAK_KODE, adaKode } from "./penjaga";
 import { sttTerkonfigurasi, transkripsi } from "./stt";
 import type { Foto } from "./types";
 import type { WAMessage } from "baileys";
-import { type EventWa, digitWa, kirimGambar, kirimTeks, mengetik, padaEvent, tandaiDibaca } from "./wa";
+import { type EventWa, digitWa, kirimGambar, kirimTeks, mengetik, mengetikLagi, padaEvent, tandaiDibaca } from "./wa";
 import { botBoleh, fiturBoleh, lawanNomorUji, sandboxAktif, verifikasiNomorUjiKePusat } from "./mesin/lisensi";
 import { POLA_PESAN_UJI } from "./api-def";
 
@@ -26,19 +26,22 @@ import { POLA_PESAN_UJI } from "./api-def";
  * Jembatan WhatsApp (src/lib/wa.ts) -> Hermes -> WhatsApp.
  *
  * Serah-terima manusia <-> AI (per nomor; lihat numbers.tunggu_detik / tunggu_baca_detik / jeda_detik):
- *   1. Pesan pelanggan masuk -> AI menunggu `tunggu_detik`, dihitung dari pesan TERAKHIR pelanggan
- *      (pesan beruntun tergabung). Selama menunggu AI tidak menandai dibaca dan tidak "mengetik".
- *   2. Chat itu dibuka manusia di HP (pesan terbaca) sebelum jawaban AI terkirim -> AI langsung
- *      menahan diri selama `tunggu_baca_detik`. Jawaban yang sudah telanjur disusun disimpan.
- *      WhatsApp tidak memberi tahu perangkat tertaut bahwa pemilik sedang mengetik; "chat dibuka"
- *      adalah satu-satunya tanda yang tersedia bahwa manusia sedang menangani.
- *   3. Manusia mengirim balasan -> jawaban AI dibatalkan dan AI diam di chat itu selama `jeda_detik`
- *      (0 = hanya untuk pesan itu). Pesan pelanggan yang masuk selama itu tetap diantrekan: bila manusia
- *      tidak membalasnya sampai jeda habis, AI yang menjawab (tidak ada pesan pelanggan yang dibiarkan).
+ *   1. Pesan pelanggan masuk -> AI menunggu `tunggu_detik` (diacak ±1 dtk: bawaan 3 dtk = 2–4 dtk), dihitung dari
+ *      pesan TERAKHIR pelanggan (pesan beruntun tergabung). Selama menunggu AI tidak menandai dibaca dan tidak
+ *      "mengetik". Masa tunggu habis -> seperti manusia: pesan langsung dibaca (centang biru) dan "mengetik" selama
+ *      AI menyusun jawaban, lalu terkirim begitu jawabannya jadi (paling cepat MENGETIK_MIN_MS setelah mulai mengetik).
+ *   2. Chat itu dibuka manusia di HP (pesan terbaca) selama masa tunggu -> AI langsung menahan diri selama
+ *      `tunggu_baca_detik`. Setelah bot membaca, HP tidak lagi mengirim tanda-baca untuk pesan itu, jadi tanda ini
+ *      hanya berlaku untuk pesan yang belum dibaca bot. WhatsApp tidak memberi tahu perangkat tertaut bahwa pemilik
+ *      sedang mengetik; "chat dibuka" adalah satu-satunya tanda yang tersedia bahwa manusia sedang menangani.
+ *   3. Manusia mengirim balasan (kapan pun sebelum jawaban AI berangkat) -> jawaban AI dibatalkan dan AI diam di chat
+ *      itu selama `jeda_detik` (0 = hanya untuk pesan itu). Pesan pelanggan yang masuk selama itu tetap diantrekan:
+ *      bila manusia tidak membalasnya sampai jeda habis, AI yang menjawab (tidak ada pesan pelanggan yang dibiarkan).
  *   4. Masa tunggu di (2) habis tanpa balasan manusia (tidak jadi membalas) -> AI mengambil alih.
  * Spam (src/lib/spam.ts): promosi judi yang jelas tidak diantrekan sama sekali; spam lain dinilai AI (tag <abaikan>).
  * Keduanya tidak berlaku di chat yang pernah dibalas manusia atau ditandai "bukan spam", dan bisa dimatikan per nomor.
- *   Pesan spam tetap tercatat di histori (dengan tanda spam) dan tidak ditandai dibaca, jadi pemilik tetap melihatnya.
+ *   Pesan spam tetap tercatat di histori (dengan tanda spam). Spam yang jelas (tanpa AI) tidak ditandai dibaca; yang
+ *   baru ketahuan spam dari penilaian AI sudah terbaca (bot membaca saat mulai menyusun jawaban), tetapi tidak dibalas.
  * Penyaring prospek (src/lib/prospek.ts, per nomor numbers.saring_prospek; tidak berlaku di chat yang pernah dibalas
  * pemilik atau ditandai bukan spam):
  *   - Tiap jawaban AI membawa label tersembunyi. "prospek" = chat terbukti prospek (tidak pernah dibisukan lagi);
@@ -51,8 +54,9 @@ import { POLA_PESAN_UJI } from "./api-def";
  *     sama, atau memantulkan balasan kita = bot/auto-reply -> dibisukan BISU_BOT_DTK.
  *   Tidak ada batas jumlah balasan: pelanggan yang terus bertanya dilayani tanpa batas.
  * Aturan anti-blokir (panduan WAHA "how to avoid blocking"): hanya membalas chat pribadi yang masuk, tidak pernah
- * memulai chat; ritmenya seperti manusia: baca dulu, "mengetik" selama yang wajar untuk panjang jawabannya, berhenti,
- * baru kirim; waktu tunggu dan lama mengetik diacak (tidak pernah tepat sama).
+ * memulai chat; ritmenya seperti manusia: baca dulu, "mengetik" selama jawaban disusun, berhenti, baru kirim; waktu
+ * tunggu dan lama mengetik minimal diacak (tidak pernah tepat sama). Chat yang dibisukan (giliran pengecekan) tetap
+ * tidak dibaca dan tidak "mengetik" kecuali jawabannya memang jadi dikirim.
  *   Satu-satunya pengecualian: follow-up nomor CS ChatGerCep (followup.ts, lewat kirimSapaan) ke chat yang SUDAH
  *   pernah ada dengan pemilik akun gratis yang kuotanya habis; paling banyak 2 pesan per akun, pelan, dan berjam kerja.
  *   Begitu juga follow-up di nomor pengguna berbayar (followup-usaha.ts): hanya chat yang pelanggannya chat duluan,
@@ -64,14 +68,28 @@ import { POLA_PESAN_UJI } from "./api-def";
  * sebuah chat mulai aktif (lagi), mis. setelah server dimulai ulang.
  */
 
-/** Lama "mengetik" = dasar + per huruf jawaban, paling lama MAKS, lalu diacak ±20%. */
+/** Follow-up (kirimSapaan): lama "mengetik" = dasar + per huruf pesan, paling lama MAKS, lalu diacak ±20%. */
 const MENGETIK_DASAR_MS = 1_500;
 const MENGETIK_PER_HURUF_MS = 25;
 const MENGETIK_MAKS_MS = 8_000;
 const lamaMengetik = (teks: string): number =>
   skala(Math.round(Math.min(MENGETIK_MAKS_MS, MENGETIK_DASAR_MS + teks.length * MENGETIK_PER_HURUF_MS) * (0.8 + Math.random() * 0.4)));
-/** Waktu tunggu pengaturan nomor dipakai sebagai batas bawah, ditambah acak sampai 40% supaya tidak pernah tetap. */
-const acakTunggu = (ms: number): number => skala(Math.round(ms * (1 + Math.random() * 0.4)));
+/**
+ * Balasan: "mengetik" dimulai begitu pesan dibaca dan berjalan selama AI menyusun jawaban. Jawaban yang jadi lebih
+ * cepat dari batas acak ini ditahan sampai batas itu (manusia tidak mengetik secepat itu); yang lebih lama langsung dikirim.
+ */
+const MENGETIK_MIN_MS: readonly [number, number] = [1_500, 3_000];
+const acakMengetik = (): number => skala(MENGETIK_MIN_MS[0] + Math.round(Math.random() * (MENGETIK_MIN_MS[1] - MENGETIK_MIN_MS[0])));
+/** Status "mengetik" diulang selama AI menyusun jawaban: WhatsApp menghapusnya sendiri bila tidak diperbarui. */
+const ULANG_MENGETIK_MS = 8_000;
+/**
+ * Waktu tunggu pengaturan nomor diacak ±1 dtk (paling banyak ±1/3-nya) supaya tidak pernah tetap: bawaan 3 dtk = acak
+ * 2–4 dtk, nilai yang diatur pemilik (mis. 60 dtk) tetap dihormati (59–61 dtk).
+ */
+const acakTunggu = (ms: number): number => {
+  const j = Math.min(1_000, ms / 3);
+  return skala(Math.round(ms - j + Math.random() * 2 * j));
+};
 const UMUR_PESAN_MAKS_DTK = 120; // pesan lama (mis. menumpuk saat offline) tidak dijawab
 const MAKS_PESAN_KARAKTER = 2_000;
 const MAKS_CATATAN = 6;
@@ -470,6 +488,24 @@ async function proses(kunci: string): Promise<void> {
   a.timer = null;
   a.batalKarena = null;
   const generasi = a.generasi;
+  // "Mengetik" giliran ini: dimulai sekali (pesan dibaca dulu), diulang berkala, dan selalu dihentikan di blok finally.
+  let ketik: { mulai: number; ulang: ReturnType<typeof setInterval> } | null = null;
+  const mulaiMengetik = async (): Promise<number> => {
+    if (ketik) return ketik.mulai;
+    // Sebelum titik ini tanda-baca di chat hanya bisa berasal dari manusia (chatDibukaManusia); gema tanda-baca bot
+    // sendiri diabaikan sebentar.
+    a.botBacaSampai = Date.now() + skala(6_000);
+    await tandaiDibaca(a.sesi, a.alamat, a.belumDibaca.splice(0));
+    void mengetik(a.sesi, a.alamat, true);
+    ketik = { mulai: Date.now(), ulang: setInterval(() => mengetikLagi(a.sesi, a.alamat), skala(ULANG_MENGETIK_MS)) };
+    return ketik.mulai;
+  };
+  const berhentiMengetik = (): void => {
+    if (!ketik) return;
+    clearInterval(ketik.ulang);
+    ketik = null;
+    void mengetik(a.sesi, a.alamat, false);
+  };
   try {
     let nomor: Nomor | undefined;
     try {
@@ -517,6 +553,9 @@ async function proses(kunci: string): Promise<void> {
     } else {
       a.siap = null;
       a.siapProduk = null;
+      // Seperti manusia: pesan dibaca lalu "mengetik" selagi AI menyusun jawaban. Giliran pengecekan chat yang
+      // dibisukan tidak: pesannya baru dibaca bila AI menilainya prospek dan jawabannya memang dikirim.
+      if (!a.modeCek) await mulaiMengetik();
       const tertunda = a.teks.length;
       const sesiLalu = a.chat?.sesi_ke ?? 0;
       const asli = await isiTranskrip(a.teks.splice(0), a.suara);
@@ -665,14 +704,13 @@ async function proses(kunci: string): Promise<void> {
     };
     if (diambilManusia()) return;
 
-    // Seperti manusia: baca dulu, mengetik selama yang wajar untuk jawabannya, berhenti, baru kirim. Baru sekarang
-    // pesan ditandai dibaca: sebelum titik ini, tanda-baca di chat hanya bisa berasal dari manusia.
-    const lama = st.minMengetikMs ?? lamaMengetik(jawaban);
-    a.botBacaSampai = Date.now() + skala(6_000) + lama;
-    await tandaiDibaca(a.sesi, a.alamat, a.belumDibaca.splice(0));
-    void mengetik(a.sesi, a.alamat, true);
-    await tidur(lama);
-    void mengetik(a.sesi, a.alamat, false);
+    // Biasanya sudah "mengetik" sejak AI mulai menyusun. Belum (jawaban yang ditahan, atau chat dibisukan yang ternyata
+    // prospek): baca & mengetik sekarang. Jawaban yang jadi lebih cepat dari batas mengetik minimal (acak) ditahan
+    // sampai batas itu, lalu berhenti mengetik dan kirim.
+    const mulaiKetik = await mulaiMengetik();
+    const sisaKetik = (st.minMengetikMs ?? acakMengetik()) - (Date.now() - mulaiKetik);
+    if (sisaKetik > 0) await tidur(sisaKetik);
+    berhentiMengetik();
     if (diambilManusia()) return;
     try {
       // Id pesan dicatat sebelum pesan berangkat, jadi tidak mungkin dikira balasan manusia.
@@ -688,6 +726,7 @@ async function proses(kunci: string): Promise<void> {
     }
     a.dibukaManusia = false;
   } finally {
+    berhentiMengetik(); // jalur diam / spam / galat / diambil manusia: "mengetik" tidak pernah tertinggal menyala
     a.sedangProses = false;
     a.aktifSampai = Date.now() + 600_000;
     // Masih ada yang menunggu (pesan baru, atau jawaban yang ditahan): manusia diberi kesempatan dulu.
