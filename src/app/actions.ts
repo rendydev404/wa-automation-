@@ -34,6 +34,7 @@ import { alihkanPermintaan, teksPermintaan } from "@/lib/bahasa-server";
 import { authConfigured } from "@/lib/auth";
 import { asalAplikasi, ipKlien, lewatHttps, terlaluSering } from "@/lib/batas";
 import { jalurLanjut } from "@/lib/lanjut";
+import { VoucherError } from "@/lib/voucher-def";
 import { sekarang, setSetting } from "@/lib/db";
 import {
   COOKIE_PIXEL_REG,
@@ -344,7 +345,7 @@ const teksGalat = (e: Error & { en?: string }, b: Bahasa): string => (b === "en"
 
 /** Pesan galat untuk pengguna; `b` bawaan "id" (aksi admin tetap berbahasa Indonesia). */
 const pesanGalat = (e: unknown, b: Bahasa = "id"): string =>
-  e instanceof WaError || e instanceof KnowledgeError || e instanceof PenggunaError || e instanceof AfiliasiError
+  e instanceof WaError || e instanceof KnowledgeError || e instanceof PenggunaError || e instanceof AfiliasiError || e instanceof VoucherError
     ? teksGalat(e, b)
     : b === "en"
       ? "Something went wrong. Please try again."
@@ -2006,6 +2007,17 @@ export async function adminHentikanProspekAction(kunci: string): Promise<Hasil> 
 
 // ---------- Voucher Panduan Produk Digital & Promo ----------
 
+async function hapusCookieVoucher(): Promise<void> {
+  const { COOKIE_VOUCHER } = await import("@/lib/voucher-def");
+  (await cookies()).delete(COOKIE_VOUCHER);
+}
+
+/** Modal klaim voucher ditutup ("Nanti saja" / sudah selesai): kode dari tautan email tidak ditawarkan lagi. */
+export async function tutupModalVoucherAction(): Promise<void> {
+  await requireUser();
+  await hapusCookieVoucher();
+}
+
 export async function klaimVoucherAction(
   kodeMentah: string,
 ): Promise<
@@ -2045,6 +2057,8 @@ export async function klaimVoucherAction(
   }
   try {
     const { klaimVoucher } = await import("@/lib/voucher");
+    // Cookie modal voucher TIDAK dihapus di sini: modal harus tetap terpasang untuk menampilkan hasil klaim.
+    // Dihapus saat modal ditutup (tutupModalVoucherAction); dibuka ulang sebelum itu = modal 'sudah aktif di akun Anda'.
     const h = await klaimVoucher(user.id, kodeMentah);
     revalidatePath("/langganan");
     revalidatePath("/dashboard");

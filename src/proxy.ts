@@ -7,6 +7,7 @@ import { type Bahasa, HEADER_BAHASA, bahasaSah, tautan, urai } from "@/lib/bahas
 import { jalurLanjut } from "@/lib/lanjut";
 import { modeMesin } from "@/lib/mode";
 import { JALUR_LP_PUBLIK } from "@/lib/lp/def";
+import { COOKIE_VOUCHER, UMUR_COOKIE_VOUCHER, kodeVoucherSah, normalisasiKodeVoucher } from "@/lib/voucher-def";
 
 // /api/sinkron dipanggil database (bukan browser); keabsahannya dicek lewat tanda tangan HMAC di handler-nya.
 // "/" = landing page publik; /api/auth/google* = masuk dengan Google (sebelum ada sesi);
@@ -98,6 +99,23 @@ export async function proxy(request: NextRequest) {
     return res;
   };
 
+  // Tautan klaim dari email pembelian Panduan (?voucher=CG-XXXX-XXXX): kodenya disimpan di cookie supaya tetap terbawa
+  // melewati login / daftar / masuk dengan Google; modal klaim di layout aplikasi membacanya begitu pengguna masuk.
+  const voucherParam = !isApi && request.method === "GET" ? searchParams.get("voucher") : null;
+  const kodeVoucher = voucherParam ? normalisasiKodeVoucher(voucherParam) : "";
+  const pasangVoucher = (res: NextResponse): NextResponse => {
+    if (kodeVoucher && kodeVoucherSah(kodeVoucher)) {
+      res.cookies.set(COOKIE_VOUCHER, kodeVoucher, { httpOnly: true, sameSite: "lax", path: "/", maxAge: UMUR_COOKIE_VOUCHER });
+    }
+    return res;
+  };
+  const tanpaVoucher = (): string => {
+    const q = new URLSearchParams(search);
+    q.delete("voucher");
+    const s = q.toString();
+    return s ? `?${s}` : "";
+  };
+
   if (publikDeveloperApi(pathname)) return lanjut();
   // Mesin self-host dengan DASHBOARD_MESIN=mati: murni API. Semua halaman ke /mode-api (status lisensi); route dashboard
   // (sesi cookie) ditolak. Blokir dari lisensi pusat ditangani di getUser/requireUser (proxy tidak membaca lisensi).
@@ -107,7 +125,7 @@ export async function proxy(request: NextRequest) {
   }
   if (modeMesin() && !isApi && halamanPusat(pathname)) return NextResponse.redirect(new URL(href("/dashboard"), request.url));
   if (modeMesin() && !isApi && panelPusat(pathname)) return NextResponse.redirect(new URL(href("/admin"), request.url));
-  if (PUBLIK.has(pathname)) return pasangRef(lanjut());
+  if (PUBLIK.has(pathname)) return pasangVoucher(pasangRef(lanjut()));
   // Berkas statis dari public/ (logo, logo bank, maskot, ikon) memang publik: tanpa ini pengunjung yang belum login
   // dialihkan ke /login dan gambarnya rusak di landing page. Hanya ekstensi media/font, dan bukan /api.
   if (!isApi && BERKAS_STATIS.test(pathname)) return lanjut();
@@ -122,7 +140,7 @@ export async function proxy(request: NextRequest) {
     // akun dibuat. Lewat cookie supaya ikut juga di alur Google yang meninggalkan halaman ini.
     const asalBaru = request.method === "GET" && pathname !== "/lupa-password" ? asalDariUrl(searchParams) : null;
     if (asalBaru) res.cookies.set(COOKIE_ASAL, kodeAsal(asalBaru), { httpOnly: true, sameSite: "lax", path: "/", maxAge: UMUR_COOKIE_ASAL });
-    return res;
+    return pasangVoucher(res);
   }
   if (!sesi) {
     if (isApi) {
@@ -131,9 +149,15 @@ export async function proxy(request: NextRequest) {
     }
     // Halaman yang dibuka (mis. /trial-habis dari tautan WhatsApp) dibawa ke /login supaya setelah masuk kembali ke sana.
     const tujuan = new URL(href("/login"), request.url);
-    const asal = pathname + search;
+    const asal = pathname + (voucherParam !== null ? tanpaVoucher() : search);
     if (pathname !== "/" && request.method === "GET" && jalurLanjut(asal)) tujuan.searchParams.set("lanjut", asal);
-    return pasangRef(NextResponse.redirect(tujuan));
+    return pasangVoucher(pasangRef(NextResponse.redirect(tujuan)));
+  }
+  // Sudah login: kode dipindah ke cookie lalu alamatnya dibersihkan (modal klaim muncul di halaman tujuan).
+  if (voucherParam !== null) {
+    const bersih = request.nextUrl.clone();
+    bersih.searchParams.delete("voucher");
+    return pasangVoucher(pasangRef(NextResponse.redirect(bersih)));
   }
   if (isApi && request.method !== "GET" && request.method !== "HEAD" && !asalSama(request)) {
     return NextResponse.json({ error: bahasa === "en" ? "Invalid request." : "Permintaan tidak valid." }, { status: 403 });

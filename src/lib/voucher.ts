@@ -6,11 +6,13 @@ import { aktifkanBotSiap, segarkanNomor } from "./numbers";
 import {
   BAWAAN_PENGATURAN_VOUCHER,
   type BarisVoucher,
+  type InfoModalVoucher,
   type ModeKlaimVoucher,
   type PengaturanVoucher,
   type RingkasanVoucher,
   type StatusVoucher,
   type VoucherTersedia,
+  VoucherError,
   kodeVoucherSah,
   normalisasiKodeVoucher,
 } from "./voucher-def";
@@ -94,7 +96,7 @@ const KOLOM_VOUCHER = `
  */
 export async function terbitkanVoucherPanduan(input: InputVoucherPanduan): Promise<BarisVoucher> {
   const kode = normalisasiKodeVoucher(input.kode);
-  if (!kodeVoucherSah(kode)) throw new Error("Format kode voucher tidak sah.");
+  if (!kodeVoucherSah(kode)) throw new VoucherError("Format kode voucher tidak sah.", "Invalid voucher code format.");
 
   const cfg = await pengaturanVoucher();
   const namaPaket = (input.nama_paket ?? "").trim().slice(0, 60) || cfg.nama_paket;
@@ -210,8 +212,8 @@ export async function batalkanVoucher(voucherId: number): Promise<void> {
   const sql = await db();
   const [v] = await sql<{ id: number; status: StatusVoucher }[]>`
     SELECT id, status FROM voucher WHERE id = ${voucherId}`;
-  if (!v) throw new Error("Voucher tidak ditemukan.");
-  if (v.status === "diklaim") throw new Error("Voucher yang sudah diklaim tidak dapat dibatalkan.");
+  if (!v) throw new VoucherError("Voucher tidak ditemukan.");
+  if (v.status === "diklaim") throw new VoucherError("Voucher yang sudah diklaim tidak dapat dibatalkan.");
   if (v.status === "dibatalkan") return;
   await sql`UPDATE voucher SET status = 'dibatalkan' WHERE id = ${voucherId} AND status = 'belum_diklaim'`;
 }
@@ -237,12 +239,12 @@ export interface HasilKlaimVoucher {
 export async function klaimVoucher(userId: number, kodeMentah: string): Promise<HasilKlaimVoucher> {
   const cfg = await pengaturanVoucher();
   if (!cfg.aktif) {
-    throw new Error("Klaim voucher sedang dinonaktifkan sementara oleh admin.");
+    throw new VoucherError("Klaim voucher sedang dinonaktifkan sementara oleh admin.", "Voucher claims are temporarily disabled by the admin.");
   }
 
   const kode = normalisasiKodeVoucher(kodeMentah);
   if (!kodeVoucherSah(kode)) {
-    throw new Error("Format kode voucher tidak sah. Masukkan kode seperti CG-XXXX-XXXX.");
+    throw new VoucherError("Format kode voucher tidak sah. Masukkan kode seperti CG-XXXX-XXXX.", "Invalid voucher code format. Enter a code like CG-XXXX-XXXX.");
   }
 
   const hasil = await transaksiDb(async (tx) => {
@@ -265,16 +267,19 @@ export async function klaimVoucher(userId: number, kodeMentah: string): Promise<
        FOR UPDATE`;
 
     if (!v) {
-      throw new Error("Kode voucher tidak ditemukan. Pastikan kode yang Anda masukkan sudah benar.");
+      throw new VoucherError(
+        "Kode voucher belum terdaftar. Bila Anda baru saja membayar, tunggu 1-2 menit lalu coba lagi; bila tetap gagal, pastikan kodenya benar atau hubungi admin.",
+        "Voucher code not found yet. If you just paid, wait 1-2 minutes and try again; if it still fails, check the code or contact the admin.",
+      );
     }
     if (v.status === "dibatalkan") {
-      throw new Error("Kode voucher ini sudah tidak berlaku (dibatalkan).");
+      throw new VoucherError("Kode voucher ini sudah tidak berlaku (dibatalkan).", "This voucher code is no longer valid (cancelled).");
     }
     if (v.status === "diklaim") {
       if (v.diklaim_oleh === userId) {
-        throw new Error("Kode voucher ini sudah pernah Anda klaim di akun ini.");
+        throw new VoucherError("Kode voucher ini sudah pernah Anda klaim di akun ini.", "You have already claimed this voucher on this account.");
       }
-      throw new Error("Kode voucher ini sudah pernah digunakan oleh akun lain.");
+      throw new VoucherError("Kode voucher ini sudah pernah digunakan oleh akun lain.", "This voucher code has already been used by another account.");
     }
 
     const kini = sekarang();
@@ -442,6 +447,26 @@ export async function voucherBelumDiklaimEmail(email: string): Promise<VoucherTe
      ORDER BY dibuat DESC, id DESC
      LIMIT 5`;
   return [...baris];
+}
+
+/**
+ * Info satu voucher untuk modal klaim (kode dari tautan email). Satu query lewat indeks unik `kode`;
+ * status dihitung relatif ke pengguna yang sedang login.
+ */
+export async function infoVoucherModal(kodeMentah: string, userId: number): Promise<InfoModalVoucher | null> {
+  const kode = normalisasiKodeVoucher(kodeMentah);
+  if (!kodeVoucherSah(kode)) return null;
+  const kosong = { nama_paket: null, durasi_hari: null, kuota_nomor: null, kuota_balasan: null };
+  const cfg = await pengaturanVoucher();
+  if (!cfg.aktif) return { kode, status: "nonaktif", ...kosong };
+  const sql = await db();
+  const [v] = await sql<{ kode: string; nama_paket: string; durasi_hari: number; kuota_nomor: number; kuota_balasan: number; status: StatusVoucher; diklaim_oleh: number | null }[]>`
+    SELECT kode, nama_paket, durasi_hari, kuota_nomor, kuota_balasan, status, diklaim_oleh
+      FROM voucher WHERE kode = ${kode}`;
+  if (!v) return { kode, status: "tidak_ada", ...kosong };
+  const status =
+    v.status === "belum_diklaim" ? "siap" : v.status === "dibatalkan" ? "dibatalkan" : v.diklaim_oleh === userId ? "milik_anda" : "dipakai_lain";
+  return { kode: v.kode, status, nama_paket: v.nama_paket, durasi_hari: v.durasi_hari, kuota_nomor: v.kuota_nomor, kuota_balasan: v.kuota_balasan };
 }
 
 const lolosLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);

@@ -77,8 +77,14 @@ export function TurOtomatis({ nama, langkah, sudah }: { nama: string; langkah: I
   const { t } = useBahasa();
   useEffect(() => {
     if (sudah || sudahDibuka.has(nama)) return;
-    // Tunggu bagian halaman lain selesai tampil (di-stream) sebelum mengukur posisi elemen.
-    const jeda = setTimeout(() => mulai(nama, langkah(t)), 900);
+    // Tunggu bagian halaman lain selesai tampil (di-stream) sebelum mengukur posisi elemen. Selama modal klaim voucher
+    // terbuka (modal-voucher.tsx), tur ditunda dulu supaya tidak bertumpuk.
+    let jeda: ReturnType<typeof setTimeout>;
+    const coba = () => {
+      if (document.body.hasAttribute("data-modal-voucher")) jeda = setTimeout(coba, 700);
+      else mulai(nama, langkah(t));
+    };
+    jeda = setTimeout(coba, 900);
     return () => clearTimeout(jeda);
   }, [nama, langkah, mulai, sudah, t]);
   return null;

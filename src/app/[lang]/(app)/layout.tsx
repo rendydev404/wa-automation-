@@ -15,6 +15,9 @@ import { nomorMilik } from "@/lib/numbers";
 import { requireUser } from "@/lib/session";
 import { staf } from "@/lib/peran";
 import { modeMesin } from "@/lib/mode";
+import { cookies } from "next/headers";
+import { COOKIE_VOUCHER } from "@/lib/voucher-def";
+import { ModalVoucher } from "@/components/modal-voucher";
 
 export const viewport: Viewport = { themeColor: "#0b1813" };
 
@@ -27,6 +30,20 @@ async function NavData({ bawah = false }: { bawah?: boolean }) {
   const nomor = (await nomorMilik(user.id)).map((n) => ({ id: n.id, label: n.label, wa_id: n.wa_id }));
   const props = { nomor, admin: staf(user.peran), developer: !modeMesin() && !!user.aksesApi, pengguna: { nama: user.nama || user.email.split("@")[0], email: user.email } };
   return bawah ? <NavBawah {...props} /> : <NavUtama {...props} />;
+}
+
+/**
+ * Modal klaim voucher: muncul otomatis bila pengguna datang dari tautan "Klaim voucher" di email pembelian
+ * (kode disimpan di cookie oleh proxy.ts, jadi tetap terbawa melewati login / daftar / Google). Tanpa cookie = tanpa query.
+ */
+async function ModalVoucherOtomatis() {
+  const kode = (await cookies()).get(COOKIE_VOUCHER)?.value;
+  if (!kode || modeMesin()) return null;
+  const user = await requireUser();
+  if (staf(user.peran)) return null;
+  const { infoVoucherModal } = await import("@/lib/voucher");
+  const info = await infoVoucherModal(kode, user.id);
+  return info ? <ModalVoucher info={info} /> : null;
 }
 
 export default async function AppLayout({ children }: LayoutProps<"/[lang]">) {
@@ -83,6 +100,9 @@ export default async function AppLayout({ children }: LayoutProps<"/[lang]">) {
             <BannerAkun />
           </Suspense>
           {children}
+          <Suspense fallback={null}>
+            <ModalVoucherOtomatis />
+          </Suspense>
         </main>
       </Rangka>
       </PenyediaTur>

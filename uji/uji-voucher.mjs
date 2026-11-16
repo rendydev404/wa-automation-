@@ -156,6 +156,28 @@ await cek("buatVoucherAdmin, akumulasi kuota (mode tambah), dan batalkanVoucher"
   assert.equal(ringkasan.belum_diklaim, 0);
 });
 
+await cek("infoVoucherModal: status modal klaim dari tautan email (siap / milik sendiri / akun lain / dibatalkan / tidak ada)", async () => {
+  const [baru] = await V.buatVoucherAdmin({ jumlah: 1 });
+  const siap = await V.infoVoucherModal(baru.kode.toLowerCase(), siti.id);
+  assert.equal(siap.status, "siap");
+  assert.equal(siap.kode, baru.kode);
+  assert.ok(siap.kuota_balasan > 0 && siap.durasi_hari > 0 && siap.kuota_nomor > 0);
+
+  await V.klaimVoucher(siti.id, baru.kode);
+  assert.equal((await V.infoVoucherModal(baru.kode, siti.id)).status, "milik_anda");
+  assert.equal((await V.infoVoucherModal(baru.kode, budi.id)).status, "dipakai_lain");
+
+  const ringkas = await V.ringkasanVoucherAdmin();
+  assert.ok(ringkas.dibatalkan >= 1);
+  const [batal] = await sql`SELECT kode FROM voucher WHERE status = 'dibatalkan' LIMIT 1`;
+  assert.equal((await V.infoVoucherModal(batal.kode, siti.id)).status, "dibatalkan");
+
+  const kosong = await V.infoVoucherModal("CG-ZZZZ-ZZZZ", siti.id);
+  assert.equal(kosong.status, "tidak_ada");
+  assert.equal(kosong.kuota_balasan, null);
+  assert.equal(await V.infoVoucherModal("bukan kode", siti.id), null);
+});
+
 await sql.end({ timeout: 2 });
 await pg.berhenti();
 console.log(`\nLOLOS ${lolos} uji voucher.`);

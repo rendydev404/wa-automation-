@@ -4,6 +4,16 @@
  */
 
 export type ModeKlaimVoucher = "tambah" | "ganti";
+
+/** Galat voucher yang aman ditampilkan ke pengguna (dua bahasa), mis. kode tidak ditemukan / sudah dipakai. */
+export class VoucherError extends Error {
+  readonly en?: string;
+  constructor(message: string, en?: string) {
+    super(message);
+    this.name = "VoucherError";
+    this.en = en;
+  }
+}
 export type StatusVoucher = "belum_diklaim" | "diklaim" | "dibatalkan";
 export type SumberVoucher = "panduan" | "admin";
 
@@ -101,4 +111,22 @@ export function normalisasiKodeVoucher(mentah: string): string {
 export function kodeVoucherSah(kode: string): boolean {
   const norm = normalisasiKodeVoucher(kode);
   return /^[A-Z0-9]{2,6}-[A-Z0-9]{3,8}(-[A-Z0-9]{3,8})?$/.test(norm);
+}
+
+/**
+ * Cookie penampung kode voucher dari tautan email pembelian (`?voucher=CG-XXXX-XXXX`). Dipasang proxy supaya kodenya
+ * tetap terbawa melewati login, daftar akun baru, maupun masuk dengan Google, lalu modal klaim muncul begitu masuk.
+ */
+export const COOKIE_VOUCHER = "cg_voucher";
+export const UMUR_COOKIE_VOUCHER = 7 * 86400;
+
+export type StatusModalVoucher = "siap" | "milik_anda" | "dipakai_lain" | "dibatalkan" | "tidak_ada" | "nonaktif";
+
+export interface InfoModalVoucher {
+  kode: string;
+  status: StatusModalVoucher;
+  nama_paket: string | null;
+  durasi_hari: number | null;
+  kuota_nomor: number | null;
+  kuota_balasan: number | null;
 }
