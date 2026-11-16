@@ -1,0 +1,65 @@
+// ---------- Uji tampilan HP: tangkapan per layar + deteksi elemen keluar layar / teks terpotong ----------
+const CEK = `(() => {
+  const w = innerWidth, hasil = [];
+  if (document.documentElement.scrollWidth > w + 1) hasil.push("HALAMAN bisa digeser ke samping: lebar isi " + document.documentElement.scrollWidth + " px > layar " + w + " px");
+  for (const el of document.querySelectorAll("main *")) {
+    const cs = getComputedStyle(el);
+    if (cs.display === "none" || cs.visibility === "hidden" || cs.position === "fixed") continue;
+    const b = el.getBoundingClientRect();
+    if (!b.width || !b.height) continue;
+    const nama = el.tagName.toLowerCase() + " '" + (el.innerText || el.getAttribute("aria-label") || "").trim().replace(/\\s+/g, " ").slice(0, 50) + "'";
+    if (b.right > w + 0.5 || b.left < -0.5) hasil.push("KELUAR LAYAR " + Math.round(b.left) + ".." + Math.round(b.right) + ": " + nama);
+    const klip = cs.overflowX !== "visible" || cs.whiteSpace === "nowrap" || cs.textOverflow === "ellipsis";
+    if (klip && el.scrollWidth > el.clientWidth + 1 && el.children.length === 0) hasil.push("TERPOTONG (" + el.scrollWidth + ">" + el.clientWidth + "): " + nama);
+  }
+  return [...new Set(hasil)].slice(0, 12);
+})()`;
+
+async function fotoLayar(nama) {
+  await tidur(350);
+  const { data } = await cdp("Page.captureScreenshot", { format: "png" });
+  writeFileSync(path.join(keluar, `${nama}.png`), Buffer.from(data, "base64"));
+  console.log(`  foto ${nama}.png`);
+}
+const gulirKe = async (pilih) => {
+  await evaluasi(`(() => { const el = ${pilih}; if (el) el.scrollIntoView({ block: "start" }); window.scrollBy(0, -70); })()`);
+  await tidur(300);
+};
+const laporan = [];
+
+try {
+  await mulaiServer(true);
+  await masuk("budi@contoh.test");
+  for (const lebar of [320, 360, 390, 412]) {
+    await cdp("Emulation.setDeviceMetricsOverride", { width: lebar, height: lebar <= 360 ? 740 : 844, deviceScaleFactor: 2, mobile: true });
+    await buka(`/langganan/bayar/${bisnis.id}`);
+    // Pilih Permata VA: teks tombol terpanjang + peringatan "tidak termasuk jaminan".
+    await evaluasi(`[...document.querySelectorAll("main label")].find((l) => l.textContent.includes("Permata"))?.click()`);
+    await tidur(400);
+    laporan.push([`bayar ${lebar}px`, await evaluasi(CEK)]);
+    await evaluasi("window.scrollTo(0, 0)");
+    await fotoLayar(`hp${lebar}-1-atas`);
+    await gulirKe(`[...document.querySelectorAll("main h3")].find((h) => /virtual account/i.test(h.textContent))`);
+    await fotoLayar(`hp${lebar}-2-daftar-va`);
+    await evaluasi("window.scrollTo(0, document.documentElement.scrollHeight)");
+    await fotoLayar(`hp${lebar}-3-bawah-tombol-bayar`);
+    for (const [label, order] of [["dana", orderDana], ["mandiri-va", orderIpaymu]]) {
+      await buka(`/langganan/tagihan/${order}`);
+      laporan.push([`tagihan ${label} ${lebar}px`, await evaluasi(CEK)]);
+      if (lebar === 320 || lebar === 360) {
+        await evaluasi("window.scrollTo(0, 0)");
+        await fotoLayar(`hp${lebar}-4-tagihan-${label}-atas`);
+        await evaluasi("window.scrollTo(0, document.documentElement.scrollHeight)");
+        await fotoLayar(`hp${lebar}-5-tagihan-${label}-bawah`);
+      }
+    }
+  }
+} finally {
+  ws.close();
+  chrome.kill();
+  server?.kill();
+  await pg.berhenti();
+}
+console.log("\n== LAPORAN MASALAH TAMPILAN ==");
+for (const [h, l] of laporan) console.log(`${h}: ${l.length ? "\n   - " + l.join("\n   - ") : "OK (tidak ada yang keluar layar / terpotong)"}`);
+process.exit(0);
