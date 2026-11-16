@@ -28,35 +28,34 @@ Kata kunci: dp, uang muka, down payment, pelunasan, batal acara, cancel, ganti t
 # Kemitraan
 
 ## Kemitraan Suka Shawarma: gambaran program
-Suka Shawarma membuka program kemitraan untuk membuka outlet baru. Garis besarnya menurut halaman resmi sukashawarma.com/kemitraan:
+Suka Shawarma membuka program kemitraan untuk membuka outlet baru. Garis besarnya menurut halaman resmi sukashawarma.com/kemitraan (dicek 9 November 2026):
 - Sistem bagi hasil dua fase. Fase 1, sebelum balik modal: 100% laba bersih outlet untuk mitra. Fase 2, setelah balik modal: laba bersih dibagi 50% mitra dan 50% Suka Shawarma sampai akhir kontrak.
-- Tidak ada royalty fee dan tidak ada potongan dari omzet.
-- Operasional harian dikelola tim Suka Shawarma: perekrutan dan pengelolaan staf, produksi, pelayanan, dan pemasaran digital. Mitra berperan sebagai pemilik modal dan memantau laporan.
+- Tidak ada royalty fee, management fee, atau potongan dari omzet.
+- Operasional harian dikelola tim Suka Shawarma: staf, produksi, pelayanan, stok bahan baku, dan pemasaran digital. Mitra berperan sebagai pemilik modal dan memantau laporan.
 - Tidak perlu pengalaman di bisnis makanan.
 - Mitra bisa mengusulkan lokasi sendiri, tetapi tim akan menyurvei kelayakannya lebih dulu.
-- Dari tanda tangan MoU sampai outlet buka rata-rata 4 sampai 8 minggu, tergantung kesiapan lokasi dan perizinan.
-- Kontrak berlaku 5 tahun dan dapat diperpanjang dengan kesepakatan bersama.
+- Dari tanda tangan MoU sampai outlet buka rata-rata 4 sampai 8 minggu.
+- Kontrak 5 tahun, dapat diperpanjang. Aset fisik tetap milik mitra.
+
 Kata kunci: info kemitraan, info franchise, kemitraan, mitra, franchise, waralaba, buka cabang, buka outlet, investasi, usaha, bisnis, bagi hasil, royalti, peluang usaha, join, gabung, jadi mitra.
 
 ## Paket dan biaya kemitraan
-Ada dua paket kemitraan menurut halaman resmi sukashawarma.com/kemitraan:
-- *Paket Standard, Rp150.000.000*: lokasi disediakan Suka Shawarma. Sudah termasuk sewa lokasi tahun pertama. Mulai tahun kedua ada sewa bulanan sekitar Rp2.500.000.
-- *Paket Own Location, Rp125.000.000*: untuk mitra yang sudah punya lokasi sendiri. Tidak ada biaya sewa tambahan.
-Rincian komponen: license fee Rp25 juta, dana stok bahan baku (RSF) Rp50 juta, peralatan dan sistem kasir Rp25 juta, renovasi dan dekorasi Rp25 juta, serta sewa lokasi tahun pertama Rp25 juta yang hanya ada di Paket Standard.
+Saat ini hanya ada satu paket kemitraan: *Rp150.000.000*, sama untuk yang sudah punya lokasi maupun belum.
+Rincian: license fee Rp25 juta, RSF (dana stok bahan baku) Rp70 juta, peralatan dan sistem kasir Rp25 juta, renovasi dan dekorasi Rp30 juta.
+Sewa lokasi tidak termasuk. Kalau belum punya lokasi, tim SS bantu carikan dan survei; estimasi sewa sekitar Rp30 juta sampai Rp40 juta per tahun, dibayar langsung ke pemilik tempat.
 RSF atau Revolving Stock Fund adalah dana stok bahan baku yang dikelola Suka Shawarma, sehingga mitra tidak perlu membeli bahan baku sendiri.
-Semua paket sudah termasuk setup outlet, pelatihan staf, branding, dan dukungan operasional.
-Angka di atas bisa berubah. Yang berlaku adalah penawaran resmi dari tim kemitraan.
-Kata kunci: info franchise, info kemitraan, modal berapa, modalnya, biaya franchise, harga kemitraan, paket kemitraan, 125 juta, 150 juta, license fee, sewa tempat, lokasi sendiri, rincian biaya, dapat apa saja.
+Paket sudah termasuk setup outlet, pelatihan staf, branding, dan dukungan operasional.
+Info lama berisi dua paket (Rp125 juta dan Rp150 juta) sudah tidak berlaku. Angka bisa berubah; yang berlaku adalah penawaran resmi dari tim kemitraan.
+Kata kunci: info franchise, info kemitraan, modal berapa, modalnya, buka cabang, biaya franchise, harga kemitraan, paket kemitraan, 125 juta, 150 juta, license fee, sewa tempat, lokasi sendiri, rincian biaya, dapat apa saja.
 
 ## Aturan menjawab pertanyaan kemitraan dan kontaknya
-Kamu boleh menjelaskan gambaran program dan paket kemitraan, tetapi tidak boleh menjanjikan keuntungan.
-- Jangan berkata pasti untung, dijamin balik modal, atau passive income.
-- Jangan menyebut angka omzet, laba per bulan, atau persentase ROI. Halaman resmi menyebut balik modal rata-rata sekitar 6 bulan; kalau ditanya, sampaikan bahwa itu proyeksi berdasarkan rata-rata outlet aktif, bukan jaminan, dan hasilnya tergantung lokasi dan kondisi pasar.
+Kamu boleh menjelaskan program dan paket kemitraan, tetapi tidak boleh menjanjikan keuntungan.
+- Jangan berkata pasti untung, dijamin balik modal, atau pasti dapat passive income.
+- Halaman resmi menampilkan proyeksi balik modal sekitar 5 bulan, bagi hasil sekitar Rp15 juta per bulan setelah balik modal, dan ROI 5 tahun hingga 650%, dengan asumsi omzet Rp100 juta per bulan dan margin 30%. Kalau ditanya, sebut asumsinya dan tegaskan itu proyeksi, bukan jaminan, tergantung lokasi dan kondisi pasar.
 - Sebut ini kerja sama kemitraan bisnis, bukan produk investasi atau titip modal.
 - Jangan menyebut data outlet mitra yang sudah berjalan, nama mitra, atau performa outlet tertentu.
-Untuk penawaran resmi, survei lokasi, MoU, dan negosiasi, arahkan ke tim kemitraan:
-- Halaman: sukashawarma.com/kemitraan (ada formulir dan simulasi).
-- WhatsApp kemitraan: 0852-8352-4708.
-- Email: kemitraan@sukashawarma.com.
-Konsultasi kemitraan gratis dan tanpa DP lebih dulu.
+Untuk penawaran resmi, Dokumen Mitra, survei lokasi, dan MoU, arahkan ke tim kemitraan:
+- WhatsApp kemitraan: 0852-8352-4708. Email: kemitraan@sukashawarma.com.
+- Halaman: sukashawarma.com/kemitraan.
+Konsultasi gratis dan tanpa DP lebih dulu.
 Kata kunci: untung berapa, omzet, balik modal, bep, roi, profit, laba, jaminan, risiko, rugi, kontak kemitraan, nomor kemitraan, survey lokasi, mou, proposal franchise.

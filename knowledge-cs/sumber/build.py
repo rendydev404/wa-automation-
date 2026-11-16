@@ -14,6 +14,7 @@ import base64, html, re, subprocess, sys, pathlib
 DIR = pathlib.Path(__file__).parent
 BATAS = 1185
 KAKI = "Suka Shawarma · Base Knowledge CS"
+KAKI_MITRA = "Suka Shawarma · Base Knowledge Kemitraan"
 CHROME = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
 
 
@@ -44,11 +45,11 @@ def urai(teks):
     return semua
 
 
-def teks_kartu(k, no):
+def teks_kartu(k, no, kaki=None):
     baris = [k["bagian"], k["judul"]]
     for blok in k["blok"]:
         baris += blok if isinstance(blok, list) else [blok]
-    baris.append(f"{KAKI} {no}")
+    baris.append(f"{kaki or KAKI} {no}")
     return "\n".join(baris)
 
 
@@ -66,7 +67,11 @@ def polos(s):
 
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else "pdf"
-    sumber = DIR / ("data" if mode == "data" else "isi")
+    mitra = mode == "kemitraan"
+    global KAKI
+    if mitra:
+        KAKI = KAKI_MITRA
+    sumber = DIR / {"data": "data", "kemitraan": "isi-kemitraan"}.get(mode, "isi")
     kartu = urai(chr(10).join(f.read_text(encoding="utf-8") for f in sorted(sumber.glob("*.txt"))))
     gagal = False
     for i, k in enumerate(kartu, 1):
@@ -102,7 +107,7 @@ def main():
         )
         bagian_lalu = k["bagian"]
     doc = (
-        '<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Base Knowledge CS Suka Shawarma</title>'
+        f'<!doctype html><html lang="id"><head><meta charset="utf-8"><title>{"Base Knowledge Kemitraan Suka Shawarma" if mitra else "Base Knowledge CS Suka Shawarma"}</title>'
         f'<link rel="stylesheet" href="fonts/local.css"><style>{css}</style></head><body>{"".join(hal)}</body></html>'
     )
     (DIR / "kb.html").write_text(doc, encoding="utf-8")
@@ -114,7 +119,7 @@ def main():
         for blok in k["blok"]:
             baris += [f"- {polos(x)}" for x in blok] if isinstance(blok, list) else [polos(blok)]
         md.append("\n".join(baris))
-    nama_md = "Data-Menu-Harga-Promo-Outlet.md" if mode == "data" else "Base-Knowledge-CS-Suka-Shawarma.md"
+    nama_md = {"data": "Data-Menu-Harga-Promo-Outlet.md", "kemitraan": "Base-Knowledge-Kemitraan-Suka-Shawarma.md"}.get(mode, "Base-Knowledge-CS-Suka-Shawarma.md")
     (DIR / nama_md).write_text((chr(10) * 2).join(md) + chr(10), encoding="utf-8")
     if mode == "data":
         print("md:", nama_md)
@@ -134,8 +139,12 @@ def main():
             toc.append([1, k["bagian"], i]); lalu = k["bagian"]
         toc.append([2, polos(k["judul"]), i])
     d.set_toc(toc)
-    d.set_metadata({"title": "Base Knowledge Customer Service Suka Shawarma", "author": "Suka Shawarma", "subject": "Base knowledge asisten WhatsApp", "keywords": "Suka Shawarma, customer service, base knowledge"})
-    keluar = DIR / "Base-Knowledge-CS-Suka-Shawarma.pdf"
+    if mitra:
+        d.set_metadata({"title": "Base Knowledge Kemitraan Suka Shawarma", "author": "Suka Shawarma", "subject": "Base knowledge kemitraan untuk asisten WhatsApp", "keywords": "Suka Shawarma, kemitraan, franchise, base knowledge"})
+        keluar = DIR.parent / "Base-Knowledge-Kemitraan-Suka-Shawarma.pdf"
+    else:
+        d.set_metadata({"title": "Base Knowledge Customer Service Suka Shawarma", "author": "Suka Shawarma", "subject": "Base knowledge asisten WhatsApp", "keywords": "Suka Shawarma, customer service, base knowledge"})
+        keluar = DIR / "Base-Knowledge-CS-Suka-Shawarma.pdf"
     d.save(keluar, garbage=3, deflate=True)
     print("pdf:", keluar.stat().st_size, "byte,", d.page_count, "halaman")
 

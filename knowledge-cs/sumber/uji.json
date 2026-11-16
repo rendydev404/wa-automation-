@@ -45,7 +45,7 @@
   {"q": "saya alergi susu, aman ga", "harus": ["Susu: ada di keju"]},
   {"q": "mau pesen 100 porsi buat acara kantor", "harus": ["Big Order", "0852-8352-4708"]},
   {"q": "kalo batal acara dp nya gimana", "harus": ["Pembatalan H-2: DP dipotong 25%"]},
-  {"q": "info franchise dong, modal berapa", "harus": ["Rp150.000.000", "Rp125.000.000"]},
+  {"q": "info franchise dong, modal berapa", "harus": ["Rp150.000.000", "RSF (dana stok bahan baku) Rp70 juta"]},
   {"q": "kemitraan balik modalnya berapa lama", "harus": ["bukan jaminan"]},
   {"q": "nomor wa cs berapa", "harus": ["Kontak resmi Suka Shawarma"]},
   {"q": "instagramnya apa", "harus": ["@sukashawarmaofficial"]},

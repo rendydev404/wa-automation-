@@ -1,0 +1,61 @@
+# Skema Bagi Hasil
+
+## Bagi hasil dua fase: 100% lalu 50:50
+Halaman resmi menyebut skemanya "BEP-First": mitra balik modal dulu, baru Suka Shawarma ikut bagi hasil.
+- *Fase 1, sebelum balik modal (BEP):* 100% laba bersih (net profit) outlet menjadi hak mitra, mulai bulan pertama sampai modal kembali. Tujuannya mempercepat balik modal.
+- *Fase 2, setelah balik modal:* laba bersih dibagi 50% untuk mitra dan 50% untuk Suka Shawarma setiap bulan, sampai akhir kontrak.
+Yang dibagi adalah laba bersih, bukan omzet. Laba bersih adalah pendapatan outlet setelah dikurangi biaya operasionalnya.
+FAQ resmi: "Fase 1, dari bulan pertama hingga BEP tercapai (sekitar 5 bulan), 100% net profit menjadi hak mitra. Fase 2, setelah BEP, net profit dibagi 50:50 antara mitra dan SukaShawarma setiap bulan. Sama sekali tidak ada potongan omzet atau royalty fee."
+Rincian biaya yang dikurangkan sebelum laba bersih belum ada di datamu.
+Kata kunci: bagi hasil, sistem bagi hasil, profit sharing, 50:50, 50 50, 100 persen, net profit, laba bersih, fase, bep first, pembagian keuntungan, setelah balik modal, sebelum balik modal.
+
+## Tanpa royalty fee dan tanpa potongan omzet
+Suka Shawarma tidak memungut royalty fee maupun management fee, dan tidak ada potongan dari omzet sama sekali.
+FAQ resmi: "SukaShawarma tidak memungut royalty fee ataupun management fee. Tidak ada potongan dari omzet sama sekali. Di Fase 1 kamu tetap mendapat 100% net profit agar investasi cepat kembali, dan di Fase 2 laba bersih dibagi 50:50."
+Bedanya dengan franchise pada umumnya: banyak franchise memungut royalti bulanan dari omzet sejak hari pertama. Di Suka Shawarma, pihak pusat baru mendapat bagian setelah mitra balik modal, yaitu 50% laba bersih di Fase 2.
+Biaya tahunan atau biaya perpanjangan lisensi tidak disebut di halaman resmi. Kalau ditanya, katakan halaman resmi menyebut tidak ada royalty fee dan management fee, dan detail perpanjangan kontrak dibahas dengan tim kemitraan.
+Kata kunci: royalti, royalty fee, royalty, management fee, biaya bulanan, biaya tahunan, potongan omzet, persen dari omzet, fee, iuran, setoran ke pusat.
+
+## Kontrak 5 tahun dan setelahnya
+- Kontrak kemitraan berlaku 5 tahun.
+- Setelah 5 tahun, kontrak dapat diperpanjang dengan kesepakatan bersama.
+- Aset fisik, yaitu peralatan dan hasil renovasi, tetap menjadi milik mitra sesuai perjanjian awal.
+- Kerja sama diresmikan lewat penandatanganan MoU (perjanjian kerja sama resmi).
+FAQ resmi: "Kontrak dapat diperpanjang dengan kesepakatan bersama. Aset fisik (peralatan, renovasi) tetap menjadi milik Anda sesuai perjanjian awal."
+Belum ada di datamu: aturan bila mitra ingin berhenti sebelum kontrak habis, pengalihan outlet ke orang lain, pindah lokasi, outlet tutup, atau sengketa. Jangan menebak. Sampaikan bahwa semua ketentuan itu tertulis di MoU dan bisa ditanyakan ke tim kemitraan sebelum tanda tangan.
+Kata kunci: kontrak, berapa tahun, lama kontrak, 5 tahun, perpanjang, perpanjangan, habis kontrak, aset, peralatan milik siapa, mou, perjanjian, berhenti, putus kontrak, pindah tangan, jual outlet.
+
+# Proyeksi dan Simulasi
+
+## Angka proyeksi di halaman resmi
+Halaman resmi menampilkan angka proyeksi berikut:
+- Estimasi balik modal (BEP): sekitar 5 bulan.
+- Bagi hasil untuk mitra setelah BEP: sekitar Rp15 juta per bulan.
+- ROI 5 tahun: hingga 650%.
+Asumsi di balik angka itu: modal Rp150 juta, omzet outlet Rp100 juta per bulan, dan margin laba bersih 30% (laba bersih Rp30 juta per bulan).
+Catatan resmi di halaman: "Proyeksi berdasarkan rata-rata performa outlet aktif. Hasil aktual dapat bervariasi tergantung lokasi dan kondisi pasar."
+Saat menyampaikan angka ini, selalu sebut bahwa ini proyeksi dari simulasi di halaman resmi, bukan jaminan, dan hasilnya tergantung lokasi dan kondisi pasar. Sewa tempat dan biaya lain di luar asumsi itu bisa membuat hasil berbeda.
+Kata kunci: balik modal, bep, berapa lama balik modal, roi, return, untung berapa, keuntungan, profit, omzet, penghasilan, pendapatan per bulan, passive income, 650, 5 bulan, 15 juta, proyeksi, estimasi.
+
+## Cara simulasi di halaman resmi menghitung
+Di sukashawarma.com/kemitraan ada simulasi dengan dua slider: omzet per bulan (Rp50 juta sampai Rp375 juta) dan margin laba bersih (25% sampai 35%). Modal dihitung tetap Rp150 juta.
+Cara hitungnya:
+- Laba bersih per bulan = omzet dikali margin.
+- BEP = modal Rp150 juta dibagi laba bersih per bulan, dibulatkan ke atas.
+- Bagi hasil mitra setelah BEP = 50% laba bersih.
+- ROI 5 tahun = total yang diterima mitra selama 60 bulan (100% laba sampai BEP, lalu 50%) dibagi modal. Angka ini sudah termasuk pengembalian modal.
+Contoh dari rumus resmi:
+- Omzet Rp100 juta, margin 30%: BEP sekitar 5 bulan, bagi hasil Rp15 juta per bulan, ROI 650%.
+- Omzet Rp50 juta, margin 30%: BEP sekitar 10 bulan, bagi hasil Rp7,5 juta per bulan, ROI 350%.
+Jangan membuat simulasi angka lain sendiri. Untuk hitungan lebih detail, arahkan ke simulasi di halaman resmi atau Dokumen Mitra.
+Kata kunci: simulasi, kalkulator, hitung, hitungan, cara hitung, rumus, kalau omzet, misal omzet, margin, cashflow, skenario, proyeksi detail.
+
+## Aturan menyampaikan proyeksi keuntungan
+Calon mitra wajar bertanya soal untung. Jawab jujur dengan aturan ini:
+- Boleh menyebut angka proyeksi dari halaman resmi (BEP sekitar 5 bulan, Rp15 juta per bulan setelah BEP, ROI hingga 650%) asalkan selalu disertai asumsinya dan catatan bahwa itu proyeksi, bukan jaminan.
+- Jangan berkata pasti untung, dijamin balik modal, tanpa risiko, atau pasti dapat passive income.
+- Jangan menyebut omzet, laba, atau performa outlet tertentu, dan jangan menyebut nama atau data mitra yang sudah berjalan.
+- Jangan membandingkan dengan bunga deposito atau menjanjikan hasil tetap per bulan.
+- Kalau ditanya risiko rugi: jawab jujur bahwa setiap usaha punya risiko, hasil tergantung lokasi dan kondisi pasar, dan karena itu tim menyurvei kelayakan lokasi dulu sebelum outlet dibuka.
+- Untuk angka lengkap (proyeksi omzet, biaya operasional, simulasi BEP dan cashflow 5 tahun), tawarkan Dokumen Mitra yang gratis lewat WhatsApp kemitraan.
+Kata kunci: dijamin, jaminan, pasti untung, risiko, rugi, bangkrut, aman nggak, gagal, sepi, tutup, bunga, deposito, untung tetap, investasi bodong, penipuan.
