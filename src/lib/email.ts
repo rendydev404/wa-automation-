@@ -87,7 +87,7 @@ export interface IsiEmail {
   /** Teks pratinjau di daftar kotak masuk (tidak tampil di badan email). */
   pratinjau: string;
   /** Ikon besar di header: berkas public/email/<ikon>.png (ikon Lucide). */
-  ikon: "kunci" | "cek";
+  ikon: "kunci" | "cek" | "peringatan" | "perisai";
   judul: string;
   subjudul: string;
   sapaan?: string;

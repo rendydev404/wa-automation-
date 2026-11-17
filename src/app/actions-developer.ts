@@ -78,7 +78,7 @@ export async function ajukanAction(_lalu: (Hasil & { id?: number }) | null, form
     revalidatePath("/developer");
     revalidatePath("/admin/developer-api");
     catatFitur(user.id, "developer.ajukan");
-    return { ok: true, id, pesan: t("Pengajuan terkirim. Kami akan meninjaunya dan memberi kabar lewat notifikasi.", "Application sent. We'll review it and notify you.") };
+    return { ok: true, id, pesan: t("Pengajuan terkirim. Kami akan meninjaunya dan memberi kabar lewat email serta notifikasi.", "Application sent. We'll review it and notify you by email and notification.") };
   } catch (e) {
     return galat(e);
   }
@@ -225,7 +225,7 @@ export async function setujuiAction(_lalu: Hasil | null, form: FormData): Promis
     await setujui(pelaku, id, bacaKeputusan(form));
     segarkanPanel(id);
     catatFitur(pelaku.id, "admin.developer_setujui");
-    return { ok: true, pesan: "Disetujui. Developer mendapat notifikasi untuk membuat API key." };
+    return { ok: true, pesan: "Disetujui. Developer mendapat email dan notifikasi untuk membuat API key." };
   } catch (e) {
     return galat(e);
   }
@@ -257,7 +257,7 @@ export async function tolakAction(_lalu: Hasil | null, form: FormData): Promise<
     await tolak(pelaku, id, String(form.get("alasan") ?? ""));
     segarkanPanel(id);
     catatFitur(pelaku.id, "admin.developer_tolak");
-    return { ok: true, pesan: "Ditolak. Alasan dikirim ke pengaju." };
+    return { ok: true, pesan: "Ditolak. Alasan dikirim ke pengaju lewat email dan notifikasi." };
   } catch (e) {
     return galat(e);
   }

@@ -122,23 +122,53 @@ await cek("maks 3 pengajuan menunggu per akun", async () => {
   await assert.rejects(D.ajukan(B, isian({ nama: "App 4" })), galat("terlalu_sering"));
 });
 
-await cek("tolak wajib alasan; setujui hanya fitur yang diizinkan global; biaya berbayar wajib harga", async () => {
-  const [, a2] = (await D.daftarAplikasi({ filter: "menunggu" })).daftar;
-  await assert.rejects(D.tolak(DV, a2.id, "x"), galat("isian_tidak_sah"));
-  await D.tolak(DV, a2.id, "Kegunaan belum jelas");
-  assert.equal((await D.aplikasiById(a2.id)).status, "ditolak");
-  await assert.rejects(D.setujui(DV, appId, { fitur: [], biaya: "gratis", harga_bulan: null, batas: {} }), galat("isian_tidak_sah"));
-  await assert.rejects(D.setujui(DV, appId, { fitur: ["nomor"], biaya: "berbayar", harga_bulan: null, batas: {} }), galat("isian_tidak_sah"));
-  await D.simpanPengaturanApi(A, { biaya: "gratis", harga: 50000, fitur: ["nomor", "pesan.kirim", "pesan.terima", "ai"] });
-  await D.setujui(DV, appId, { fitur: ["nomor", "pesan.kirim", "knowledge", "ai"], biaya: "ikut_umum", harga_bulan: null, batas: { nomor: 5, instalasi: 1, pesan_menit: 999 } });
-  const a = await D.aplikasiById(appId);
-  assert.equal(a.status, "disetujui");
-  assert.deepEqual(a.fitur, ["nomor", "pesan.kirim", "ai"]); // knowledge tidak diizinkan global -> dibuang
-  assert.equal(a.batas.nomor, 5);
-  assert.equal(a.batas.pesan_menit, 60); // dipotong ke rentang
-  assert.equal(D.statusLisensi(a, await D.pengaturanApi()), "aktif");
-  const c = await D.hitungAplikasi();
-  assert.deepEqual([c.menunggu, c.aktif, c.ditolak, c.semua], [1, 1, 1, 3]);
+await cek("tolak wajib alasan; setujui hanya fitur yang diizinkan global; biaya berbayar wajib harga; email terkirim ke developer luar saat ditolak & disetujui", async () => {
+  const { mulaiSmtpTiruan } = await import("./smtp-tiruan.mjs");
+  const smtp = await mulaiSmtpTiruan();
+  process.env.GMAIL_USER = smtp.user;
+  process.env.GMAIL_APP_PASSWORD = smtp.pass;
+  process.env.SMTP_HOST = "127.0.0.1";
+  process.env.SMTP_PORT = String(smtp.port);
+  process.env.APP_URL = "https://app.uji";
+  const tungguEmail = async (n) => {
+    for (let i = 0; i < 300 && smtp.masuk.length < n; i++) await new Promise((r) => setTimeout(r, 10));
+  };
+  try {
+    const [, a2] = (await D.daftarAplikasi({ filter: "menunggu" })).daftar;
+    await assert.rejects(D.tolak(DV, a2.id, "x"), galat("isian_tidak_sah"));
+    await D.tolak(DV, a2.id, "Kegunaan belum jelas");
+    assert.equal((await D.aplikasiById(a2.id)).status, "ditolak");
+    await tungguEmail(1);
+    assert.equal(smtp.masuk.length, 1);
+    assert.deepEqual(smtp.masuk[0].ke, ["budi@uji.test"]);
+    assert.match(smtp.masuk[0].judul, /Pengajuan Developer API App 2 ditolak/);
+    const htmlTolak = smtp.masuk[0].mentah.replace(/=\r?\n/g, "").replace(/=3D/g, "=");
+    assert.match(htmlTolak, /Kegunaan belum jelas/);
+    assert.ok(htmlTolak.includes(`href="https://app.uji/developer/${a2.id}"`));
+
+    await assert.rejects(D.setujui(DV, appId, { fitur: [], biaya: "gratis", harga_bulan: null, batas: {} }), galat("isian_tidak_sah"));
+    await assert.rejects(D.setujui(DV, appId, { fitur: ["nomor"], biaya: "berbayar", harga_bulan: null, batas: {} }), galat("isian_tidak_sah"));
+    await D.simpanPengaturanApi(A, { biaya: "gratis", harga: 50000, fitur: ["nomor", "pesan.kirim", "pesan.terima", "ai"] });
+    await D.setujui(DV, appId, { fitur: ["nomor", "pesan.kirim", "knowledge", "ai"], biaya: "ikut_umum", harga_bulan: null, batas: { nomor: 5, instalasi: 1, pesan_menit: 999 } });
+    const a = await D.aplikasiById(appId);
+    assert.equal(a.status, "disetujui");
+    assert.deepEqual(a.fitur, ["nomor", "pesan.kirim", "ai"]); // knowledge tidak diizinkan global -> dibuang
+    assert.equal(a.batas.nomor, 5);
+    assert.equal(a.batas.pesan_menit, 60); // dipotong ke rentang
+    assert.equal(D.statusLisensi(a, await D.pengaturanApi()), "aktif");
+    const c = await D.hitungAplikasi();
+    assert.deepEqual([c.menunggu, c.aktif, c.ditolak, c.semua], [1, 1, 1, 3]);
+    await tungguEmail(2);
+    assert.equal(smtp.masuk.length, 2);
+    assert.deepEqual(smtp.masuk[1].ke, ["budi@uji.test"]);
+    assert.match(smtp.masuk[1].judul, /Pengajuan Developer API KasirKu disetujui/);
+    const htmlSetuju = smtp.masuk[1].mentah.replace(/=\r?\n/g, "").replace(/=3D/g, "=");
+    assert.match(htmlSetuju, /Nomor &amp; QR, Kirim pesan, Tanya AI/);
+    assert.ok(htmlSetuju.includes(`href="https://app.uji/developer/${appId}"`));
+  } finally {
+    for (const k of ["GMAIL_USER", "GMAIL_APP_PASSWORD", "SMTP_HOST", "SMTP_PORT", "APP_URL"]) delete process.env[k];
+    await smtp.berhenti();
+  }
 });
 
 console.log("== API key ==");

@@ -27,14 +27,17 @@ import {
   type StatusAplikasi,
   type StatusLisensi,
   fiturSah,
+  labelFitur,
   rapikanBatas,
 } from "./api-def";
 import { type Tx, db, getSetting, sekarang, setSetting, transaksi } from "./db";
+import { emailTerkonfigurasi, htmlEmail, kirimEmail } from "./email";
 import { infoRilis } from "./rilis-mesin";
 import type { KanalBayar } from "./harga";
 import { type AdapterGateway } from "./gateway";
 import { GatewayError } from "./gateway-def";
 import { buatKunciApi, hashRahasia, jawabTantangan, tandatanganiLisensi, uraiKunciApi } from "./lisensi-def";
+import { MEREK } from "./merek";
 import { modeMesin } from "./mode";
 import { kirimNotif, kirimNotifDeveloper } from "./notifikasi";
 import { catatLog } from "./pengguna";
@@ -478,7 +481,7 @@ export interface Keputusan {
   batas: Partial<Record<keyof BatasApi, unknown>>;
 }
 
-async function periksaKeputusan(id: number, k: Keputusan): Promise<{ fitur: FiturApi[]; biaya: BiayaAplikasi; harga: number | null; batas: BatasApi }> {
+async function periksaKeputusan(id: number, k: Keputusan): Promise<{ fitur: FiturApi[]; biaya: BiayaAplikasi; harga: number | null; batas: BatasApi; umum: PengaturanApi }> {
   const umum = await pengaturanApi();
   const sql = await db();
   const [p] = await sql<{ user_id: number }[]>`SELECT user_id FROM api_aplikasi WHERE id = ${id}`;
@@ -492,15 +495,17 @@ async function periksaKeputusan(id: number, k: Keputusan): Promise<{ fitur: Fitu
   if (harga !== null && !(Number.isInteger(harga) && harga >= 0 && harga <= MAKS_HARGA_API)) throw new ApiError("isian_tidak_sah", "Harga per bulan tidak valid.");
   const efektif = k.biaya === "ikut_umum" ? umum.biaya : k.biaya;
   if (efektif === "berbayar" && (harga ?? umum.harga) < 1000) throw new ApiError("isian_tidak_sah", "Aplikasi berbayar butuh harga per bulan minimal Rp1.000.");
-  return { fitur, biaya: k.biaya, harga, batas: rapikanBatas(k.batas) };
+  return { fitur, biaya: k.biaya, harga, batas: rapikanBatas(k.batas), umum };
 }
 
-async function wajibAplikasi(tx: Tx, id: number, mode?: ModeApi): Promise<Aplikasi & { email: string }> {
-  const [a] = await tx<(Aplikasi & { email: string })[]>`
-    SELECT ${tx.unsafe(KOLOM_APLIKASI)}, u.email FROM api_aplikasi a JOIN users u ON u.id = a.user_id WHERE a.id = ${id} FOR UPDATE OF a`;
+async function wajibAplikasi(tx: Tx, id: number, mode?: ModeApi): Promise<Aplikasi & { email: string; nama_akun: string }> {
+  const [a] = await tx<(Aplikasi & { email: string; nama_akun: string })[]>`
+    SELECT ${tx.unsafe(KOLOM_APLIKASI)}, u.email, u.nama AS nama_akun FROM api_aplikasi a JOIN users u ON u.id = a.user_id WHERE a.id = ${id} FOR UPDATE OF a`;
   if (!a || (mode && a.mode !== mode)) throw new ApiError("tidak_ditemukan", "Aplikasi tidak ditemukan.");
   return a;
 }
+
+const asalApp = (): string => (process.env.APP_URL ?? "").replace(/\/+$/, "");
 
 export async function setujui(pelaku: User, id: number, k: Keputusan): Promise<void> {
   const d = await periksaKeputusan(id, k);
@@ -520,6 +525,45 @@ export async function setujui(pelaku: User, id: number, k: Keputusan): Promise<v
     isi: { id: "Buat API key Anda lalu pasang mesin ChatGerCep di server Anda.", en: "Create your API key, then install the ChatGerCep engine on your server." },
     tautan: `/developer/${id}`,
   });
+  if (emailTerkonfigurasi()) {
+    const sapaan = a.nama_akun?.trim() || "Kak";
+    const asal = asalApp();
+    const url = asal ? `${asal}/developer/${id}` : "";
+    const daftarFitur = d.fitur.map(labelFitur).join(", ");
+    const efektif = d.biaya === "ikut_umum" ? d.umum.biaya : d.biaya;
+    const nominal = d.harga ?? d.umum.harga;
+    const teksBiaya = efektif === "berbayar" ? `Rp${nominal.toLocaleString("id-ID")} / 30 hari` : "Gratis";
+    void kirimEmail({
+      ke: a.email,
+      judul: `Pengajuan Developer API ${a.nama} disetujui - ${MEREK}`,
+      teks: `Halo ${sapaan},\n\nPengajuan aplikasi Developer API "${a.nama}" Anda telah disetujui.\nFitur dibuka: ${daftarFitur}\nBiaya: ${teksBiaya}\nBatas: maks ${d.batas.nomor} nomor per mesin · ${d.batas.instalasi} instalasi mesin\n\nLangkah berikutnya: buka portal Developer untuk membuat API key lalu pasang mesin ${MEREK} di server Anda.${url ? `\n${url}` : ""}`,
+      html: htmlEmail({
+        pratinjau: `Pengajuan "${a.nama}" disetujui. Buat API key Anda lalu pasang mesin ${MEREK} di server Anda.`,
+        ikon: "cek",
+        judul: `Pengajuan "${a.nama}" disetujui`,
+        subjudul: "Aplikasi Developer API Anda siap dibuatkan API key dan dipasang di server.",
+        sapaan: `Halo ${sapaan},`,
+        paragraf: [
+          `Pengajuan aplikasi Developer API "${a.nama}" Anda telah ditinjau dan disetujui oleh tim ${MEREK}.`,
+          "Buka portal Developer untuk membuat API key (ditampilkan sekali), lalu unduh berkas pemasangan mesin untuk server Anda.",
+        ],
+        rincian: [
+          ["Aplikasi", a.nama],
+          ["Pemilik", a.pemilik],
+          ["Domain mesin", a.alamat_mesin ?? "-"],
+          ["Fitur dibuka", daftarFitur],
+          ["Biaya", teksBiaya],
+          ["Batas mesin", `${d.batas.nomor} nomor · ${d.batas.instalasi} instalasi`],
+        ],
+        tombol: url ? { teks: "Buka aplikasi & buat API key", url } : undefined,
+        peringatan: {
+          nada: "waspada",
+          judul: "Simpan API key di server",
+          teks: "API key hanya ditampilkan sekali saat dibuat. Simpan di variabel lingkungan server Anda dan jangan pernah menaruhnya di kode browser atau aplikasi HP.",
+        },
+      }),
+    }).catch((e) => console.error(`[developer-api] email setujui gagal dikirim user=${a.user_id}: ${e instanceof Error ? e.message : e}`));
+  }
 }
 
 export async function tolak(pelaku: User, id: number, alasan: string): Promise<void> {
@@ -538,6 +582,38 @@ export async function tolak(pelaku: User, id: number, alasan: string): Promise<v
     isi: { id: `Alasan: ${teks}`, en: `Reason: ${teks}` },
     tautan: `/developer/${id}`,
   });
+  if (emailTerkonfigurasi()) {
+    const sapaan = a.nama_akun?.trim() || "Kak";
+    const asal = asalApp();
+    const url = asal ? `${asal}/developer/${id}` : "";
+    void kirimEmail({
+      ke: a.email,
+      judul: `Pengajuan Developer API ${a.nama} ditolak - ${MEREK}`,
+      teks: `Halo ${sapaan},\n\nPengajuan aplikasi Developer API "${a.nama}" Anda belum dapat kami setujui.\nAlasan penolakan: ${teks}\n\nAnda dapat melihat detail pengajuan atau mengajukan kembali setelah menyesuaikan informasi sesuai catatan di atas melalui portal Developer.${url ? `\n${url}` : ""}`,
+      html: htmlEmail({
+        pratinjau: `Pengajuan "${a.nama}" ditolak. Alasan: ${teks}`,
+        ikon: "peringatan",
+        judul: `Pengajuan "${a.nama}" ditolak`,
+        subjudul: "Pengajuan aplikasi Developer API Anda belum dapat disetujui saat ini.",
+        sapaan: `Halo ${sapaan},`,
+        paragraf: [
+          `Terima kasih telah mengajukan aplikasi Developer API "${a.nama}" di ${MEREK}. Setelah kami tinjau, pengajuan ini belum dapat disetujui.`,
+        ],
+        rincian: [
+          ["Aplikasi", a.nama],
+          ["Pemilik", a.pemilik],
+          ["Domain mesin", a.alamat_mesin ?? "-"],
+        ],
+        peringatan: {
+          nada: "bahaya",
+          judul: "Alasan penolakan",
+          teks,
+        },
+        tombol: url ? { teks: "Lihat di portal Developer", url } : undefined,
+        catatan: "Anda dapat mengajukan kembali aplikasi baru di portal Developer setelah menyesuaikan informasi sesuai catatan di atas.",
+      }),
+    }).catch((e) => console.error(`[developer-api] email tolak gagal dikirim user=${a.user_id}: ${e instanceof Error ? e.message : e}`));
+  }
 }
 
 /** Ubah fitur/biaya/harga/batas aplikasi yang sudah disetujui; perubahan langsung dikirim ke mesin lewat webhook. */
