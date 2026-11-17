@@ -9,6 +9,7 @@ import { ATURAN_NILAI } from "./prospek-def";
 import { type Produk, blokKatalog } from "./katalog-def";
 import { ATURAN_SERAH_TIM } from "./teruskan";
 import { ATURAN_TOPIK } from "./penjaga";
+import { ATURAN_GAYA, type PosisiPercakapan, blokPosisi } from "./gaya";
 import { fiturBoleh } from "./mesin/lisensi";
 
 /**
@@ -331,6 +332,11 @@ export interface OpsiSistem {
   nilaiPesan?: boolean;
   /** Katalog produk nomor ini (akun berbayar, src/lib/katalog.ts): sumber fakta + cara mengirim fotonya. */
   katalog?: Produk[];
+  /**
+   * Balasan ke pelanggan (WhatsApp, Uji bot, API jawab): posisi percakapan + aturan gaya ngobrol (gaya.ts) ikut di pesan
+   * sistem. Tidak diisi untuk tugas lain (follow-up, merapikan dokumen) yang punya arahan gaya sendiri.
+   */
+  posisi?: PosisiPercakapan;
 }
 
 /**
@@ -402,13 +408,14 @@ export async function susunSistem(
     if (riwayat.length)
       baris.push(
         opsi.riwayatLengkap
-          ? 'Percakapan di chat ini sejauh ini, urut waktu ("Kamu (AI)" = balasanmu sebelumnya; "Pemilik nomor" = balasan yang diketik manusia sendiri dari HP, anggap sudah dibaca lawan bicara). Lanjutkan dari sini: jangan mengulang sapaan atau jawaban yang sudah diberikan.'
+          ? 'Percakapan di chat ini sejauh ini, urut waktu ("Kamu (AI)" = balasanmu sebelumnya; "Pemilik nomor" = balasan yang diketik manusia sendiri dari HP, anggap sudah dibaca lawan bicara). Pesan terakhir lawan bicara adalah lanjutan obrolan ini: pahami maksudnya dari konteks di sini, jangan mengulang salam atau jawaban yang sudah diberikan.'
           : 'Isi chat ini yang belum ada di ingatanmu, urut waktu ("Pemilik nomor" = balasan yang diketik manusia sendiri dari HP; anggap sudah dibaca lawan bicara):',
         ...riwayat
       );
     if (catatan.length) baris.push(...catatan.map((c) => `- ${c}`));
     bagian.push(`<catatan_percakapan>\n${baris.join("\n")}\n</catatan_percakapan>`);
   }
+  if (opsi.posisi) bagian.push(ATURAN_GAYA, blokPosisi(opsi.posisi));
   if (opsi.adaFoto) bagian.push(PANDUAN_FOTO);
   const pengelola = blokAturanAdmin(global);
   if (pengelola) bagian.push(pengelola);

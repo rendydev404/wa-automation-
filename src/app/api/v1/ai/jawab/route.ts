@@ -5,6 +5,7 @@ import { adaKnowledge, susunSistem } from "@/lib/knowledge";
 import { daftarProduk } from "@/lib/katalog";
 import { nomorById } from "@/lib/numbers";
 import { TOLAK_KODE, adaKode } from "@/lib/penjaga";
+import { buangSalamUlang } from "@/lib/gaya";
 import { aman, bacaJson, bukanKonteks, galat, hitungLaju, idJalur, ok, otorisasi } from "@/lib/mesin/api";
 import { fiturBoleh } from "@/lib/mesin/lisensi";
 
@@ -34,11 +35,13 @@ export async function POST(req: Request) {
     const sesi = typeof b.data.id_sesi === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(b.data.id_sesi) ? b.data.id_sesi : "umum";
     if (!(await adaKnowledge(nomor.id))) return salah("Isi Informasi Usaha nomor ini dulu (POST /nomor/{id}/knowledge).");
     const riwayat = Array.isArray(b.data.riwayat)
-      ? (b.data.riwayat as { ai?: unknown; teks?: unknown }[]).slice(-12).map((m) => `${m?.ai ? "Kamu (AI)" : "Pelanggan"}: ${String(m?.teks ?? "").replace(/\s*\n\s*/g, " / ").slice(0, 500)}`)
+      ? (b.data.riwayat as { ai?: unknown; teks?: unknown }[]).slice(-20).map((m) => `${m?.ai ? "Kamu (AI)" : "Pelanggan"}: ${String(m?.teks ?? "").replace(/\s*\n\s*/g, " / ").slice(0, 500)}`)
       : [];
     const [ai, katalog] = await Promise.all([aiUntukAkun(nomor.user_id), daftarProduk(nomor.id)]);
     const lengkap = tanpaIngatan(ai.penyedia);
-    const { sistem } = await susunSistem(nomor, pertanyaan, { riwayat: lengkap ? riwayat : [], riwayatLengkap: lengkap, saringSpam: nomor.saring_spam && fiturBoleh("spam"), katalog });
+    // Posisi obrolan dari riwayat pemanggil (waktu tidak diketahui): sudah ada balasan = jangan membuka dengan salam lagi.
+    const posisi = { balasan: riwayat.filter((r) => r.startsWith("Kamu (AI)")).length, detikSejakBalasan: null };
+    const { sistem } = await susunSistem(nomor, pertanyaan, { riwayat: lengkap ? riwayat : [], riwayatLengkap: lengkap, saringSpam: nomor.saring_spam && fiturBoleh("spam"), katalog, posisi });
     let j;
     try {
       j = await tanyaAiTerjaga(
@@ -52,7 +55,7 @@ export async function POST(req: Request) {
     }
     const token = { masuk: j.tokenMasuk, keluar: j.tokenKeluar };
     if (j.abaikan) return ok({ jawaban: "", ms: j.ms, token, abaikan: j.abaikan.jenis }, k);
-    const jawaban = adaKode(j.teks) ? TOLAK_KODE : formatWa(j.teks);
+    const jawaban = adaKode(j.teks) ? TOLAK_KODE : buangSalamUlang(formatWa(j.teks), posisi);
     return ok({ jawaban, ms: j.ms, token }, k);
   });
 }

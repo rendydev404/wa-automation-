@@ -5,6 +5,7 @@ import { tanpaIngatan, tanyaAiTerjaga } from "@/lib/ai";
 import { aiUntukAkun } from "@/lib/langganan";
 import { adaKnowledge, susunSistem } from "@/lib/knowledge";
 import { TOLAK_KODE, adaKode } from "@/lib/penjaga";
+import { buangSalamUlang } from "@/lib/gaya";
 import { type Foto, MAKS_FOTO_BYTE } from "@/lib/types";
 import { sesiDanNomor } from "@/lib/akses";
 import { catatFitur } from "@/lib/analitik";
@@ -84,8 +85,10 @@ export async function POST(req: Request) {
   ]);
   const lengkap = tanpaIngatan(ai.penyedia);
   const semuaRiwayat = Array.isArray(b?.riwayat)
-    ? b.riwayat.slice(-12).map((m) => `${m.ai ? "Kamu (AI)" : "Pelanggan"}: ${String(m.teks ?? "").replace(/\s*\n\s*/g, " / ").slice(0, 500)}`)
+    ? b.riwayat.slice(-20).map((m) => `${m.ai ? "Kamu (AI)" : "Pelanggan"}: ${String(m.teks ?? "").replace(/\s*\n\s*/g, " / ").slice(0, 500)}`)
     : [];
+  // Posisi obrolan uji dari riwayat browser (waktu tidak diketahui): sudah ada balasan = jangan membuka dengan salam lagi.
+  const posisi = { balasan: semuaRiwayat.filter((r) => r.startsWith("Kamu (AI)")).length, detikSejakBalasan: null };
   const { sistem, konteks, pelajaran } = await susunSistem(nomor, `${(b?.kueriLalu ?? "").slice(0, 2000)}\n${teksPesan}`, {
     adaFoto: gambar.length > 0,
     riwayat: lengkap ? semuaRiwayat : [],
@@ -93,6 +96,7 @@ export async function POST(req: Request) {
     saringSpam,
     katalog,
     nilaiPesan: nomor.saring_prospek,
+    posisi,
   });
   // Nama mesin/model, biaya, dan galat mentah hanya untuk admin; pengguna biasa tidak perlu tahu mesin di baliknya.
   const admin = staf(user.peran);
@@ -110,7 +114,7 @@ export async function POST(req: Request) {
     if (!j.teks && j.nilai) return jawab({ teks: "", ms: j.ms, selesai: true, nilai: j.nilai });
     // Penjaga yang sama dengan WhatsApp, supaya hasil uji mencerminkan yang benar-benar terkirim.
     const diblokir = adaKode(j.teks);
-    const teks = diblokir ? TOLAK_KODE : formatWa(j.teks);
+    const teks = diblokir ? TOLAK_KODE : buangSalamUlang(formatWa(j.teks), posisi);
     return jawab({
       teks,
       ms: j.ms,

@@ -4,6 +4,7 @@ import { db, getSetting, sekarang } from "./db";
 import { hermesSehat, hermesTerkonfigurasi, tanyaHermes } from "./hermes";
 import { JAWABAN_AMAN, type Pelanggaran, pesanKoreksi, periksaJawaban } from "./pemeriksa";
 import { teksSoul } from "./soul";
+import { ATURAN_GAYA } from "./gaya";
 import { tarifModel } from "./tarif";
 import { type JenisAbaikan, ambilAbaikan, buangTagAbaikan } from "./spam";
 import { buangTagTeruskan } from "./teruskan";
@@ -194,6 +195,8 @@ export function opsiPenalaran(model: string, maksToken: number): Record<string, 
 }
 
 async function panggilAnthropic(kunci: string, model: string, r: PermintaanAi) {
+  // Aturan gaya ngobrol (teks tetap, ±690 token) ikut blok SOUL yang di-cache, bukan bagian per giliran yang tidak di-cache.
+  const gaya = !r.tanpaSoul && r.sistem.includes(ATURAN_GAYA);
   const res = await fetch(`${API}/messages`, {
     method: "POST",
     headers: { "x-api-key": kunci, "anthropic-version": VERSI_API, "content-type": "application/json" },
@@ -203,8 +206,8 @@ async function panggilAnthropic(kunci: string, model: string, r: PermintaanAi) {
       ...opsiPenalaran(model, r.maksToken ?? (await aturan("maks_token_balasan"))),
       // SOUL selalu sama persis di setiap panggilan: di-cache Anthropic (input yang di-cache 10x lebih murah).
       system: [
-        ...(r.tanpaSoul ? [] : [{ type: "text", text: teksSoul(), cache_control: { type: "ephemeral" } }]),
-        { type: "text", text: r.sistem.toWellFormed() },
+        ...(r.tanpaSoul ? [] : [{ type: "text", text: gaya ? `${teksSoul()}\n\n${ATURAN_GAYA}` : teksSoul(), cache_control: { type: "ephemeral" } }]),
+        { type: "text", text: (gaya ? r.sistem.replace(ATURAN_GAYA, "") : r.sistem).toWellFormed() },
       ],
       messages: [
         {

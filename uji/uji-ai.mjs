@@ -481,6 +481,58 @@ await cek("riwayat lengkap (penyedia tanpa ingatan): seluruh percakapan (tidak d
   assert.deepEqual(hermes.map((b) => b.replace(/^\[[^\]]+\] /, "")), ["Pemilik nomor: Harga paket 50rb ya"]);
 });
 
+await cek("gaya ngobrol: posisi percakapan dari histori, salam pembuka dibuang di tengah obrolan, aturan gaya di pesan sistem", async () => {
+  const G = await lib("src/lib/gaya.ts");
+  const { posisiPercakapan } = await lib("src/lib/percakapan.ts");
+  const K = await lib("src/lib/knowledge.ts");
+  // Histori uji di atas: balasan AI 590 dtk lalu + balasan manusia 300 dtk lalu.
+  const p = await posisiPercakapan("k".repeat(32));
+  assert.equal(p.balasan, 2);
+  assert.ok(p.detikSejakBalasan >= 300 && p.detikSejakBalasan < 400, String(p.detikSejakBalasan));
+  assert.deepEqual(await posisiPercakapan("tidak-ada"), { balasan: 0, detikSejakBalasan: null });
+
+  const jalan = { balasan: 3, detikSejakBalasan: 120 };
+  for (const [masuk, keluar] of [
+    ["Halo Kak, aku sudah lihat kedua fotonya ya.", "Aku sudah lihat kedua fotonya ya."],
+    ["Hai Kak Rendy! Untuk itu bisa kok.", "Untuk itu bisa kok."],
+    ["Selamat malam Kak 🙏 Outlet buka jam 14.00.", "Outlet buka jam 14.00."],
+    ["Halo lagi Kak,\nIni infonya.", "Ini infonya."],
+    ["Hallo kakak, siap", "Siap"],
+  ])
+    assert.equal(G.buangSalamUlang(masuk, jalan), keluar, masuk);
+  // Tidak diubah: tanpa tanda baca sesudah salam, hanya salam, bukan salam, awal chat, kembali setelah lama.
+  for (const t of ["Halo Kak aku mau jelasin", "Halo Kak!", "Harga Rp10.000 ya Kak", "Hi there! Sure."]) assert.equal(G.buangSalamUlang(t, jalan), t);
+  assert.equal(G.buangSalamUlang("Halo Kak, ada yang bisa dibantu?", { balasan: 0, detikSejakBalasan: null }), "Halo Kak, ada yang bisa dibantu?");
+  assert.equal(G.buangSalamUlang("Halo lagi Kak, gimana?", { balasan: 2, detikSejakBalasan: 8 * 3600 }), "Halo lagi Kak, gimana?");
+  assert.equal(G.buangSalamUlang("Halo Kak, gimana?", undefined), "Halo Kak, gimana?");
+
+  assert.match(G.blokPosisi(jalan), /sedang berjalan[\s\S]*JANGAN membuka dengan salam/);
+  assert.match(G.blokPosisi({ balasan: 0, detikSejakBalasan: null }), /awal percakapan/);
+  assert.match(G.blokPosisi({ balasan: 4, detikSejakBalasan: 90000 }), /kembali chat setelah jeda/);
+
+  const { sistem } = await K.susunSistem({ id: n.id, instruksi: "", belajar: false }, "halo", { posisi: jalan });
+  assert.match(sistem, /<gaya_ngobrol>[\s\S]*tenangkan dulu[\s\S]*<\/gaya_ngobrol>\s*<posisi_percakapan>/);
+  const tanpa = await K.susunSistem({ id: n.id, instruksi: "", belajar: false }, "halo", {});
+  assert.doesNotMatch(tanpa.sistem, /<gaya_ngobrol>|<posisi_percakapan>/, "follow-up/tugas lain tanpa blok gaya");
+
+  // Claude API: aturan gaya pindah ke blok SOUL yang di-cache; posisi (berubah tiap giliran) tetap di blok per giliran.
+  const kunciLama = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = KUNCI;
+  permintaan.length = 0;
+  tiru(() => [200, jawabClaude("Bisa kok Kak.")]);
+  try {
+    await AI.tanyaAi({ sessionId: "x", sistem, pesan: "halo", paksa: { penyedia: "anthropic", model: "claude-haiku-5-5", cadangan: "" } });
+  } finally {
+    globalThis.fetch = asli;
+    if (kunciLama === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = kunciLama;
+  }
+  const [s0, s1] = permintaan[0].body.system;
+  assert.ok(s0.cache_control && s0.text.endsWith(G.ATURAN_GAYA), "gaya di blok cache");
+  assert.doesNotMatch(s1.text, /<gaya_ngobrol>/);
+  assert.match(s1.text, /<posisi_percakapan>/);
+});
+
 const { periksaJawaban } = await lib("src/lib/pemeriksa.ts");
 const SUMBER = "IG @tokouji, situs tokouji.com. Paket Hemat Rp25.000. Ongkir Jl. Melati Rp8.000. Animasi mulai Rp350.000 (15-30 detik). Promo 10% member. Rekening BCA 8830123456 a.n. Toko. Peta https://maps.app/abc. Jam buka 10.00-22.00.";
 const jenis = (t) => periksaJawaban(t, SUMBER).map((p) => p.jenis);

@@ -277,8 +277,8 @@ export async function ambilPesanPercakapan(
   return { percakapan, pesan: potong, adaSebelumnya };
 }
 
-const RIWAYAT_BARIS = 20;
-const RIWAYAT_SESI_BARU = 10;
+const RIWAYAT_BARIS = 30;
+const RIWAYAT_SESI_BARU = 14;
 const RIWAYAT_TEKS_MAKS = 500;
 const RIWAYAT_TOTAL_MAKS = 4_000;
 const LABEL_PERAN: Record<PeranPesan, string> = { 0: "Pelanggan", 1: "Kamu (AI)", 2: "Pemilik nomor" };
@@ -293,8 +293,8 @@ const jamWib = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day:
  *   - `tertunda` pesan pelanggan paling akhir sedang dijawab (dikirim sebagai pesan biasa): tidak diulang.
  * Satu Index Scan pada pesan_chat_percakapan_idx (paling banyak RIWAYAT_BARIS baris).
  */
-/** Penyedia tanpa ingatan (Claude API): seluruh percakapan sesi ini, paling banyak 20 baris dan ±6.000 karakter. */
-const RIWAYAT_LENGKAP_MAKS = 6_000;
+/** Penyedia tanpa ingatan (Claude API): seluruh percakapan sesi ini, paling banyak 30 baris dan ±9.000 karakter. */
+const RIWAYAT_LENGKAP_MAKS = 9_000;
 
 export async function riwayatUntukAi(kunci: string, opsi: { sesiBaru: boolean; tertunda: number; lengkap?: boolean }): Promise<string[]> {
   const sql = await db();
@@ -324,6 +324,21 @@ export async function riwayatUntukAi(kunci: string, opsi: { sesiBaru: boolean; t
     terpakai += baris.length;
   }
   return keluar.reverse();
+}
+
+/**
+ * Posisi percakapan untuk gaya balasan AI (gaya.ts): berapa balasan (AI + manusia) yang sudah dikirim dan kapan yang
+ * terakhir, dari 40 pesan terakhir. Satu Index Scan pada pesan_chat_percakapan_idx, agregasi di database.
+ */
+export async function posisiPercakapan(kunci: string): Promise<{ balasan: number; detikSejakBalasan: number | null }> {
+  const sql = await db();
+  const [r] = await sql<{ n: number; akhir: number | null }[]>`
+    SELECT COUNT(*) FILTER (WHERE peran <> 0)::int AS n, MAX(waktu) FILTER (WHERE peran <> 0)::int8 AS akhir
+      FROM (SELECT peran, waktu FROM pesan_chat
+             WHERE percakapan_id = (SELECT id FROM percakapan WHERE kunci = ${kunci})
+             ORDER BY id DESC LIMIT 40) t`;
+  const akhir = r?.akhir === null || r?.akhir === undefined ? null : Number(r.akhir);
+  return { balasan: r?.n ?? 0, detikSejakBalasan: akhir === null ? null : Math.max(0, sekarang() - akhir) };
 }
 
 /**

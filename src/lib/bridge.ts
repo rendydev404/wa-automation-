@@ -8,7 +8,8 @@ import { MEREK } from "./merek";
 import { adaKnowledge, susunSistem } from "./knowledge";
 import { type KirimProduk, bahanKirim, captionProduk, daftarProduk, katalogBoleh, perluDaftar, teksKatalog } from "./katalog";
 import { type Nomor, catatStat, catatTerhubung, nomorBySesi } from "./numbers";
-import { catatPesan, chatDipercaya, riwayatUntukAi, tandaiBeli, tandaiMinat, tandaiProspek, tandaiSpam } from "./percakapan";
+import { catatPesan, chatDipercaya, posisiPercakapan, riwayatUntukAi, tandaiBeli, tandaiMinat, tandaiProspek, tandaiSpam } from "./percakapan";
+import { buangSalamUlang } from "./gaya";
 import { alasanSpam, periksaSpam } from "./spam";
 import { type Penilaian, PELUANG_AUDIT, catatAudit, catatPengalaman, hitung, layakDicek, nilaiPesan, setelanMl, yakinLewati } from "./prospek";
 import { BATAS_STRIKE, BISU_BOT_DTK, BOT_BERUNTUN, BOT_CEPAT_MS, STATUS, type StatusChat, ULANG_BERUNTUN, adaKataMinat, berulang, gema, idMinat, minatEfektif, penutupSaja } from "./prospek-def";
@@ -563,7 +564,9 @@ async function proses(kunci: string): Promise<void> {
       const pemuatFoto: (() => Promise<Foto | null>)[] = a.foto.splice(0);
       const sesi = ambilGiliran(kunci, a);
       const catatan = a.catatan.splice(0);
-      const kueri = `${a.kueriLalu}\n${pesan}`;
+      // Pesan sekarang di depan (kata kuncinya didahulukan), lalu pesan & jawaban sebelumnya: pesan pendek yang
+      // menggantung ("cuma itu doang?") tetap menemukan potongan pengetahuan topik yang sedang dibahas.
+      const kueri = `${pesan}\n${a.kueriLalu}`;
       a.kueriLalu = pesan;
       try {
         // Isi chat yang tidak dilihat AI (balasan manusia, pesan selagi AI diam) dibaca dari histori,
@@ -586,11 +589,14 @@ async function proses(kunci: string): Promise<void> {
         ]);
         const lengkap = tanpaIngatan(ai.penyedia);
         const riwayat = st.tulis.then(() => riwayatUntukAi(kunci, { sesiBaru: sesi !== sesiLalu, tertunda, lengkap }));
+        // Posisi obrolan (awal / sedang berjalan / kembali setelah lama): AI tidak membuka dengan salam di tengah obrolan.
+        const posisiP = st.tulis.then(() => posisiPercakapan(kunci)).catch(() => undefined);
         // Foto baru diunduh sekarang (AI memang akan menjawab), bersamaan, langsung ke memori.
         const gambar = (await Promise.all(pemuatFoto.map((ambil) => ambil().catch(() => null)))).filter((f: Foto | null): f is Foto => !!f);
         const gagalFoto = pemuatFoto.length - gambar.length;
         const isiPesan = gagalFoto ? `${pesan}\n[${gagalFoto} foto gagal dimuat sehingga tidak bisa kamu lihat; minta pelanggan mengirim ulang bila perlu]` : pesan;
-        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0, riwayatLengkap: lengkap, saringSpam, katalog, nilaiPesan: mintaNilai });
+        const posisi = await posisiP;
+        const { sistem } = await susunSistem(nomor, kueri, { catatan, riwayat, adaFoto: gambar.length > 0, riwayatLengkap: lengkap, saringSpam, katalog, nilaiPesan: mintaNilai, posisi });
         // Sumber fakta untuk pemeriksa: pesan sistem + pesan pelanggan + seluruh chat sesi ini (Hermes hanya diberi
         // yang belum ia lihat, jadi sisanya dibaca terpisah supaya angka yang pernah disebut di chat tetap sah).
         const sumber = [sistem, isiPesan, ...(lengkap ? [] : await riwayatUntukAi(kunci, { sesiBaru: false, tertunda, lengkap: true }))].join("\n");
@@ -672,7 +678,7 @@ async function proses(kunci: string): Promise<void> {
           console.warn(`[bridge] jawaban AI berisi kode, diganti penolakan sesi=${a.sesi}`);
           jawaban = TOLAK_KODE;
           catat(a, CATATAN_KODE_DIBLOKIR);
-        } else jawaban = formatWa(mentah);
+        } else jawaban = buangSalamUlang(formatWa(mentah), posisi);
         if (!jawaban) throw new Error("AI mengirim jawaban kosong");
       } catch (e) {
         galat(a, e);
@@ -718,6 +724,7 @@ async function proses(kunci: string): Promise<void> {
       if (a.kutip === kutip) a.kutip = null;
       a.balasanAkhir = jawaban;
       a.kirimAkhirMs = Date.now();
+      a.kueriLalu = `${a.kueriLalu}\n${jawaban.slice(0, 240)}`;
       statistik(a.numberId, "dibalas");
       tulisLatar(() => catatPesan({ numberId: a.numberId, kunci, peran: 1, teks: jawaban, waktu: sekarang() }));
       if (produk) await kirimKatalog(a, kunci, produk, jawaban);
