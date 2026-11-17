@@ -89,7 +89,7 @@ export const getUser = cache(async (): Promise<User | null> => {
   const [row] = await sql<UserRow[]>`SELECT ${sql.unsafe(KOLOM_ROW)} FROM users WHERE id = ${payload.uid}`;
   if (!row || row.status !== "aktif" || row.sesi_versi !== payload.sv) return null;
   if ((await passwordFingerprint(row.password_hash)) !== payload.pv) return null;
-  return { id: row.id, email: row.email, nama: row.nama, peran: row.peran, aksesApi: row.akses_api || row.peran === "developer" };
+  return { id: row.id, email: row.email, nama: row.nama, peran: row.peran, aksesApi: row.akses_api };
 });
 
 export async function requireUser(): Promise<User> {
