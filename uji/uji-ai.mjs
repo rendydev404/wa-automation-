@@ -545,7 +545,11 @@ await cek("keluhan: 'tim kami akan cek' sah (bukan janji AI), klaim 'sudah' teta
     assert.deepEqual(P.periksaJawaban(t, s, { pesanPelanggan: pesan }), [], t);
   for (const t of ["Tim kami sudah cek pesanan Kakak.", "Aku akan cek ya.", "Kami akan cek dulu.", "Nanti aku sampaikan ke tim supaya dicek."])
     assert.deepEqual(P.periksaJawaban(t, s).map((p) => p.jenis), ["janji"], t);
-  assert.ok(P.keluhan(pesan) && P.keluhan("pesanan saya belum dateng") && !P.keluhan("halo kak ada promo ga"));
+  // Keluhan dari berbagai jenis usaha (makanan, toko online, jasa, produk digital, aplikasi) vs pesan biasa.
+  for (const t of [pesan, "pesanan saya belum dateng", "aplikasinya error terus kak", "akun saya nggak bisa login", "paket saya belum sampai udah seminggu", "barangnya beda sama foto", "jasanya kurang profesional", "pesanan dibatalin sepihak", "kok ebooknya gak bisa didownload", "udah transfer tapi belum diproses", "adminnya lama banget balesnya", "ukurannya salah kirim", "produknya cacat"])
+    assert.ok(P.keluhan(t), t);
+  for (const t of ["halo kak ada promo ga", "saya nggak bisa dateng hari ini, bisa diantar?", "harganya berapa ya", "bisa bayar pakai qris?", "mau pesan 2 porsi", "kalau gak bisa transfer bisa cash?"])
+    assert.ok(!P.keluhan(t), t);
   assert.equal(P.jawabanAman(pesan), P.JAWABAN_AMAN_KELUHAN);
   assert.equal(P.jawabanAman("ada promo ga"), P.JAWABAN_AMAN);
   assert.deepEqual(P.periksaJawaban(P.JAWABAN_AMAN_KELUHAN, s, { pesanPelanggan: pesan }), []);

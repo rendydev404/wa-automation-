@@ -36,11 +36,31 @@ export const JAWABAN_AMAN = "Untuk yang ini nanti dijawab langsung sama tim kami
 
 /** Jawaban aman untuk pelanggan yang mengeluh: menenangkan dulu, minta detail, lalu serahkan ke tim (tanpa janji). */
 export const JAWABAN_AMAN_KELUHAN =
-  "Aduh, maaf banget ya Kak, jadi nggak enak 🙏 Boleh ceritain detailnya: kejadiannya kapan dan di mana, terus kalau ada fotonya kirim aja di sini. Tim kami bakal bantu beresin langsung di chat ini.";
+  "Aduh, maaf banget ya Kak, jadi nggak enak 🙏 Boleh ceritain detailnya gimana kejadiannya? Kalau ada foto atau screenshot-nya, kirim aja di sini. Tim kami bakal bantu beresin langsung di chat ini.";
 
-/** Pesan pelanggan yang berupa keluhan / kekecewaan (untuk memilih jawaban aman yang menenangkan). */
-const KELUHAN =
-  /\b(?:komplain|complain|keluh(?:an|kan)?|kecewa|mengecewakan|nyesel|kapok|gosong|basi|mentah|alot|hambar|zonk|jelek|kotor|rambut|rusak|tumpah|bocor|penyok|salah\s+(?:pesan|kirim|menu|order)|ketinggalan|(?:nggak|ngga|gak|ga|tidak)\s+(?:enak|sesuai|dateng|datang|sampai|nyampe|jelas)|lama\s+banget|kelamaan|telat|lelet|belum\s+(?:dateng|datang|sampai|nyampe)|gajelas|parah|marah|kesel|kesal|refund|balikin\s+uang|uang\s+kembali|ganti\s+rugi|penipu|nipu|tipu)\b/i;
+/**
+ * Pesan pelanggan yang berupa keluhan / kekecewaan (untuk memilih jawaban aman yang menenangkan). Umum untuk semua
+ * jenis usaha: barang/makanan, toko online, jasa, produk digital, aplikasi/langganan.
+ */
+const KELUHAN = new RegExp(
+  String.raw`\b(?:` +
+    [
+      // umum
+      String.raw`komplain|complain|keluh(?:an|kan)?|kecewa|mengecewakan|nyesel|kapok|zonk|parah|marah|kesel|kesal|sebel|bete|capek\s+nunggu|dicuekin|dikacangin|diabaikan|ga\s?jelas|gak\s?jelas|nggak\s?jelas|ngga\s?jelas`,
+      // uang & penipuan
+      String.raw`refund|balikin\s+(?:uang|duit|dana)|uang\s+kembali|ganti\s+rugi|penipu(?:an)?|nipu|tipu|ditipu|scam`,
+      // barang / makanan
+      String.raw`gosong|basi|mentah|alot|hambar|jelek|kotor|rusak|cacat|pecah|retak|tumpah|bocor|penyok|sobek|luntur|palsu|kw|salah\s+(?:pesan|kirim|menu|order|barang|ukuran|warna|produk)|ketinggalan|kurang\s+(?:satu|lengkap|isi)`,
+      // pengiriman / waktu / layanan
+      String.raw`lama\s+banget|kelamaan|kelewat\s+lama|telat|terlambat|lelet|lambat|molor|belum\s+(?:dateng|datang|sampai|nyampe|diproses|dikirim|masuk|aktif|selesai|dibalas|dibales)|dibatal(?:in|kan)|di\s?cancel|hilang|nyasar`,
+      // digital / aplikasi / akun
+      String.raw`error|eror|gagal|bug|nge-?bug|nge-?hang|hang|crash|force\s+close|(?:nggak|ngga|gak|ga|tidak|gabisa)\s*(?:bisa\s+)?(?:dibuka|login|log\s+in|masuk|dipakai|dipake|diakses|diklaim|diaktifkan|didownload|download|bayar|checkout|dihubungi)|ke-?banned|kena\s+banned|diblokir|kena\s+blokir|akun(?:nya)?\s+(?:hilang|kena|ke-?hack|dibajak)|ke-?hack|dibajak`,
+      // tidak sesuai
+      String.raw`(?:nggak|ngga|gak|ga|tidak|kurang)\s+(?:enak|sesuai|dateng|datang|sampai|nyampe|jalan|berfungsi|bagus|memuaskan|profesional|ramah)|beda\s+(?:sama|dengan|dari)\s+(?:foto|gambar|deskripsi|iklan)`,
+    ].join("|") +
+    String.raw`)\b`,
+  "i"
+);
 
 export const keluhan = (pesan: string): boolean => KELUHAN.test(pesan);
 
