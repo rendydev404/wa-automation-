@@ -150,7 +150,8 @@ const fiturKhususSah = (x: readonly string[] | null | undefined): FiturApi[] | n
  */
 export async function fiturUntuk(userId: number, umum?: PengaturanApi): Promise<{ fitur: FiturApi[]; khusus: boolean }> {
   const sql = await db();
-  const [[u], g] = await Promise.all([sql<{ api_fitur: string[] | null }[]>`SELECT api_fitur FROM users WHERE id = ${userId}`, umum ?? pengaturanApi()]);
+  const [[u], g] = await Promise.all([sql<{ api_fitur: string[] | null; peran: string }[]>`SELECT api_fitur, peran FROM users WHERE id = ${userId}`, umum ?? pengaturanApi()]);
+  if (u?.peran === "developer") return { fitur: [...KODE_FITUR], khusus: false };
   const k = fiturKhususSah(u?.api_fitur);
   return k ? { fitur: k, khusus: true } : { fitur: g.fitur, khusus: false };
 }
@@ -177,9 +178,9 @@ export async function daftarFiturKhusus(batas = 100): Promise<{ daftar: AkunFitu
 export async function akunFitur(userId: number): Promise<{ id: number; email: string; nama: string; akses_api: boolean; fitur: FiturApi[] | null } | undefined> {
   if (!Number.isInteger(userId) || userId <= 0) return undefined;
   const sql = await db();
-  const [u] = await sql<{ id: number; email: string; nama: string; akses_api: boolean; api_fitur: string[] | null }[]>`
-    SELECT id, email, nama, akses_api, api_fitur FROM users WHERE id = ${userId}`;
-  return u && { id: u.id, email: u.email, nama: u.nama, akses_api: u.akses_api, fitur: fiturKhususSah(u.api_fitur) };
+  const [u] = await sql<{ id: number; email: string; nama: string; peran: string; akses_api: boolean; api_fitur: string[] | null }[]>`
+    SELECT id, email, nama, peran, akses_api, api_fitur FROM users WHERE id = ${userId}`;
+  return u && { id: u.id, email: u.email, nama: u.nama, akses_api: u.akses_api || u.peran === "developer", fitur: u.peran === "developer" ? [...KODE_FITUR] : fiturKhususSah(u.api_fitur) };
 }
 
 /**
@@ -781,17 +782,17 @@ async function terbitkan(instalasiId: string): Promise<{ token: string; isi: Isi
   if (!priv) throw new ApiError("galat_server", "Penerbit lisensi belum dipasang di server (LISENSI_KUNCI_PRIVAT).");
   const sql = await db();
   const umum = await pengaturanApi();
-  const [i] = await sql<(Aplikasi & { alamat: string | null; versi: number; api_fitur: string[] | null })[]>`
+  const [i] = await sql<(Aplikasi & { alamat: string | null; versi: number; api_fitur: string[] | null; peran: string })[]>`
     WITH naik AS (
       UPDATE api_aplikasi a SET versi_lisensi = a.versi_lisensi + 1
         FROM api_instalasi i WHERE i.id = ${instalasiId}::uuid AND i.dilepas_pada IS NULL AND a.id = i.aplikasi_id
       RETURNING a.*, i.alamat
     )
-    SELECT ${sql.unsafe(KOLOM_APLIKASI)}, a.alamat, a.versi_lisensi AS versi, u.api_fitur FROM naik a JOIN users u ON u.id = a.user_id`;
+    SELECT ${sql.unsafe(KOLOM_APLIKASI)}, a.alamat, a.versi_lisensi AS versi, u.api_fitur, u.peran FROM naik a JOIN users u ON u.id = a.user_id`;
   if (!i) return null;
   const a = rapikan(i);
-  // Fitur yang dibagikan untuk pemilik: daftar khusus per pengguna mengalahkan daftar global.
-  const dibagikan = fiturKhususSah(i.api_fitur) ?? umum.fitur;
+  // Fitur yang dibagikan untuk pemilik: peran developer selalu penuh; selain itu daftar khusus per pengguna mengalahkan daftar global.
+  const dibagikan: readonly FiturApi[] = i.peran === "developer" ? KODE_FITUR : (fiturKhususSah(i.api_fitur) ?? umum.fitur);
   const sb = a.mode === "sandbox";
   const umumSb = sb ? await pengaturanSandbox() : null;
   let status = statusLisensi(a, umum);
@@ -815,8 +816,8 @@ async function terbitkan(instalasiId: string): Promise<{ token: string; isi: Isi
         nama_aplikasi: a.nama,
         id_instalasi: instalasiId,
         status,
-        // Sandbox yang diatur khusus hanya mendapat fitur pilihannya (tetap dibatasi fitur yang dibagikan untuk pemiliknya).
-        fitur: a.fitur_khusus ? dibagikan.filter((f) => a.fitur.includes(f)) : [...dibagikan],
+        // Sandbox yang diatur khusus hanya mendapat fitur pilihannya (tetap dibatasi fitur yang dibagikan untuk pemiliknya); peran developer selalu penuh.
+        fitur: i.peran === "developer" ? [...KODE_FITUR] : a.fitur_khusus ? dibagikan.filter((f) => a.fitur.includes(f)) : [...dibagikan],
         batas: { ...BATAS_BAWAAN, ...BATAS_TETAP_SANDBOX },
         biaya: "gratis",
         dibayar_sampai: null,
@@ -834,7 +835,7 @@ async function terbitkan(instalasiId: string): Promise<{ token: string; isi: Isi
         nama_aplikasi: a.nama,
         id_instalasi: instalasiId,
         status,
-        fitur: a.fitur.filter((f) => dibagikan.includes(f)),
+        fitur: i.peran === "developer" ? [...KODE_FITUR] : a.fitur.filter((f) => dibagikan.includes(f)),
         batas: a.batas,
         biaya: biayaEfektif(a, umum),
         dibayar_sampai: a.dibayar_sampai,

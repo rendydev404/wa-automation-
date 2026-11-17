@@ -142,10 +142,10 @@ export async function masukkanPesan(i: IsianPesan): Promise<PesanKeluar> {
     dokumenMeta = { nama, mime, caption };
   }
   if (!teks && !gambar && !dokumenMeta) throw new AntreanError("isian_tidak_sah", "Isi `teks`, `gambar`, atau `dokumen`.");
-  // Sandbox: hanya boleh mengirim ke SATU nomor penguji yang sudah diverifikasi (cek memori, tanpa query).
+  // Sandbox: wajib sudah memverifikasi nomor penguji; nomor pribadi dibatasi ke nomor penguji, grup WhatsApp (@g.us) diizinkan untuk pengujian.
   if (sandboxAktif()) {
     if (!nomorUji()) throw new AntreanError("nomor_penguji_belum_ada", "Sandbox: daftarkan nomor penguji dulu di portal Developer (kirim WA berisi UJI <kode> ke nomor bot).");
-    if (grup || !tujuanNomorUji(ke)) throw new AntreanError("bukan_nomor_penguji", "Sandbox hanya boleh mengirim ke nomor penguji yang terverifikasi.");
+    if (!grup && !tujuanNomorUji(ke)) throw new AntreanError("bukan_nomor_penguji", "Sandbox hanya boleh mengirim ke nomor penguji yang terverifikasi atau ke grup WhatsApp.");
   }
   const batas = lisensiSekarang()?.batas;
   const maksBaru = batas?.kontak_baru_hari ?? 50;
