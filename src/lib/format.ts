@@ -52,6 +52,37 @@ export function rapikanNomorWa(masukan: string): string | null {
   return /^[1-9][0-9]{7,14}$/.test(d) ? d : null;
 }
 
+/**
+ * ID grup WhatsApp (`120363041234567890@g.us` atau format lama `6281234567890-1589123456@g.us`);
+ * null = bukan JID grup yang sah.
+ */
+export function rapikanGrupWa(masukan: string): string | null {
+  const s = masukan.trim().toLowerCase();
+  return /^[1-9][0-9]{4,23}(-[0-9]{5,20})?@g\.us$/.test(s) ? s : null;
+}
+
+/**
+ * Tujuan kirim pesan WhatsApp: nomor pribadi (`ke` = digit kode negara, `grup: false`) atau grup WhatsApp
+ * (`ke` = `...@g.us`, `grup: true`); null = format tidak sah.
+ */
+export function rapikanTujuanWa(masukan: string): { ke: string; grup: boolean } | null {
+  const s = masukan.trim();
+  if (!s) return null;
+  if (s.includes("@")) {
+    if (/^.+@g\.us$/i.test(s)) {
+      const g = rapikanGrupWa(s);
+      return g ? { ke: g, grup: true } : null;
+    }
+    if (/^.+@s\.whatsapp\.net$/i.test(s)) {
+      const n = rapikanNomorWa(s.split("@")[0]);
+      return n ? { ke: n, grup: false } : null;
+    }
+    return null;
+  }
+  const n = rapikanNomorWa(s);
+  return n ? { ke: n, grup: false } : null;
+}
+
 /** Histori percakapan disimpan sekian hari; pesan yang lebih lama dihapus otomatis (lihat percakapan.ts). */
 export const UMUR_HISTORI_HARI = 30;
 

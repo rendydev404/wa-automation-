@@ -93,6 +93,7 @@ const rute = {
   ai: await lib("src/app/api/v1/ai/jawab/route.ts"),
   kontakCek: await lib("src/app/api/v1/kontak/cek/route.ts"),
   profil: await lib("src/app/api/v1/nomor/[id]/profil/route.ts"),
+  grup: await lib("src/app/api/v1/nomor/[id]/grup/route.ts"),
   bot: await lib("src/app/api/v1/nomor/[id]/bot/route.ts"),
   pelajaran: await lib("src/app/api/v1/nomor/[id]/pelajaran/route.ts"),
   pelajaranId: await lib("src/app/api/v1/nomor/[id]/pelajaran/[pid]/route.ts"),
@@ -135,6 +136,12 @@ function buatSoket(config) {
     },
     async profilePictureUrl(jid) {
       return `https://pps.whatsapp.net/uji/${jid.split("@")[0]}.jpg`;
+    },
+    async groupFetchAllParticipating() {
+      return {
+        "120363041234567890@g.us": { id: "120363041234567890@g.us", subject: "Grup Kasir Cabang", size: 18, announce: false },
+        "6281234567890-1589123456@g.us": { id: "6281234567890-1589123456@g.us", subject: "Pengumuman Pusat", participants: [{ id: "a" }, { id: "b" }], announce: true },
+      };
     },
     async sendPresenceUpdate() {},
     async resyncAppState() {},
@@ -819,12 +826,77 @@ await cek("anti-blokir: kontak baru per hari dibatasi (lisensi: 2) -> 422; konta
   assert.equal((await rute.pesan.POST(minta("/pesan", { metode: "POST", body: { nomor_id: N1.id, ke: "6283300000001", teks: "Halo 2" } }))).status, 202);
 });
 
-await cek("validasi pesan: teks > 4096, gambar mime/base64 salah, ke salah = 400", async () => {
+await cek("grup WhatsApp: GET /nomor/{id}/grup mendaftar grup, POST /pesan ke ID grup (@g.us) terkirim ke JID grup & tidak menghabiskan jatah kontak baru", async () => {
+  const id = String(N1.id);
+  const daftar = await json(await rute.grup.GET(minta(`/nomor/${id}/grup`), ctx({ id })));
+  assert.equal(daftar.status, 200);
+  assert.deepEqual(daftar.j.data, [
+    { id: "120363041234567890@g.us", nama: "Grup Kasir Cabang", jumlah_anggota: 18, hanya_admin: false },
+    { id: "6281234567890-1589123456@g.us", nama: "Pengumuman Pusat", jumlah_anggota: 2, hanya_admin: true },
+  ]);
+  // Walau jatah kontak_baru_hari sudah habis di uji sebelumnya (2/2), kirim ke grup tetap diterima (bukan kontak 1:1 dingin).
+  const r = await json(await rute.pesan.POST(minta("/pesan", { metode: "POST", body: { nomor_id: N1.id, ke: "120363041234567890@g.us", teks: "Laporan shift malam" } })));
+  assert.equal(r.status, 202, JSON.stringify(r.j));
+  await tunggu(async () => (AN.aturUlangAntreanUji(), await AN.putaranAntrean(), (await AN.pesanById(Number(r.j.id))).status === "terkirim"), 5000, "grup terkirim");
+  const kirim = S1.terkirim.find((x) => x.isi.text === "Laporan shift malam");
+  assert.equal(kirim.jid, "120363041234567890@g.us");
+  const g = await json(await rute.pesanId.GET(minta(`/pesan/${r.j.id}`), ctx({ id: r.j.id })));
+  assert.equal(g.j.ke, "120363041234567890@g.us");
+  assert.equal(g.j.status, "terkirim");
+  // Format JID grup lama (pembuat-timestamp@g.us) juga sah.
+  const r2 = await json(await rute.pesan.POST(minta("/pesan", { metode: "POST", body: { nomor_id: N1.id, ke: "6281234567890-1589123456@g.us", teks: "Info pusat" } })));
+  assert.equal(r2.status, 202);
+  // Kirim dokumen (CSV & PDF, batas 100 MB, JSON base64 maupun multipart/form-data) ke grup maupun nomor pribadi:
+  // berkas disimpan biner di disk sementara selama antre (baris DB tetap kecil) dan dihapus sesudah terkirim.
+  assert.equal(AN.MAKS_DOKUMEN_BYTE, 100 * 1024 * 1024);
+  const csvBase64 = Buffer.from("tanggal,omzet\n2026-11-17,2500000\n").toString("base64");
+  const rCsv = await json(
+    await rute.pesan.POST(
+      minta("/pesan", {
+        metode: "POST",
+        body: { nomor_id: N1.id, ke: "120363041234567890@g.us", dokumen: { base64: csvBase64, nama: "rekap-harian.csv", caption: "Rekap omzet hari ini" } },
+      }),
+    ),
+  );
+  assert.equal(rCsv.status, 202, JSON.stringify(rCsv.j));
+  await tunggu(async () => (AN.aturUlangAntreanUji(), await AN.putaranAntrean(), (await AN.pesanById(Number(rCsv.j.id))).status === "terkirim"), 5000, "csv terkirim");
+  const kirimCsv = S1.terkirim.find((x) => x.isi.fileName === "rekap-harian.csv");
+  assert.ok(kirimCsv);
+  assert.equal(kirimCsv.jid, "120363041234567890@g.us");
+  assert.equal(kirimCsv.isi.mimetype, "text/csv");
+  assert.equal(kirimCsv.isi.caption, "Rekap omzet hari ini");
+  assert.equal(kirimCsv.isi.document.toString("utf8"), "tanggal,omzet\n2026-11-17,2500000\n");
+  const [barisCsv] = await sql`SELECT isi FROM pesan_keluar WHERE id = ${Number(rCsv.j.id)}`;
+  assert.equal(barisCsv.isi.dokumen, undefined, "metadata & berkas dokumen dibuang setelah terkirim");
+  // Multipart/form-data (tanpa base64) untuk berkas PDF ke grup.
+  const fd = new FormData();
+  fd.set("nomor_id", String(N1.id));
+  fd.set("ke", "120363041234567890@g.us");
+  fd.set("caption", "Invoice PDF");
+  fd.set("dokumen", new File(["%PDF-1.4 contoh invoice"], "invoice-001.pdf", { type: "application/pdf" }));
+  const rPdf = await json(await rute.pesan.POST(minta("/pesan", { metode: "POST", body: fd })));
+  assert.equal(rPdf.status, 202, JSON.stringify(rPdf.j));
+  await tunggu(async () => (AN.aturUlangAntreanUji(), await AN.putaranAntrean(), (await AN.pesanById(Number(rPdf.j.id))).status === "terkirim"), 5000, "pdf terkirim");
+  const kirimPdf = S1.terkirim.find((x) => x.isi.fileName === "invoice-001.pdf");
+  assert.ok(kirimPdf);
+  assert.equal(kirimPdf.isi.mimetype, "application/pdf");
+  assert.equal(kirimPdf.isi.caption, "Invoice PDF");
+  assert.equal(kirimPdf.isi.document.toString("utf8"), "%PDF-1.4 contoh invoice");
+});
+
+await cek("validasi pesan: teks > 4096, gambar/dokumen mime/base64 salah, ke salah (nomor / grup) = 400", async () => {
   const kirim = (body) => rute.pesan.POST(minta("/pesan", { metode: "POST", body: { nomor_id: N1.id, ...body } }));
   assert.equal((await kirim({ ke: "628222000222", teks: "x".repeat(4097) })).status, 400);
   assert.equal((await kirim({ ke: "628222000222", gambar: { base64: "AAAA", mime: "image/bmp" } })).status, 400);
   assert.equal((await kirim({ ke: "628222000222", gambar: { base64: "!!", mime: "image/png" } })).status, 400);
+  assert.equal((await kirim({ ke: "628222000222", dokumen: { base64: "AAAA", nama: "" } })).status, 400);
+  assert.equal((await kirim({ ke: "628222000222", dokumen: { base64: "!!", nama: "x.pdf" } })).status, 400);
+  assert.equal((await kirim({ ke: "628222000222", dokumen: { base64: "AAAA", nama: "x.pdf", mime: "bukan-mime" } })).status, 400);
+  assert.equal((await kirim({ ke: "628222000222", gambar: { base64: "AAAA", mime: "image/png" }, dokumen: { base64: "AAAA", nama: "x.pdf" } })).status, 400);
   assert.equal((await kirim({ ke: "12", teks: "a" })).status, 400);
+  assert.equal((await kirim({ ke: "abc@g.us", teks: "a" })).status, 400);
+  assert.equal((await kirim({ ke: "123@g.us", teks: "a" })).status, 400);
+  assert.equal((await kirim({ ke: "628222000222@contoh.com", teks: "a" })).status, 400);
   assert.equal((await kirim({ ke: "628222000222" })).status, 400);
 });
 

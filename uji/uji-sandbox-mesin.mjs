@@ -392,6 +392,9 @@ await cek("POST /pesan ke nomor penguji = 202 dan terkirim; ke nomor lain = 403 
   const tolak = await json(await rute.pesan.POST(minta("/pesan", { metode: "POST", body: { nomor_id: N.id, ke: ASING_TEL, teks: "spam" } })));
   assert.equal(tolak.status, 403);
   assert.equal(tolak.j.galat.kode, "bukan_nomor_penguji");
+  const tolakGrup = await json(await rute.pesan.POST(minta("/pesan", { metode: "POST", body: { nomor_id: N.id, ke: "120363041234567890@g.us", teks: "halo grup" } })));
+  assert.equal(tolakGrup.status, 403);
+  assert.equal(tolakGrup.j.galat.kode, "bukan_nomor_penguji");
 });
 
 await cek("kontak/cek di sandbox hanya untuk nomor penguji", async () => {

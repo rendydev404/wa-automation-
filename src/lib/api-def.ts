@@ -21,7 +21,7 @@ export type GrupFitur = (typeof GRUP_FITUR)[number]["kode"];
  */
 export const FITUR_API = [
   { kode: "nomor", grup: "wa", label: "Nomor & QR", keterangan: "Tambah nomor, QR / kode pairing, status, logout" },
-  { kode: "pesan.kirim", grup: "wa", label: "Kirim pesan", keterangan: "Kirim teks & gambar lewat antrean anti-blokir, cek status" },
+  { kode: "pesan.kirim", grup: "wa", label: "Kirim pesan", keterangan: "Kirim teks, gambar & berkas (PDF, CSV, Excel, dll.) ke nomor atau grup WhatsApp lewat antrean anti-blokir, daftar grup, cek status" },
   { kode: "pesan.terima", grup: "wa", label: "Webhook pesan masuk", keterangan: "Pesan masuk, balasan AI, status pesan, nomor terhubung/terputus" },
   { kode: "kontak.cek", grup: "wa", label: "Cek nomor WhatsApp", keterangan: "Cek nomor HP terdaftar di WhatsApp sebelum mengirim (maks 20 per panggilan)" },
   { kode: "profil", grup: "wa", label: "Profil WhatsApp", keterangan: "Nama & foto profil nomor yang terhubung" },

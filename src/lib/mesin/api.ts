@@ -135,7 +135,7 @@ export async function bacaJson(req: Request, k: Konteks, maks = MAKS_JSON): Prom
 
 // ---------- Idempotensi ----------
 
-const gi = globalThis as unknown as { __waApiIdem?: Map<string, Promise<{ status: number; body: unknown }>> };
+const gi = globalThis as unknown as { __waApiIdem?: Map<string, Promise<{ hash: string; status: number; body: unknown; ulang: boolean }>> };
 const sedang = (gi.__waApiIdem ??= new Map());
 const UMUR_IDEM = 24 * 3600;
 
@@ -158,30 +158,31 @@ export async function denganIdempotensi(
   if (kunciMentah.length > 200) return galat("isian_tidak_sah", "Idempotency-Key maksimal 200 karakter.", k.id, k.kepala);
   const kunci = `${k.awalan}:${kunciMentah}`;
   const hash = createHash("sha256").update(`${req.method} ${new URL(req.url).pathname}\n${isiTeks}`).digest("hex");
-  const sql = await db();
-  const [ada] = await sql<{ hash_permintaan: string; status: number; respons: unknown }[]>`
-    SELECT hash_permintaan, status, respons FROM api_idempoten WHERE kunci = ${kunci} AND kedaluwarsa > ${sekarang()}`;
-  if (ada) {
-    if (ada.hash_permintaan !== hash) return galat("bentrok_idempotensi", "Idempotency-Key ini sudah dipakai untuk permintaan dengan isi berbeda.", k.id, k.kepala);
-    const r = ok(ada.respons, k, ada.status);
-    r.headers.set("Idempotent-Replayed", "true");
-    return r;
-  }
   let janji = sedang.get(kunci);
   const pemilik = !janji;
   if (!janji) {
-    janji = fn();
+    janji = (async () => {
+      const sql = await db();
+      const [ada] = await sql<{ hash_permintaan: string; status: number; respons: unknown }[]>`
+        SELECT hash_permintaan, status, respons FROM api_idempoten WHERE kunci = ${kunci} AND kedaluwarsa > ${sekarang()}`;
+      if (ada) return { hash: ada.hash_permintaan, status: ada.status, body: ada.respons, ulang: true };
+      const h = await fn();
+      if (h.status < 500) {
+        await sql`
+          INSERT INTO api_idempoten (kunci, hash_permintaan, status, respons, kedaluwarsa)
+          VALUES (${kunci}, ${hash}, ${h.status}, ${sql.json(h.body as never)}, ${sekarang() + UMUR_IDEM})
+          ON CONFLICT (kunci) DO UPDATE SET hash_permintaan = EXCLUDED.hash_permintaan, status = EXCLUDED.status, respons = EXCLUDED.respons, kedaluwarsa = EXCLUDED.kedaluwarsa`;
+      }
+      return { hash, status: h.status, body: h.body, ulang: false };
+    })();
     sedang.set(kunci, janji);
   }
   try {
     const h = await janji;
-    if (pemilik && h.status < 500) {
-      await sql`
-        INSERT INTO api_idempoten (kunci, hash_permintaan, status, respons, kedaluwarsa)
-        VALUES (${kunci}, ${hash}, ${h.status}, ${sql.json(h.body as never)}, ${sekarang() + UMUR_IDEM})
-        ON CONFLICT (kunci) DO UPDATE SET hash_permintaan = EXCLUDED.hash_permintaan, status = EXCLUDED.status, respons = EXCLUDED.respons, kedaluwarsa = EXCLUDED.kedaluwarsa`;
-    }
-    return ok(h.body, k, h.status);
+    if (h.hash !== hash) return galat("bentrok_idempotensi", "Idempotency-Key ini sudah dipakai untuk permintaan dengan isi berbeda.", k.id, k.kepala);
+    const r = ok(h.body, k, h.status);
+    if (h.ulang) r.headers.set("Idempotent-Replayed", "true");
+    return r;
   } finally {
     if (pemilik) sedang.delete(kunci);
   }

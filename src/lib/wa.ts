@@ -1544,6 +1544,28 @@ export async function kirimGambar(nama: string, alamat: string, gambar: Buffer, 
   return id;
 }
 
+/** Kirim satu dokumen/berkas (PDF, CSV, Excel, Word, ZIP, dsb. maks 100 MB) dengan nama berkas & keterangan; `padaId` seperti kirimTeks. */
+export async function kirimDokumen(
+  nama: string,
+  alamat: string,
+  dokumen: Buffer,
+  mime: string,
+  namaBerkas: string,
+  caption = "",
+  padaId?: (id: string) => void,
+): Promise<string> {
+  const { sock } = aktif(nama);
+  const B = await baileys();
+  const id = B.generateMessageIDV2(sock.user?.id);
+  padaId?.(id);
+  await denganBatas(
+    sock.sendMessage(alamat, { document: dokumen, mimetype: mime, fileName: namaBerkas, ...(caption ? { caption } : {}) }, { messageId: id }),
+    300_000,
+    "mengirim dokumen",
+  );
+  return id;
+}
+
 /**
  * Cek nomor HP terdaftar di WhatsApp (Developer API `kontak.cek`). Satu permintaan usync untuk semua nomor sekaligus;
  * pemanggil membatasi jumlahnya (cek massal = pola yang dicurigai WhatsApp). `digit` = nomor berawalan kode negara.
@@ -1571,4 +1593,27 @@ export async function fotoProfilSendiri(nama: string): Promise<string | null> {
     if (e instanceof WaError) throw e;
     return null; // 404/401 dari WhatsApp = tidak punya foto atau privasi
   }
+}
+
+export interface InfoGrupWa {
+  id: string;
+  nama: string;
+  jumlah_anggota: number;
+  hanya_admin: boolean;
+}
+
+/** Daftar grup WhatsApp yang diikuti nomor yang sedang terhubung (`GET /api/v1/nomor/{id}/grup`). */
+export async function daftarGrup(nama: string): Promise<InfoGrupWa[]> {
+  const { sock } = aktif(nama);
+  if (typeof sock.groupFetchAllParticipating !== "function") return [];
+  const peta = await denganBatas(sock.groupFetchAllParticipating(), 20_000, "mengambil daftar grup");
+  return Object.values(peta ?? {})
+    .filter((g) => g && typeof g.id === "string" && g.id.endsWith("@g.us"))
+    .map((g) => ({
+      id: g.id,
+      nama: String(g.subject ?? "").trim(),
+      jumlah_anggota: Number(g.size || g.participants?.length || 0),
+      hanya_admin: !!g.announce,
+    }))
+    .sort((a, b) => a.nama.localeCompare(b.nama, "id"));
 }

@@ -205,13 +205,23 @@ export interface ProfilNomor {
 
 // ---------- Pesan keluar ----------
 
+export interface GrupWa {
+  /** ID grup WhatsApp (mis. `120363041234567890@g.us`), langsung dipakai sebagai `ke` di `cg.pesan.kirim()`. */
+  id: string;
+  nama: string;
+  jumlah_anggota: number;
+  hanya_admin: boolean;
+}
+
 export interface IsianPesan {
   nomor_id: Id;
-  /** Nomor WhatsApp tujuan, mis. 6281234567890. */
+  /** Nomor WhatsApp tujuan (mis. `6281234567890`) atau ID grup WhatsApp (mis. `120363041234567890@g.us`). */
   ke: string;
   teks?: string;
-  /** Gambar maks 5 MB. Isi `teks` atau `gambar` (atau keduanya). */
+  /** Gambar maks 5 MB. Isi `teks`, `gambar`, atau `dokumen`. */
   gambar?: { base64: string; mime: "image/jpeg" | "image/png" | "image/webp"; caption?: string };
+  /** Berkas/dokumen maks 100 MB (PDF, CSV, Excel, Word, ZIP, dll.). `mime` otomatis ditebak dari `nama` bila dikosongkan. */
+  dokumen?: { base64: string; nama: string; mime?: string; caption?: string };
 }
 export type StatusPesan = "antre" | "terkirim" | "dibaca" | "gagal";
 export interface PesanDiterima {
@@ -633,15 +643,33 @@ export class ChatGerCep {
     pairing: (id: Id, nomorHp: string): Promise<{ kode: string }> => this.minta("POST", `/nomor/${seg(id)}/pairing`, { body: { nomor_hp: nomorHp } }),
     /** Logout WhatsApp. Satu-satunya cara API memutus nomor; nomornya tetap ada dan bisa ditautkan lagi. */
     logout: (id: Id): Promise<Berhasil> => this.minta("DELETE", `/nomor/${seg(id)}/sesi`),
+    /** Daftar grup WhatsApp yang diikuti nomor yang sedang terhubung (`id` dipakai sebagai `ke` di `pesan.kirim`). Fitur `pesan.kirim`. */
+    grup: (id: Id): Promise<{ data: GrupWa[] }> => this.minta("GET", `/nomor/${seg(id)}/grup`),
   };
 
-  /** Kirim pesan lewat antrean anti-blokir. Fitur `pesan.kirim`. */
+  /** Kirim pesan lewat antrean anti-blokir (nomor pribadi atau grup WhatsApp). Fitur `pesan.kirim`. */
   readonly pesan = {
-    /** Kirim teks/gambar; jawabannya `antre`, status akhir lewat `status(id)` atau event `pesan.status`. */
+    /** Kirim teks/gambar/dokumen ke nomor atau grup WhatsApp (`ke: "120363...@g.us"`); jawabannya `antre`, status akhir lewat `status(id)` atau event `pesan.status`. */
     kirim: (isian: IsianPesan, opsi: OpsiIdempotensi = {}): Promise<PesanDiterima> =>
       this.minta("POST", "/pesan", { body: { ...isian, nomor_id: String(isian.nomor_id) }, idempotensi: opsi.idempotensi }),
+    /** Kirim berkas/dokumen lewat multipart/form-data (maks 100 MB, tanpa base64) ke nomor atau grup WhatsApp. */
+    kirimBerkas: (
+      isian: { nomor_id: Id; ke: string; berkas: Blob; nama: string; mime?: string; caption?: string },
+      opsi: OpsiIdempotensi = {},
+    ): Promise<PesanDiterima> => {
+      const form = new FormData();
+      form.set("nomor_id", String(isian.nomor_id));
+      form.set("ke", isian.ke);
+      form.set("nama", isian.nama);
+      if (isian.mime) form.set("mime", isian.mime);
+      if (isian.caption) form.set("caption", isian.caption);
+      form.set("dokumen", isian.berkas, isian.nama);
+      return this.minta("POST", "/pesan", { body: form, idempotensi: opsi.idempotensi });
+    },
     /** Status satu pesan (antre / terkirim / dibaca / gagal + alasan). */
     status: (id: Id): Promise<PesanKeluar> => this.minta("GET", `/pesan/${seg(id)}`),
+    /** Daftar grup WhatsApp yang diikuti nomor `nomorId` (`id` dipakai sebagai `ke` di `kirim()`). */
+    grup: (nomorId: Id): Promise<{ data: GrupWa[] }> => this.minta("GET", `/nomor/${seg(nomorId)}/grup`),
   };
 
   /** Inbox: daftar percakapan, isi pesan, balas manual, jeda/lanjut bot per percakapan. */

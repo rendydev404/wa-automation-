@@ -33,8 +33,8 @@ export default async function HalamanKirim({ searchParams }: { searchParams: Par
                 </option>
               ))}
             </select>
-            <label htmlFor="ke">Nomor tujuan</label>
-            <input id="ke" name="ke" inputMode="numeric" placeholder="6281234567890" required />
+            <label htmlFor="ke">Nomor atau ID grup tujuan</label>
+            <input id="ke" name="ke" placeholder="6281234567890 atau 120363041234567890@g.us" required />
             <label htmlFor="teks">Pesan</label>
             <textarea id="teks" name="teks" rows={4} maxLength={4000} placeholder="Pesanan kakak siap diambil!" required />
           </FormAksi>
