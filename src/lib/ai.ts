@@ -2,7 +2,7 @@ import "server-only";
 import { aturan } from "./aturan";
 import { db, getSetting, sekarang } from "./db";
 import { hermesSehat, hermesTerkonfigurasi, tanyaHermes } from "./hermes";
-import { JAWABAN_AMAN, type Pelanggaran, pesanKoreksi, periksaJawaban } from "./pemeriksa";
+import { type Pelanggaran, jawabanAman, pesanKoreksi, periksaJawaban } from "./pemeriksa";
 import { teksSoul } from "./soul";
 import { ATURAN_GAYA } from "./gaya";
 import { tarifModel } from "./tarif";
@@ -404,7 +404,7 @@ export interface JawabanTerjaga extends JawabanAi {
   /** Pelanggaran pada draf pertama (kosong = langsung lolos). */
   pelanggaran: Pelanggaran[];
   ditulisUlang: boolean;
-  /** Tulisan ulang tetap melanggar: yang dikirim JAWABAN_AMAN. */
+  /** Tulisan ulang tetap melanggar: yang dikirim jawaban aman (jawabanAman: versi menenangkan untuk keluhan). */
   aman: boolean;
   /** Produk katalog yang dikirim setelah jawaban (hanya bila opsi.katalog); teks sudah bersih dari tag. */
   kirimProduk: KirimProduk | null;
@@ -477,5 +477,5 @@ export async function tanyaAiTerjaga(
   // Sisa pelanggaran hanya soal gaya (masih terdengar robot): tulisan ulang tetap lebih baik daripada jawaban aman.
   const p2 = periksaJawaban(j2.teks, sumber, opsi).filter((x) => x.jenis !== "robotik");
   if (!p2.length) return { ...gabung, teks: d2.teks, pelanggaran: p1, ditulisUlang: true, aman: false, kirimProduk: d2.produk, abaikan: null, nilai, minat, beli };
-  return { ...gabung, teks: JAWABAN_AMAN, pelanggaran: p1, ditulisUlang: true, aman: true, kirimProduk: null, abaikan: null, nilai, minat, beli };
+  return { ...gabung, teks: jawabanAman(r.pesan), pelanggaran: p1, ditulisUlang: true, aman: true, kirimProduk: null, abaikan: null, nilai, minat, beli };
 }

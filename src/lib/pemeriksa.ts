@@ -34,6 +34,19 @@ Periksa jawabanmu terhadap aturan ini sebelum menulis. Aturan ini mutlak dan dip
 /** Dikirim bila tulisan ulang tetap melanggar: jujur, tanpa klaim, tanpa janji, tanpa angka. */
 export const JAWABAN_AMAN = "Untuk yang ini nanti dijawab langsung sama tim kami di chat ini ya, Kak 🙏";
 
+/** Jawaban aman untuk pelanggan yang mengeluh: menenangkan dulu, minta detail, lalu serahkan ke tim (tanpa janji). */
+export const JAWABAN_AMAN_KELUHAN =
+  "Aduh, maaf banget ya Kak, jadi nggak enak 🙏 Boleh ceritain detailnya: kejadiannya kapan dan di mana, terus kalau ada fotonya kirim aja di sini. Tim kami bakal bantu beresin langsung di chat ini.";
+
+/** Pesan pelanggan yang berupa keluhan / kekecewaan (untuk memilih jawaban aman yang menenangkan). */
+const KELUHAN =
+  /\b(?:komplain|complain|keluh(?:an|kan)?|kecewa|mengecewakan|nyesel|kapok|gosong|basi|mentah|alot|hambar|zonk|jelek|kotor|rambut|rusak|tumpah|bocor|penyok|salah\s+(?:pesan|kirim|menu|order)|ketinggalan|(?:nggak|ngga|gak|ga|tidak)\s+(?:enak|sesuai|dateng|datang|sampai|nyampe|jelas)|lama\s+banget|kelamaan|telat|lelet|belum\s+(?:dateng|datang|sampai|nyampe)|gajelas|parah|marah|kesel|kesal|refund|balikin\s+uang|uang\s+kembali|ganti\s+rugi|penipu|nipu|tipu)\b/i;
+
+export const keluhan = (pesan: string): boolean => KELUHAN.test(pesan);
+
+/** Jawaban aman yang sesuai pesan pelanggan: keluhan dijawab dengan empati, selain itu JAWABAN_AMAN. */
+export const jawabanAman = (pesanPelanggan: string): string => (keluhan(pesanPelanggan) ? JAWABAN_AMAN_KELUHAN : JAWABAN_AMAN);
+
 // ---------- 1. Identitas ----------
 
 const PERAN = "admin|admin(?:nya)?|owner|pemilik(?:nya| nomor| usaha| toko)?|staf|staff|karyawan|kasir|pegawai|manusia|orang asli|cs manusia|customer service manusia";
@@ -62,6 +75,12 @@ const JANJI: RegExp[] = [
   /\b(sedang|lagi)\s+(aku|saya|kami)\s+(cek|proses|siapkan|carikan)\b/gi,
 ];
 
+/**
+ * "tim kami akan cek", "admin kami nanti bantu konfirmasi": tim pemilik nomor memang membaca chat ini dan bisa
+ * bertindak, jadi itu arahan jujur, bukan janji AI. Yang tetap dilarang: klaim tim SUDAH melakukannya.
+ */
+const SUBJEK_TIM = /\b(?:tim|admin|owner|pemilik|kasir|staf|staff|cs)(?:\s+(?:outlet|toko|usaha))?\s*$/i;
+
 /** "belum bisa aku cek", "tidak bisa saya kirimkan": penolakan jujur, bukan janji. */
 const NEGASI_SEBELUM = /\b(belum|tidak|tak|nggak|ngga|gak|enggak|ga)\b(?:\s+\w+){0,2}\s*$/i;
 
@@ -74,6 +93,7 @@ function adaJanji(kalimat: string, bolehKirim = false, katalogAktif = false): bo
       // "Mau aku kirimkan katalognya?": tawaran, bukan janji; dikirim lewat tag setelah pelanggan mau.
       if (katalogAktif && AKSI_KIRIM.test(m[0]) && /\?\s*$/.test(kalimat.trim())) continue;
       if (NEGASI_SEBELUM.test(kalimat.slice(Math.max(0, m.index - 30), m.index))) continue;
+      if (/^(?:kami|kita)\b/i.test(m[0]) && !/\bsudah\b/i.test(m[0]) && SUBJEK_TIM.test(kalimat.slice(Math.max(0, m.index - 20), m.index))) continue;
       if (bolehKirim && AKSI_KIRIM.test(m[0])) continue;
       return true;
     }
@@ -223,7 +243,8 @@ export function periksaJawaban(
 
 const PENJELASAN: Record<JenisPelanggaran, string> = {
   identitas: "mengaku sebagai admin/pemilik/staf/manusia atau orang tertentu (kamu boleh bicara sebagai bagian dari tim, tapi jangan mengaku manusia atau orang tertentu)",
-  janji: "menjanjikan tindakan yang tidak bisa kamu lakukan (mengirim, meneruskan, mengecek, mencatat, menyiapkan, menyuruh menunggu)",
+  janji:
+    'menjanjikan tindakan yang tidak bisa kamu lakukan sendiri (mengirim, meneruskan, mengecek, mencatat, menyiapkan, menyuruh menunggu). Ganti dengan arahan jujur seperti "tim kami bakal bantu cek langsung di chat ini" (jangan bilang aku/kami yang mengerjakannya, jangan sebut waktu), dan pertahankan bagian lain jawabanmu: empati, informasi, dan pertanyaan detail',
   angka: "menulis angka/nominal/nomor/tautan yang tidak ada di sumber",
   mesin:
     "menyebut nama mesin, model, atau perusahaan AI di balik jawabanmu. Jangan sebut sama sekali; bila ditanya kamu pakai AI apa, jawab bahwa kamu asisten dari tim ini dan detail teknisnya tidak bisa dibagikan",

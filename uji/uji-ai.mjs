@@ -533,6 +533,24 @@ await cek("gaya ngobrol: posisi percakapan dari histori, salam pembuka dibuang d
   assert.match(s1.text, /<posisi_percakapan>/);
 });
 
+await cek("keluhan: 'tim kami akan cek' sah (bukan janji AI), klaim 'sudah' tetap ditolak; jawaban aman keluhan menenangkan & lolos pemeriksa", async () => {
+  const P = await lib("src/lib/pemeriksa.ts");
+  const s = "Outlet Dramaga jam 14.00-22.00.";
+  const pesan = "kak saya mau komplain kemaren beli shawarma gosong gajelas";
+  for (const t of [
+    "Yah, sayang banget Kak, maaf ya. Kalau ada fotonya kirim di sini, biar tim kami cek langsung.",
+    "Maaf banget Kak. Tim kami akan cek dan bantu di chat ini ya.",
+    "Admin kami nanti bantu konfirmasi di sini ya.",
+  ])
+    assert.deepEqual(P.periksaJawaban(t, s, { pesanPelanggan: pesan }), [], t);
+  for (const t of ["Tim kami sudah cek pesanan Kakak.", "Aku akan cek ya.", "Kami akan cek dulu.", "Nanti aku sampaikan ke tim supaya dicek."])
+    assert.deepEqual(P.periksaJawaban(t, s).map((p) => p.jenis), ["janji"], t);
+  assert.ok(P.keluhan(pesan) && P.keluhan("pesanan saya belum dateng") && !P.keluhan("halo kak ada promo ga"));
+  assert.equal(P.jawabanAman(pesan), P.JAWABAN_AMAN_KELUHAN);
+  assert.equal(P.jawabanAman("ada promo ga"), P.JAWABAN_AMAN);
+  assert.deepEqual(P.periksaJawaban(P.JAWABAN_AMAN_KELUHAN, s, { pesanPelanggan: pesan }), []);
+});
+
 const { periksaJawaban } = await lib("src/lib/pemeriksa.ts");
 const SUMBER = "IG @tokouji, situs tokouji.com. Paket Hemat Rp25.000. Ongkir Jl. Melati Rp8.000. Animasi mulai Rp350.000 (15-30 detik). Promo 10% member. Rekening BCA 8830123456 a.n. Toko. Peta https://maps.app/abc. Jam buka 10.00-22.00.";
 const jenis = (t) => periksaJawaban(t, SUMBER).map((p) => p.jenis);
