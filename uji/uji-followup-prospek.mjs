@@ -291,7 +291,7 @@ await cek("pesan 1: lead hangat yang diam 3 jam di-follow-up (ritme manusia, ter
   assert.equal(await fpBaris(L.iseng), undefined, "sapaan saja bukan lead");
   assert.equal(await fpBaris(L.panas), undefined, "lead panas baru saja chat: belum lewat 1 jam");
   const ai = hermes.panggilan.findLast((x) => x.sesi.startsWith("followup-prospek-"));
-  assert.match(ai.sistem, /Lingkaran terbuka/);
+  assert.match(ai.sistem, /follow-up PERTAMA \(hook/);
   assert.match(ai.sistem, /JANGAN menulis tautan/);
   assert.match(ai.sistem, /Rp67\.000/, "pengetahuan nomor CS (harga) ikut dikirim");
   assert.match(ai.sistem, /kak berapa harga paket bisnis/, "riwayat chat orang itu ikut dikirim");

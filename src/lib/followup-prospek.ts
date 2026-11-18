@@ -2,7 +2,7 @@ import "server-only";
 import { type Sql, db, getSetting, sekarang, setSetting } from "./db";
 import { bakukanTag, catatPakai, tanyaAi } from "./ai";
 import { formatWa, kirimSapaan } from "./bridge";
-import { ATURAN_LEWATI, type HasilSusun, ambilLewati } from "./followup-aman";
+import { ATURAN_LEWATI, GAYA_PESAN, type HasilSusun, ambilLewati } from "./followup-aman";
 import {
   BATAS_PESAN,
   BATAS_SETELAN_PROSPEK,
@@ -243,28 +243,28 @@ type Tahap = 1 | 2 | 3;
 
 const PANDUAN_TAHAP: Record<Tahap, string> = {
   1: [
-    "Ini pesan follow-up PERTAMA (tahap lanjutan). Teknik:",
-    "- Lingkaran terbuka: lanjutkan TEPAT dari hal terakhir yang ia tanyakan atau bahas (sebut topiknya / usahanya), jangan menyapa seperti orang baru.",
+    "Ini pesan follow-up PERTAMA (hook + rekomendasi + penutupan). Teknik:",
+    "- Hook: buka dengan masalah nyata di usahanya yang ia sebut / tanyakan (chat pelanggan telat dibalas, admin kewalahan, chat malam terbengkalai), kaitkan dengan topiknya. Jangan menyapa seperti orang baru dan jangan sekadar mengingatkan obrolan.",
     "- Rekomendasi: bila usahanya / perkiraan jumlah chat-nya terlihat di riwayat, sebut SATU paket dari <paket_nyata> yang paling pas beserta alasannya (kuota cukup untuk chat-nya, jumlah nomor).",
     "- Balas budi: beri satu hal berguna yang belum ia dapat, misalnya gambaran singkat bagaimana AI membalas pelanggan di usahanya, atau tawaran mencoba bila pengetahuan menyebut ada uji coba gratis.",
     "- Jawab duluan satu keberatan yang paling mungkin membuatnya ragu (harga, takut ribet, takut AI salah jawab, takut nomor diblokir), singkat dan pakai fakta dari pengetahuan.",
-    "- Tutup dengan SATU pertanyaan penutupan yang gampang dijawab (ya/tidak, atau pilih paket A/B). Jangan menutup dengan \"ada yang bisa dibantu?\".",
-    "- 2 sampai 4 kalimat, paling panjang 420 karakter.",
+    "- Tutup dengan SATU ajakan penutupan yang gampang dijawab (balas YA, atau pilih paket A/B).",
+    "- Paling panjang 450 karakter.",
   ].join("\n"),
   2: [
-    "Ini pesan follow-up KEDUA (nilai & bukti), pesan pertamamu belum dibalas. Teknik:",
+    "Ini pesan follow-up KEDUA (nilai & bukti), pesan pertamamu belum dibalas. Pakai sudut pandang BARU, bukan pengulangan pesan pertama. Teknik:",
     "- Takut rugi: gambarkan kerugian nyata bila chat pelanggan telat dibalas (pelanggan pindah ke toko lain, chat malam/akhir pekan terbengkalai, admin kewalahan), kaitkan dengan usahanya bila diketahui.",
     "- Jangkar harga: bila menyebut harga, pakai harga paket PERSIS dari <paket_nyata> / pengetahuan; boleh dipecah per hari atau dibandingkan dengan biaya admin manusia (hitung dengan benar, dibulatkan ke atas).",
     "- Bukti sosial: HANYA dari blok <bukti_nyata> bila ada. Tanpa blok itu, jangan menyebut jumlah pengguna atau testimoni apa pun.",
-    "- Ajakan tegas ke langkah berikut yang jelas (pilih paket / daftar / balas \"ya\" supaya dibantu aktifkan).",
-    "- Jangan mengulang kalimat pesan follow-up sebelumnya. 3 sampai 5 kalimat, paling panjang 560 karakter.",
+    "- Ajakan tegas ke langkah berikut yang jelas (pilih paket / daftar / balas YA supaya dibantu aktifkan).",
+    "- Jangan mengulang kalimat pesan follow-up sebelumnya. Paling panjang 560 karakter.",
   ].join("\n"),
   3: [
     "Ini pesan follow-up TERAKHIR (pamit), dua pesan sebelumnya belum dibalas. Teknik:",
     "- Pesan pamit: bilang terus terang ini pesan terakhir darimu soal ini, kamu tidak akan mengganggu lagi.",
     `- Pembalik risiko: sebut jaminan uang kembali ${MASA_ID} untuk pembayaran pertama (GoPay, ShopeePay, atau QRIS) bila sesuai pengetahuan.`,
-    "- Pintu tetap terbuka: cukup balas chat ini kapan pun ia siap.",
-    "- Jangan mengulang kalimat pesan sebelumnya. 2 sampai 3 kalimat, paling panjang 400 karakter.",
+    "- Pintu tetap terbuka dengan ajakan yang gampang: cukup balas YA kapan pun ia siap.",
+    "- Jangan mengulang kalimat pesan sebelumnya. Paling panjang 400 karakter.",
   ].join("\n"),
 };
 
@@ -275,21 +275,21 @@ function templat(tahap: Tahap, panas: boolean): string {
   if (tahap === 1)
     return panas
       ? pilih([
-          `Kak, tadi sudah sampai mana? Kalau mau langsung aktif, aku bantu pilihkan paket yang pas dan cara bayarnya ya. Mau lanjut sekarang?`,
-          `Kak, pesanan paketnya mau aku bantu lanjutkan sekarang? Tinggal pilih paketnya, sisanya aku pandu sampai AI-nya jalan.`,
+          `Kak, tinggal selangkah lagi AI-nya jalan di WhatsApp Kakak! 🚀\n\nPilih paketnya, sisanya aku pandu sampai *semua chat pelanggan langsung dibalas*.\n\nBalas *YA* ya Kak, aku bantu aktifkan sekarang.`,
+          `Kak, paketnya mau langsung aku aktifkan? 🙌\n\nBegitu aktif, *chat pelanggan dibalas AI 24 jam*, termasuk malam dan akhir pekan.\n\nBalas *YA* ya Kak, aku pandu sampai jalan.`,
         ])
       : pilih([
-          `Kak, soal yang tadi ditanyakan, ada yang masih bikin ragu? Kalau mau, aku bantu hitungkan paket yang paling pas untuk jumlah chat di usaha Kakak. Mau?`,
-          `Kak, tadi sempat tanya soal ${MEREK}. Biar gampang, aku bisa bantu cek paket yang cocok untuk usaha Kakak. Boleh aku bantu?`,
+          `Kak, tiap chat pelanggan yang telat dibalas itu peluang yang bisa pindah ke toko sebelah 😬\n\nDengan *${MEREK}*, semua chat langsung dibalas AI 24 jam. Aku hitungkan paket yang paling pas untuk jumlah chat usaha Kakak.\n\nBalas *YA* ya Kak, aku bantu sekarang.`,
+          `Kak, bayangin semua chat pelanggan terjawab walau Kakak lagi sibuk atau tidur 😴\n\nItu yang dikerjakan *${MEREK}*. Aku bantu pilihkan paket yang pas untuk usaha Kakak.\n\nBalas *YA* ya Kak, aku mulai sekarang.`,
         ]);
   if (tahap === 2)
     return pilih([
-      `Kak, sekadar gambaran: chat pelanggan yang baru dibalas berjam-jam kemudian sering keburu pindah ke toko lain. Dengan ${MEREK}, setiap chat langsung dibalas AI 24 jam. Mau aku bantu aktifkan sekarang?`,
-      `Kak, banyak pelanggan yang chat malam atau saat admin sibuk, dan tidak semuanya mau menunggu. ${MEREK} bikin semua chat itu langsung dibalas. Mau aku pandu mulai hari ini?`,
+      `Kak, pelanggan yang chat tapi baru dibalas berjam-jam kemudian sering keburu beli di tempat lain 😅\n\n*${MEREK}* bikin setiap chat langsung dibalas AI 24 jam, tanpa admin begadang.\n\nBalas *YA* ya Kak, aku bantu aktifkan hari ini.`,
+      `Kak, chat malam dan akhir pekan itu sering jadi pembeli yang hilang diam-diam 🌙\n\nDengan *${MEREK}*, semuanya langsung dijawab. Kakak tinggal terima pesanan.\n\nBalas *YA* ya Kak, aku pandu mulai sekarang.`,
     ]);
   return pilih([
-    `Kak, ini pesan terakhir dariku soal ini ya, aku tidak akan mengganggu lagi 🙏 Kalau nanti siap mencoba, ada jaminan uang kembali ${MASA_ID} untuk pembayaran pertama. Cukup balas chat ini kapan saja.`,
-    `Kak, aku pamit dulu ya, ini pesan terakhir dariku 🙏 Kapan pun Kakak siap, tinggal balas chat ini, dan pembayaran pertama dilindungi jaminan uang kembali ${MASA_ID}.`,
+    `Kak, ini pesan terakhirku soal ini, janji nggak ganggu lagi 🙏\n\nKalau nanti siap coba, pembayaran pertama dilindungi *jaminan uang kembali ${MASA_ID}*. Cukup balas *YA* kapan pun.`,
+    `Kak, aku pamit dulu ya, ini pesan terakhirku 🙏\n\nKapan pun siap, balas *YA* saja. Pembayaran pertama aman dengan *jaminan uang kembali ${MASA_ID}*.`,
   ]);
 }
 
@@ -335,8 +335,9 @@ async function susunPesan(cs: Nomor, chat: ChatLead, tahap: Tahap, minat: number
         : tahap === 3
           ? `Boleh SATU tautan ${asal()}/langganan, tidak wajib.`
           : "JANGAN menulis tautan apa pun di pesan ini.",
+      GAYA_PESAN,
       "Aturan wajib:",
-      "- Bahasa Indonesia santai seperti CS manusia, ikuti cara menyapa yang sudah dipakai di chat ini (mis. \"Kak\"). Paling banyak 1 emoji.",
+      "- Bahasa Indonesia santai seperti CS manusia, ikuti cara menyapa yang sudah dipakai di chat ini (mis. \"Kak\").",
       "- Semua harga, paket, fitur, promo, dan jaminan HANYA dari pengetahuan nomor ini atau blok di bawah. Tidak ada di sana = jangan disebut.",
       "- DILARANG: kelangkaan atau batas waktu yang dibuat-buat (\"hanya hari ini\", \"sisa 3 slot\", \"promo berakhir malam ini\"), testimoni / nama pelanggan / angka pengguna karangan, janji hasil (\"pasti laris\"), menyebut dirimu bot atau follow-up otomatis.",
       ...(sebelumnya.length ? ["Pesan follow-up yang sudah kamu kirim (jangan diulang):", ...sebelumnya.map((p, i) => `${i + 1}. ${p}`)] : []),

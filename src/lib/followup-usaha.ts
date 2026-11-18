@@ -2,7 +2,7 @@ import "server-only";
 import { db, sekarang } from "./db";
 import { bakukanTag, catatPakai, tanyaAi } from "./ai";
 import { formatWa, kirimSapaan } from "./bridge";
-import { ATURAN_LEWATI, type HasilSusun, alasanTahan, ambilLewati } from "./followup-aman";
+import { ATURAN_LEWATI, GAYA_PESAN, type HasilSusun, alasanTahan, ambilLewati } from "./followup-aman";
 import {
   BATAS_PEMANASAN,
   BATAS_PESAN,
@@ -492,27 +492,27 @@ async function chatDari(kunci: string): Promise<Chat | undefined> {
 
 const PANDUAN_TAHAP: Record<Tahap, string> = {
   1: [
-    "Ini pesan follow-up PERTAMA (lanjutan + rekomendasi). Teknik:",
-    "- Lanjutkan TEPAT dari produk/layanan yang terakhir ia tanyakan (sebut namanya), jangan menyapa seperti orang baru.",
-    "- Rekomendasikan SATU pilihan yang paling cocok dengan kebutuhannya (nama + harga PERSIS dari pengetahuan/katalog) beserta satu alasan kuat kenapa cocok untuknya.",
-    "- Jawab duluan satu keberatan yang paling mungkin membuatnya ragu (harga, waktu, ongkir, ribet, ragu kualitas), singkat dan pakai fakta dari pengetahuan.",
-    "- Tutup dengan pertanyaan penutupan yang gampang dijawab dan mengarah ke pesanan (pilih A/B, jumlah, atau waktu kirim). Jangan menutup dengan \"ada yang bisa dibantu?\".",
-    "- 2 sampai 4 kalimat, paling panjang 420 karakter.",
+    "Ini pesan follow-up PERTAMA (hook + rekomendasi + penutupan). Teknik:",
+    "- Hook dari masalah / keinginan yang membuatnya bertanya soal produk itu (sebut nama produknya). Jangan menyapa seperti orang baru dan jangan sekadar mengingatkan obrolan.",
+    "- Rekomendasikan SATU pilihan yang paling cocok dengan kebutuhannya (nama + harga PERSIS dari pengetahuan/katalog) dan hasil paling menarik yang ia dapat darinya.",
+    "- Patahkan satu keberatan yang paling mungkin membuatnya ragu (harga, waktu, ongkir, ribet, ragu kualitas), singkat dan pakai fakta dari pengetahuan.",
+    "- Tutup dengan ajakan penutupan yang mengarah ke pesanan (balas YA, pilih A/B, jumlah, atau waktu kirim).",
+    "- Paling panjang 450 karakter.",
   ].join("\n"),
   2: [
-    "Ini pesan follow-up KEDUA (nilai & dorongan), pesan pertamamu belum dibalas. Teknik:",
-    "- Takut rugi yang wajar: apa yang ia lewatkan bila menunda (kebutuhannya tetap belum beres, manfaat yang belum ia rasakan), kaitkan dengan kebutuhan yang ia sebut di chat. Jangan menakut-nakuti.",
+    "Ini pesan follow-up KEDUA (nilai + dorongan), pesan pertamamu belum dibalas. Pakai sudut pandang BARU, bukan pengulangan pesan pertama. Teknik:",
+    "- Hook baru: gambarkan hasil / momen yang ia inginkan setelah memakai produknya, atau apa yang ia lewatkan bila menunda (kebutuhannya tetap belum beres). Takut rugi yang wajar, jangan menakut-nakuti.",
     "- Jangkar nilai HANYA dari data yang ada: harga coret / harga normal, promo, bonus, gratis ongkir, paket hemat, atau harga per pemakaian (hitung dengan benar).",
     "- Bukti sosial (testimoni, jumlah pembeli, rating) HANYA bila tertulis di pengetahuan. Tidak ada = jangan disebut.",
-    "- Ajakan tegas ke SATU langkah berikut yang jelas (konfirmasi pesanan, kirim alamat, pilih varian, cara bayar yang ada di pengetahuan).",
-    "- Jangan mengulang kalimat pesan follow-up sebelumnya. 3 sampai 5 kalimat, paling panjang 560 karakter.",
+    "- Ajakan tegas ke SATU langkah berikut yang jelas (balas YA, konfirmasi pesanan, kirim alamat, pilih varian, cara bayar yang ada di pengetahuan).",
+    "- Jangan mengulang kalimat pesan follow-up sebelumnya. Paling panjang 560 karakter.",
   ].join("\n"),
   3: [
     "Ini pesan follow-up TERAKHIR (pamit + pembalik risiko), dua pesan sebelumnya belum dibalas. Teknik:",
     "- Bilang terus terang ini pesan terakhirmu soal ini, kamu tidak akan mengganggu lagi.",
     "- Pembalik risiko HANYA bila tertulis di pengetahuan: garansi, retur/tukar, COD/bayar di tempat, uang kembali, bisa coba dulu.",
-    "- Pintu tetap terbuka: cukup balas chat ini kapan pun ia siap, plus satu ajakan ringan.",
-    "- Jangan mengulang kalimat pesan sebelumnya. 2 sampai 3 kalimat, paling panjang 400 karakter.",
+    "- Pintu tetap terbuka dengan ajakan yang gampang: cukup balas satu kata (mis. nama produknya) kapan pun ia siap.",
+    "- Jangan mengulang kalimat pesan sebelumnya. Paling panjang 400 karakter.",
   ].join("\n"),
 };
 
@@ -523,27 +523,27 @@ const pilih = <T,>(x: readonly T[]): T => x[Math.floor(Math.random() * x.length)
 function templat(jenis: Tahap | "ulang", panas: boolean): string {
   if (jenis === "ulang")
     return pilih([
-      "Kak, apa kabar? Kalau mau pesan lagi, aku siap bantu ya 😊 Mau dibantu sekarang?",
-      "Halo Kak, semoga sehat selalu. Kalau perlu pesan lagi, tinggal balas chat ini ya, nanti aku bantu siapkan. Mau sekarang?",
+      "Kak, sudah waktunya isi ulang? 😊\n\nAku bisa siapkan pesanan yang *sama persis seperti sebelumnya*, Kakak tinggal terima beres.\n\nBalas *SAMA* ya Kak, langsung aku proses.",
+      "Kak, yang kemarin cocok kan? 😄\n\nKalau mau pesan lagi, aku siapkan *sama seperti terakhir* tanpa perlu ribet pilih ulang.\n\nBalas *YA* ya Kak, aku bantu sekarang.",
     ]);
   if (jenis === 1)
     return panas
       ? pilih([
-          "Kak, pesanannya mau aku bantu lanjutkan sekarang? Tinggal konfirmasi detailnya, sisanya aku bantu.",
-          "Kak, tadi sudah sampai mana? Kalau mau lanjut pesan, aku bantu siapkan sekarang ya. Mau lanjut?",
+          "Kak, tinggal selangkah lagi! 🙌\n\nDetail pesanannya tinggal dikonfirmasi, sisanya aku urus sampai beres.\n\nBalas *YA* ya Kak, aku proses sekarang.",
+          "Kak, pesanannya sudah hampir jadi nih 😊\n\nKonfirmasi detailnya, langsung aku siapkan hari ini.\n\nBalas *YA* ya Kak, aku lanjutkan.",
         ])
       : pilih([
-          "Kak, soal yang tadi ditanyakan, masih ada yang ingin dipastikan? Kalau mau, aku bantu cek pilihan yang paling pas ya.",
-          "Kak, tadi sempat tanya-tanya ya. Biar gampang, aku bisa bantu pilihkan yang paling cocok. Boleh aku bantu?",
+          "Kak, biar nggak salah pilih, aku bantu carikan yang *paling pas* buat kebutuhan Kakak 🎯\n\nCukup jawab satu-dua pertanyaan, aku kasih rekomendasi terbaiknya.\n\nBalas *YA* ya Kak, aku mulai sekarang.",
+          "Kak, yang Kakak cari tadi masih bisa aku bantu sampai beres 🙌\n\nAku pilihkan yang paling cocok, Kakak tinggal setuju.\n\nBalas *YA* ya Kak, aku bantu sekarang.",
         ]);
   if (jenis === 2)
     return pilih([
-      "Kak, kalau masih menimbang, aku bisa bantu jelaskan pilihannya biar lebih yakin. Mau aku bantu lanjutkan pesanannya?",
-      "Kak, aku siap bantu kalau Kakak mau lanjut. Tinggal balas chat ini, nanti aku bantu prosesnya sampai beres. Mau lanjut?",
+      "Kak, kebutuhan yang ditunda biasanya malah makin repot belakangan 😅\n\nSelesaikan sekarang, aku pandu prosesnya dari awal sampai beres.\n\nBalas *YA* ya Kak, aku bantu lanjutkan.",
+      "Kak, satu balasan aja dan semuanya aku urus 🙌\n\nPilihannya aku siapkan, Kakak tinggal konfirmasi.\n\nBalas *YA* ya Kak, aku proses sekarang.",
     ]);
   return pilih([
-    "Kak, ini pesan terakhir dariku soal ini ya, aku tidak akan mengganggu lagi 🙏 Kapan pun Kakak siap, cukup balas chat ini.",
-    "Kak, aku pamit dulu ya, ini pesan terakhir dariku soal ini 🙏 Kalau nanti butuh, tinggal balas chat ini kapan saja.",
+    "Kak, ini pesan terakhirku soal ini, janji nggak ganggu lagi 🙏\n\nKapan pun Kakak siap, cukup balas *YA* di chat ini dan aku bantu sampai beres.",
+    "Kak, aku pamit dulu ya, ini pesan terakhirku soal ini 🙏\n\nPintu selalu terbuka: balas *YA* kapan saja, langsung aku bantu.",
   ]);
 }
 
@@ -578,11 +578,11 @@ async function susunPesan(nomor: Nomor, chat: Chat, jenis: Tahap | "ulang", mina
         ? [
             "Lawan bicara di chat ini pernah membeli / memakai produk usaha ini (lihat riwayat chat), lalu sudah lama tidak chat.",
             "Tulis SATU pesan WhatsApp order ulang. Ini hard selling yang ramah: buat ia ingin pesan lagi sekarang.",
-            "- Sebut produk/layanan yang dulu ia beli bila terlihat di riwayat dan tawarkan cara paling gampang memesan lagi (mis. disiapkan sama seperti sebelumnya).",
+            "- Hook: ingatkan rasa / hasil enak dari produk/layanan yang dulu ia beli (sebut namanya bila terlihat di riwayat), lalu tawarkan cara paling gampang memesan lagi (mis. disiapkan sama persis seperti sebelumnya, cukup balas satu kata).",
             "- Boleh tawarkan SATU produk pelengkap atau produk baru yang relevan dengan pembeliannya (nama + harga PERSIS dari pengetahuan/katalog), atau promo yang memang tertulis.",
             "- Tutup dengan SATU pertanyaan ya/tidak atau pilih waktu.",
             "- Jangan menulis seolah ia baru saja chat, jangan menyebut sudah berapa lama ia tidak pesan, jangan menyindir.",
-            "- 2 sampai 3 kalimat, paling panjang 380 karakter.",
+            "- Paling panjang 400 karakter.",
           ].join("\n")
         : [
             `Lawan bicara di chat ini tadi bertanya soal produk/layanan usaha ini (dinilai ${panas ? "SIAP MEMBELI (lead panas)" : "tertarik serius (lead hangat)"}), sudah kamu jawab, lalu tidak membalas lagi.`,
@@ -594,8 +594,9 @@ async function susunPesan(nomor: Nomor, chat: Chat, jenis: Tahap | "ulang", mina
       "<tugas_follow_up>",
       ...(bolehLewati ? [ATURAN_LEWATI] : []),
       tugas,
+      GAYA_PESAN,
       "Aturan wajib:",
-      "- Bahasa Indonesia santai seperti CS manusia, ikuti cara menyapa yang sudah dipakai di chat ini (mis. \"Kak\"). Paling banyak 1 emoji.",
+      "- Bahasa Indonesia santai seperti CS manusia, ikuti cara menyapa yang sudah dipakai di chat ini (mis. \"Kak\").",
       "- Semua harga, produk, promo, garansi, dan jadwal HANYA dari pengetahuan nomor ini atau chat ini. Tidak ada di sana = jangan disebut.",
       "- JANGAN menulis tautan apa pun, dan JANGAN memakai tag <kirim_produk> (foto dikirim bila ia membalas).",
       "- DILARANG: kelangkaan atau batas waktu yang dibuat-buat (\"hanya hari ini\", \"sisa 3\", \"promo berakhir malam ini\"), testimoni / nama pelanggan / angka penjualan karangan, janji hasil, menyebut dirimu bot, pesan otomatis, atau follow-up.",

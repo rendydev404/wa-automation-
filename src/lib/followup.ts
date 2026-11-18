@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import { type Sql, db, getSetting, sekarang, setSetting } from "./db";
 import { catatPakai, tanyaAi } from "./ai";
 import { formatWa, kirimSapaan, pasangKaitCs } from "./bridge";
-import { ATURAN_LEWATI, type HasilSusun, alasanTahan, ambilLewati } from "./followup-aman";
+import { ATURAN_LEWATI, GAYA_PESAN, type HasilSusun, alasanTahan, ambilLewati } from "./followup-aman";
 import { rapikanNomorWa } from "./format";
 import {
   BATAS_PESAN,
@@ -372,8 +372,16 @@ function templat(jenis: "sapaan" | "pengingat", sapa: string, pakai: PemakaianAk
   const paket = rek ? `paket ${rek.paket.nama} (${rp(rek.paket.harga)}/${rek.paket.durasi_hari} hari)` : "paket yang pas";
   if (jenis === "pengingat")
     return [
-      `${halo}, ini pesan terakhirku soal ini ya 🙏 Kalau kamu mau AI-nya membalas pelanggan lagi, ${paket} sudah cukup, dan pembayaran pertama dilindungi jaminan uang kembali ${MASA_ID}. Balas "ya" saja, nanti aku bantu aktifkan.`,
-      `${halo}, aku tidak akan mengganggu lagi setelah ini 🙂 Kapan pun siap, ${paket} bisa langsung aktif dan ada jaminan uang kembali ${MASA_ID} untuk pembayaran pertama. Tinggal balas chat ini ya.`,
+      `${halo}, ini pesan terakhirku soal ini, janji nggak ganggu lagi 🙏
+
+Biar AI-mu membalas pelanggan lagi, *${paket}* sudah cukup, dan pembayaran pertama dilindungi *jaminan uang kembali ${MASA_ID}*.
+
+Balas *YA*, aku aktifkan sekarang.`,
+      `${halo}, aku pamit setelah ini ya 🙏
+
+Kapan pun siap, *${paket}* bisa langsung aktif, dan pembayaran pertama aman dengan *jaminan uang kembali ${MASA_ID}*.
+
+Cukup balas *YA*.`,
     ][Math.floor(Math.random() * 2)];
   const rugi =
     pakai.tertahan.pesan > 0
@@ -382,14 +390,22 @@ function templat(jenis: "sapaan" | "pengingat", sapa: string, pakai: PemakaianAk
         ? `AI di WhatsApp kamu sudah membalas ${pakai.balasan.toLocaleString("id-ID")} chat pelanggan, tapi kuotanya habis jadi sekarang berhenti membalas`
         : `akun ${MEREK} kamu belum punya paket aktif, jadi AI-nya belum membalas pelanggan`;
   return [
-    `${halo}, ini CS ${MEREK} 👋 Mau kabari, ${rugi}. Untuk pemakaianmu, ${paket} sudah cukup. Mau aku bantu aktifkan sekarang?`,
-    `${halo} 👋 Aku dari CS ${MEREK}. Sekadar info, ${rugi}. Biar semua chat dibalas lagi, ${paket} paling pas untukmu. Aku bantu aktifkan sekarang, mau?`,
+    `${halo}, ini CS ${MEREK} 👋
+
+${rugi[0].toUpperCase()}${rugi.slice(1)} 😟
+
+Untuk pemakaianmu, *${paket}* sudah cukup supaya semua chat dibalas lagi. Balas *YA*, aku aktifkan sekarang.`,
+    `${halo} 👋 Aku dari CS ${MEREK}.
+
+${rugi[0].toUpperCase()}${rugi.slice(1)}, padahal tiap chat itu calon pembeli 😟
+
+*${paket}* paling pas untukmu. Balas *YA*, aku bantu aktifkan sekarang.`,
   ][Math.floor(Math.random() * 2)];
 }
 
 /** Pelanggaran khusus follow-up akun (selain pemeriksa.ts): null = lolos. */
 function periksaPesanAkun(teks: string, jenis: "sapaan" | "pengingat"): string | null {
-  const maks = jenis === "sapaan" ? 520 : 420;
+  const maks = jenis === "sapaan" ? 600 : 480;
   if (teks.length < 25 || teks.length > maks) return `panjang ${teks.length} karakter`;
   if (POLA_TAUTAN.test(teks)) return "berisi tautan";
   if (adaKode(teks)) return "berisi kode";
@@ -422,20 +438,21 @@ async function susunPesan(
       "Teknik:",
       jenis === "sapaan"
         ? [
-            "- Perkenalkan diri singkat sebagai CS. Bila ada data pesan tertahan, sebut angkanya PERSIS sebagai kerugian nyata (pelanggan yang chat tapi tidak dibalas AI). Bila balasan AI-nya 0, jangan bilang kuotanya habis: ia memang belum berlangganan.",
+            "- Perkenalkan diri singkat sebagai CS, lalu hook: bila ada data pesan tertahan, sebut angkanya PERSIS sebagai kerugian nyata (pelanggan yang chat tapi tidak dibalas AI = calon pembeli yang terlewat). Bila balasan AI-nya 0, jangan bilang kuotanya habis: ia memang belum berlangganan; pakai hook manfaat (semua chat pelanggan dibalas 24 jam).",
             "- Rekomendasikan paket di <rekomendasi> (nama + harga PERSIS) dengan alasan singkat yang terkait pemakaiannya.",
-            "- Tutup dengan SATU pertanyaan penutupan ya/tidak (mis. mau dibantu aktifkan paket itu sekarang?).",
-            "- 2 sampai 4 kalimat, paling panjang 420 karakter.",
+            "- Tutup dengan SATU ajakan penutupan yang gampang dibalas (mis. balas YA, aku aktifkan paket itu sekarang).",
+            "- Paling panjang 450 karakter.",
           ].join("\n")
         : [
             "- Bilang terus terang ini pesan terakhirmu soal ini. Jangan mengulang kalimat pesan sebelumnya.",
             `- Pembalik risiko: pembayaran pertama dilindungi jaminan uang kembali ${MASA_ID} (GoPay, ShopeePay, atau QRIS).`,
-            "- Sebut paket rekomendasi singkat (nama + harga PERSIS) dan ajak cukup membalas chat ini.",
-            "- 2 sampai 3 kalimat, paling panjang 340 karakter.",
+            "- Sebut paket rekomendasi singkat (nama + harga PERSIS) dan ajak cukup membalas YA.",
+            "- Paling panjang 380 karakter.",
           ].join("\n"),
+      GAYA_PESAN,
       "Aturan wajib:",
       `- Bahasa Indonesia santai tapi sopan, seperti CS manusia. Panggil lawan bicara "kamu" (JANGAN "Kak"/"Kakak"/"Anda")${d.sapa ? ` dan sapa dengan "Halo ${d.sapa}"` : ""}.`,
-      "- Paling banyak 1 emoji. JANGAN menulis tautan/URL. Harga hanya dari <rekomendasi> / <paket_nyata>, angka hanya dari data di pesan pengguna.",
+      "- JANGAN menulis tautan/URL. Harga hanya dari <rekomendasi> / <paket_nyata>, angka hanya dari data di pesan pengguna.",
       "- DILARANG: kelangkaan atau batas waktu yang dibuat-buat, diskon yang tidak ada, testimoni / angka pengguna karangan, janji hasil, menyebut follow-up atau pesan otomatis.",
       "- Tulis isi pesannya saja, tanpa tanda kutip, judul, atau penjelasan.",
       rek ? `<rekomendasi>\nPaket ${rek.paket.nama}: ${rp(rek.paket.harga)} / ${rek.paket.durasi_hari} hari, ${rek.paket.kuota_balasan.toLocaleString("id-ID")} balasan AI, ${rek.paket.kuota_nomor} nomor. Alasan: ${rek.alasan}.\n</rekomendasi>` : "",

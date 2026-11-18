@@ -39,7 +39,22 @@ export const ATURAN_LEWATI = [
   "Ragu = tetap tulis pesannya. Jangan menulis <lewati> hanya karena ia diam: diam memang alasan follow-up.",
 ].join("\n");
 
-const POLA_LEWATI = /<lewati\b[^>]*>([\s\S]*?)<\/lewati>|<lewati\b[^>]*\/>/i;
+/**
+ * Gaya copywriting bersama ketiga follow-up: hard selling yang menarik (hook, hasil, pembanding harga, ajakan tegas),
+ * tetap di bawah aturan kejujuran masing-masing prompt (fakta hanya dari data, tanpa kelangkaan palsu).
+ */
+export const GAYA_PESAN = [
+  "Gaya tulisan (copywriting hard selling yang bikin ingin beli):",
+  "- Kalimat PERTAMA adalah hook: langsung sentuh masalah, keinginan, atau hasil yang ia cari (ambil dari chat-nya). JANGAN membuka dengan \"tadi kita sempat bahas\", \"sekadar mengingatkan\", \"mau follow-up\", atau basa-basi.",
+  "- Jual hasil dan perasaan, bukan daftar fitur: apa yang berubah untuknya setelah membeli.",
+  "- Kalimat pendek dan bertenaga. Susun jadi 2 sampai 3 paragraf pendek dipisah satu baris kosong.",
+  "- Format WhatsApp: *tebal* (satu bintang) untuk nama produk/paket dan harga, paling banyak 3 bagian tebal. Harga normal yang dicoret boleh ditulis ~Rp99.000~ HANYA bila harga normal itu memang ada di data.",
+  "- Harga selalu diberi pembanding nyata dari data: harga normal vs promo, dipecah per hari, atau dibanding kerugian / biaya lain yang wajar (tanpa angka karangan).",
+  "- Penutup adalah ajakan tegas yang gampang dibalas: \"Balas *YA*, aku bantu sekarang\", pilih A atau B, atau satu langkah konkret. JANGAN menutup dengan \"ada yang bisa dibantu?\" atau \"kalau berminat kabari ya\".",
+  "- 1 sampai 2 emoji yang pas, jangan di setiap kalimat.",
+].join("\n");
+
+const POLA_LEWATI =/<lewati\b[^>]*>([\s\S]*?)<\/lewati>|<lewati\b[^>]*\/>/i;
 
 /** Alasan bila AI menolak menulis (tag <lewati>), dibersihkan & dipendekkan; null = AI menulis pesan. */
 export function ambilLewati(teks: string): string | null {
