@@ -326,10 +326,16 @@ export function bersihkanKerangka(teks: string): string {
     .map((b) => b.replace(/\s+$/, ""))
     .filter((b) => b === "" || !kosong(b));
   // "Label:" tanpa isi dibuang, kecuali judul daftar yang diikuti butir ("Menu & harga:" lalu "- Ayam 18rb").
+  // Baris berisi berikutnya dicari dari belakang sekali jalan (linear): teks bisa sampai 1 juta karakter.
+  const lanjut: (string | undefined)[] = new Array(b0.length);
+  for (let i = b0.length - 1, berikut: string | undefined; i >= 0; i--) {
+    lanjut[i] = berikut;
+    if (b0[i].trim() !== "") berikut = b0[i];
+  }
   const hasil = b0.filter((b, i) => {
     if (!/^[^:\n]{1,80}:\s*$/.test(b)) return true;
-    const lanjut = b0.slice(i + 1).find((x) => x.trim() !== "");
-    return !!lanjut && /^\s*(?:[-•*]\s*\S|[TJQA]:\s*\S|\d+[.)]\s*\S)/i.test(lanjut);
+    const l = lanjut[i];
+    return !!l && /^\s*(?:[-•*]\s*\S|[TJQA]:\s*\S|\d+[.)]\s*\S)/i.test(l);
   });
   return hasil.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useDeferredValue, useEffect, useRef, useState, useTransition } from "react";
 import { ArrowLeft, Check, Circle, Loader2, PencilLine, RotateCcw, Sparkles, TriangleAlert, X } from "lucide-react";
 import { tambahTeksAction } from "@/app/actions";
 import type { T } from "@/lib/bahasa";
@@ -31,11 +31,36 @@ const contohBebas = (t: T) =>
     "Write it like a normal chat: business name, what you sell and the prices, opening hours, address or service area, how to order, and how to pay.",
   );
 
-async function minta(body: object, sinyal: AbortSignal, t: T): Promise<Hasil> {
+export interface Progres {
+  selesai: number;
+  total: number;
+}
+
+/** Jawaban server dialirkan (NDJSON): baris progres per bagian, lalu satu baris hasil/galat. Galat awal = JSON biasa. */
+async function minta(body: object, sinyal: AbortSignal, t: T, onProgres: (p: Progres) => void): Promise<Hasil> {
   const res = await fetch("/api/knowledge/rapikan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: sinyal });
-  const d = (await res.json().catch(() => ({}))) as Partial<Hasil> & { error?: string };
-  if (!res.ok || typeof d.teks !== "string") throw new Error(d.error ?? t(`Gagal (HTTP ${res.status}).`, `Failed (HTTP ${res.status}).`));
-  return { asli: d.asli ?? "", teks: d.teks, kurang: d.kurang ?? [], peringatan: d.peringatan ?? [] };
+  const gagal = (pesan?: string) => new Error(pesan ?? t(`Gagal (HTTP ${res.status}).`, `Failed (HTTP ${res.status}).`));
+  if (!res.ok || !res.body || !res.headers.get("content-type")?.includes("ndjson")) {
+    const d = (await res.json().catch(() => ({}))) as { error?: string };
+    throw gagal(d.error);
+  }
+  const baca = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let sisa = "";
+  for (;;) {
+    const { value, done } = await baca.read();
+    sisa += value ?? "";
+    const baris = done ? [sisa] : sisa.split("\n");
+    sisa = done ? "" : (baris.pop() ?? "");
+    for (const b of baris) {
+      if (!b.trim()) continue;
+      const d = JSON.parse(b) as { progres?: Progres; hasil?: Partial<Hasil>; error?: string };
+      if (d.progres) onProgres(d.progres);
+      if (d.error) throw gagal(d.error);
+      if (d.hasil && typeof d.hasil.teks === "string")
+        return { asli: d.hasil.asli ?? "", teks: d.hasil.teks, kurang: d.hasil.kurang ?? [], peringatan: d.hasil.peringatan ?? [] };
+    }
+    if (done) throw gagal(t("Koneksi terputus sebelum AI selesai. Coba lagi.", "The connection dropped before the AI finished. Please try again."));
+  }
 }
 
 /** Judul dokumen dari nama usaha yang tertulis (tulisan asli dulu, lalu hasil AI), bila ada. */
@@ -65,19 +90,24 @@ export function EditorKnowledge({ numberId, edit, tutup }: { numberId: number; e
   const [hasil, setHasil] = useState<Hasil | null>(null);
   const [judul, setJudul] = useState(edit?.judul ?? "");
   const [galat, setGalat] = useState<string | null>(null);
+  const [progres, setProgres] = useState<Progres | null>(null);
   const batal = useRef<AbortController | null>(null);
   const [simpan, aksiSimpan, menyimpan] = useActionState(tambahTeksAction, null);
   const [, mulai] = useTransition();
   const { b, t } = useBahasa();
-  const lengkap = cekKelengkapan(teks);
-  const bersih = bersihkanKerangka(teks);
+  // Tulisan bisa sampai 1 juta karakter: cek kelengkapan & hitung karakter memakai nilai tertunda supaya mengetik tetap
+  // lancar. Yang disimpan selalu dihitung ulang dari `teks` terbaru saat tombol ditekan.
+  const teksTunda = useDeferredValue(teks);
+  const lengkap = cekKelengkapan(teksTunda);
+  const bersih = bersihkanKerangka(teksTunda);
 
   const rapikan = (body: object) => {
     batal.current?.abort();
     const c = (batal.current = new AbortController());
     setGalat(null);
+    setProgres(null);
     setTahap("proses");
-    minta({ numberId, ...body }, c.signal, t)
+    minta({ numberId, ...body }, c.signal, t, setProgres)
       .then((h) => {
         setHasil(h);
         setJudul((j) => j || judulDari(t, h.asli, h.teks));
@@ -95,7 +125,7 @@ export function EditorKnowledge({ numberId, edit, tutup }: { numberId: number; e
   useEffect(() => {
     if (!edit) return;
     const c = (batal.current = new AbortController());
-    minta({ numberId, dokumenId: edit.id }, c.signal, t)
+    minta({ numberId, dokumenId: edit.id }, c.signal, t, setProgres)
       .then((h) => {
         setHasil(h);
         setTeks(h.asli);
@@ -160,6 +190,7 @@ export function EditorKnowledge({ numberId, edit, tutup }: { numberId: number; e
     return (
       <LoadingAi
         judul={edit ? t("AI sedang menyempurnakan dokumen…", "AI is refining the document…") : t("AI sedang merapikan tulisan Anda…", "AI is tidying up your text…")}
+        progres={progres}
         onBatal={() => {
           batal.current?.abort();
           if (edit && tutup) tutup();
@@ -264,7 +295,7 @@ export function EditorKnowledge({ numberId, edit, tutup }: { numberId: number; e
 
   // Tahap tulis
   // Belum ada info usaha (hanya kerangka / saran bawaan): tombol rapikan & simpan belum aktif.
-  const kosong = infoUsaha(teks).length < 20;
+  const kosong = infoUsaha(teksTunda).length < 20;
   return (
     <div className="space-y-4">
       <p className="flex items-center gap-2 text-[14px] font-bold">
@@ -317,7 +348,7 @@ export function EditorKnowledge({ numberId, edit, tutup }: { numberId: number; e
         value={teks}
         onChange={(e) => setTeks(e.target.value)}
         rows={14}
-        maxLength={20_000}
+        maxLength={1_000_000}
         placeholder={`${contohBebas(t)}\n\n${t(
           "Tidak perlu rapi atau lengkap: AI yang merapikan. Sudah punya daftar harga? Tempel saja di sini.",
           "It doesn't need to be neat or complete: AI tidies it up. Already have a price list? Just paste it here.",
@@ -347,7 +378,10 @@ export function EditorKnowledge({ numberId, edit, tutup }: { numberId: number; e
         <button type="button" disabled={kosong} onClick={() => rapikan({ teks, jenis })} className="btn btn-primary">
           <Sparkles className="size-4" aria-hidden /> {t("Rapikan dengan AI", "Tidy up with AI")}
         </button>
-        <button type="button" disabled={kosong || menyimpan} onClick={() => simpanTeks(bersih, judul || judulDari(t, bersih))} className="btn btn-ghost">
+        <button type="button" disabled={kosong || menyimpan} onClick={() => {
+            const isi = bersihkanKerangka(teks);
+            simpanTeks(isi, judul || judulDari(t, isi));
+          }} className="btn btn-ghost">
           {menyimpan && <Loader2 className="size-4 animate-spin" aria-hidden />}
           {t("Simpan tanpa dirapikan", "Save without tidying")}
         </button>

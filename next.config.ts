@@ -43,6 +43,8 @@ const nextConfig: NextConfig = {
   experimental: {
     // Unggahan PDF maksimal 10 MB (+ overhead multipart).
     proxyClientMaxBodySize: "12mb",
+    // Simpan Informasi Usaha lewat server action: sampai 1 juta karakter (UTF-8 bisa ±3 MB) + overhead multipart.
+    serverActions: { bodySizeLimit: "4mb" },
   },
   // Halaman hasil bayar lama (callback Snap) -> halaman tagihan Core API yang menggantikannya.
   async redirects() {

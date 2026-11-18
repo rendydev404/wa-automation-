@@ -20,12 +20,12 @@ export async function POST(req: Request) {
   if (!("teks" in b)) return b;
   return aman(k, async () => {
     const teks = typeof b.data.teks === "string" ? b.data.teks : "";
-    if (!teks.trim() || teks.length > BATAS_RAPIKAN.maks) return galat("isian_tidak_sah", `\`teks\` wajib diisi (maks ${BATAS_RAPIKAN.maks.toLocaleString("id-ID")} karakter).`, k.id, k.kepala);
+    if (!teks.trim() || teks.length > BATAS_RAPIKAN.maksApi) return galat("isian_tidak_sah", `\`teks\` wajib diisi (maks ${BATAS_RAPIKAN.maksApi.toLocaleString("id-ID")} karakter).`, k.id, k.kepala);
     const jenis = typeof b.data.jenis === "string" && Object.hasOwn(JENIS_USAHA, b.data.jenis) ? (b.data.jenis as KunciUsaha) : null;
     const pemilik = await pemilikMesin();
     const { penyedia } = await aiUntukAkun(pemilik);
     try {
-      const h = await rapikanKnowledge({ teks, jenis, userId: pemilik ?? 0, penyedia });
+      const h = await rapikanKnowledge({ teks, jenis, userId: pemilik ?? 0, penyedia, maks: BATAS_RAPIKAN.maksApi });
       return ok({ teks: h.teks, kurang: h.kurang, peringatan: h.peringatan }, k);
     } catch (e) {
       if (e instanceof GalatRapikan) return galat("isian_tidak_sah", e.message, k.id, k.kepala);

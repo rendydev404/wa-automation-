@@ -883,6 +883,93 @@ await cek("rapikan knowledge dengan AI: hanya merapikan; angka yang dikarang dit
   }
 });
 
+await cek("rapikan dokumen panjang (sampai 1 juta karakter): dipecah per bagian, dirapikan paralel, digabung per judul, progres & coba ulang", async () => {
+  const R = await lib("src/lib/rapikan-knowledge.ts");
+  const TU = await lib("src/lib/templat-usaha.ts");
+  assert.equal(R.BATAS_RAPIKAN.maks, 1_000_000);
+  assert.equal(R.BATAS_RAPIKAN.maksApi, 15_000, "Developer API tetap satu panggilan AI");
+
+  // Pemecah: tiap bagian <= batas, isi tidak hilang, paragraf tidak dibelah bila muat.
+  const para = Array.from({ length: 400 }, (_, i) => `Produk ${i}: Rp${(i + 1) * 1000} ${"keterangan ".repeat(20)}`.trim());
+  const panjang = para.join("\n\n");
+  const bg = R.pecahBagian(panjang, 5000);
+  assert.ok(bg.length > 1 && bg.every((b) => b.length <= 5000));
+  assert.equal(bg.join("\n\n"), panjang, "gabungan bagian = tulisan asli");
+  const satuBaris = "kata ".repeat(5000);
+  assert.ok(R.pecahBagian(satuBaris, 3000).every((b) => b.length <= 3000), "baris super panjang tetap dipotong");
+  assert.deepEqual(R.pecahBagian("pendek", 5000), ["pendek"]);
+
+  // Penggabung: judul sama disatukan, baris kembar dibuang, peran dari bagian pertama, "tidak ada promo" kalah oleh promo nyata.
+  const g = R.gabungBagian([
+    "# PERAN & GAYA BAHASA\nKamu CS Warung A.\n# MENU & HARGA\n- Mie: Rp10.000\nIni harga resmi: sebutkan persis.\n# PROMO\nTidak ada promo saat ini. Jangan menawarkan diskon.",
+    "# PERAN & GAYA BAHASA\nKamu CS lain.\n# MENU & HARGA\n- Es teh: Rp5.000\n- Mie: Rp10.000\nIni harga resmi: sebutkan persis.\n# JAM BUKA\nSetiap hari 08.00-20.00\n# PROMO\nBeli 2 gratis 1 es teh.",
+  ]);
+  assert.equal(
+    g,
+    "# PERAN & GAYA BAHASA\nKamu CS Warung A.\n# MENU & HARGA\n- Mie: Rp10.000\n- Es teh: Rp5.000\nIni harga resmi: sebutkan persis.\n# PROMO\nBeli 2 gratis 1 es teh.\n# JAM BUKA\nSetiap hari 08.00-20.00"
+  );
+
+  // Pembersih kerangka linear: 1 juta karakter penuh label kosong selesai cepat (dulu kuadratik).
+  const besar = "Label:\n\n".repeat(125_000);
+  const m0 = performance.now();
+  TU.bersihkanKerangka(besar);
+  const ms = performance.now() - m0;
+  assert.ok(ms < 1500, `bersihkanKerangka 1 juta karakter ${ms.toFixed(0)} ms`);
+
+  // Alur penuh lewat Hermes palsu: 1 juta karakter -> ±67 bagian, paling banyak 4 bersamaan, progres naik sampai total.
+  process.env.HERMES_API_KEY ??= "uji";
+  const asli = globalThis.fetch;
+  let jalan = 0, puncak = 0, panggil = 0, gagalSekali = true;
+  globalThis.fetch = async (_url, init) => {
+    panggil++;
+    jalan++;
+    puncak = Math.max(puncak, jalan);
+    await new Promise((r) => setTimeout(r, 2));
+    jalan--;
+    const isi = JSON.parse(init.body).messages[1].content;
+    if (gagalSekali && /bagian 3 dari/.test(isi)) {
+      gagalSekali = false;
+      return new Response("sibuk", { status: 503 });
+    }
+    const ke = isi.match(/bagian (\d+) dari/)[1];
+    return new Response(JSON.stringify({ choices: [{ message: { content: `<knowledge>\n# MENU & HARGA\n- Paket ${ke}: Rp${ke}000\nIni harga resmi: sebutkan persis.\n</knowledge>\n<kurang>\n- Jam buka?\n</kurang>` } }] }));
+  };
+  try {
+    const sejuta = ("Nama usaha: Toko Sejuta\n" + "- barang bagus harga 1rb ".repeat(40) + "\n\n").repeat(980).slice(0, 999_990);
+    assert.ok(TU.bersihkanKerangka(sejuta).length > 990_000, "uji memakai hampir 1 juta karakter");
+    const prog = [];
+    const t0 = performance.now();
+    const h = await R.rapikanKnowledge({ teks: sejuta, jenis: null, userId: 9, progres: (s, n) => prog.push([s, n]) });
+    const total = prog[0][1];
+    assert.ok(total >= 60, `jumlah bagian ${total}`);
+    assert.deepEqual(prog.at(-1), [total, total]);
+    assert.equal(panggil, total + 1, "satu bagian gagal dicoba ulang sekali");
+    assert.ok(puncak <= 4, `paralel maks 4 (puncak ${puncak})`);
+    assert.match(h.teks, /^# MENU & HARGA\n- Paket 1: Rp1000\n- Paket 2: Rp2000/);
+    assert.equal(h.teks.match(/Ini harga resmi/g).length, 1, "kalimat penutup daftar cukup sekali, di akhir");
+    assert.ok(h.teks.trimEnd().endsWith("Ini harga resmi: sebutkan persis."));
+    assert.ok(h.kurang.includes("Jam berapa usaha Anda buka dan tutup?"), "kekurangan dihitung dari dokumen gabungan");
+    console.log(`    1 juta karakter: ${total} bagian, ${panggil} panggilan, puncak paralel ${puncak}, ${(performance.now() - t0).toFixed(0)} ms (AI palsu)`);
+
+    // Batal di tengah: sisa bagian tidak dikerjakan.
+    const c = new AbortController();
+    panggil = 0;
+    await assert.rejects(
+      R.rapikanKnowledge({ teks: sejuta, jenis: null, userId: 9, sinyal: c.signal, progres: (s) => s >= 5 && c.abort() }),
+      () => true
+    );
+    assert.ok(panggil < 20, `dibatalkan: hanya ${panggil} panggilan`);
+
+    // Lebih dari 1 juta karakter ditolak sebelum memanggil AI; Developer API tetap maks 15.000.
+    panggil = 0;
+    await assert.rejects(R.rapikanKnowledge({ teks: sejuta + "x".repeat(20_000), jenis: null, userId: 9 }), (e) => e instanceof R.GalatRapikan && /1\.000\.000/.test(e.message));
+    await assert.rejects(R.rapikanKnowledge({ teks: sejuta.slice(0, 20_000), jenis: null, userId: 9, maks: R.BATAS_RAPIKAN.maksApi }), (e) => e instanceof R.GalatRapikan && /15\.000/.test(e.message));
+    assert.equal(panggil, 0);
+  } finally {
+    globalThis.fetch = asli;
+  }
+});
+
 await cek("penyedia AI per akun dari admin menang atas mode umum; tanpa kunci di server kembali ke mode umum", async () => {
   const L = await lib("src/lib/langganan.ts");
   const PG = await lib("src/lib/pengguna.ts");

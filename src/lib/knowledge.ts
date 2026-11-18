@@ -18,7 +18,8 @@ import { fiturBoleh } from "./mesin/lisensi";
  * yang besar hanya potongan paling relevan.
  */
 
-export const BATAS_DOKUMEN_KARAKTER = 300_000;
+/** Sama dengan batas per nomor: hasil "Rapikan dengan AI" untuk tulisan sampai 1 juta karakter bisa disimpan utuh. */
+export const BATAS_DOKUMEN_KARAKTER = 1_000_000;
 export const BATAS_NOMOR_KARAKTER = 1_000_000;
 /** Sampai sebesar ini seluruh knowledge ikut di tiap pesan (±4.500 token). */
 export const BATAS_UTUH = 14_000;

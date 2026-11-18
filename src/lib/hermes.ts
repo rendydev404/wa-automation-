@@ -25,7 +25,7 @@ export interface JawabanHermes {
  * `gambar`: foto pelanggan, dikirim sebagai bagian image_url (data URL) bersama teks pesan. Hermes
  * meneruskannya ke model yang bisa melihat; di riwayat sesi foto tidak dikirim ulang ke giliran berikutnya.
  */
-export async function tanyaHermes(opsi: { sessionId: string; sistem: string; pesan: string; gambar?: Foto[]; timeoutMs?: number }): Promise<JawabanHermes> {
+export async function tanyaHermes(opsi: { sessionId: string; sistem: string; pesan: string; gambar?: Foto[]; timeoutMs?: number; sinyal?: AbortSignal }): Promise<JawabanHermes> {
   if (!hermesTerkonfigurasi()) throw new Error("Hermes belum dikonfigurasi (HERMES_API_URL / HERMES_API_KEY).");
   const mulai = performance.now();
   const res = await fetch(`${basis()}/chat/completions`, {
@@ -48,7 +48,7 @@ export async function tanyaHermes(opsi: { sessionId: string; sistem: string; pes
         },
       ],
     }),
-    signal: AbortSignal.timeout(opsi.timeoutMs ?? (opsi.gambar?.length ? 110_000 : 75_000)),
+    signal: ((t) => (opsi.sinyal ? AbortSignal.any([t, opsi.sinyal]) : t))(AbortSignal.timeout(opsi.timeoutMs ?? (opsi.gambar?.length ? 110_000 : 75_000))),
     cache: "no-store",
   });
   if (!res.ok) throw new Error(`Hermes membalas HTTP ${res.status}`);

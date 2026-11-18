@@ -16,10 +16,16 @@ const LANGKAH = [
   { dari: 19, teks: { id: "Menyusun jadi dokumen yang rapi", en: "Putting it into a tidy document" } },
 ] as const;
 
+const menit = (d: number) => `${Math.floor(d / 60)}:${String(d % 60).padStart(2, "0")}`;
+
 // Lebar baris pada kertas (persen).
 const BARIS = [100, 88, 94, 62, 100, 80, 46];
 
-export function LoadingAi({ judul, onBatal }: { judul: string; onBatal: () => void }) {
+/**
+ * `progres` (dokumen panjang yang dirapikan per bagian): bilah progres jadi nyata dan teks status menyebut bagian yang
+ * sudah selesai. Tanpa `progres` (atau hanya satu bagian) tampilan tetap seperti biasa.
+ */
+export function LoadingAi({ judul, onBatal, progres }: { judul: string; onBatal: () => void; progres?: { selesai: number; total: number } | null }) {
   const { b, t } = useBahasa();
   const [detik, setDetik] = useState(0);
   useEffect(() => {
@@ -27,13 +33,28 @@ export function LoadingAi({ judul, onBatal }: { judul: string; onBatal: () => vo
     return () => clearInterval(t);
   }, []);
   const aktif = LANGKAH.reduce((n, l, i) => (detik >= l.dari ? i : n), 0);
+  const banyak = !!progres && progres.total > 1;
+  const persen = banyak ? Math.round((progres.selesai / progres.total) * 100) : 0;
 
   return (
     <div role="status" className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
-      {/* Bilah progres tak tentu */}
-      <div aria-hidden className="relative h-0.5 overflow-hidden bg-accent-soft">
-        <span className="absolute inset-y-0 left-0 w-1/3 animate-sapu rounded-full bg-accent" />
-      </div>
+      {banyak ? (
+        <div
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={progres.total}
+          aria-valuenow={progres.selesai}
+          aria-label={t("Bagian yang sudah dirapikan", "Parts tidied up")}
+          className="relative h-1 overflow-hidden bg-accent-soft"
+        >
+          <span className="absolute inset-y-0 left-0 rounded-full bg-accent transition-[width] duration-700" style={{ width: `${Math.max(3, persen)}%` }} />
+        </div>
+      ) : (
+        /* Bilah progres tak tentu */
+        <div aria-hidden className="relative h-0.5 overflow-hidden bg-accent-soft">
+          <span className="absolute inset-y-0 left-0 w-1/3 animate-sapu rounded-full bg-accent" />
+        </div>
+      )}
 
       <div className="flex flex-col items-center px-6 pt-8 pb-6 text-center">
         {/* Kertas dokumen */}
@@ -52,6 +73,11 @@ export function LoadingAi({ judul, onBatal }: { judul: string; onBatal: () => vo
         <p key={aktif} className="mt-1 animate-masuk text-[13.5px] text-muted">
           {LANGKAH[aktif].teks[b]}…
         </p>
+        {banyak && (
+          <p className="mt-2 rounded-full bg-accent-soft px-3 py-1 text-[12.5px] font-semibold text-accent tabular-nums">
+            {t(`Bagian ${progres.selesai} dari ${progres.total} selesai · ${persen}%`, `${progres.selesai} of ${progres.total} parts done · ${persen}%`)}
+          </p>
+        )}
 
         {/* Penanda langkah */}
         <ol aria-label={t("Langkah", "Steps")} className="mt-5 flex w-52 gap-1.5">
@@ -68,7 +94,11 @@ export function LoadingAi({ judul, onBatal }: { judul: string; onBatal: () => vo
       </div>
 
       <div className="flex items-center justify-between gap-3 border-t border-line px-5 py-3">
-        <span className="text-[12px] text-faint tabular-nums">{t(`Biasanya 10–40 detik · ${detik} dtk`, `Usually 10–40 seconds · ${detik}s`)}</span>
+        <span className="text-[12px] text-faint tabular-nums">
+          {banyak
+            ? t(`Dokumen panjang dirapikan per bagian · ${menit(detik)}`, `Long document, tidied up part by part · ${menit(detik)}`)
+            : t(`Biasanya 10–40 detik · ${detik} dtk`, `Usually 10–40 seconds · ${detik}s`)}
+        </span>
         <button type="button" onClick={onBatal} className="rounded-lg px-3 py-1.5 text-[12.5px] font-semibold text-muted transition-colors hover:bg-subtle hover:text-fg">
           {t("Batal", "Cancel")}
         </button>
