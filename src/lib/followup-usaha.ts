@@ -502,7 +502,7 @@ const PANDUAN_TAHAP: Record<Tahap, string> = {
   2: [
     "Ini pesan follow-up KEDUA (nilai + dorongan), pesan pertamamu belum dibalas. Pakai sudut pandang BARU, bukan pengulangan pesan pertama. Teknik:",
     "- Hook baru: gambarkan hasil / momen yang ia inginkan setelah memakai produknya, atau apa yang ia lewatkan bila menunda (kebutuhannya tetap belum beres). Takut rugi yang wajar, jangan menakut-nakuti.",
-    "- Jangkar nilai HANYA dari data yang ada: harga coret / harga normal, promo, bonus, gratis ongkir, paket hemat, atau harga per pemakaian (hitung dengan benar).",
+    "- Jangkar nilai HANYA dari data yang ada: harga coret / harga normal, promo, bonus, gratis ongkir, paket hemat, atau harga per pemakaian yang tertulis. Jangan menghitung nominal baru sendiri.",
     "- Bukti sosial (testimoni, jumlah pembeli, rating) HANYA bila tertulis di pengetahuan. Tidak ada = jangan disebut.",
     "- Ajakan tegas ke SATU langkah berikut yang jelas (balas YA, konfirmasi pesanan, kirim alamat, pilih varian, cara bayar yang ada di pengetahuan).",
     "- Jangan mengulang kalimat pesan follow-up sebelumnya. Paling panjang 560 karakter.",
@@ -630,7 +630,7 @@ async function susunPesan(nomor: Nomor, chat: Chat, jenis: Tahap | "ulang", mina
       // Hanya draf yang dipakai memotong kuota (abaikan = false); yang ditolak tetap tercatat biayanya.
       void catatPakai(nomor.id, hasil, false, !lolos).catch(() => {});
       if (lolos) return { teks };
-      console.warn(`[followup-usaha] pesan AI ${jenis} ditolak (${salah ?? fakta.map((f) => f.jenis).join(",")})`);
+      console.warn(`[followup-usaha] pesan AI ${jenis} ditolak (${salah ?? fakta.map((f) => `${f.jenis}: ${f.kutipan}`).join("; ")})`);
       umpan = `Draf sebelumnya DITOLAK: ${salah ?? `ada fakta yang tidak ada di sumber (${fakta.map((f) => `"${f.kutipan}"`).join(", ")})`}. Tulis ulang dan patuhi semua aturan.`;
     }
     return cadangan;

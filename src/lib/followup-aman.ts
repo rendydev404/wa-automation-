@@ -49,7 +49,8 @@ export const GAYA_PESAN = [
   "- Jual hasil dan perasaan, bukan daftar fitur: apa yang berubah untuknya setelah membeli.",
   "- Kalimat pendek dan bertenaga. Susun jadi 2 sampai 3 paragraf pendek dipisah satu baris kosong.",
   "- Format WhatsApp: *tebal* (satu bintang) untuk nama produk/paket dan harga, paling banyak 3 bagian tebal. Harga normal yang dicoret boleh ditulis ~Rp99.000~ HANYA bila harga normal itu memang ada di data.",
-  "- Harga selalu diberi pembanding nyata dari data: harga normal vs promo, dipecah per hari, atau dibanding kerugian / biaya lain yang wajar (tanpa angka karangan).",
+  "- Harga selalu diberi pembanding yang SUDAH tertulis di data: harga normal vs promo, harga per hari yang tertulis, atau dibanding kerugian tanpa angka (mis. pelanggan pindah ke toko lain).",
+  "- JANGAN menghitung angka baru sendiri (harga per hari, selisih, total, hemat sekian, gaji admin): setiap nominal Rp / persen yang tidak tertulis persis di data membuat pesan DITOLAK.",
   "- Penutup adalah ajakan tegas yang gampang dibalas: \"Balas *YA*, aku bantu sekarang\", pilih A atau B, atau satu langkah konkret. JANGAN menutup dengan \"ada yang bisa dibantu?\" atau \"kalau berminat kabari ya\".",
   "- 1 sampai 2 emoji yang pas, jangan di setiap kalimat.",
 ].join("\n");

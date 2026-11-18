@@ -494,7 +494,7 @@ async function susunPesan(
       const salah = periksaPesanAkun(teks, jenis);
       const fakta = salah ? [] : periksaJawaban(teks, sumber).filter((x) => x.jenis !== "robotik" && x.jenis !== "janji");
       if (!salah && !fakta.length) return { teks };
-      console.warn(`[followup] pesan AI ${jenis} ditolak (${salah ?? fakta.map((f) => f.jenis).join(",")})`);
+      console.warn(`[followup] pesan AI ${jenis} ditolak (${salah ?? fakta.map((f) => `${f.jenis}: ${f.kutipan}`).join("; ")})`);
       umpan = `Draf sebelumnya DITOLAK: ${salah ?? `ada angka/fakta yang tidak ada di data (${fakta.map((f) => `"${f.kutipan}"`).join(", ")})`}. Tulis ulang dan patuhi semua aturan.`;
     }
     return cadangan;

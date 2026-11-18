@@ -228,11 +228,14 @@ export async function paketNyata(): Promise<string> {
   const rp = (n: number): string => `Rp${n.toLocaleString("id-ID")}`;
   const teks = daftar
     .filter((p) => p.harga > 0)
-    .map((p) => `- ${p.nama}: ${rp(p.harga)} / ${p.durasi_hari} hari, ${p.kuota_balasan.toLocaleString("id-ID")} balasan AI, ${p.kuota_nomor} nomor WhatsApp${p.unggulan ? " (paling banyak dipilih)" : ""}${p.deskripsi ? `. ${p.deskripsi.replace(/\s+/g, " ").slice(0, 160)}` : ""}`)
+    .map((p) => `- ${p.nama}: ${rp(p.harga)} / ${p.durasi_hari} hari (sekitar ${rp(perHari(p.harga, p.durasi_hari))} per hari), ${p.kuota_balasan.toLocaleString("id-ID")} balasan AI, ${p.kuota_nomor} nomor WhatsApp${p.unggulan ? " (paling banyak dipilih)" : ""}${p.deskripsi ? `. ${p.deskripsi.replace(/\s+/g, " ").slice(0, 160)}` : ""}`)
     .join("\n");
   st.paket = { pada: Date.now(), teks };
   return teks;
 }
+
+/** Harga per hari dibulatkan ke atas ke ratusan (Rp79.000 / 30 hari -> Rp2.700): ditulis di data supaya AI tidak menghitung sendiri. */
+export const perHari = (harga: number, hari: number): number => Math.ceil(harga / Math.max(1, hari) / 100) * 100;
 
 export const POLA_TAUTAN = /(https?:\/\/[^\s]+|www\.[^\s]+|wa\.me\/[^\s]*)/gi;
 /** Kelangkaan / batas waktu buatan: tidak pernah boleh (promo nyata pun cukup disebut tanpa desakan waktu karangan). */
@@ -254,7 +257,7 @@ const PANDUAN_TAHAP: Record<Tahap, string> = {
   2: [
     "Ini pesan follow-up KEDUA (nilai & bukti), pesan pertamamu belum dibalas. Pakai sudut pandang BARU, bukan pengulangan pesan pertama. Teknik:",
     "- Takut rugi: gambarkan kerugian nyata bila chat pelanggan telat dibalas (pelanggan pindah ke toko lain, chat malam/akhir pekan terbengkalai, admin kewalahan), kaitkan dengan usahanya bila diketahui.",
-    "- Jangkar harga: bila menyebut harga, pakai harga paket PERSIS dari <paket_nyata> / pengetahuan; boleh dipecah per hari atau dibandingkan dengan biaya admin manusia (hitung dengan benar, dibulatkan ke atas).",
+    "- Jangkar harga: bila menyebut harga, pakai harga paket PERSIS dari <paket_nyata> / pengetahuan; untuk kesan murah pakai harga \"per hari\" yang SUDAH tertulis di <paket_nyata> (jangan menghitung sendiri), atau bandingkan dengan repotnya membalas sendiri tanpa menyebut nominal.",
     "- Bukti sosial: HANYA dari blok <bukti_nyata> bila ada. Tanpa blok itu, jangan menyebut jumlah pengguna atau testimoni apa pun.",
     "- Ajakan tegas ke langkah berikut yang jelas (pilih paket / daftar / balas YA supaya dibantu aktifkan).",
     "- Jangan mengulang kalimat pesan follow-up sebelumnya. Paling panjang 560 karakter.",
@@ -372,7 +375,7 @@ async function susunPesan(cs: Nomor, chat: ChatLead, tahap: Tahap, minat: number
       // yang diperiksa: angka/harga/tautan tak bersumber, mengaku manusia/pemilik, dan menyebut mesin AI.
       const fakta = periksaJawaban(teks, sumber).filter((p) => p.jenis !== "robotik" && p.jenis !== "janji");
       if (!salah && !fakta.length) return { teks };
-      console.warn(`[followup-prospek] pesan AI tahap ${tahap} ditolak (${salah ?? fakta.map((f) => f.jenis).join(",")})`);
+      console.warn(`[followup-prospek] pesan AI tahap ${tahap} ditolak (${salah ?? fakta.map((f) => `${f.jenis}: ${f.kutipan}`).join("; ")})`);
       umpan = `Draf sebelumnya DITOLAK: ${salah ?? `ada fakta yang tidak ada di sumber (${fakta.map((f) => `"${f.kutipan}"`).join(", ")})`}. Tulis ulang dan patuhi semua aturan.`;
     }
     return cadangan;
