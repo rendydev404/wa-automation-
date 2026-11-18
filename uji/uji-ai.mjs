@@ -858,8 +858,10 @@ await cek("rapikan knowledge dengan AI: hanya merapikan; angka yang dikarang dit
   process.env.HERMES_API_KEY ??= "uji";
   let kiriman;
   const balasan = "<knowledge>\n# PERAN & GAYA BAHASA\nKamu membalas chat WhatsApp untuk Warung Uji.\n# MENU & HARGA\n- Mie ayam: Rp15.000\n- Es teh: Rp5.000\n# LOKASI\nAlamat: Jl. Mawar 3\n</knowledge>\n<kurang>\n- Jam buka setiap hari jam berapa?\n</kurang>";
+  let jumlah = 0;
   globalThis.fetch = async (url, init) => {
-    kiriman = { url: String(url), body: JSON.parse(init.body), sesi: init.headers["X-Hermes-Session-Id"] };
+    jumlah++;
+    kiriman ??= { url: String(url), body: JSON.parse(init.body), sesi: init.headers["X-Hermes-Session-Id"] };
     return new Response(JSON.stringify({ choices: [{ message: { content: balasan } }], usage: { prompt_tokens: 10 } }));
   };
   try {
@@ -872,9 +874,37 @@ await cek("rapikan knowledge dengan AI: hanya merapikan; angka yang dikarang dit
     assert.match(kiriman.body.messages[1].content, /mie ayam 15rb/);
     assert.deepEqual(h.kurang, ["Jam buka setiap hari jam berapa?"]);
     assert.match(h.teks, /- Mie ayam: Rp15\.000/);
-    // "15rb" -> Rp15.000 sah; Rp5.000 (es teh) tidak ada di tulisan asli -> ditandai
-    assert.deepEqual(h.peringatan, ["Rp5.000"]);
+    // "15rb" -> Rp15.000 sah; Rp5.000 (es teh) tidak ada di tulisan asli: AI diminta membetulkan 2 kali, tetap
+    // mengarang -> baris itu dibuang pengaman terakhir. Hasil akhir tanpa angka karangan.
+    assert.equal(jumlah, 3, "1 permintaan + 2 koreksi");
+    assert.doesNotMatch(h.teks, /Rp5\.000|Es teh/);
+    assert.deepEqual(h.peringatan, []);
     assert.doesNotMatch(h.asli, /contoh/i);
+    // Koreksi berhasil: draf kedua tanpa angka karangan dipakai; pesan koreksi menyebut angka yang salah.
+    const pesanKe = [];
+    globalThis.fetch = async (_url, init) => {
+      const isi = JSON.parse(init.body).messages[1].content;
+      pesanKe.push(isi);
+      const isiBalas = pesanKe.length === 1 ? balasan : balasan.replace("- Es teh: Rp5.000\n", "");
+      return new Response(JSON.stringify({ choices: [{ message: { content: isiBalas } }] }));
+    };
+    const h2 = await R.rapikanKnowledge({ teks, jenis: "kuliner", userId: 7 });
+    assert.equal(pesanKe.length, 2);
+    assert.match(pesanKe[1], /TIDAK ADA di catatan pemilik: Rp5\.000/);
+    assert.match(pesanKe[1], /Draf rapian sebelumnya/);
+    assert.deepEqual(h2.peringatan, []);
+    assert.match(h2.teks, /- Mie ayam: Rp15\.000/);
+
+    // Pengaman terakhir: baris karangan diganti baris asli yang paling mirip; tanpa kemiripan dibuang.
+    const sumber = "Shawarma ayam reguler 32rb\nKebab sapi jumbo 28rb\nBuka jam 10.00-22.00";
+    assert.equal(
+      R.buangKarangan("# MENU\n- Shawarma Ayam Reguler: Rp35.000\n- Kebab Sapi Jumbo: Rp28.000\n- Paket berdua: Rp60.000\n# JAM\nSetiap hari 10.00-22.00", sumber),
+      "# MENU\n- Shawarma ayam reguler 32rb\n- Kebab Sapi Jumbo: Rp28.000\n# JAM\nSetiap hari 10.00-22.00"
+    );
+    globalThis.fetch = async (url, init) => {
+      jumlah++;
+      return new Response(JSON.stringify({ choices: [{ message: { content: balasan } }], usage: { prompt_tokens: 10 } }));
+    };
     await assert.rejects(R.rapikanKnowledge({ teks: TU.kerangka("toko-online"), jenis: "toko-online", userId: 7 }), (e) => e instanceof R.GalatRapikan && /Tulis dulu/.test(e.message));
     globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: "Halo Kak 🙏" } }] }));
     await assert.rejects(R.rapikanKnowledge({ teks, jenis: null, userId: 7 }), (e) => e instanceof R.GalatRapikan && !/hermes|claude/i.test(e.message));
@@ -932,7 +962,7 @@ await cek("rapikan dokumen panjang (sampai 1 juta karakter): dipecah per bagian,
       return new Response("sibuk", { status: 503 });
     }
     const ke = isi.match(/bagian (\d+) dari/)[1];
-    return new Response(JSON.stringify({ choices: [{ message: { content: `<knowledge>\n# MENU & HARGA\n- Paket ${ke}: Rp${ke}000\nIni harga resmi: sebutkan persis.\n</knowledge>\n<kurang>\n- Jam buka?\n</kurang>` } }] }));
+    return new Response(JSON.stringify({ choices: [{ message: { content: `<knowledge>\n# MENU & HARGA\n- Barang bagus bagian ${ke}: Rp1.000\nIni harga resmi: sebutkan persis.\n</knowledge>\n<kurang>\n- Jam buka?\n</kurang>` } }] }));
   };
   try {
     const sejuta = ("Nama usaha: Toko Sejuta\n" + "- barang bagus harga 1rb ".repeat(40) + "\n\n").repeat(980).slice(0, 999_990);
@@ -945,7 +975,8 @@ await cek("rapikan dokumen panjang (sampai 1 juta karakter): dipecah per bagian,
     assert.deepEqual(prog.at(-1), [total, total]);
     assert.equal(panggil, total + 1, "satu bagian gagal dicoba ulang sekali");
     assert.ok(puncak <= 4, `paralel maks 4 (puncak ${puncak})`);
-    assert.match(h.teks, /^# MENU & HARGA\n- Paket 1: Rp1000\n- Paket 2: Rp2000/);
+    assert.match(h.teks, /^# MENU & HARGA\n- Barang bagus bagian 1: Rp1\.000\n- Barang bagus bagian 2: Rp1\.000/);
+    assert.deepEqual(h.peringatan, []);
     assert.equal(h.teks.match(/Ini harga resmi/g).length, 1, "kalimat penutup daftar cukup sekali, di akhir");
     assert.ok(h.teks.trimEnd().endsWith("Ini harga resmi: sebutkan persis."));
     assert.ok(h.kurang.includes("Jam berapa usaha Anda buka dan tutup?"), "kekurangan dihitung dari dokumen gabungan");

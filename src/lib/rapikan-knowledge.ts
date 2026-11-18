@@ -48,7 +48,7 @@ Pemilik usaha menulis catatannya dengan bahasa bebas (bisa berantakan, singkatan
 
 ATURAN MUTLAK
 1. Pakai HANYA fakta yang ditulis pemilik. Jangan menambah atau menebak produk, harga, jam, alamat, nomor rekening/telepon, tautan, promo, ongkir, stok, atau kebijakan.
-2. Jangan mengubah angka. Tulis harga lengkap dengan format Rp dan titik ribuan ("18rb" -> "Rp18.000", "1,5jt" -> "Rp1.500.000"). Produk tanpa harga: tulis "harga ditanyakan ke pemilik".
+2. Jangan mengubah angka. Setiap angka (harga, jam, tanggal, jumlah, ukuran, nomor, tautan) wajib disalin dari catatan. Jangan menghitung total, harga paket, diskon, atau hasil kali sendiri, dan jangan menebak satuan: angka tanpa "rb/ribu/k/jt/Rp" ditulis apa adanya. Yang boleh hanya mengubah bentuk tulisan harga ("18rb" -> "Rp18.000", "1,5jt" -> "Rp1.500.000"). Produk tanpa harga: tulis "harga ditanyakan ke pemilik".
 3. Perbaiki ejaan dan susunan kalimat; satu info per baris; bahasa Indonesia yang jelas.
 4. Bagian yang informasinya tidak ada: jangan ditulis (kecuali PERAN & GAYA BAHASA dan PROMO, lihat format).
 5. Info penting yang belum ada (mis. jam buka, alamat/area, cara bayar, harga yang kosong): tulis sebagai pertanyaan singkat untuk pemilik di <kurang>, paling banyak 5. Tidak ada yang kurang: <kurang></kurang> kosong.
@@ -244,6 +244,56 @@ async function paralel<T, H>(butir: T[], n: number, kerja: (x: T, i: number) => 
   return hasil;
 }
 
+/** Berapa kali AI diminta membetulkan draf yang memuat angka/nomor/tautan karangan sebelum pengaman terakhir. */
+const KOREKSI = 2;
+
+function pesanKoreksi(awal: string, draf: string, salah: string[]): string {
+  return `${awal}
+
+Draf rapian sebelumnya:
+"""
+${draf}
+"""
+Draf itu menulis angka/nomor/tautan yang TIDAK ADA di catatan pemilik: ${salah.join(", ")}.
+Tulis ulang dokumen lengkapnya sesuai aturan. Setiap angka (harga, jam, tanggal, jumlah, nomor, tautan) wajib disalin dari catatan. Jangan menghitung total atau harga paket, jangan mengalikan, jangan menebak satuan. Bila ragu, salin kalimat aslinya apa adanya.`;
+}
+
+const kataInti = (s: string) => new Set((s.toLowerCase().match(/\p{L}{3,}/gu) ?? []).filter((k) => !/^(?:rp|ribu|juta|harga|dan|yang|untuk|dengan)$/.test(k)));
+
+/**
+ * Pengaman terakhir: tiap baris hasil yang memuat angka/nomor/tautan yang tidak ada di `sumber` diganti baris catatan
+ * asli yang paling mirip (paling sedikit separuh kata intinya sama), atau dibuang bila tidak ada yang mirip. Hasilnya
+ * tidak lagi memuat angka karangan; isinya tetap data pemilik sendiri.
+ */
+export function buangKarangan(teks: string, sumber: string): string {
+  const asli = sumber.split("\n").map((b) => b.trim()).filter(Boolean);
+  const kataAsli = asli.map(kataInti);
+  const dipakai = new Set<string>();
+  const keluar: string[] = [];
+  for (const baris of teks.split("\n")) {
+    if (!/[\d@]|https?:|\.[a-z]{2,}/i.test(baris) || !angkaBaru(baris, sumber).length) {
+      keluar.push(baris);
+      continue;
+    }
+    const kata = kataInti(baris);
+    let terbaik = -1;
+    let skor = 0;
+    kataAsli.forEach((k, i) => {
+      if (!kata.size) return;
+      let sama = 0;
+      for (const x of kata) if (k.has(x)) sama++;
+      const s = sama / kata.size;
+      if (s > skor) [skor, terbaik] = [s, i];
+    });
+    if (terbaik < 0 || skor < 0.5) continue;
+    const ganti = asli[terbaik].replace(/^[-•*]\s*/, "");
+    if (dipakai.has(ganti)) continue;
+    dipakai.add(ganti);
+    keluar.push(/^\s*[-•*]\s/.test(baris) ? `- ${ganti}` : ganti);
+  }
+  return keluar.join("\n");
+}
+
 /** Cek tulisan sebelum dirapikan (dipanggil juga oleh route sebelum mulai mengalirkan progres). */
 export function siapRapikan(teks: string, maks: number = BATAS_RAPIKAN.maks): string {
   const asli = bersihkanKerangka(teks);
@@ -289,21 +339,33 @@ export async function rapikanKnowledge(o: {
         : `\nIni bagian ${i + 1} dari ${n} catatan yang panjang; bagian lain dirapikan terpisah lalu digabung. Tulis hanya bagian yang informasinya ada di potongan ini${
             i > 0 ? ", jangan tulis PERAN & GAYA BAHASA dan PROMO kecuali memang disebut di potongan ini" : ""
           }. Biarkan <kurang></kurang> kosong.`;
-    for (let coba = 0; ; coba++) {
+    const awal = `Catatan pemilik usaha (rapikan sesuai aturan):${catatan}\n"""\n${potong}\n"""`;
+    const tanya = async (pesan: string) => {
       if (o.sinyal?.aborted) throw new GalatRapikan("Dibatalkan.", "Cancelled.");
       // Sesi baru tiap permintaan: tulisan pengguna tidak tercampur dengan riwayat percakapan mana pun.
-      const minta = {
-        sessionId: `rapikan-${o.userId}-${randomBytes(6).toString("hex")}`,
-        sistem,
-        pesan: `Catatan pemilik usaha (rapikan sesuai aturan):${catatan}\n"""\n${potong}\n"""`,
-        timeoutMs: 110_000,
-      };
+      const minta = { sessionId: `rapikan-${o.userId}-${randomBytes(6).toString("hex")}`, sistem, pesan, timeoutMs: 110_000 };
+      const j = o.penyedia ? await tanyaAi({ ...minta, paksa: { penyedia: o.penyedia }, maksToken: 6000, tanpaSoul: true }) : await tanyaHermes({ ...minta, sinyal: o.sinyal });
+      return uraiRapikan(j.teks);
+    };
+    for (let coba = 0; ; coba++) {
       try {
-        const j = o.penyedia ? await tanyaAi({ ...minta, paksa: { penyedia: o.penyedia }, maksToken: 6000, tanpaSoul: true }) : await tanyaHermes({ ...minta, sinyal: o.sinyal });
-        const u = uraiRapikan(j.teks);
-        if (!u) throw new GalatRapikan("AI belum berhasil merapikan tulisan ini. Coba lagi.", "The AI couldn't tidy up this text yet. Please try again.");
+        const pertama = await tanya(awal);
+        if (!pertama) throw new GalatRapikan("AI belum berhasil merapikan tulisan ini. Coba lagi.", "The AI couldn't tidy up this text yet. Please try again.");
+        let u = pertama;
+        // Angka/nomor/tautan yang tidak ada di catatan: AI diminta membetulkan drafnya (paling banyak KOREKSI kali).
+        for (let k = 0; k < KOREKSI; k++) {
+          const salah = angkaBaru(u.teks, potong);
+          if (!salah.length) break;
+          const v = await tanya(pesanKoreksi(awal, u.teks, salah)).catch((e) => {
+            if (o.sinyal?.aborted) throw e;
+            return null;
+          });
+          if (v && angkaBaru(v.teks, potong).length <= salah.length) u = v;
+        }
+        // Pengaman terakhir: baris yang masih memuat angka karangan diganti baris aslinya dari catatan (atau dibuang).
+        const teks = angkaBaru(u.teks, potong).length ? buangKarangan(u.teks, potong) : u.teks;
         o.progres?.(++selesai, n);
-        return { ...u, peringatan: angkaBaru(u.teks, potong) };
+        return { teks, kurang: u.kurang, peringatan: angkaBaru(teks, potong) };
       } catch (e) {
         // Dokumen panjang: satu bagian yang gagal dicoba sekali lagi supaya pekerjaan lain tidak terbuang.
         if (coba >= (n > 1 ? 1 : 0) || o.sinyal?.aborted) throw e;
