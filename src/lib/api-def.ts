@@ -26,6 +26,7 @@ export const FITUR_API = [
   { kode: "kontak.cek", grup: "wa", label: "Cek nomor WhatsApp", keterangan: "Cek nomor HP terdaftar di WhatsApp sebelum mengirim (maks 20 per panggilan)" },
   { kode: "profil", grup: "wa", label: "Profil WhatsApp", keterangan: "Nama & foto profil nomor yang terhubung" },
   { kode: "percakapan", grup: "wa", label: "Riwayat percakapan", keterangan: "Daftar chat & isi pesan, balas manual, jeda/lanjutkan bot per chat (API + halaman Percakapan di dashboard mesin)" },
+  { kode: "wa.resmi", grup: "wa", label: "WhatsApp resmi (Cloud API)", keterangan: "Pasang/lepas jalur resmi memakai aplikasi Meta & WABA milik developer sendiri, status kualitas & kuota harian, template pesan Meta" },
   { kode: "ai", grup: "ai", label: "Tanya AI", keterangan: "Jawaban bot berdasarkan Informasi Usaha nomor, tanpa lewat WhatsApp" },
   { kode: "bot", grup: "ai", label: "Pengaturan bot", keterangan: "Bot nyala/mati, instruksi, waktu tunggu, jeda setelah manusia membalas" },
   { kode: "spam", grup: "ai", label: "Saring spam", keterangan: "Promosi judi & pesan sampah tidak dibalas AI (hemat kuota), tercatat dengan tanda Spam" },
@@ -35,6 +36,7 @@ export const FITUR_API = [
   { kode: "ai.rapikan", grup: "ai", label: "Rapikan tulisan usaha", keterangan: "Tulisan bebas pemilik usaha disusun AI jadi dokumen siap pakai + daftar info yang kurang" },
   { kode: "ai.transkripsi", grup: "ai", label: "Transkripsi suara", keterangan: "Rekaman suara (maks 10 MB) jadi teks, memakai kunci STT di mesin" },
   { kode: "pelajaran", grup: "ai", label: "Pelajaran dari admin", keterangan: "Lihat & hapus jawaban admin yang dipelajari AI" },
+  { kode: "followup", grup: "ai", label: "Follow-up otomatis", keterangan: "Setelan prospek & order ulang per nomor, antrean, draf, hentikan, lepas rem; terkirim lewat jalur Baileys atau resmi sesuai nomor" },
   { kode: "knowledge", grup: "data", label: "Product knowledge", keterangan: "Tambah, lihat, dan hapus product knowledge (teks, PDF, berkas)" },
   { kode: "katalog", grup: "data", label: "Katalog produk", keterangan: "Tambah, ubah, hapus produk + foto; AI mengirim foto produk ke pelanggan" },
   { kode: "statistik", grup: "laporan", label: "Statistik harian", keterangan: "Pesan masuk & dibalas bot per hari per nomor (maks 90 hari)" },
@@ -54,6 +56,7 @@ export const DAMPAK_FITUR: Record<FiturApi, string> = {
   "kontak.cek": "API cek nomor WhatsApp",
   profil: "API profil WhatsApp",
   percakapan: "API riwayat percakapan + tab Percakapan di dashboard",
+  "wa.resmi": "API pasang/lepas jalur resmi + pilihan jalur di dashboard mesin; nomor yang sudah resmi tetap jalan",
   ai: "API tanya AI + Uji bot di dashboard",
   bot: "Bot WhatsApp berhenti membalas otomatis + pengaturan bot (API & dashboard)",
   spam: "Penyaring spam berhenti (semua pesan diteruskan ke AI) + sakelar Saring spam (API & dashboard)",
@@ -63,6 +66,7 @@ export const DAMPAK_FITUR: Record<FiturApi, string> = {
   "ai.rapikan": "API & tombol Rapikan tulisan",
   "ai.transkripsi": "API transkripsi suara",
   pelajaran: "API & panel pelajaran dari admin",
+  followup: "API follow-up + tab Follow-up di dashboard mesin; putaran follow-up berhenti (antrean tertahan, tidak dibuang)",
   knowledge: "API & tab Informasi Usaha (bot tetap memakai data yang sudah ada)",
   katalog: "API & tab Katalog (bot tetap memakai data yang sudah ada)",
   statistik: "API statistik harian",
@@ -201,8 +205,9 @@ export interface IsiLisensi {
   /**
    * 2 = katalog dengan `spam`/`belajar`/`ml` terpisah. Tidak ada = lisensi lama: `bot` masih mencakup ketiganya
    * (mesin baru menghormatinya supaya penyaring tidak mati sebelum pusat mengirim lisensi baru).
+   * 3 = katalog dengan `followup` & `wa.resmi`. Di bawah 3: `followup` ikut `bot` (perilaku lama, putaran tidak berhenti).
    */
-  fitur_v?: 2;
+  fitur_v?: 2 | 3;
 }
 
 /** Mode lisensi (lisensi v1 lama selalu produksi). */

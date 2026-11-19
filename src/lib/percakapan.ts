@@ -108,9 +108,10 @@ export async function catatPesan(d: {
   const sql = await db();
   await sql`
     WITH p AS (
-      INSERT INTO percakapan (number_id, kunci, telepon, nama, alamat, cuplikan, pengirim_akhir, masuk_n, bot_n, manusia_n, terakhir_pada)
-      VALUES (${d.numberId}, ${d.kunci}, ${telepon}, ${nama}, ${alamat}, ${cuplikan}, ${d.peran}, ${masuk}, ${bot}, ${manusia}, ${waktu})
+      INSERT INTO percakapan (number_id, kunci, telepon, nama, alamat, cuplikan, pengirim_akhir, masuk_n, bot_n, manusia_n, terakhir_pada, masuk_pada)
+      VALUES (${d.numberId}, ${d.kunci}, ${telepon}, ${nama}, ${alamat}, ${cuplikan}, ${d.peran}, ${masuk}, ${bot}, ${manusia}, ${waktu}, ${masuk ? waktu : null})
       ON CONFLICT (kunci) DO UPDATE SET
+        masuk_pada     = GREATEST(percakapan.masuk_pada, EXCLUDED.masuk_pada),
         telepon        = COALESCE(EXCLUDED.telepon, percakapan.telepon),
         nama           = COALESCE(EXCLUDED.nama, percakapan.nama),
         alamat         = COALESCE(EXCLUDED.alamat, percakapan.alamat),

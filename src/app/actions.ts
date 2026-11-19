@@ -707,7 +707,7 @@ const kunciFollowupSah = (v: unknown): string | null => (typeof v === "string" &
 
 /** Nomor milik pengguna ini (atau staf) yang boleh memakai follow-up; bukan nomor CS ChatGerCep. */
 async function nomorFollowup(id: unknown): Promise<{ user: User; nomor: Nomor; t: T; b: Bahasa } | Hasil> {
-  { const kunci = await fiturTerkunci("bot"); if (kunci) return kunci; }
+  { const kunci = await fiturTerkunci("followup"); if (kunci) return kunci; }
   const user = await requireUser();
   const { t, b } = await teksPermintaan();
   const nomor = await nomorUntuk(user, id);

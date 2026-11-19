@@ -74,12 +74,13 @@ export interface PengaturanApi {
 export const MAKS_HARGA_API = 100_000_000;
 
 export async function pengaturanApi(): Promise<PengaturanApi> {
-  const [b, h, f, kenal, kenalPecah] = await Promise.all([
+  const [b, h, f, kenal, kenalPecah, kenalFollowup] = await Promise.all([
     getSetting("api_biaya_bawaan"),
     getSetting("api_harga_bawaan"),
     getSetting("api_fitur_global"),
     getSetting("api_fitur_dashboard_kenal"),
     getSetting("api_fitur_pecah_bot_kenal"),
+    getSetting("api_fitur_followup_kenal"),
   ]);
   let fitur: FiturApi[] = [...KODE_FITUR];
   if (f !== null) {
@@ -88,7 +89,9 @@ export async function pengaturanApi(): Promise<PengaturanApi> {
       // Daftar yang disimpan sebelum fitur `dashboard` ada: dashboard bawaan tetap menyala (tidak tiba-tiba tertutup).
       // Disimpan sebelum `bot` dipecah: `bot` yang dibagikan berarti spam/belajar/ml juga dibagikan.
       const pecah = (k: string) => kenalPecah === null && x.includes("bot") && (k === "spam" || k === "belajar" || k === "ml");
-      if (Array.isArray(x)) fitur = KODE_FITUR.filter((k) => x.includes(k) || (k === "dashboard" && kenal === null) || pecah(k));
+      // Disimpan sebelum `followup` ada: follow-up dulu ikut `bot`, jadi tetap dibagikan bila `bot` dibagikan.
+      const followup = (k: string) => kenalFollowup === null && x.includes("bot") && k === "followup";
+      if (Array.isArray(x)) fitur = KODE_FITUR.filter((k) => x.includes(k) || (k === "dashboard" && kenal === null) || pecah(k) || followup(k));
     } catch {}
   }
   const harga = Number(h);
@@ -106,6 +109,7 @@ export async function simpanPengaturanApi(pelaku: User, p: Omit<PengaturanApi, "
     await setSetting("api_fitur_global", JSON.stringify(fitur));
     await setSetting("api_fitur_dashboard_kenal", "1");
     await setSetting("api_fitur_pecah_bot_kenal", "1");
+    await setSetting("api_fitur_followup_kenal", "1");
   }
   await catatLog(pelaku, "ubah pengaturan Developer API", null, `biaya bawaan ${p.biaya}, harga Rp${p.harga.toLocaleString("id-ID")}${fitur ? `, fitur ${fitur.join(", ") || "-"}` : ""}`);
   // Biaya/fitur umum bisa mengubah lisensi semua aplikasi aktif: kirim ulang.
@@ -123,6 +127,7 @@ export async function simpanFiturGlobal(pelaku: User, masukan: readonly string[]
   await setSetting("api_fitur_global", JSON.stringify(fitur));
   await setSetting("api_fitur_dashboard_kenal", "1");
   await setSetting("api_fitur_pecah_bot_kenal", "1");
+  await setSetting("api_fitur_followup_kenal", "1");
   const nyala = fitur.filter((f) => !lama.includes(f));
   const mati = lama.filter((f) => !fitur.includes(f));
   await catatLog(pelaku, "ubah fitur Developer API", null, `dibagikan ${fitur.length}/${KODE_FITUR.length}${nyala.length ? ` · nyala ${nyala.join(", ")}` : ""}${mati.length ? ` · mati ${mati.join(", ")}` : ""}`);
@@ -823,7 +828,7 @@ async function terbitkan(instalasiId: string): Promise<{ token: string; isi: Isi
         kunci: daftarKunci,
         uji: a.uji_diverifikasi ? { telepon: a.uji_telepon, alamat: a.uji_alamat } : null,
         rilis,
-        fitur_v: 2,
+        fitur_v: 3,
         diterbitkan: kini,
         berlaku_sampai: a.sandbox_sampai ?? kini,
       }
@@ -840,7 +845,7 @@ async function terbitkan(instalasiId: string): Promise<{ token: string; isi: Isi
         dibayar_sampai: a.dibayar_sampai,
         kunci: daftarKunci,
         rilis,
-        fitur_v: 2,
+        fitur_v: 3,
         diterbitkan: kini,
         berlaku_sampai: kini + MASA_LISENSI_DETIK,
       };

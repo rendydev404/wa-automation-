@@ -913,6 +913,59 @@ const MIGRASI: string[] = [
   CREATE INDEX followup_ulang_jalan_idx ON followup_ulang (number_id, jadwal) WHERE status = 'jalan';
   CREATE INDEX followup_ulang_nomor_idx ON followup_ulang (number_id, diperbarui DESC, kunci DESC);
   `,
+  // v39: jalur WhatsApp resmi (Cloud API Meta) per nomor (docs/plans/2026-11-18-followup-dua-jalur-wa-resmi.md).
+  //   numbers.jalur: 'baileys' (bawaan, perilaku lama) | 'resmi'. Default konstan = hanya katalog (PG 11+).
+  //   nomor_resmi: kredensial Meta (token & app secret terenkripsi AES-256-GCM, lihat rahasia.ts) + status terakhir.
+  //   templat_wa: template pesan Meta per nomor (kode_tahap = dipakai follow-up di luar jendela 24 jam).
+  //   percakapan.masuk_pada: pesan masuk terakhir (jendela layanan 24 jam); kolom tanpa default = hanya katalog.
+  //   kiriman_templat: penerima unik template per WABA (kuota tier Meta dihitung per business portfolio/WABA, 24 jam).
+  `
+  ALTER TABLE numbers ADD COLUMN jalur text NOT NULL DEFAULT 'baileys' CHECK (jalur IN ('baileys', 'resmi'));
+
+  CREATE TABLE nomor_resmi (
+    number_id       integer PRIMARY KEY REFERENCES numbers(id) ON DELETE CASCADE,
+    phone_number_id text NOT NULL UNIQUE,
+    waba_id         text NOT NULL,
+    token_enkrip    text NOT NULL,
+    rahasia_enkrip  text NOT NULL,
+    kunci_webhook   text NOT NULL UNIQUE,
+    verify_token    text NOT NULL,
+    nomor_tampil    text,
+    nama_tampil     text,
+    kualitas        text,
+    tier            text,
+    status          text,
+    alasan          text,
+    aktif           boolean NOT NULL DEFAULT true,
+    diperbarui      bigint NOT NULL
+  );
+  CREATE INDEX nomor_resmi_waba_idx ON nomor_resmi (waba_id);
+
+  CREATE TABLE templat_wa (
+    number_id   integer NOT NULL REFERENCES numbers(id) ON DELETE CASCADE,
+    nama        text NOT NULL,
+    bahasa      text NOT NULL DEFAULT 'id',
+    kategori    text NOT NULL DEFAULT 'MARKETING',
+    kode_tahap  text,
+    isi         text NOT NULL,
+    status      text NOT NULL DEFAULT 'DRAF',
+    alasan      text,
+    meta_id     text,
+    diperbarui  bigint NOT NULL,
+    PRIMARY KEY (number_id, nama, bahasa)
+  );
+  CREATE INDEX templat_wa_tahap_idx ON templat_wa (number_id, kode_tahap) WHERE kode_tahap IS NOT NULL;
+
+  ALTER TABLE percakapan ADD COLUMN masuk_pada bigint;
+
+  CREATE TABLE kiriman_templat (
+    waba_id   text NOT NULL,
+    penerima  text NOT NULL,
+    pada      bigint NOT NULL,
+    PRIMARY KEY (waba_id, penerima)
+  );
+  CREATE INDEX kiriman_templat_pada_idx ON kiriman_templat (waba_id, pada);
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;
@@ -1020,6 +1073,18 @@ const KOLOM_PASTI: readonly { tabel: string; kolom: string; sql: string }[] = [
       CREATE INDEX IF NOT EXISTS voucher_diklaim_oleh_idx
         ON voucher (diklaim_oleh, diklaim_pada DESC)
         WHERE diklaim_oleh IS NOT NULL;
+    `,
+  },
+  // Fitur katalog `followup` (dulu ikut `bot`): aplikasi & daftar fitur khusus akun yang sudah punya `bot` mendapatkannya
+  // sekali, supaya putaran follow-up di mesin mereka tidak berhenti. `wa.resmi` fitur baru: tidak diberikan otomatis.
+  {
+    tabel: "api_aplikasi",
+    kolom: "fitur_followup_v1",
+    sql: `
+      ALTER TABLE api_aplikasi ADD COLUMN IF NOT EXISTS fitur_followup_v1 boolean NOT NULL DEFAULT true;
+      UPDATE api_aplikasi SET fitur = array_append(fitur, 'followup') WHERE 'bot' = ANY(fitur) AND NOT ('followup' = ANY(fitur));
+      UPDATE api_aplikasi SET fitur_diminta = array_append(fitur_diminta, 'followup') WHERE 'bot' = ANY(fitur_diminta) AND NOT ('followup' = ANY(fitur_diminta));
+      UPDATE users SET api_fitur = array_append(api_fitur, 'followup') WHERE api_fitur IS NOT NULL AND 'bot' = ANY(api_fitur) AND NOT ('followup' = ANY(api_fitur));
     `,
   },
 ];

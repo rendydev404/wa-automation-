@@ -44,6 +44,7 @@ export const NAMA_HALAMAN: Record<PolaHalaman, string> = {
   "/admin/aturan": "Admin · Aturan",
   "/admin/followup": "Admin · Follow-up WA",
   "/admin/followup/prospek": "Admin · Follow-up prospek",
+  "/admin/followup/jalur": "Admin · Jalur WhatsApp (resmi / QR)",
   "/admin/log": "Admin · Log admin",
   "/admin/paket": "Admin · Paket & harga",
   "/admin/pengguna": "Admin · Daftar pengguna",

@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { type Sql, db, getSetting, sekarang, setSetting } from "./db";
 import { catatPakai, tanyaAi } from "./ai";
 import { formatWa, kirimSapaan, pasangKaitCs } from "./bridge";
+import { TahanJalur, catatTerkirim, siapkanKiriman } from "./followup-jalur";
 import { ATURAN_LEWATI, GAYA_PESAN, type HasilSusun, alasanTahan, ambilLewati } from "./followup-aman";
 import { rapikanNomorWa } from "./format";
 import {
@@ -612,7 +613,7 @@ async function prosesSatu(b: BarisJalan, s: SetelanFollowup, cs: Nomor): Promise
   const draf = jenis === "sapaan" ? b.pesan1 : b.pesan2;
   const susun = draf ? { teks: draf } : await tulisPesan(u, chat, cs, jenis, jenis === "pengingat" ? sebelumnya : null);
   if ("lewati" in susun) return henti(b.user_id, akhir, `Dilewati AI: ${susun.lewati}`);
-  const teks = susun.teks;
+  let teks = susun.teks;
 
   // Pemeriksaan terakhir: selagi AI menulis, pengguna bisa saja membalas / chat duluan.
   if (await masukSejak(chat.id, jenis === "sapaan" ? b.dibuat - CHAT_DULUAN_DTK : (b.terkirim1 ?? t))) {
@@ -623,11 +624,16 @@ async function prosesSatu(b: BarisJalan, s: SetelanFollowup, cs: Nomor): Promise
 
   let id: string;
   try {
-    id = await kirimSapaan({ numberId: cs.id, sesi: cs.sesi, alamat, kunci: chat.kunci, teks });
+    // Jalur resmi di luar jendela 24 jam: template Meta (followup-jalur.ts); Baileys / di dalam jendela: teks AI.
+    const k = await siapkanKiriman(cs, chat.kunci, teks, jenis === "sapaan" ? "akun_1" : "akun_2", { nama: chat.nama, usaha: MEREK });
+    teks = k.teks;
+    id = await kirimSapaan({ numberId: cs.id, sesi: cs.sesi, alamat, kunci: chat.kunci, teks, templat: k.templat });
+    catatTerkirim(cs.id, chat.kunci, "akun", jenis === "sapaan" ? 1 : 2, k);
   } catch (e) {
     const pesan = e instanceof Error ? e.message : String(e);
     console.warn(`[followup] gagal mengirim ke akun ${u.id}: ${pesan}`);
-    if (e instanceof WaError) await tunda(b.user_id, 1800, `Nomor CS tidak terhubung: ${pesan}`);
+    if (e instanceof TahanJalur) await tunda(b.user_id, 3600, pesan.slice(0, 200));
+    else if (e instanceof WaError) await tunda(b.user_id, 1800, `Nomor CS tidak terhubung: ${pesan}`);
     else if (t - b.dibuat > COBA_KIRIM_DTK) await ubah(b.user_id, "gagal", pesan.slice(0, 200));
     else await tunda(b.user_id, 3600, `Gagal mengirim, dicoba lagi: ${pesan.slice(0, 160)}`);
     return false;
@@ -862,7 +868,7 @@ async function konteksAkun(userId: number): Promise<string | null> {
 async function pesanMasuk(d: { numberId: number; kunci: string; teks: string; telepon: string | null }): Promise<string | null> {
   // Nomor pengguna dengan follow-up aktif (bukan nomor CS): hanya balasan atas follow-up-nya sendiri.
   if (!st.cs.ids.has(d.numberId)) {
-    const c = await pesanMasukUsaha({ kunci: d.kunci, teks: d.teks });
+    const c = await pesanMasukUsaha({ numberId: d.numberId, kunci: d.kunci, teks: d.teks });
     return c ? `[Konteks follow-up] ${c}` : null;
   }
   const catatan: string[] = [];

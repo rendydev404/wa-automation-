@@ -117,6 +117,8 @@ export async function proxy(request: NextRequest) {
   };
 
   if (publikDeveloperApi(pathname)) return lanjut();
+  // Webhook WhatsApp Cloud API (Meta) per nomor resmi: publik, keabsahan dari tanda tangan HMAC app secret (wa-resmi.ts).
+  if (pathname.startsWith("/api/wa/meta/")) return lanjut();
   // Mesin self-host dengan DASHBOARD_MESIN=mati: murni API. Semua halaman ke /mode-api (status lisensi); route dashboard
   // (sesi cookie) ditolak. Blokir dari lisensi pusat ditangani di getUser/requireUser (proxy tidak membaca lisensi).
   if (modeMesin() && (process.env.DASHBOARD_MESIN ?? "").trim().toLowerCase() === "mati" && pathname !== "/mode-api" && pathname !== "/api/health" && !BERKAS_STATIS.test(pathname) && !pathname.startsWith("/_next")) {

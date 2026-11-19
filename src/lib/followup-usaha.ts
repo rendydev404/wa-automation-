@@ -2,6 +2,9 @@ import "server-only";
 import { db, sekarang } from "./db";
 import { bakukanTag, catatPakai, tanyaAi } from "./ai";
 import { formatWa, kirimSapaan } from "./bridge";
+import { TahanJalur, catatTerkirim, siapkanKiriman } from "./followup-jalur";
+import { pancarkan } from "./peristiwa";
+import type { KodeTahap } from "./wa-resmi-def";
 import { ATURAN_LEWATI, GAYA_PESAN, type HasilSusun, alasanTahan, ambilLewati } from "./followup-aman";
 import {
   BATAS_PEMANASAN,
@@ -28,7 +31,7 @@ import { daftarProduk, katalogBoleh } from "./katalog";
 import { ambilKirimProduk } from "./katalog-def";
 import { susunSistem } from "./knowledge";
 import { aiUntukAkun, akunBerbayar, sisaKuotaAi } from "./langganan";
-import { botBoleh } from "./mesin/lisensi";
+import { botBoleh, fiturBoleh } from "./mesin/lisensi";
 import { modeMesin } from "./mode";
 import { kirimNotif } from "./notifikasi";
 import { type Nomor, nomorById } from "./numbers";
@@ -243,7 +246,8 @@ export async function lepasRemNomor(numberId: number): Promise<void> {
 const cacheBoleh = new Map<number, { at: number; ok: boolean }>();
 export async function followupBoleh(userId: number | null): Promise<boolean> {
   if (userId === null) return false;
-  if (modeMesin()) return botBoleh();
+  // Mesin: fitur katalog `followup` (lisensi lama tanpa kode ini ikut `bot`, lihat mesin/lisensi.ts).
+  if (modeMesin()) return botBoleh() && fiturBoleh("followup");
   const c = cacheBoleh.get(userId);
   if (c && Date.now() - c.at < 60_000) return c.ok;
   const sql = await db();
@@ -298,6 +302,9 @@ async function batasRasio(numberId: number, p: PerNomor): Promise<number> {
 async function batasHariIni(nomor: Nomor, p: PerNomor): Promise<{ batas: number; sebab: StatusUsaha["sebabBatas"] }> {
   let batas = p.setelan.batasHarian;
   let sebab: StatusUsaha["sebabBatas"] = "setelan";
+  // Jalur resmi (Cloud API): pemanasan & rasio Baileys tidak berlaku; penjaganya tier & kualitas dari Meta
+  // (alasanKuota di followup-jalur.ts + kesehatan nomor di wa-resmi.ts).
+  if (nomor.jalur === "resmi") return { batas, sebab };
   if (sekarang() - nomor.created_at < NOMOR_BARU_HARI * 86400) return { batas: 0, sebab: "baru" };
   if (sekarang() - nomor.created_at < PEMANASAN_HARI * 86400 && BATAS_PEMANASAN < batas) {
     batas = BATAS_PEMANASAN;
@@ -337,6 +344,7 @@ async function periksaRem(nomor: Nomor, p: PerNomor): Promise<boolean> {
   await sql`UPDATE followup_nomor SET rem_pada = ${t}, rem_alasan = ${alasan}, diperbarui = ${t} WHERE number_id = ${nomor.id}`;
   p.rem = { pada: t, alasan };
   console.error(`[followup-usaha] REM OTOMATIS nomor ${nomor.id}: ${alasan}`);
+  pancarkan({ jenis: "followup.rem", numberId: nomor.id, alasan });
   if (nomor.user_id)
     await kirimNotif(nomor.user_id, {
       jenis: "nomor",
@@ -366,6 +374,7 @@ export async function remBahayaUsaha(nomor: Nomor, alasan: string): Promise<void
   if (p && !p.rem) p.rem = { pada: t, alasan: teks };
   if (!r.count) return;
   console.error(`[followup-usaha] REM BAHAYA nomor ${nomor.id}: ${alasan}`);
+  pancarkan({ jenis: "followup.rem", numberId: nomor.id, alasan: teks });
   if (nomor.user_id)
     await kirimNotif(nomor.user_id, {
       jenis: "nomor",
@@ -748,13 +757,17 @@ async function periksaUlang(b: BarisUlangJalan, chat: Chat | undefined): Promise
 const sebelumnyaDari = (b: Pick<BarisJalan, "pesan1" | "pesan2" | "pesan3">): string[] => [b.pesan1, b.pesan2, b.pesan3].filter((x): x is string => !!x);
 const alamatDari = (c: Chat): string | null => c.alamat ?? (c.telepon ? `${c.telepon}@s.whatsapp.net` : null);
 
-async function kirim(nomor: Nomor, c: Chat, teks: string): Promise<{ id: string } | { gagal: string; wa: boolean }> {
+async function kirim(nomor: Nomor, c: Chat, teks: string, kode: KodeTahap): Promise<{ id: string; teks: string } | { gagal: string; wa: boolean; tahan?: boolean }> {
   const alamat = alamatDari(c);
   if (!alamat) return { gagal: "Alamat chat tidak diketahui", wa: false };
   try {
-    return { id: await kirimSapaan({ numberId: nomor.id, sesi: nomor.sesi, alamat, kunci: c.kunci, teks }) };
+    // Jalur resmi di luar jendela 24 jam: template Meta (followup-jalur.ts); Baileys / di dalam jendela: teks AI.
+    const k = await siapkanKiriman(nomor, c.kunci, teks, kode, { nama: c.nama });
+    const id = await kirimSapaan({ numberId: nomor.id, sesi: nomor.sesi, alamat, kunci: c.kunci, teks: k.teks, templat: k.templat });
+    catatTerkirim(nomor.id, c.kunci, kode === "ulang" ? "ulang" : "prospek", kode === "ulang" ? 1 : Number(kode.slice(-1)), k);
+    return { id, teks: k.teks };
   } catch (e) {
-    return { gagal: e instanceof Error ? e.message : String(e), wa: e instanceof WaError };
+    return { gagal: e instanceof Error ? e.message : String(e), wa: e instanceof WaError, tahan: e instanceof TahanJalur };
   }
 }
 
@@ -770,10 +783,11 @@ async function prosesProspek(nomor: Nomor, p: PerNomor, b: BarisJalan): Promise<
   // Pemeriksaan terakhir: selagi AI menulis, ia bisa saja membalas.
   if (await masukSejak(c.id, b.siklus)) return ubahProspek(b.kunci, b.tahap > 0 ? "dibalas" : "batal", b.tahap > 0 ? null : "Pelanggan chat lagi sebelum follow-up", b.tahap > 0 ? sekarang() : undefined);
   if (infoSesi(nomor.sesi).status !== "WORKING") return false;
-  const h = await kirim(nomor, c, teks);
+  const h = await kirim(nomor, c, teks, `prospek_${tahap}`);
   if ("gagal" in h) {
     console.warn(`[followup-usaha] gagal mengirim ke chat ${c.id}: ${h.gagal}`);
-    if (h.wa) await tunda("prospek", b.kunci, 1800, `Nomor tidak terhubung: ${h.gagal}`);
+    if (h.tahan) await tunda("prospek", b.kunci, 3600, h.gagal.slice(0, 200));
+    else if (h.wa) await tunda("prospek", b.kunci, 1800, `Nomor tidak terhubung: ${h.gagal}`);
     else if (sekarang() - b.jadwal > 2 * 86400) await ubahProspek(b.kunci, "gagal", h.gagal.slice(0, 200));
     else await tunda("prospek", b.kunci, 3600, `Gagal mengirim, dicoba lagi: ${h.gagal.slice(0, 160)}`);
     return false;
@@ -788,15 +802,15 @@ async function prosesProspek(nomor: Nomor, p: PerNomor, b: BarisJalan): Promise<
     UPDATE followup_prospek SET
       status = ${status}, tahap = ${tahap}, jadwal = ${jadwal}, draf = NULL, alasan = ${alasan}, diperbarui = ${kini},
       tujuan = ${c.telepon}, nama = ${c.nama},
-      pesan1 = CASE WHEN ${tahap} = 1 THEN ${teks} ELSE pesan1 END, pesan1_id = CASE WHEN ${tahap} = 1 THEN ${h.id} ELSE pesan1_id END,
+      pesan1 = CASE WHEN ${tahap} = 1 THEN ${h.teks} ELSE pesan1 END, pesan1_id = CASE WHEN ${tahap} = 1 THEN ${h.id} ELSE pesan1_id END,
       terkirim1 = CASE WHEN ${tahap} = 1 THEN ${kini}::bigint ELSE terkirim1 END, ack1 = CASE WHEN ${tahap} = 1 THEN 1 ELSE ack1 END,
-      pesan2 = CASE WHEN ${tahap} = 2 THEN ${teks} ELSE pesan2 END, pesan2_id = CASE WHEN ${tahap} = 2 THEN ${h.id} ELSE pesan2_id END,
+      pesan2 = CASE WHEN ${tahap} = 2 THEN ${h.teks} ELSE pesan2 END, pesan2_id = CASE WHEN ${tahap} = 2 THEN ${h.id} ELSE pesan2_id END,
       terkirim2 = CASE WHEN ${tahap} = 2 THEN ${kini}::bigint ELSE terkirim2 END, ack2 = CASE WHEN ${tahap} = 2 THEN 1 ELSE ack2 END,
-      pesan3 = CASE WHEN ${tahap} = 3 THEN ${teks} ELSE pesan3 END, pesan3_id = CASE WHEN ${tahap} = 3 THEN ${h.id} ELSE pesan3_id END,
+      pesan3 = CASE WHEN ${tahap} = 3 THEN ${h.teks} ELSE pesan3 END, pesan3_id = CASE WHEN ${tahap} = 3 THEN ${h.id} ELSE pesan3_id END,
       terkirim3 = CASE WHEN ${tahap} = 3 THEN ${kini}::bigint ELSE terkirim3 END, ack3 = CASE WHEN ${tahap} = 3 THEN 1 ELSE ack3 END
      WHERE kunci = ${b.kunci} AND usaha`;
   st.ack.set(h.id, { kunci: b.kunci, jenis: "prospek", slot: tahap, ack: 1 });
-  st.aktif.set(b.kunci, { jenis: "prospek", teks, dicatat: false });
+  st.aktif.set(b.kunci, { jenis: "prospek", teks: h.teks, dicatat: false });
   console.info(`[followup-usaha] pesan prospek tahap ${tahap} terkirim ke chat ${c.id} lewat nomor ${nomor.id}`);
   return true;
 }
@@ -811,10 +825,11 @@ async function prosesUlang(nomor: Nomor, b: BarisUlangJalan): Promise<boolean> {
   const teks = susun.teks;
   if (await masukSejak(c.id, b.dibuat)) return ubahUlang(b.kunci, "batal", "Pelanggan chat lagi sebelum pengingat dikirim");
   if (infoSesi(nomor.sesi).status !== "WORKING") return false;
-  const h = await kirim(nomor, c, teks);
+  const h = await kirim(nomor, c, teks, "ulang");
   if ("gagal" in h) {
     console.warn(`[followup-usaha] gagal mengirim order ulang ke chat ${c.id}: ${h.gagal}`);
-    if (h.wa) await tunda("ulang", b.kunci, 1800, `Nomor tidak terhubung: ${h.gagal}`);
+    if (h.tahan) await tunda("ulang", b.kunci, 3600, h.gagal.slice(0, 200));
+    else if (h.wa) await tunda("ulang", b.kunci, 1800, `Nomor tidak terhubung: ${h.gagal}`);
     else if (sekarang() - b.jadwal > 2 * 86400) await ubahUlang(b.kunci, "gagal", h.gagal.slice(0, 200));
     else await tunda("ulang", b.kunci, 3600, `Gagal mengirim, dicoba lagi: ${h.gagal.slice(0, 160)}`);
     return false;
@@ -822,11 +837,11 @@ async function prosesUlang(nomor: Nomor, b: BarisUlangJalan): Promise<boolean> {
   const sql = await db();
   const kini = sekarang();
   await sql`
-    UPDATE followup_ulang SET status = 'terkirim', draf = NULL, pesan = ${teks}, pesan_id = ${h.id}, terkirim = ${kini}, ack = 1,
+    UPDATE followup_ulang SET status = 'terkirim', draf = NULL, pesan = ${h.teks}, pesan_id = ${h.id}, terkirim = ${kini}, ack = 1,
            alasan = NULL, diperbarui = ${kini}, tujuan = ${c.telepon}, nama = ${c.nama}
      WHERE kunci = ${b.kunci}`;
   st.ack.set(h.id, { kunci: b.kunci, jenis: "ulang", slot: 1, ack: 1 });
-  st.aktif.set(b.kunci, { jenis: "ulang", teks, dicatat: false });
+  st.aktif.set(b.kunci, { jenis: "ulang", teks: h.teks, dicatat: false });
   console.info(`[followup-usaha] pengingat order ulang terkirim ke chat ${c.id} lewat nomor ${nomor.id}`);
   return true;
 }
@@ -951,10 +966,11 @@ export async function putaranUsaha(nomorCs: ReadonlySet<number>): Promise<void> 
  * permintaan berhenti dicatat permanen; selain itu baris selesai sebagai "dibalas" dan AI diberi konteksnya. Chat
  * yang tidak sedang di-follow-up selesai tanpa I/O.
  */
-export async function pesanMasukUsaha(d: { kunci: string; teks: string }): Promise<string | null> {
+export async function pesanMasukUsaha(d: { numberId?: number; kunci: string; teks: string }): Promise<string | null> {
   const f = st.aktif.get(d.kunci);
   if (!f || f.dicatat) return null;
   f.dicatat = true;
+  if (d.numberId) pancarkan({ jenis: "followup.dibalas", numberId: d.numberId, kunci: d.kunci, jenisFollowup: f.jenis });
   const teks = d.teks.trim();
   const t = sekarang();
   const sql = await db();
@@ -1069,11 +1085,11 @@ export async function statusUsaha(nomor: Nomor): Promise<StatusUsaha> {
 }
 
 /** Riwayat terbaru (prospek + order ulang) satu nomor, lewat indeks per nomor. */
-export async function daftarUsaha(numberId: number, batas = 50): Promise<BarisUsaha[]> {
+export async function daftarUsaha(numberId: number, batas = 50, jenis?: "prospek" | "ulang"): Promise<BarisUsaha[]> {
   const sql = await db();
   const n = Math.min(100, Math.max(1, batas));
   const [prospek, ulang, setelan] = await Promise.all([
-    sql<
+    jenis === "ulang" ? [] : sql<
       {
         kunci: string;
         status: StatusProspek;
@@ -1104,7 +1120,7 @@ export async function daftarUsaha(numberId: number, batas = 50): Promise<BarisUs
         FROM followup_prospek fp LEFT JOIN percakapan p ON p.kunci = fp.kunci
        WHERE fp.number_id = ${numberId} AND fp.usaha
        ORDER BY fp.diperbarui DESC, fp.kunci DESC LIMIT ${n}`,
-    sql<
+    jenis === "prospek" ? [] : sql<
       {
         kunci: string;
         status: StatusUlang;

@@ -1,5 +1,6 @@
 import "server-only";
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
+import type { FiturApi } from "../api-def";
 import { db, sekarang } from "../db";
 import { modeMesin } from "../mode";
 import { nomorBySesi } from "../numbers";
@@ -27,6 +28,11 @@ export const EVENT_WEBHOOK = [
   "nomor.status",
   "nomor.pairing",
   "lisensi.peringatan",
+  "followup.terkirim",
+  "followup.dibalas",
+  "followup.rem",
+  "templat.status",
+  "nomor.kualitas",
 ] as const;
 export type EventWebhook = (typeof EVENT_WEBHOOK)[number];
 export const eventSah = (v: unknown): v is EventWebhook => typeof v === "string" && (EVENT_WEBHOOK as readonly string[]).includes(v);
@@ -152,10 +158,25 @@ export async function hapusWebhook(): Promise<void> {
 
 const idEvent = (): string => `evt_${randomUUID().replace(/-/g, "")}`;
 
-/** Fitur pesan.terima harus dibuka lisensi; event lisensi.peringatan selalu boleh (memberi tahu developer). */
+/** Event yang juga butuh fitur katalognya sendiri (selain pesan.terima). */
+const FITUR_EVENT: Partial<Record<EventWebhook, FiturApi>> = {
+  "followup.terkirim": "followup",
+  "followup.dibalas": "followup",
+  "followup.rem": "followup",
+  "templat.status": "wa.resmi",
+  "nomor.kualitas": "wa.resmi",
+};
+
+/**
+ * Fitur pesan.terima harus dibuka lisensi (ditambah fitur event itu sendiri, mis. followup.* butuh `followup`); event
+ * lisensi.peringatan selalu boleh (memberi tahu developer).
+ */
 function boleh(jenis: EventWebhook): boolean {
   if (jenis === "lisensi.peringatan") return true;
-  return !!lisensiSekarang()?.fitur.includes("pesan.terima");
+  const f = lisensiSekarang()?.fitur;
+  if (!f?.includes("pesan.terima")) return false;
+  const perlu = FITUR_EVENT[jenis];
+  return !perlu || f.includes(perlu);
 }
 
 /**
@@ -346,6 +367,23 @@ async function petakan(p: Peristiwa): Promise<void> {
       return antrekanEvent("nomor.pairing", await nomorIdSesi(p.sesi), { kode: p.kode });
     case "lisensi.peringatan":
       return antrekanEvent("lisensi.peringatan", null, { sisa_detik: p.sisaDetik, berlaku_sampai: p.berlakuSampai, status: p.status });
+    case "followup.terkirim":
+      return antrekanEvent("followup.terkirim", p.numberId, {
+        nomor_id: String(p.numberId),
+        kunci: p.kunci,
+        jenis: p.jenisFollowup,
+        tahap: p.tahap,
+        bentuk: p.bentuk,
+        teks: p.teks,
+      });
+    case "followup.dibalas":
+      return antrekanEvent("followup.dibalas", p.numberId, { nomor_id: String(p.numberId), kunci: p.kunci, jenis: p.jenisFollowup });
+    case "followup.rem":
+      return antrekanEvent("followup.rem", p.numberId, { nomor_id: String(p.numberId), alasan: p.alasan });
+    case "templat.status":
+      return antrekanEvent("templat.status", p.numberId, { nomor_id: String(p.numberId), nama: p.nama, status: p.status, alasan: p.alasan });
+    case "nomor.kualitas":
+      return antrekanEvent("nomor.kualitas", p.numberId, { nomor_id: String(p.numberId), peristiwa: p.peristiwa, tier: p.tier, kualitas: p.kualitas });
   }
 }
 

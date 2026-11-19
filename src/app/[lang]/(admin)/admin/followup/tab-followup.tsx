@@ -1,10 +1,11 @@
 import Link from "next/link";
 
-/** Tab halaman Follow-up WA: akun gratis yang kuotanya habis | prospek yang diam. */
-export function TabFollowup({ aktif }: { aktif: "akun" | "prospek" }) {
+/** Tab halaman Follow-up WA: akun gratis yang kuotanya habis | prospek yang diam | jalur WhatsApp (Baileys / resmi). */
+export function TabFollowup({ aktif }: { aktif: "akun" | "prospek" | "jalur" }) {
   const tab = [
     { id: "akun", href: "/admin/followup", label: "Akun gratis" },
     { id: "prospek", href: "/admin/followup/prospek", label: "Prospek" },
+    { id: "jalur", href: "/admin/followup/jalur", label: "Jalur WhatsApp" },
   ] as const;
   return (
     <nav aria-label="Jenis follow-up" className="flex gap-1 border-b border-line">

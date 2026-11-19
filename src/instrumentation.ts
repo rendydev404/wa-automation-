@@ -7,6 +7,9 @@ export async function register() {
     pasangLogAman();
     // Jembatan mendaftarkan diri sebagai penerima event WhatsApp saat dimuat.
     await import("@/lib/bridge");
+    // Jalur WhatsApp resmi (Cloud API Meta) mendaftar ke wa.ts saat dimuat; kredensial nomor resmi dimuat di latar.
+    const { muatResmi } = await import("@/lib/wa-resmi");
+    void muatResmi().catch((e) => console.error("[wa-resmi] gagal memuat nomor resmi:", e instanceof Error ? e.message : e));
     const { mulaiGerbang } = await import("@/lib/wa");
     // Tidak ditunggu: database dan koneksi ke WhatsApp disiapkan di latar, tidak menahan start server.
     void mulaiGerbang();

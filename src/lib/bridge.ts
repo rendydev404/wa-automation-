@@ -19,7 +19,7 @@ import { CATATAN_KODE_DIBLOKIR, TOLAK_KODE, adaKode } from "./penjaga";
 import { sttTerkonfigurasi, transkripsi } from "./stt";
 import type { Foto } from "./types";
 import type { WAMessage } from "baileys";
-import { type EventWa, digitWa, kirimGambar, kirimTeks, mengetik, mengetikLagi, padaEvent, tandaiDibaca } from "./wa";
+import { type EventWa, type TemplatKirim, digitWa, kirimGambar, kirimTemplat, kirimTeks, mengetik, mengetikLagi, padaEvent, tandaiDibaca } from "./wa";
 import { botBoleh, fiturBoleh, lawanNomorUji, sandboxAktif, verifikasiNomorUjiKePusat } from "./mesin/lisensi";
 import { POLA_PESAN_UJI } from "./api-def";
 
@@ -331,13 +331,19 @@ const tidur = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * biasa: jeda sebentar, online + "mengetik" selama yang wajar untuk panjang pesannya, berhenti, kirim, lalu offline.
  * Id pesan dicatat sebelum berangkat supaya gemanya tidak dikira balasan manusia (yang akan menjeda AI di chat itu).
  */
-export async function kirimSapaan(d: { numberId: number; sesi: string; alamat: string; kunci: string; teks: string }): Promise<string> {
-  await tidur(skala(800 + Math.round(Math.random() * 2_200)));
-  const lama = st.minMengetikMs ?? lamaMengetik(d.teks);
-  void mengetik(d.sesi, d.alamat, true);
-  await tidur(lama);
-  void mengetik(d.sesi, d.alamat, false);
-  const id = await kirimTeks(d.sesi, d.alamat, d.teks, (x) => ingat(st.terkirim, x, 500));
+export async function kirimSapaan(d: { numberId: number; sesi: string; alamat: string; kunci: string; teks: string; templat?: TemplatKirim | null }): Promise<string> {
+  let id: string;
+  if (d.templat) {
+    // Jalur resmi di luar jendela 24 jam: template Meta (tanpa ritme mengetik; Cloud API tidak punya presensi).
+    id = await kirimTemplat(d.sesi, d.alamat, d.templat, (x) => ingat(st.terkirim, x, 500));
+  } else {
+    await tidur(skala(800 + Math.round(Math.random() * 2_200)));
+    const lama = st.minMengetikMs ?? lamaMengetik(d.teks);
+    void mengetik(d.sesi, d.alamat, true);
+    await tidur(lama);
+    void mengetik(d.sesi, d.alamat, false);
+    id = await kirimTeks(d.sesi, d.alamat, d.teks, (x) => ingat(st.terkirim, x, 500));
+  }
   const a = st.antre.get(d.kunci);
   if (a) {
     a.balasanAkhir = d.teks;

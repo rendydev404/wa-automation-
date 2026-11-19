@@ -21,6 +21,49 @@ const PRODUK = { id: "44", nama: "Paket Hemat", harga: 25000, deskripsi: "Nasi +
 
 const NOMOR = { id: "12", label: "CS Toko", status: "terhubung", wa_id: "6281234567890", nama_wa: "Toko Maju", bot_aktif: true, dibuat: 1794200000 };
 
+const JALUR = {
+  nomor_id: "12",
+  jalur: "resmi",
+  kebijakan: "pilih",
+  phone_number_id: "109876543210987",
+  waba_id: "203040506070809",
+  nomor: "6281234567890",
+  nama: "Toko Maju",
+  kualitas: "GREEN",
+  tier: "TIER_1K",
+  status: "CONNECTED",
+  alasan: null,
+  webhook_url: "https://mesin-anda.com/api/wa/meta/Xk3p...",
+  verify_token: "vt_9QmZ...",
+  kuota: { terpakai: 37, batas: 1000 },
+};
+const TEMPLAT_WA = { nama: "prospek_lanjutan_1", bahasa: "id", kategori: "MARKETING", kode_tahap: "prospek_1", isi: "Halo {{nama}}, kemarin sempat tanya soal pesanan di {{usaha}}. Ada yang bisa kami bantu lagi?", status: "APPROVED", alasan: null, diperbarui: 1794200000 };
+const SETELAN_FU = { aktif: true, ulang_aktif: false, jam_mulai: 9, jam_selesai: 20, batas_harian: 10, jeda_panas_jam: 1, jeda_hangat_jam: 3, tahap2_jam: 24, tahap3_jam: 48, maks_tahap: 3, siklus_ulang_hari: 30 };
+const FOLLOWUP = {
+  nomor_id: "12",
+  jalur: "baileys",
+  setelan: SETELAN_FU,
+  status: { boleh: true, terhubung: true, tahan: null, rem: null, kirim_hari_ini: 2, batas_hari_ini: 10, sebab_batas: "setelan", sisa_kuota_ai: null, jumlah: { terkirim: 41, dibalas: 12, stop: 1, berjalan: 6 } },
+  rentang: { jam_mulai: { min: 0, maks: 23 }, jam_selesai: { min: 1, maks: 24 }, batas_harian: { min: 1, maks: 40 }, maks_tahap: { min: 1, maks: 3 } },
+};
+const ANTREAN_FU = {
+  jenis: "prospek",
+  kunci: "c_9f2a...",
+  status: "jalan",
+  tujuan: "6289876543210",
+  nama: "Budi",
+  minat: "hangat",
+  tahap: 1,
+  maks: 3,
+  jadwal: 1794286500,
+  diperbarui: 1794200100,
+  draf: "Kak Budi, paket hemat yang kemarin ditanyakan masih bisa dipesan ya. Mau dibantu sekalian?",
+  pesan: [{ teks: "Halo kak Budi, ada yang bisa kami bantu soal pesanannya?", pada: 1794200100, ack: 3 }],
+  dibalas: null,
+  alasan: null,
+  percakapan_id: "88",
+};
+
 export const ENDPOINT_DOK: EndpointDok[] = [
   {
     metode: "GET",
@@ -155,6 +198,51 @@ export const ENDPOINT_DOK: EndpointDok[] = [
     ringkas: { id: "Pesan masuk & dibalas bot per hari (?hari=1–90)", en: "Incoming & bot-replied messages per day (?hari=1–90)" },
     jawab: { nomor_id: "12", dari: "2026-11-04", sampai: "2026-11-10", total: { masuk: 412, dibalas: 380 }, data: [{ tanggal: "2026-11-10", masuk: 61, dibalas: 57 }] },
   },
+  { metode: "GET", jalur: "/nomor/{id}/jalur", fitur: "wa.resmi", ringkas: { id: "Jalur WhatsApp nomor (baileys/resmi), status Meta (kualitas, tier, kuota 24 jam), URL webhook", en: "A number's WhatsApp channel (baileys/resmi), Meta status (quality, tier, 24 h quota), webhook URL" }, jawab: JALUR },
+  {
+    metode: "PUT",
+    jalur: "/nomor/{id}/jalur",
+    fitur: "wa.resmi",
+    ringkas: {
+      id: "Pasang jalur resmi dengan aplikasi Meta & WABA Anda sendiri (lalu arahkan webhook Meta ke webhook_url), atau {jalur: \"baileys\"} untuk kembali ke QR. Token tidak pernah dikembalikan",
+      en: "Switch to the official channel with your own Meta app & WABA (then point the Meta webhook at webhook_url), or {jalur: \"baileys\"} to go back to QR. The token is never returned",
+    },
+    minta: { jalur: "resmi", phone_number_id: "109876543210987", waba_id: "203040506070809", token: "EAAG...", app_secret: "0123456789abcdef0123456789abcdef", pin: "123456" },
+    jawab: { jalur: "resmi", webhook_url: "https://mesin-anda.com/api/wa/meta/Xk3p...", verify_token: "vt_9QmZ...", nomor: "6281234567890", nama: "Toko Maju", peringatan: [] },
+  },
+  { metode: "GET", jalur: "/nomor/{id}/templat-wa", fitur: "wa.resmi", ringkas: { id: "Template pesan Meta milik WABA nomor (status APPROVED/PENDING/REJECTED)", en: "Meta message templates of the number's WABA (APPROVED/PENDING/REJECTED)" }, jawab: { data: [TEMPLAT_WA] } },
+  {
+    metode: "POST",
+    jalur: "/nomor/{id}/templat-wa",
+    fitur: "wa.resmi",
+    ringkas: { id: "Ajukan template ke Meta ({nama, isi, kode_tahap?, bahasa?}), atau {bawaan: true} untuk semua template follow-up bawaan", en: "Submit a template to Meta ({nama, isi, kode_tahap?, bahasa?}), or {bawaan: true} for all built-in follow-up templates" },
+    minta: { nama: "prospek_lanjutan_1", isi: "Halo {{nama}}, kemarin sempat tanya soal pesanan di {{usaha}}. Ada yang bisa kami bantu lagi?", kode_tahap: "prospek_1", bahasa: "id" },
+    jawab: { ...TEMPLAT_WA, status: "PENDING" },
+    status: 201,
+  },
+  { metode: "POST", jalur: "/nomor/{id}/templat-wa/sinkron", fitur: "wa.resmi", ringkas: { id: "Tarik ulang status semua template dari Meta", en: "Re-fetch every template's status from Meta" }, jawab: { data: [TEMPLAT_WA] } },
+  { metode: "DELETE", jalur: "/nomor/{id}/templat-wa/{nama}", fitur: "wa.resmi", ringkas: { id: "Hapus template dari Meta & daftar nomor", en: "Delete a template from Meta & the number" }, jawab: { ok: true } },
+  { metode: "GET", jalur: "/nomor/{id}/followup", fitur: "followup", ringkas: { id: "Setelan follow-up (prospek & order ulang), status hari ini (rem, kiriman, batas), jalur nomor", en: "Follow-up settings (leads & repeat orders), today's status (brake, sends, limit), the number's channel" }, jawab: FOLLOWUP },
+  {
+    metode: "PATCH",
+    jalur: "/nomor/{id}/followup",
+    fitur: "followup",
+    ringkas: { id: "Ubah setelan follow-up (hanya kolom yang dikirim; saklar dimatikan = antrean jenis itu dibatalkan)", en: "Update follow-up settings (only the fields sent; turning a switch off cancels that queue)" },
+    minta: { aktif: true, jam_mulai: 9, jam_selesai: 20, batas_harian: 10 },
+    jawab: FOLLOWUP,
+  },
+  { metode: "GET", jalur: "/nomor/{id}/followup/antrean", fitur: "followup", ringkas: { id: "Antrean & riwayat follow-up, terbaru dulu (?jenis=prospek|ulang, ?batas=1–100)", en: "Follow-up queue & history, newest first (?jenis=prospek|ulang, ?batas=1–100)" }, jawab: { data: [ANTREAN_FU] } },
+  {
+    metode: "PUT",
+    jalur: "/nomor/{id}/followup/antrean/{kunci}/draf",
+    fitur: "followup",
+    ringkas: { id: "Ganti draf pesan berikutnya (dikirim persis; tanpa tautan & kelangkaan palsu)", en: "Replace the next message draft (sent as is; no links or fake scarcity)" },
+    minta: { jenis: "prospek", teks: "Kak Budi, paket hemat yang kemarin ditanyakan masih bisa dipesan ya." },
+    jawab: { ok: true, jenis: "prospek", kunci: "c_9f2a..." },
+  },
+  { metode: "POST", jalur: "/nomor/{id}/followup/antrean/{kunci}/tulis-ulang", fitur: "followup", ringkas: { id: "AI menulis ulang draf pesan berikutnya (dihitung 1 balasan AI)", en: "AI rewrites the next message draft (counts as 1 AI reply)" }, minta: { jenis: "prospek" }, jawab: { jenis: "prospek", kunci: "c_9f2a...", draf: "Kak Budi, masih tertarik dengan paket hemat? Kami bantu siapkan ya." } },
+  { metode: "POST", jalur: "/nomor/{id}/followup/antrean/{kunci}/hentikan", fitur: "followup", ringkas: { id: "Hentikan follow-up satu chat di siklus ini", en: "Stop follow-up for one chat in this cycle" }, minta: { jenis: "prospek" }, jawab: { ok: true, jenis: "prospek", kunci: "c_9f2a..." } },
+  { metode: "POST", jalur: "/nomor/{id}/followup/lepas-rem", fitur: "followup", ringkas: { id: "Lepas rem follow-up nomor (dipasang otomatis saat ada tanda pembatasan WhatsApp)", en: "Release the number's follow-up brake (set automatically on WhatsApp restriction signals)" }, jawab: { ok: true, rem: null } },
   { metode: "POST", jalur: "/alat/cek-spam", fitur: "spam.cek", ringkas: { id: "Cek teks promosi judi online (tanpa AI)", en: "Check text for online gambling promos (no AI)" }, minta: { teks: "Slot gacor maxwin, depo 10rb..." }, jawab: { spam: true, skor: 7, alasan: "Promosi judi online (slot, gacor, maxwin, depo)" } },
 ];
 
@@ -169,4 +257,9 @@ export const EVENT_DOK: { jenis: string; ket: { id: string; en: string }; data: 
   { jenis: "nomor.qr", ket: { id: "QR baru untuk dipindai (±20 dtk sekali selama menunggu scan)", en: "New QR to scan (every ~20 s while waiting)" }, data: { qr: "2@AbC...", png: "iVBORw0KGgo..." } },
   { jenis: "nomor.status", ket: { id: "Status koneksi nomor berubah", en: "Number connection status changed" }, data: { status: "menunggu_qr" } },
   { jenis: "nomor.pairing", ket: { id: "Kode pairing baru (tautkan tanpa QR)", en: "New pairing code (link without QR)" }, data: { kode: "ABCD1234" } },
+  { jenis: "followup.terkirim", ket: { id: "Pesan follow-up terkirim (butuh fitur followup)", en: "A follow-up message was sent (needs the followup feature)" }, data: { nomor_id: "12", kunci: "c_9f2a...", jenis: "prospek", tahap: 1, bentuk: "teks", teks: "Halo kak Budi, ada yang bisa kami bantu soal pesanannya?" } },
+  { jenis: "followup.dibalas", ket: { id: "Pelanggan membalas follow-up (siklus berhenti)", en: "The customer replied to a follow-up (the cycle stops)" }, data: { nomor_id: "12", kunci: "c_9f2a...", jenis: "prospek" } },
+  { jenis: "followup.rem", ket: { id: "Follow-up nomor direm otomatis (tanda pembatasan WhatsApp); lepas lewat POST /nomor/{id}/followup/lepas-rem", en: "The number's follow-up was braked automatically (WhatsApp restriction signal); release via POST /nomor/{id}/followup/lepas-rem" }, data: { nomor_id: "12", alasan: "Perangkat dicabut dari HP" } },
+  { jenis: "templat.status", ket: { id: "Status template Meta berubah (butuh fitur wa.resmi)", en: "A Meta template's status changed (needs the wa.resmi feature)" }, data: { nomor_id: "12", nama: "prospek_lanjutan_1", status: "APPROVED", alasan: null } },
+  { jenis: "nomor.kualitas", ket: { id: "Kualitas / tier nomor resmi berubah di Meta (butuh fitur wa.resmi)", en: "An official number's quality / tier changed at Meta (needs the wa.resmi feature)" }, data: { nomor_id: "12", peristiwa: "DOWNGRADE", tier: "TIER_250", kualitas: "YELLOW" } },
 ];

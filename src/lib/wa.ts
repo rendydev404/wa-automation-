@@ -161,6 +161,8 @@ interface Keadaan {
   dimulai: boolean;
   timerJaga?: ReturnType<typeof setInterval> | null;
   timerDiag?: ReturnType<typeof setInterval> | null;
+  /** Jalur WhatsApp resmi (wa-resmi.ts) yang mendaftar sendiri; nomor miliknya tidak pernah memakai soket Baileys. */
+  luar?: JalurLuar | null;
   /** Khusus pengujian: ubah jeda mulai bergiliran & coba-ulang DB setelah diuji. */
   jedaMulaiMs?: number;
   jedaDbMs?: number;
@@ -180,6 +182,57 @@ const JEDA_DIGANTIKAN_MAKS_MS = 300_000;
 const DITOLAK_LAMBAT = 3;
 const JEDA_DITOLAK_MS = 15 * 60_000;
 const KODE = { keluar: 401, ditolak: 403, versiDitolak: 405, waktuHabis: 408, tidakCocok: 411, digantikan: 440, mulaiUlang: 515 } as const;
+
+/**
+ * Jalur lain untuk sebuah sesi (Cloud API resmi Meta, src/lib/wa-resmi.ts). wa-resmi.ts mendaftar lewat pasangJalurLuar
+ * saat dimuat; wa.ts tidak mengimpornya (tanpa impor melingkar). Semua fungsi ekspor di bawah memeriksa `luar(nama)`
+ * lebih dulu, jadi bridge.ts, follow-up, dan route API tidak perlu tahu jalur sebuah nomor.
+ */
+export interface JalurLuar {
+  punya(nama: string): boolean;
+  info(nama: string): SesiNomor;
+  kesehatan(nama: string): { stabilMs: number; bahaya: { pada: number; alasan: string } | null };
+  kirimTeks(nama: string, alamat: string, teks: string, padaId?: (id: string) => void, kutipId?: string | null): Promise<string>;
+  kirimGambar(nama: string, alamat: string, gambar: Buffer, mime: string, caption: string, padaId?: (id: string) => void): Promise<string>;
+  kirimDokumen(nama: string, alamat: string, dokumen: Buffer, mime: string, namaBerkas: string, caption: string, padaId?: (id: string) => void): Promise<string>;
+  kirimTemplat(nama: string, alamat: string, t: TemplatKirim, padaId?: (id: string) => void): Promise<string>;
+  tandaiDibaca(nama: string, ids: string[]): Promise<void>;
+  lepas(nama: string): Promise<void>;
+}
+export interface TemplatKirim {
+  nama: string;
+  bahasa: string;
+  variabel: Record<string, string>;
+}
+
+export function pasangJalurLuar(j: JalurLuar): void {
+  st.luar = j;
+}
+const luar = (nama: string): JalurLuar | null => (st.luar?.punya(nama) ? st.luar : null);
+const TIDAK_DIDUKUNG = (apa: string): WaError =>
+  new WaError(`${apa} tidak tersedia di jalur WhatsApp resmi (Cloud API).`, `${apa} is not available on the official WhatsApp (Cloud API) channel.`);
+
+/** Event dari jalur luar masuk ke jembatan lewat jalur yang sama dengan Baileys. */
+export function kabariDariLuar(ev: EventWa): Promise<void> {
+  return kabari(ev);
+}
+/** Status kiriman dari jalur luar (2/3/4, 0 = gagal) -> pemantau follow-up + bus peristiwa, sama seperti Baileys. */
+export function ackDariLuar(sesi: string, id: string, status: number): void {
+  pancarkan({ jenis: "pesan.status", sesi, waId: id, status });
+  try {
+    st.padaAck?.(sesi, id, status);
+  } catch {
+    // pemantau kiriman tidak boleh mengganggu event lain
+  }
+}
+/** Tanda bahaya dari jalur luar (kualitas turun, token dicabut) -> rem follow-up nomor itu. */
+export function bahayaDariLuar(sesi: string, alasan: string): void {
+  try {
+    st.padaBahaya?.(sesi, alasan);
+  } catch (e) {
+    console.warn(`[wa ${sesi}] penanda bahaya gagal:`, e instanceof Error ? e.message : e);
+  }
+}
 
 /** Pustaka dimuat saat pertama dibutuhkan, bukan saat server mulai atau saat build. */
 const baileys = (): Promise<Baileys> => (st.lib ??= import("baileys"));
@@ -351,6 +404,8 @@ function tandaiBahaya(s: Sesi, alasan: string): void {
  * tanda bahaya terakhir. Dari memori, tanpa I/O.
  */
 export function kesehatanSesi(nama: string): { stabilMs: number; bahaya: { pada: number; alasan: string } | null } {
+  const j = luar(nama);
+  if (j) return j.kesehatan(nama);
   const s = st.sesi.get(nama);
   if (!s) return { stabilMs: 0, bahaya: null };
   return { stabilMs: s.status === "WORKING" && s.terhubungPada ? Date.now() - s.terhubungPada : 0, bahaya: s.bahaya };
@@ -1287,6 +1342,8 @@ const KOSONG: SesiNomor = { status: "BELUM_ADA", waId: null, nama: null, alasan:
 
 /** Status sebuah sesi, dari memori. */
 export function infoSesi(nama: string): SesiNomor {
+  const j = luar(nama);
+  if (j) return j.info(nama);
   const s = st.sesi.get(nama);
   return s ? { status: s.status, waId: s.status === "WORKING" ? s.waId : null, nama: s.namaWa, alasan: s.alasan } : KOSONG;
 }
@@ -1296,6 +1353,7 @@ export function infoSesi(nama: string): SesiNomor {
  * Menunggu sebentar sampai keadaannya pasti, supaya QR sudah siap saat halaman pertama kali memintanya.
  */
 export async function hubungkan(nama: string): Promise<void> {
+  if (luar(nama)) return; // jalur resmi: tersambung lewat kredensial Meta, tanpa soket
   const s = sesiAtauBaru(nama);
   if (s.sock && s.status !== "FAILED" && s.status !== "STOPPED") {
     if (s.status === "STARTING") await Promise.race([new Promise<void>((r) => s.tunggu.push(r)), tidur(4_000)]);
@@ -1319,6 +1377,7 @@ export function kodePairing(nama: string): string | null {
  * (alternatif selain memindai QR, sama seperti "Tautkan dengan nomor telepon" di WhatsApp Web).
  */
 export async function mintaKodePairing(nama: string, nomorHp: string): Promise<string> {
+  if (luar(nama)) throw TIDAK_DIDUKUNG("Kode tautan");
   const digit = rapikanNomorWa(nomorHp);
   if (!digit) throw new WaError("Nomor WhatsApp tidak valid (contoh: 0812-3456-7890).", "Invalid WhatsApp number (example: +62 812-3456-7890).");
   const s = sesiAtauBaru(nama);
@@ -1411,6 +1470,8 @@ export async function matikanGerbang(batasMs = 20_000): Promise<void> {
 
 /** Keluarkan nomor dari sesi (unlink perangkat) dan buang kredensialnya. */
 export async function logout(nama: string): Promise<void> {
+  const j = luar(nama);
+  if (j) await j.lepas(nama);
   const s = st.sesi.get(nama);
   if (s) await putus(s, true);
   await hapusAuth(nama);
@@ -1452,6 +1513,8 @@ function aktif(nama: string): { s: Sesi; sock: WASocket } {
 
 export async function tandaiDibaca(nama: string, alamat: string, ids: string[]): Promise<void> {
   if (!ids.length) return;
+  const j = luar(nama);
+  if (j) return j.tandaiDibaca(nama, ids).catch(() => {});
   try {
     await aktif(nama).sock.readMessages(ids.map((id) => ({ remoteJid: alamat, id, fromMe: false })));
   } catch {
@@ -1465,6 +1528,7 @@ export async function tandaiDibaca(nama: string, alamat: string, ids: string[]):
  * selama AI menyusun balasan, lalu dikembalikan ke offline.
  */
 export function mengetik(nama: string, alamat: string, nyala: boolean): Promise<void> {
+  if (luar(nama)) return Promise.resolve(); // Cloud API: tanpa presensi "online/mengetik"
   const s = st.sesi.get(nama);
   if (!s) return Promise.resolve();
   if (nyala) {
@@ -1510,6 +1574,7 @@ export function mengetik(nama: string, alamat: string, nyala: boolean): Promise<
  * menyusun jawaban yang lama. Tanpa mengubah penghitung mengetik; diam bila sudah berhenti mengetik.
  */
 export function mengetikLagi(nama: string, alamat: string): void {
+  if (luar(nama)) return;
   const s = st.sesi.get(nama);
   if (!s || s.mengetik === 0) return;
   s.presensi = s.presensi
@@ -1525,6 +1590,8 @@ export function mengetikLagi(nama: string, alamat: string): void {
  */
 /** Kirim teks; `kutip` = pesan yang dibalas (tampil sebagai reply di WhatsApp). */
 export async function kirimTeks(nama: string, alamat: string, teks: string, padaId?: (id: string) => void, kutip?: WAMessage | null): Promise<string> {
+  const j = luar(nama);
+  if (j) return j.kirimTeks(nama, alamat, teks, padaId, kutip?.key?.id ?? null);
   const { sock } = aktif(nama);
   const B = await baileys();
   const id = B.generateMessageIDV2(sock.user?.id);
@@ -1536,6 +1603,8 @@ export async function kirimTeks(nama: string, alamat: string, teks: string, pada
 
 /** Kirim satu gambar (foto produk katalog) dengan keterangan; `padaId` seperti kirimTeks. */
 export async function kirimGambar(nama: string, alamat: string, gambar: Buffer, mime: string, caption: string, padaId?: (id: string) => void): Promise<string> {
+  const j = luar(nama);
+  if (j) return j.kirimGambar(nama, alamat, gambar, mime, caption, padaId);
   const { sock } = aktif(nama);
   const B = await baileys();
   const id = B.generateMessageIDV2(sock.user?.id);
@@ -1554,6 +1623,8 @@ export async function kirimDokumen(
   caption = "",
   padaId?: (id: string) => void,
 ): Promise<string> {
+  const j = luar(nama);
+  if (j) return j.kirimDokumen(nama, alamat, dokumen, mime, namaBerkas, caption, padaId);
   const { sock } = aktif(nama);
   const B = await baileys();
   const id = B.generateMessageIDV2(sock.user?.id);
@@ -1570,7 +1641,18 @@ export async function kirimDokumen(
  * Cek nomor HP terdaftar di WhatsApp (Developer API `kontak.cek`). Satu permintaan usync untuk semua nomor sekaligus;
  * pemanggil membatasi jumlahnya (cek massal = pola yang dicurigai WhatsApp). `digit` = nomor berawalan kode negara.
  */
+/** Kirim template pesan Meta yang sudah disetujui (hanya jalur resmi; dipakai follow-up di luar jendela 24 jam). */
+export async function kirimTemplat(nama: string, alamat: string, t: TemplatKirim, padaId?: (id: string) => void): Promise<string> {
+  const j = luar(nama);
+  if (!j) throw new WaError("Template hanya bisa dikirim lewat jalur WhatsApp resmi.", "Templates can only be sent on the official WhatsApp channel.");
+  return j.kirimTemplat(nama, alamat, t, padaId);
+}
+
+/** Jalur sebuah sesi saat ini (dari memori). */
+export const jalurSesi = (nama: string): "baileys" | "resmi" => (luar(nama) ? "resmi" : "baileys");
+
 export async function cekTerdaftar(nama: string, digit: string[]): Promise<Map<string, string | null>> {
+  if (luar(nama)) throw TIDAK_DIDUKUNG("Cek nomor WhatsApp");
   const { sock } = aktif(nama);
   const hasil = new Map<string, string | null>(digit.map((d) => [d, null]));
   if (!digit.length) return hasil;
@@ -1584,6 +1666,7 @@ export async function cekTerdaftar(nama: string, digit: string[]): Promise<Map<s
 
 /** Foto profil nomor yang terhubung (URL sementara dari WhatsApp), null bila tidak ada / disembunyikan. */
 export async function fotoProfilSendiri(nama: string): Promise<string | null> {
+  if (luar(nama)) return null;
   const { sock } = aktif(nama);
   const jid = sock.user?.id;
   if (!jid) return null;
@@ -1604,6 +1687,7 @@ export interface InfoGrupWa {
 
 /** Daftar grup WhatsApp yang diikuti nomor yang sedang terhubung (`GET /api/v1/nomor/{id}/grup`). */
 export async function daftarGrup(nama: string): Promise<InfoGrupWa[]> {
+  if (luar(nama)) throw TIDAK_DIDUKUNG("Grup WhatsApp");
   const { sock } = aktif(nama);
   if (typeof sock.groupFetchAllParticipating !== "function") return [];
   const peta = await denganBatas(sock.groupFetchAllParticipating(), 20_000, "mengambil daftar grup");

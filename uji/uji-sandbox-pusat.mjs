@@ -247,7 +247,7 @@ await cek("fitur per pengguna: sandbox diatur khusus hanya mendapat fitur piliha
   const fiturLisensi = async () => L.verifikasiLisensi(await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" })).fitur;
   const global = (await D.pengaturanApi()).fitur;
   assert.ok(global.includes("nomor") && global.includes("spam"));
-  assert.equal(L.verifikasiLisensi(await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" })).fitur_v, 2);
+  assert.equal(L.verifikasiLisensi(await D.kondisi({ key: keyB, id_instalasi: idA, versi: "1" })).fitur_v, 3);
   assert.deepEqual(await fiturLisensi(), global);
   await D.ubahSandbox(DV, sb.id, { fitur: ["nomor", "spam", "tidak-ada"] });
   assert.deepEqual(await fiturLisensi(), ["nomor", "spam"]);

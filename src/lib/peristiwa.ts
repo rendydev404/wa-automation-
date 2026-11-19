@@ -12,7 +12,13 @@ export type Peristiwa =
   | { jenis: "nomor.terputus"; sesi: string; kode: number | null; keluar: boolean }
   | { jenis: "nomor.qr"; sesi: string; qr: string }
   | { jenis: "nomor.pairing"; sesi: string; kode: string }
-  | { jenis: "lisensi.peringatan"; sisaDetik: number; berlakuSampai: number; status: string };
+  | { jenis: "lisensi.peringatan"; sisaDetik: number; berlakuSampai: number; status: string }
+  // Jalur WhatsApp resmi (wa-resmi.ts) & follow-up (followup-jalur.ts).
+  | { jenis: "templat.status"; numberId: number; nama: string; status: string; alasan: string | null }
+  | { jenis: "nomor.kualitas"; numberId: number; peristiwa: string; tier: string | null; kualitas: string | null }
+  | { jenis: "followup.terkirim"; numberId: number; kunci: string; jenisFollowup: string; tahap: number; bentuk: "teks" | "templat"; teks: string }
+  | { jenis: "followup.dibalas"; numberId: number; kunci: string; jenisFollowup: string }
+  | { jenis: "followup.rem"; numberId: number; alasan: string };
 
 type Pendengar = (p: Peristiwa) => void | Promise<void>;
 

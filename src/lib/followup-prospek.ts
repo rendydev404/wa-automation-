@@ -2,6 +2,7 @@ import "server-only";
 import { type Sql, db, getSetting, sekarang, setSetting } from "./db";
 import { bakukanTag, catatPakai, tanyaAi } from "./ai";
 import { formatWa, kirimSapaan } from "./bridge";
+import { TahanJalur, catatTerkirim, siapkanKiriman } from "./followup-jalur";
 import { ATURAN_LEWATI, GAYA_PESAN, type HasilSusun, ambilLewati } from "./followup-aman";
 import {
   BATAS_PESAN,
@@ -452,18 +453,23 @@ async function prosesSatu(b: BarisJalan, s: SetelanProspek, cs: Nomor): Promise<
   const tahap = (b.tahap + 1) as Tahap;
   const susun = b.draf ? { teks: b.draf } : await susunPesan(cs, c, tahap, b.minat, sebelumnyaDari(b));
   if ("lewati" in susun) return ubah(b.kunci, b.tahap > 0 ? "selesai" : "batal", `Dilewati AI: ${susun.lewati}`);
-  const teks = susun.teks;
   // Pemeriksaan terakhir: selagi AI menulis, ia bisa saja membalas.
   if (await masukSejak(c.id, b.siklus)) return ubah(b.kunci, b.tahap > 0 ? "dibalas" : "batal", b.tahap > 0 ? null : "Lawan bicara chat lagi sebelum follow-up", b.tahap > 0 ? sekarang() : undefined);
   if (infoSesi(cs.sesi).status !== "WORKING") return false;
 
   let id: string;
+  let teks = susun.teks;
   try {
-    id = await kirimSapaan({ numberId: cs.id, sesi: cs.sesi, alamat, kunci: c.kunci, teks });
+    // Jalur resmi di luar jendela 24 jam: template Meta (followup-jalur.ts); Baileys / di dalam jendela: teks AI.
+    const k = await siapkanKiriman(cs, c.kunci, teks, `prospek_${tahap}`, { nama: c.nama, usaha: MEREK });
+    teks = k.teks;
+    id = await kirimSapaan({ numberId: cs.id, sesi: cs.sesi, alamat, kunci: c.kunci, teks, templat: k.templat });
+    catatTerkirim(cs.id, c.kunci, "prospek", tahap, k);
   } catch (e) {
     const pesan = e instanceof Error ? e.message : String(e);
     console.warn(`[followup-prospek] gagal mengirim ke chat ${c.id}: ${pesan}`);
-    if (e instanceof WaError) await tunda(b.kunci, 1800, `Nomor CS tidak terhubung: ${pesan}`);
+    if (e instanceof TahanJalur) await tunda(b.kunci, 3600, pesan.slice(0, 200));
+    else if (e instanceof WaError) await tunda(b.kunci, 1800, `Nomor CS tidak terhubung: ${pesan}`);
     else if (sekarang() - b.jadwal > 2 * 86400) await ubah(b.kunci, "gagal", pesan.slice(0, 200));
     else await tunda(b.kunci, 3600, `Gagal mengirim, dicoba lagi: ${pesan.slice(0, 160)}`);
     return false;

@@ -16,6 +16,7 @@ import { KartuStat, Meter, Sparkline } from "@/components/stat";
 import { TestChat } from "@/components/test-chat";
 import { PanelKatalog } from "@/components/panel-katalog";
 import { PanelFollowup } from "@/components/panel-followup";
+import { PanelJalurResmi, PanelTemplatWa } from "@/components/panel-jalur";
 import { nomorCsChatGercep } from "@/lib/followup";
 import { daftarUsaha, statusUsaha } from "@/lib/followup-usaha";
 import { daftarProduk, katalogBoleh } from "@/lib/katalog";
@@ -211,8 +212,11 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             isi: (
               kunci("nomor", 
               <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-                <div className="min-w-0" data-tur="koneksi">
-                  <ConnectionCard id={nomor.id} />
+                <div className="min-w-0 space-y-6" data-tur="koneksi">
+                  {nomor.jalur !== "resmi" && <ConnectionCard id={nomor.id} />}
+                  <Suspense fallback={nomor.jalur === "resmi" ? <div aria-hidden className="card h-[360px] animate-denyut" /> : null}>
+                    <KartuJalur nomor={nomor} admin={admin} />
+                  </Suspense>
                 </div>
                 <LangkahMulai id={nomor.id} adaKnowledge={adaKnowledge} adaKuota={adaKuota} botAktif={!!nomor.bot_aktif && siap} />
               </div>
@@ -313,10 +317,17 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
             label: { id: "Follow-up", en: "Follow-up" },
             ikon: <Repeat aria-hidden />,
             isi: kunci(
-              "bot",
-              <Suspense fallback={<div aria-hidden className="card h-[520px] animate-denyut" />}>
-                <TabFollowup nomor={nomor} />
-              </Suspense>,
+              "followup",
+              <div className="space-y-6">
+                <Suspense fallback={<div aria-hidden className="card h-[520px] animate-denyut" />}>
+                  <TabFollowup nomor={nomor} />
+                </Suspense>
+                {nomor.jalur === "resmi" && (
+                  <Suspense fallback={<div aria-hidden className="card h-[420px] animate-denyut" />}>
+                    <TemplatNomor nomor={nomor} />
+                  </Suspense>
+                )}
+              </div>,
             ),
           },
           {
@@ -367,6 +378,28 @@ async function TabFollowup({ nomor }: { nomor: Nomor }) {
     );
   const [status, daftar] = await Promise.all([statusUsaha(nomor), daftarUsaha(nomor.id)]);
   return <PanelFollowup numberId={nomor.id} status={status} daftar={daftar} kini={sekarang()} />;
+}
+
+/**
+ * Kartu jalur WhatsApp resmi (Cloud API Meta) di tab Koneksi. Nomor Baileys milik pengguna biasa dengan kebijakan admin
+ * "Baileys saja" tidak memicu query apa pun selain membaca setelan (dari memo).
+ */
+async function KartuJalur({ nomor, admin }: { nomor: Nomor; admin: boolean }) {
+  if (!fiturBoleh("wa.resmi") && !admin) return null;
+  const { kebijakanJalur, statusResmi } = await import("@/lib/wa-resmi");
+  let boleh = admin;
+  if (!boleh && nomor.jalur !== "resmi" && (await kebijakanJalur()) !== "baileys") {
+    const { followupBoleh } = await import("@/lib/followup-usaha");
+    boleh = await followupBoleh(nomor.user_id);
+  }
+  if (!boleh && nomor.jalur !== "resmi") return null;
+  return <PanelJalurResmi numberId={nomor.id} awal={await statusResmi(nomor.id)} boleh={boleh} />;
+}
+
+/** Template Meta untuk follow-up di luar jendela 24 jam (hanya nomor resmi). */
+async function TemplatNomor({ nomor }: { nomor: Nomor }) {
+  const { daftarTemplat } = await import("@/lib/wa-resmi");
+  return <PanelTemplatWa numberId={nomor.id} awal={await daftarTemplat(nomor.id)} contohUsaha={nomor.nama_wa || nomor.label} />;
 }
 
 function Kerangka() {

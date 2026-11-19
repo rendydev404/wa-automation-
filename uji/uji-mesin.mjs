@@ -105,6 +105,13 @@ const rute = {
   templat: await lib("src/app/api/v1/templat-ai/route.ts"),
   templatSlug: await lib("src/app/api/v1/templat-ai/[slug]/route.ts"),
   cekSpam: await lib("src/app/api/v1/alat/cek-spam/route.ts"),
+  jalur: await lib("src/app/api/v1/nomor/[id]/jalur/route.ts"),
+  templatWa: await lib("src/app/api/v1/nomor/[id]/templat-wa/route.ts"),
+  followup: await lib("src/app/api/v1/nomor/[id]/followup/route.ts"),
+  followupAntrean: await lib("src/app/api/v1/nomor/[id]/followup/antrean/route.ts"),
+  followupDraf: await lib("src/app/api/v1/nomor/[id]/followup/antrean/[kunci]/draf/route.ts"),
+  followupHentikan: await lib("src/app/api/v1/nomor/[id]/followup/antrean/[kunci]/hentikan/route.ts"),
+  lepasRem: await lib("src/app/api/v1/nomor/[id]/followup/lepas-rem/route.ts"),
 };
 const sql = await db();
 
@@ -798,6 +805,69 @@ await cek("templat, cek spam, rapikan (penyedia mesin tanpa SOUL, token panjang)
   assert.equal(s.j.galat.kode, "ai_tidak_tersedia");
 });
 
+await cek("followup & wa.resmi: tertutup tanpa fitur; lisensi lama (bot) = putaran follow-up tetap boleh; jalur baileys; setelan PATCH sebagian", async () => {
+  const id = String(N1.id);
+  for (const r of [await rute.jalur.GET(minta(`/nomor/${id}/jalur`), ctx({ id })), await rute.followup.GET(minta(`/nomor/${id}/followup`), ctx({ id }))]) {
+    const x = await json(r);
+    assert.equal(x.status, 403);
+    assert.equal(x.j.galat.kode, "fitur_tidak_dibuka");
+  }
+  // Lisensi sebelum katalog v3: follow-up ikut `bot` (putaran tidak berhenti). Lisensi v3 tanpa `followup`: berhenti.
+  await kirimLisensi(tokenPusat(idMesin, { fitur_v: 2 }));
+  assert.equal(ML.fiturBoleh("followup"), true);
+  await kirimLisensi(tokenPusat(idMesin, { fitur_v: 3 }));
+  assert.equal(ML.fiturBoleh("followup"), false);
+  pusat.fitur = [...new Set([...pusat.fitur, "followup", "wa.resmi"])];
+  await kirimLisensi(tokenPusat(idMesin, { fitur_v: 3 }));
+  assert.equal(ML.fiturBoleh("followup"), true);
+
+  const j = await json(await rute.jalur.GET(minta(`/nomor/${id}/jalur`), ctx({ id })));
+  assert.equal(j.status, 200, JSON.stringify(j.j));
+  assert.equal(j.j.jalur, "baileys");
+  assert.equal(j.j.nomor_id, id);
+  assert.ok(!("token" in j.j) && !("app_secret" in j.j));
+  const salahJalur = await json(await rute.jalur.PUT(minta(`/nomor/${id}/jalur`, { metode: "PUT", body: { jalur: "resmi", phone_number_id: "abc" } }), ctx({ id })));
+  assert.equal(salahJalur.status, 400);
+  assert.equal(salahJalur.j.galat.kode, "isian_tidak_sah");
+  assert.equal((await rute.jalur.PUT(minta(`/nomor/${id}/jalur`, { metode: "PUT", body: { jalur: "lain" } }), ctx({ id }))).status, 400);
+  const tw = await json(await rute.templatWa.GET(minta(`/nomor/${id}/templat-wa`), ctx({ id })));
+  assert.deepEqual([tw.status, tw.j.data], [200, []]);
+  const twPost = await json(await rute.templatWa.POST(minta(`/nomor/${id}/templat-wa`, { metode: "POST", body: { bawaan: true } }), ctx({ id })));
+  assert.equal(twPost.j.galat.kode, "nomor_belum_terhubung");
+
+  const f = await json(await rute.followup.GET(minta(`/nomor/${id}/followup`), ctx({ id })));
+  assert.equal(f.status, 200, JSON.stringify(f.j));
+  assert.equal(f.j.jalur, "baileys");
+  assert.equal(f.j.setelan.aktif, false);
+  assert.equal(typeof f.j.status.batas_hari_ini, "number");
+  assert.deepEqual(f.j.rentang.batas_harian, { min: 1, maks: 40 });
+  for (const body of [{ batas_harian: 999 }, { aktif: "ya" }, { jam_mulai: 10, jam_selesai: 10 }, { maks_tahap: 1.5 }]) {
+    const x = await json(await rute.followup.PATCH(minta(`/nomor/${id}/followup`, { metode: "PATCH", body }), ctx({ id })));
+    assert.equal(x.status, 400, JSON.stringify(body));
+    assert.equal(x.j.galat.kode, "isian_tidak_sah");
+  }
+  const u = await json(await rute.followup.PATCH(minta(`/nomor/${id}/followup`, { metode: "PATCH", body: { aktif: true, batas_harian: 5 } }), ctx({ id })));
+  assert.equal(u.status, 200, JSON.stringify(u.j));
+  assert.deepEqual([u.j.setelan.aktif, u.j.setelan.batas_harian, u.j.setelan.ulang_aktif], [true, 5, false]);
+  const u2 = await json(await rute.followup.PATCH(minta(`/nomor/${id}/followup`, { metode: "PATCH", body: { jam_selesai: 18 } }), ctx({ id })));
+  assert.deepEqual([u2.j.setelan.aktif, u2.j.setelan.batas_harian, u2.j.setelan.jam_selesai], [true, 5, 18]);
+
+  const an = await json(await rute.followupAntrean.GET(minta(`/nomor/${id}/followup/antrean?jenis=prospek&batas=5`), ctx({ id })));
+  assert.equal(an.status, 200, JSON.stringify(an.j));
+  assert.ok(Array.isArray(an.j.data));
+  assert.equal((await rute.followupAntrean.GET(minta(`/nomor/${id}/followup/antrean?jenis=lain`), ctx({ id }))).status, 400);
+  const draf = await json(await rute.followupDraf.PUT(minta(`/nomor/${id}/followup/antrean/c_tidak_ada/draf`, { metode: "PUT", body: { jenis: "prospek", teks: "Halo kak, ada yang bisa kami bantu?" } }), ctx({ id, kunci: "c_tidak_ada" })));
+  assert.equal(draf.j.galat.kode, "isian_tidak_sah");
+  const henti = await json(await rute.followupHentikan.POST(minta(`/nomor/${id}/followup/antrean/c_tidak_ada/hentikan`, { metode: "POST", body: { jenis: "ulang" } }), ctx({ id, kunci: "c_tidak_ada" })));
+  assert.equal(henti.j.galat.kode, "isian_tidak_sah");
+  const rem = await json(await rute.lepasRem.POST(minta(`/nomor/${id}/followup/lepas-rem`, { metode: "POST" }), ctx({ id })));
+  assert.deepEqual(rem.j, { ok: true, rem: null });
+  // Dimatikan lagi supaya putaran follow-up tidak ikut mengirim di bagian uji berikutnya.
+  const mati = await json(await rute.followup.PATCH(minta(`/nomor/${id}/followup`, { metode: "PATCH", body: { aktif: false } }), ctx({ id })));
+  assert.equal(mati.j.setelan.aktif, false);
+  await kirimLisensi(tokenPusat(idMesin));
+});
+
 bagian("E. Antrean pesan keluar + anti-blokir + idempotensi");
 await cek("POST /pesan: 202 antre -> pekerja mengirim lewat WA -> terkirim (wa_id) -> centang biru = dibaca", async () => {
   const r = await json(await rute.pesan.POST(minta("/pesan", { metode: "POST", body: { nomor_id: N1.id, ke: "0822-2000-2222", teks: "Pesanan kakak siap diambil!" } })));
@@ -1039,6 +1109,36 @@ await cek("6 kali gagal = status gagal; kirim ulang manual mengantrekan lagi", a
   whGagal = false;
   assert.ok((await WH.kirimUlangGagal()) >= 1);
   await tunggu(async () => (await kirimWh(), (await sql`SELECT status FROM webhook_antrean WHERE id = ${a.id}`)[0].status === "terkirim"), 3000, "terkirim ulang");
+});
+
+await cek("event follow-up & jalur resmi: butuh fitur followup / wa.resmi selain pesan.terima; data snake_case + nomor_id", async () => {
+  const { pancarkan } = await lib("src/lib/peristiwa.ts");
+  const r = await json(await rute.webhook.PUT(minta("/webhook", { metode: "PUT", body: { url: `http://127.0.0.1:${portWh}/wh`, event: ["followup.terkirim", "followup.rem", "nomor.kualitas"] } })));
+  assert.equal(r.status, 200, JSON.stringify(r.j));
+  rahasiaWh = r.j.rahasia;
+  const awal = diterimaWh.length;
+  pancarkan({ jenis: "followup.terkirim", numberId: N1.id, kunci: "c_uji", jenisFollowup: "prospek", tahap: 1, bentuk: "teks", teks: "Halo kak" });
+  await tunggu(async () => (await kirimWh(), diterimaWh.slice(awal).some((x) => JSON.parse(x.body).jenis === "followup.terkirim")), 6000, "event followup.terkirim");
+  const e = diterimaWh.slice(awal).find((x) => JSON.parse(x.body).jenis === "followup.terkirim");
+  assert.ok(sahTanda(e));
+  assert.deepEqual(JSON.parse(e.body).data, { nomor_id: String(N1.id), kunci: "c_uji", jenis: "prospek", tahap: 1, bentuk: "teks", teks: "Halo kak" });
+  const hitung = async () => (await sql`SELECT count(*)::int AS n FROM webhook_antrean WHERE jenis IN ('followup.rem', 'nomor.kualitas')`)[0].n;
+  const picu = async () => {
+    pancarkan({ jenis: "followup.rem", numberId: N1.id, alasan: "uji" });
+    pancarkan({ jenis: "nomor.kualitas", numberId: N1.id, peristiwa: "DOWNGRADE", tier: "TIER_250", kualitas: "YELLOW" });
+    await tidur(50);
+    await WH.tulisBuffer();
+  };
+  const simpan = pusat.fitur;
+  pusat.fitur = simpan.filter((f) => f !== "followup" && f !== "wa.resmi");
+  await kirimLisensi(tokenPusat(idMesin, { fitur_v: 3 }));
+  const n0 = await hitung();
+  await picu();
+  assert.equal(await hitung(), n0); // fitur belum dibuka: tidak diantrekan
+  pusat.fitur = simpan;
+  await kirimLisensi(tokenPusat(idMesin));
+  await picu();
+  assert.equal(await hitung(), n0 + 2);
 });
 
 bagian("G. Kecepatan & rencana query");
