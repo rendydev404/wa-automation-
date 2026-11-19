@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { db, sekarang } from "../db";
 import { rapikanTujuanWa } from "../format";
+import { TANPA_BATAS, tanpaBatas } from "../api-def";
 import { modeMesin } from "../mode";
 import { type Nomor, nomorById } from "../numbers";
 import { dengar } from "../peristiwa";
@@ -148,7 +149,8 @@ export async function masukkanPesan(i: IsianPesan): Promise<PesanKeluar> {
     if (!grup && !tujuanNomorUji(ke)) throw new AntreanError("bukan_nomor_penguji", "Sandbox hanya boleh mengirim ke nomor penguji yang terverifikasi atau ke grup WhatsApp.");
   }
   const batas = lisensiSekarang()?.batas;
-  const maksBaru = batas?.kontak_baru_hari ?? 50;
+  // Nomor WhatsApp resmi (Cloud API): tanpa batas kontak baru dari kita (Meta membatasi lewat tier & template).
+  const maksBaru = i.nomor.jalur === "resmi" ? TANPA_BATAS : (batas?.kontak_baru_hari ?? 50);
   const kini = sekarang();
   const sql = await db();
   return sql.begin(async (tx) => {
@@ -163,7 +165,7 @@ export async function masukkanPesan(i: IsianPesan): Promise<PesanKeluar> {
       if (baru) {
         const [{ n }] = await tx<{ n: number }[]>`
           SELECT COUNT(*)::int AS n FROM pesan_keluar WHERE number_id = ${i.nomor.id} AND kontak_baru AND dibuat >= ${awalHariWib(kini)}`;
-        if (n >= maksBaru)
+        if (!tanpaBatas(maksBaru) && n >= maksBaru)
           throw new AntreanError("ditolak_anti_blokir", `Batas ${maksBaru} kontak baru per hari untuk nomor ini sudah tercapai. Kirim ke kontak yang sudah pernah chat, atau coba besok.`);
       }
     }
@@ -238,7 +240,11 @@ export async function putaranAntrean(): Promise<number> {
     const maks = lisensiSekarang()?.batas.pesan_menit ?? 20;
     const nomor = await sql<{ number_id: number }[]>`SELECT DISTINCT number_id FROM pesan_keluar WHERE status = 'antre'`;
     const kiniMs = Date.now();
-    const kerja = nomor.filter((n) => !st.sibuk.has(n.number_id) && bolehKirim(n.number_id, maks, kiniMs)).map((n) => kirimBerikut(n.number_id));
+    // Nomor resmi (Cloud API): tanpa batas per menit & tanpa jeda acak dari kita (Meta: 80 mps, galat 130429 dicoba ulang).
+    const resmi = new Set((await Promise.all(nomor.map((n) => nomorById(n.number_id)))).filter((n) => n?.jalur === "resmi").map((n) => n!.id));
+    const kerja = nomor
+      .filter((n) => !st.sibuk.has(n.number_id) && bolehKirim(n.number_id, resmi.has(n.number_id) || tanpaBatas(maks) ? Infinity : maks, kiniMs))
+      .map((n) => kirimBerikut(n.number_id));
     terkirim = (await Promise.all(kerja)).filter(Boolean).length;
   } finally {
     st.jalan = false;
@@ -266,7 +272,7 @@ async function kirimBerikut(numberId: number): Promise<boolean> {
     const alamat = p.ke.endsWith("@g.us") ? p.ke : `${p.ke}@s.whatsapp.net`;
     const mulai = Date.now();
     st.jejak.set(numberId, [...(st.jejak.get(numberId) ?? []), mulai]);
-    st.berikut.set(numberId, mulai + jedaAcak());
+    st.berikut.set(numberId, mulai + (nomor.jalur === "resmi" ? 0 : jedaAcak()));
     try {
       let waId: string;
       if (p.isi.dokumen) {

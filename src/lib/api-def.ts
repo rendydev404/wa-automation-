@@ -114,15 +114,33 @@ export const RENTANG_BATAS: Record<keyof BatasApi, { min: number; maks: number; 
   instalasi: { min: 1, maks: 20, label: "Maks instalasi mesin", satuan: "mesin" },
 };
 
-/** Lengkapi batas tersimpan (jsonb) dengan nilai bawaan & potong ke rentang sah. */
+/**
+ * Nilai "tanpa batas". Sengaja angka besar, bukan null: mesin versi lama membaca `batas.x ?? bawaan`, jadi null akan
+ * jatuh ke bawaan kecil; angka besar dibaca sebagai batas yang tidak pernah tercapai.
+ */
+export const TANPA_BATAS = 1_000_000;
+export const tanpaBatas = (v: number | null | undefined): boolean => typeof v === "number" && v >= TANPA_BATAS;
+/**
+ * Batas yang boleh "tanpa batas" diatur developer internal. pesan_menit & kontak_baru_hari adalah pengaman anti-blokir
+ * untuk nomor scan QR (Baileys); nomor WhatsApp resmi (Cloud API) selalu tanpa batas dari kita karena Meta sudah
+ * membatasi sendiri (tier & throughput), lihat mesin/antrean.ts.
+ */
+export const BATAS_BOLEH_TANPA: readonly (keyof BatasApi)[] = ["nomor", "instalasi", "pesan_menit", "kontak_baru_hari"];
+export const BATAS_ANTI_BLOKIR: readonly (keyof BatasApi)[] = ["pesan_menit", "kontak_baru_hari"];
+
+/** Lengkapi batas tersimpan (jsonb) dengan nilai bawaan & potong ke rentang sah ("tanpa batas" dipertahankan). */
 export function rapikanBatas(b: Partial<Record<keyof BatasApi, unknown>> | null | undefined): BatasApi {
   const hasil = { ...BATAS_BAWAAN };
   for (const k of Object.keys(RENTANG_BATAS) as (keyof BatasApi)[]) {
     const v = Number(b?.[k]);
-    if (Number.isInteger(v)) hasil[k] = Math.min(Math.max(v, RENTANG_BATAS[k].min), RENTANG_BATAS[k].maks);
+    if (!Number.isInteger(v)) continue;
+    hasil[k] = v >= TANPA_BATAS && BATAS_BOLEH_TANPA.includes(k) ? TANPA_BATAS : Math.min(Math.max(v, RENTANG_BATAS[k].min), RENTANG_BATAS[k].maks);
   }
   return hasil;
 }
+
+/** Tampilan batas: angka, atau "Tanpa batas" / "Unlimited". */
+export const teksBatas = (v: number, en = false): string => (tanpaBatas(v) ? (en ? "Unlimited" : "Tanpa batas") : v.toLocaleString(en ? "en-US" : "id-ID"));
 
 // ---------- Sandbox ----------
 

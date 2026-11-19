@@ -44,8 +44,10 @@ export default async function Lisensi() {
             [t("Kontak baru (belum pernah chat) per nomor", "New contacts (never chatted) per number"), t(`${BATAS_BAWAAN.kontak_baru_hari}/hari, lebih dari itu 422 ditolak_anti_blokir`, `${BATAS_BAWAAN.kontak_baru_hari}/day, beyond that 422 ditolak_anti_blokir`)],
             [t("Balasan bot per chat", "Bot replies per chat"), t("Maks 10 per 10 menit, hanya chat pribadi, tampil \"mengetik\"", "Max 10 per 10 min, private chats only, shows \"typing\"")],
             [t("Nomor per mesin", "Numbers per engine"), t(`${BATAS_BAWAAN.nomor} (sandbox: 1)`, `${BATAS_BAWAAN.nomor} (sandbox: 1)`)],
+            [t("Nomor WhatsApp resmi (Cloud API)", "Official WhatsApp numbers (Cloud API)"), t("Tanpa batas per menit & kontak baru dari mesin; Meta membatasi lewat tier & template", "No per-minute or new-contact limit from the engine; Meta limits via tiers & templates")],
           ]}
         />
+        <Catatan>{t("Batas per aplikasi bisa berbeda dari bawaan (diatur saat persetujuan, termasuk \"tanpa batas\"); nilai yang berlaku ada di GET /status → lisensi.batas.", "Per-app limits may differ from the defaults (set on approval, including \"unlimited\"); the effective values are in GET /status → lisensi.batas.")}</Catatan>
         <Catatan jenis="awas">{t("Aturan anti-blokir tidak bisa dimatikan lewat API. Spam/blast dilarang dan bisa membuat lisensi dicabut.", "Anti-ban rules can't be turned off via the API. Spam/blasting is prohibited and may get the license revoked.")}</Catatan>
       </Bagian>
 

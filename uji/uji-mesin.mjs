@@ -896,6 +896,25 @@ await cek("anti-blokir: kontak baru per hari dibatasi (lisensi: 2) -> 422; konta
   assert.equal((await rute.pesan.POST(minta("/pesan", { metode: "POST", body: { nomor_id: N1.id, ke: "6283300000001", teks: "Halo 2" } }))).status, 202);
 });
 
+await cek("batas 'tanpa batas': tersimpan apa adanya; nomor WhatsApp resmi tidak terkena batas kontak baru walau jatah habis", async () => {
+  const def = await lib("src/lib/api-def.ts");
+  const b = def.rapikanBatas({ nomor: def.TANPA_BATAS, instalasi: 5_000_000, pesan_menit: 999, kontak_baru_hari: def.TANPA_BATAS });
+  assert.deepEqual(b, { nomor: def.TANPA_BATAS, instalasi: def.TANPA_BATAS, pesan_menit: 60, kontak_baru_hari: def.TANPA_BATAS });
+  assert.equal(def.teksBatas(def.TANPA_BATAS), "Tanpa batas");
+  assert.equal(def.teksBatas(50), "50");
+  const n = (await globalThis.__waNomor.janji).perId.get(N1.id);
+  n.jalur = "resmi";
+  try {
+    const r = await json(await rute.pesan.POST(minta("/pesan", { metode: "POST", body: { nomor_id: N1.id, ke: "6283300000009", teks: "Halo resmi" } })));
+    assert.equal(r.status, 202, JSON.stringify(r.j));
+    await sql`DELETE FROM pesan_keluar WHERE id = ${Number(r.j.id)}`;
+  } finally {
+    n.jalur = "baileys";
+  }
+  const lagi = await json(await rute.pesan.POST(minta("/pesan", { metode: "POST", body: { nomor_id: N1.id, ke: "6283300000010", teks: "Halo" } })));
+  assert.equal(lagi.j.galat.kode, "ditolak_anti_blokir", "nomor scan QR tetap dibatasi");
+});
+
 await cek("grup WhatsApp: GET /nomor/{id}/grup mendaftar grup, POST /pesan ke ID grup (@g.us) terkirim ke JID grup & tidak menghabiskan jatah kontak baru", async () => {
   const id = String(N1.id);
   const daftar = await json(await rute.grup.GET(minta(`/nomor/${id}/grup`), ctx({ id })));

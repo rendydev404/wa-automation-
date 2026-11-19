@@ -5,7 +5,7 @@ import { KeyRound, Unplug } from "lucide-react";
 import { cabutKunciAction, lepasInstalasiStafAction, setujuiAction, simpanPengaturanApiAction, tolakAction, ubahAplikasiAction, ubahStatusAction } from "@/app/actions-developer";
 import { PilihOpsi } from "@/components/pilih-opsi";
 import { Pesan, SubmitButton, TombolKonfirmasi } from "@/components/ui";
-import { BATAS_BAWAAN, type BatasApi, type BiayaAplikasi, type BiayaEfektif, type FiturApi, RENTANG_BATAS, fiturPerGrup } from "@/lib/api-def";
+import { BATAS_ANTI_BLOKIR, BATAS_BAWAAN, type BatasApi, type BiayaAplikasi, type BiayaEfektif, type FiturApi, RENTANG_BATAS, TANPA_BATAS, fiturPerGrup, tanpaBatas } from "@/lib/api-def";
 
 const PILIHAN_BIAYA = [
   { id: "ikut_umum", label: "Ikut pengaturan umum" },
@@ -110,18 +110,13 @@ export function FormKeputusan({
       <fieldset>
         <legend className="label">Batas</legend>
         <div className="mt-1 grid gap-3 sm:grid-cols-2">
-          {(Object.keys(RENTANG_BATAS) as (keyof BatasApi)[]).map((k) => {
-            const r = RENTANG_BATAS[k];
-            return (
-              <div key={k}>
-                <label htmlFor={`batas-${k}-${id}`} className="text-[12.5px] font-semibold text-muted">
-                  {r.label} <span className="font-normal">({r.min}–{r.maks.toLocaleString("id-ID")})</span>
-                </label>
-                <input id={`batas-${k}-${id}`} name={`batas_${k}`} type="number" min={r.min} max={r.maks} defaultValue={batas[k] ?? BATAS_BAWAAN[k]} className="field mt-1" />
-              </div>
-            );
-          })}
+          {(Object.keys(RENTANG_BATAS) as (keyof BatasApi)[]).map((k) => (
+            <KolomBatas key={k} k={k} id={id} awal={batas[k] ?? BATAS_BAWAAN[k]} />
+          ))}
         </div>
+        <p className="mt-2 text-[12px] text-faint">
+          Nomor WhatsApp resmi (Cloud API) selalu tanpa batas pesan per menit & kontak baru dari kita, karena Meta sudah membatasinya sendiri. Batas itu hanya berlaku untuk nomor scan QR.
+        </p>
       </fieldset>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <SubmitButton>{mode === "setujui" ? "Setujui pengajuan" : "Simpan & kirim ke mesin"}</SubmitButton>
@@ -247,5 +242,34 @@ export function FormPengaturanApi({ biaya, harga }: { biaya: BiayaEfektif; harga
         <SubmitButton>Simpan pengaturan</SubmitButton>
       </div>
     </form>
+  );
+}
+
+/** Satu kolom batas: angka dalam rentang, atau "Tanpa batas" (pesan per menit & kontak baru diberi peringatan). */
+function KolomBatas({ k, id, awal }: { k: keyof BatasApi; id: number; awal: number }) {
+  const r = RENTANG_BATAS[k];
+  const [tanpa, setTanpa] = useState(tanpaBatas(awal));
+  const antiBlokir = BATAS_ANTI_BLOKIR.includes(k);
+  return (
+    <div>
+      <label htmlFor={`batas-${k}-${id}`} className="text-[12.5px] font-semibold text-muted">
+        {r.label} <span className="font-normal">({r.min}–{r.maks.toLocaleString("id-ID")})</span>
+      </label>
+      {tanpa ? (
+        <>
+          <input type="hidden" name={`batas_${k}`} value={TANPA_BATAS} />
+          <div className="field mt-1 flex items-center text-muted">Tanpa batas</div>
+        </>
+      ) : (
+        <input id={`batas-${k}-${id}`} name={`batas_${k}`} type="number" min={r.min} max={r.maks} defaultValue={tanpaBatas(awal) ? BATAS_BAWAAN[k] : awal} className="field mt-1" />
+      )}
+      <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-[12.5px]">
+        <input type="checkbox" checked={tanpa} onChange={(e) => setTanpa(e.target.checked)} className="accent-[var(--color-accent)]" />
+        Tanpa batas
+      </label>
+      {tanpa && antiBlokir && (
+        <p className="mt-1 text-[12px] text-warning">Pengaman anti-blokir nomor scan QR mati: kirim massal ke kontak baru bisa membuat nomor developer diblokir WhatsApp.</p>
+      )}
+    </div>
   );
 }

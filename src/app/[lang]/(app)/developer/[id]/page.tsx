@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowRight, ChevronRight, Download, FileText, Server } from "lucide-react";
 import Link from "@/components/link";
-import { RENTANG_BATAS, type BatasApi, labelFitur } from "@/lib/api-def";
+import { RENTANG_BATAS, type BatasApi, labelFitur, teksBatas } from "@/lib/api-def";
 import { teksHalaman } from "@/lib/bahasa-halaman";
 import { aplikasiMilikById, biayaEfektif, daftarInstalasi, daftarKunci, hargaEfektif, pengaturanApi, statusLisensi } from "@/lib/developer-api";
 import { angka, tanggal, waktuSingkatWib } from "@/lib/format";
@@ -281,7 +281,7 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                 {(Object.keys(RENTANG_BATAS) as (keyof BatasApi)[]).map((k) => (
                   <div key={k} className="flex justify-between gap-3">
                     <dt className="text-muted">{b === "en" ? LABEL_BATAS_EN[k] : RENTANG_BATAS[k].label}</dt>
-                    <dd className="font-semibold tabular-nums">{angka(a.batas[k], b)}</dd>
+                    <dd className="font-semibold tabular-nums">{teksBatas(a.batas[k], b === "en")}</dd>
                   </div>
                 ))}
               </dl>

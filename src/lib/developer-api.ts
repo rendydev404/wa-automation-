@@ -29,6 +29,7 @@ import {
   fiturSah,
   labelFitur,
   rapikanBatas,
+  teksBatas,
 } from "./api-def";
 import { type Tx, db, getSetting, sekarang, setSetting, transaksi } from "./db";
 import { emailTerkonfigurasi, htmlEmail, kirimEmail } from "./email";
@@ -541,7 +542,7 @@ export async function setujui(pelaku: User, id: number, k: Keputusan): Promise<v
     void kirimEmail({
       ke: a.email,
       judul: `Pengajuan Developer API ${a.nama} disetujui - ${MEREK}`,
-      teks: `Halo ${sapaan},\n\nPengajuan aplikasi Developer API "${a.nama}" Anda telah disetujui.\nFitur dibuka: ${daftarFitur}\nBiaya: ${teksBiaya}\nBatas: maks ${d.batas.nomor} nomor per mesin · ${d.batas.instalasi} instalasi mesin\n\nLangkah berikutnya: buka portal Developer untuk membuat API key lalu pasang mesin ${MEREK} di server Anda.${url ? `\n${url}` : ""}`,
+      teks: `Halo ${sapaan},\n\nPengajuan aplikasi Developer API "${a.nama}" Anda telah disetujui.\nFitur dibuka: ${daftarFitur}\nBiaya: ${teksBiaya}\nBatas: maks ${teksBatas(d.batas.nomor)} nomor per mesin · ${teksBatas(d.batas.instalasi)} instalasi mesin\n\nLangkah berikutnya: buka portal Developer untuk membuat API key lalu pasang mesin ${MEREK} di server Anda.${url ? `\n${url}` : ""}`,
       html: htmlEmail({
         pratinjau: `Pengajuan "${a.nama}" disetujui. Buat API key Anda lalu pasang mesin ${MEREK} di server Anda.`,
         ikon: "cek",
@@ -558,7 +559,7 @@ export async function setujui(pelaku: User, id: number, k: Keputusan): Promise<v
           ["Domain mesin", a.alamat_mesin ?? "-"],
           ["Fitur dibuka", daftarFitur],
           ["Biaya", teksBiaya],
-          ["Batas mesin", `${d.batas.nomor} nomor · ${d.batas.instalasi} instalasi`],
+          ["Batas mesin", `${teksBatas(d.batas.nomor)} nomor · ${teksBatas(d.batas.instalasi)} instalasi`],
         ],
         tombol: url ? { teks: "Buka aplikasi & buat API key", url } : undefined,
         peringatan: {
