@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
-import { ArrowRight, Check, X } from "lucide-react";
+import { ArrowRight, Check, ShieldCheck, X } from "lucide-react";
 import { useBahasa } from "@/components/bahasa";
 import Link from "@/components/link";
 import { MASA_EN, MASA_ID } from "@/lib/jaminan-def";
@@ -14,13 +14,19 @@ import { MEREK } from "@/lib/merek";
  * muncul saat:
  *   - desktop: kursor keluar lewat tepi atas (menuju tab/tombol tutup), setelah beberapa detik di halaman;
  *   - HP: tombol Kembali ditekan (satu entri riwayat tambahan dipasang setelah interaksi pertama);
- *   - tutup tab / Ctrl+W / muat ulang: dialog bawaan browser dulu; bila pengunjung memilih tetap, modal ini menyusul.
- * Tautan & form di halaman tidak memicu apa pun.
+ *   - tutup tab / Ctrl+W / muat ulang: dialog bawaan browser dulu; bila pengunjung memilih tetap, modal ini menyusul;
+ *   - pindah tab / aplikasi (desktop & HP): modal menunggu saat pengunjung kembali ke tab ini, asal perginya cukup lama
+ *     (bukan sekadar kedip) dan bukan karena membuka tautan dari halaman ini (mis. tombol WhatsApp).
+ * Tautan & form di halaman tidak memicu apa pun. Semua pemicu baru aktif setelah JEDA_MS di halaman.
  */
 
 const KUNCI = "cg-tahan-keluar";
 const PENANDA = "__tahanKeluar";
 const JEDA_MS = 5000;
+/** Tab harus tersembunyi minimal selama ini supaya dihitung "pergi" (Alt+Tab sekilas tidak dihitung). */
+const PERGI_MIN_MS = 1500;
+/** Tab tersembunyi dalam rentang ini setelah klik tautan = membuka tautan itu, bukan kabur. */
+const SETELAH_KLIK_MS = 2000;
 
 const sudahTampil = () => {
   try {
@@ -58,11 +64,14 @@ export function TahanKeluar({ harga, kedua }: { harga: ReactNode; kedua: { href:
     const mulai = Date.now();
     let pergiSah = false;
     let riwayatTerpasang = false;
+    let klikTautanTerakhir = 0;
+    let tersembunyiSejak = 0;
 
     // Klik tautan / kirim form = pindah halaman yang disengaja: jangan dihalangi dialog bawaan browser.
     const klik = (e: MouseEvent) => {
       const a = (e.target as Element | null)?.closest?.("a");
       if (!a) return;
+      klikTautanTerakhir = Date.now();
       const href = a.getAttribute("href") ?? "";
       // Jangkar di halaman yang sama: gulir tanpa menambah riwayat, supaya tombol Kembali tetap berarti "keluar".
       if (href.startsWith("#") && href.length > 1 && !e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
@@ -94,6 +103,19 @@ export function TahanKeluar({ harga, kedua }: { harga: ReactNode; kedua: { href:
       munculkan();
     };
 
+    // Pindah tab/aplikasi: browser tidak mengizinkan apa pun tampil di tab lain, jadi tawaran menunggu saat kembali.
+    const gantiTab = () => {
+      const sekarang = Date.now();
+      if (document.visibilityState === "hidden") {
+        const bukaTautan = sekarang - klikTautanTerakhir < SETELAH_KLIK_MS;
+        tersembunyiSejak = pergiSah || bukaTautan || sekarang - mulai < JEDA_MS ? 0 : sekarang;
+        return;
+      }
+      const pergi = tersembunyiSejak;
+      tersembunyiSejak = 0;
+      if (pergi && sekarang - pergi >= PERGI_MIN_MS) munculkan();
+    };
+
     const pasangRiwayat = () => {
       if (riwayatTerpasang || !matchMedia("(pointer: coarse)").matches) return;
       riwayatTerpasang = true;
@@ -111,6 +133,7 @@ export function TahanKeluar({ harga, kedua }: { harga: ReactNode; kedua: { href:
     document.addEventListener("mouseout", keluarAtas);
     window.addEventListener("beforeunload", sebelumTutup);
     window.addEventListener("popstate", kembali);
+    document.addEventListener("visibilitychange", gantiTab);
     // Riwayat tambahan hanya saat interaksi yang dihitung browser sebagai aktivasi pengguna (ketuk/klik/tombol, bukan
     // gulir): entri yang dipasang tanpa aktivasi dilompati tombol Kembali oleh Chrome.
     window.addEventListener("pointerup", pasangRiwayat, { once: true, passive: true });
@@ -121,6 +144,7 @@ export function TahanKeluar({ harga, kedua }: { harga: ReactNode; kedua: { href:
       document.removeEventListener("mouseout", keluarAtas);
       window.removeEventListener("beforeunload", sebelumTutup);
       window.removeEventListener("popstate", kembali);
+      document.removeEventListener("visibilitychange", gantiTab);
       window.removeEventListener("pointerup", pasangRiwayat);
       window.removeEventListener("keydown", pasangRiwayat);
     };
@@ -153,23 +177,32 @@ export function TahanKeluar({ harga, kedua }: { harga: ReactNode; kedua: { href:
         </button>
 
         <div className="relative">
-          <p className="text-[12.5px] font-bold tracking-[0.08em] text-ink-signal uppercase">{t("Tunggu sebentar…", "Wait a second…")}</p>
+          <p className="text-[12.5px] font-bold tracking-[0.08em] text-ink-signal uppercase">{t("Tunggu dulu…", "Wait a moment…")}</p>
           <h2 id={`${id}-judul`} className="mt-2 pr-8 text-[22px] leading-tight font-extrabold tracking-tight text-white sm:text-[26px]">
-            {t("Malam ini, berapa pembeli yang kabur karena chat-nya telat dibalas?", "Tonight, how many buyers will walk away because their chat got a late reply?")}
+            {t(`Yakin nggak mau cobain ${MEREK}?`, `Sure you don't want to try ${MEREK}?`)}
           </h2>
           <p id={`${id}-isi`} className="mt-3 text-[14.5px] leading-relaxed text-ink-muted">
             {t(
-              `Pembeli yang tidak dibalas cepat langsung chat toko sebelah. ${MEREK} membalas WhatsApp Anda dalam hitungan detik, 24 jam, bahkan saat Anda tidur. Mulai `,
-              `Buyers who don't get a quick reply just message the shop next door. ${MEREK} answers your WhatsApp in seconds, 24/7, even while you sleep. From `,
+              "Chat WhatsApp pelanggan dibalas otomatis pakai AI, 24 jam tanpa istirahat, bahkan saat Anda tidur. Mulai ",
+              "Your customers' WhatsApp chats answered automatically by AI, 24/7 with no breaks, even while you sleep. From ",
             )}
             <b className="font-bold text-ink-fg">{harga}</b>
             {t(", jauh lebih hemat dari gaji admin.", ", far cheaper than paying an admin.")}
           </p>
+          <div className="mt-4 flex items-start gap-3 rounded-2xl border border-ink-signal/30 bg-ink-signal/10 px-4 py-3">
+            <ShieldCheck className="mt-0.5 size-5 shrink-0 text-ink-signal" aria-hidden />
+            <p className="text-[13.5px] leading-snug text-ink-fg">
+              <b className="block text-[14.5px] font-bold text-white">{t("Jaminan uang kembali 100%", "100% money-back guarantee")}</b>
+              {t(
+                `Kalau tidak sesuai harapan, ajukan dalam ${MASA_ID} dan uang Anda kembali utuh.*`,
+                `Not what you hoped for? Request it within ${MASA_EN} and get every rupiah back.*`,
+              )}
+            </p>
+          </div>
           <ul className="mt-4 space-y-2 text-[14px] text-ink-fg">
             {[
               t("Siap dalam hitungan menit: scan QR, isi info usaha, selesai", "Ready in minutes: scan a QR, add your business info, done"),
               t("Nomor dan HP tetap dipakai seperti biasa", "Keep using your number and phone as usual"),
-              t(`Tidak cocok? Uang kembali 100% dalam ${MASA_ID}*`, `Not a fit? 100% money back within ${MASA_EN}*`),
             ].map((x) => (
               <li key={x} className="flex items-start gap-2">
                 <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-ink-signal/15 text-ink-signal">
@@ -187,7 +220,7 @@ export function TahanKeluar({ harga, kedua }: { harga: ReactNode; kedua: { href:
               onClick={tutup}
               className="group inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-ink-signal px-5 py-3 text-center text-[15px] leading-snug font-bold text-ink shadow-[0_12px_40px_-12px_rgba(61,220,151,0.7)] transition-transform hover:-translate-y-0.5"
             >
-              {t("Ya, saya mau pelanggan dibalas otomatis", "Yes, I want my customers answered automatically")}
+              {t("Oke, saya mau cobain sekarang", "OK, I want to try it now")}
               <ArrowRight className="size-4 shrink-0 transition-transform group-hover:translate-x-0.5" aria-hidden />
             </Link>
             {kedua.luar ? (
@@ -204,7 +237,7 @@ export function TahanKeluar({ harga, kedua }: { harga: ReactNode; kedua: { href:
             </button>
           </div>
           <p className="mt-2 text-center text-[11.5px] text-ink-muted/80">
-            {t("*Pembayaran pertama lewat GoPay, ShopeePay, atau QRIS.", "*First payment made with GoPay, ShopeePay, or QRIS.")}
+            {t("*Syarat berlaku: pembayaran pertama lewat GoPay, ShopeePay, atau QRIS.", "*Terms apply: first payment made with GoPay, ShopeePay, or QRIS.")}
           </p>
         </div>
       </div>
