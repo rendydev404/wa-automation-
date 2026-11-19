@@ -11,7 +11,6 @@ import { Logo } from "@/components/logo";
 import { alasanSyarat, judulSyarat, syaratNomor } from "@/components/syarat-nomor";
 import { Kalkulator } from "@/components/landing/kalkulator";
 import { PendaftarLoop } from "@/components/landing/pendaftar-loop";
-import { TahanKeluar } from "@/components/landing/tahan-keluar";
 import { WidgetWaLanding } from "@/components/landing/widget-wa";
 import { type T, bahasaSah, pembuatT } from "@/lib/bahasa";
 import { teksHalaman } from "@/lib/bahasa-halaman";
@@ -494,14 +493,6 @@ export default async function Landing() {
       </footer>
 
       <WidgetWaLanding />
-      <TahanKeluar
-        harga={
-          <Suspense fallback={t("Rp67 ribu/30 hari", "Rp67,000/30 days")}>
-            <HargaMulai cadangan={t("Rp67 ribu/30 hari", "Rp67,000/30 days")} />
-          </Suspense>
-        }
-        kedua={{ href: "/panduan", label: t("Lihat dulu panduan bergambarnya", "See the illustrated guide first") }}
-      />
       <DataSitusLanding />
       <Suspense fallback={null}>
         <DataProdukLanding />

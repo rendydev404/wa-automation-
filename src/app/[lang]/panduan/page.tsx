@@ -6,7 +6,6 @@ import { IkonWhatsApp } from "@/components/ikon-whatsapp";
 import { KakiPerusahaan } from "@/components/kaki-perusahaan";
 import { HargaMulai } from "@/components/landing/harga";
 import { BilahKategori, TombolBagikan } from "@/components/landing/panduan-klien";
-import { TahanKeluar } from "@/components/landing/tahan-keluar";
 import { WidgetWaLanding } from "@/components/landing/widget-wa";
 import Link from "@/components/link";
 import { Logo } from "@/components/logo";
@@ -347,7 +346,6 @@ export default async function HalamanPanduan() {
       </footer>
 
       <WidgetWaLanding />
-      <TahanKeluar harga={hargaMulai} kedua={{ href: urlWaDemo, label: t("Tanya CS dulu lewat WhatsApp", "Ask us on WhatsApp first"), luar: true }} />
     </div>
   );
 }
