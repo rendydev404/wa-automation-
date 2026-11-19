@@ -8,50 +8,43 @@ import { MASA_EN, MASA_ID } from "@/lib/jaminan-def";
 import { MEREK } from "@/lib/merek";
 
 /**
- * Tawaran terakhir saat pengunjung mau meninggalkan halaman publik (landing, /panduan). Sekali per sesi tab.
+ * Tawaran terakhir saat pengunjung mau meninggalkan halaman publik (landing, /panduan).
  *
- * Browser tidak mengizinkan teks sendiri di dialog "Tinggalkan situs?", jadi teks persuasifnya ada di modal ini, yang
- * muncul saat:
- *   - desktop: kursor keluar lewat tepi atas (menuju tab/tombol tutup), setelah beberapa detik di halaman;
- *   - HP: tombol Kembali ditekan (satu entri riwayat tambahan dipasang setelah interaksi pertama);
- *   - tutup tab / Ctrl+W / muat ulang: dialog bawaan browser dulu; bila pengunjung memilih tetap, modal ini menyusul;
- *   - pindah tab / aplikasi (desktop & HP): modal menunggu saat pengunjung kembali ke tab ini, asal perginya cukup lama
- *     (bukan sekadar kedip) dan bukan karena membuka tautan dari halaman ini (mis. tombol WhatsApp).
- * Tautan & form di halaman tidak memicu apa pun. Semua pemicu baru aktif setelah JEDA_MS di halaman.
+ * Browser tidak mengizinkan apa pun tampil saat tab sedang ditutup atau sedang di tab lain, dan teks dialog
+ * "Tinggalkan situs?" tidak bisa diubah. Jadi modal ini muncul pada saat-saat paling dekat dengan "mau pergi":
+ *   - desktop: kursor keluar lewat tepi atas (menuju tab, bilah alamat, atau tombol tutup);
+ *   - pindah tab / aplikasi (desktop & HP): saat pengunjung kembali ke tab ini;
+ *   - HP: tombol Kembali ditekan (satu entri riwayat tambahan, dipasang lagi setelah tiap interaksi);
+ *   - tutup tab / Ctrl+W / muat ulang: dialog bawaan browser (hanya bila pengunjung pernah klik/ketuk/mengetik di
+ *     halaman; itu aturan browser), lalu modal ini menyusul bila pengunjung memilih tetap di halaman.
+ * Tidak dibatasi sekali per sesi: tiap kali pengunjung mau pergi, tawarannya muncul lagi. Supaya tidak berulang terus
+ * saat kursor masih di tepi atas, pemicu kursor diberi jeda setelah modal ditutup. Tautan & form di halaman (pindah
+ * halaman yang disengaja) tidak memicu apa pun.
  */
 
-const KUNCI = "cg-tahan-keluar";
 const PENANDA = "__tahanKeluar";
-const JEDA_MS = 5000;
-/** Tab harus tersembunyi minimal selama ini supaya dihitung "pergi" (Alt+Tab sekilas tidak dihitung). */
-const PERGI_MIN_MS = 1500;
-/** Tab tersembunyi dalam rentang ini setelah klik tautan = membuka tautan itu, bukan kabur. */
+/** Semua pemicu baru aktif setelah pengunjung sesaat di halaman (bukan langsung saat halaman terbuka). */
+const JEDA_MS = 2000;
+/** Tab harus tersembunyi minimal selama ini supaya dihitung "pergi" (kedip fokus sesaat tidak dihitung). */
+const PERGI_MIN_MS = 400;
+/** Tab tersembunyi dalam rentang ini setelah klik tautan = membuka tautan itu (mis. tombol WhatsApp), bukan pergi. */
 const SETELAH_KLIK_MS = 2000;
-
-const sudahTampil = () => {
-  try {
-    return sessionStorage.getItem(KUNCI) === "1";
-  } catch {
-    return false;
-  }
-};
-const tandaiTampil = () => {
-  try {
-    sessionStorage.setItem(KUNCI, "1");
-  } catch {}
-};
+/** Setelah modal ditutup, pemicu kursor-ke-atas diam sebentar (kursor biasanya masih di dekat tepi atas). */
+const JEDA_KURSOR_MS = 8000;
+/** Kursor dianggap menuju tab/tombol tutup bila keluar jendela pada jarak ini dari tepi atas. */
+const TEPI_ATAS_PX = 40;
 
 export function TahanKeluar({ harga, kedua }: { harga: ReactNode; kedua: { href: string; label: string; luar?: boolean } }) {
   const { t } = useBahasa();
   const id = useId();
   const ref = useRef<HTMLDialogElement>(null);
   const [buka, setBuka] = useState(false);
-  const tampil = useRef(false);
+  const terbuka = useRef(false);
+  const ditutupPada = useRef(0);
 
   const munculkan = useCallback(() => {
-    if (tampil.current || sudahTampil()) return;
-    tampil.current = true;
-    tandaiTampil();
+    if (terbuka.current) return;
+    terbuka.current = true;
     setBuka(true);
   }, []);
 
@@ -60,12 +53,12 @@ export function TahanKeluar({ harga, kedua }: { harga: ReactNode; kedua: { href:
   }, [buka]);
 
   useEffect(() => {
-    if (sudahTampil()) return;
     const mulai = Date.now();
     let pergiSah = false;
     let riwayatTerpasang = false;
     let klikTautanTerakhir = 0;
     let tersembunyiSejak = 0;
+    const baruBuka = () => Date.now() - mulai < JEDA_MS;
 
     // Klik tautan / kirim form = pindah halaman yang disengaja: jangan dihalangi dialog bawaan browser.
     const klik = (e: MouseEvent) => {
@@ -91,7 +84,7 @@ export function TahanKeluar({ harga, kedua }: { harga: ReactNode; kedua: { href:
     };
 
     const sebelumTutup = (e: BeforeUnloadEvent) => {
-      if (pergiSah || tampil.current || sudahTampil()) return;
+      if (pergiSah || baruBuka()) return;
       e.preventDefault();
       e.returnValue = "";
       // Pengunjung memilih "Tetap di sini": halaman masih hidup, tawaran menyusul.
@@ -99,7 +92,8 @@ export function TahanKeluar({ harga, kedua }: { harga: ReactNode; kedua: { href:
     };
 
     const keluarAtas = (e: MouseEvent) => {
-      if (e.relatedTarget || e.clientY > 8 || Date.now() - mulai < JEDA_MS) return;
+      if (e.relatedTarget || e.clientY > TEPI_ATAS_PX || baruBuka()) return;
+      if (Date.now() - ditutupPada.current < JEDA_KURSOR_MS) return;
       munculkan();
     };
 
@@ -108,7 +102,7 @@ export function TahanKeluar({ harga, kedua }: { harga: ReactNode; kedua: { href:
       const sekarang = Date.now();
       if (document.visibilityState === "hidden") {
         const bukaTautan = sekarang - klikTautanTerakhir < SETELAH_KLIK_MS;
-        tersembunyiSejak = pergiSah || bukaTautan || sekarang - mulai < JEDA_MS ? 0 : sekarang;
+        tersembunyiSejak = pergiSah || bukaTautan || baruBuka() ? 0 : sekarang;
         return;
       }
       const pergi = tersembunyiSejak;
@@ -116,6 +110,9 @@ export function TahanKeluar({ harga, kedua }: { harga: ReactNode; kedua: { href:
       if (pergi && sekarang - pergi >= PERGI_MIN_MS) munculkan();
     };
 
+    // HP: entri riwayat tambahan supaya tombol Kembali memunculkan tawaran, bukan langsung keluar. Dipasang lagi pada
+    // interaksi berikutnya setelah terpakai. Hanya saat interaksi yang dihitung browser sebagai aktivasi pengguna
+    // (ketuk/klik/tombol, bukan gulir): entri tanpa aktivasi dilompati tombol Kembali oleh Chrome.
     const pasangRiwayat = () => {
       if (riwayatTerpasang || !matchMedia("(pointer: coarse)").matches) return;
       riwayatTerpasang = true;
@@ -134,10 +131,8 @@ export function TahanKeluar({ harga, kedua }: { harga: ReactNode; kedua: { href:
     window.addEventListener("beforeunload", sebelumTutup);
     window.addEventListener("popstate", kembali);
     document.addEventListener("visibilitychange", gantiTab);
-    // Riwayat tambahan hanya saat interaksi yang dihitung browser sebagai aktivasi pengguna (ketuk/klik/tombol, bukan
-    // gulir): entri yang dipasang tanpa aktivasi dilompati tombol Kembali oleh Chrome.
-    window.addEventListener("pointerup", pasangRiwayat, { once: true, passive: true });
-    window.addEventListener("keydown", pasangRiwayat, { once: true, passive: true });
+    window.addEventListener("pointerup", pasangRiwayat, { passive: true });
+    window.addEventListener("keydown", pasangRiwayat, { passive: true });
     return () => {
       document.removeEventListener("click", klik, true);
       document.removeEventListener("submit", kirim, true);
@@ -158,7 +153,11 @@ export function TahanKeluar({ harga, kedua }: { harga: ReactNode; kedua: { href:
   return (
     <dialog
       ref={ref}
-      onClose={() => setBuka(false)}
+      onClose={() => {
+        terbuka.current = false;
+        ditutupPada.current = Date.now();
+        setBuka(false);
+      }}
       aria-labelledby={`${id}-judul`}
       aria-describedby={`${id}-isi`}
       onClick={(e) => e.target === e.currentTarget && tutup()}
