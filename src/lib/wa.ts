@@ -119,6 +119,20 @@ interface Sesi {
   bahaya: { pada: number; alasan: string } | null;
   /** 403 beruntun: WhatsApp menolak login (nomor dibatasi/diblokir). Dari DITOLAK_LAMBAT dan seterusnya jedanya panjang. */
   ditolak: number;
+  /** Tarik ulang seluruh buku telepon HP (snapshot app-state kontak) lewat soket yang sedang aktif; lihat tarikKontak. */
+  tarikKontak: (() => Promise<void>) | null;
+}
+
+/** Satu kontak buku telepon HP pemilik nomor (dari `contactAction` app-state WhatsApp). */
+export interface KontakWa {
+  /** Id kontak dari WhatsApp tanpa nomor perangkat: PN (`62...@s.whatsapp.net`) atau LID (`...@lid`). */
+  jid: string;
+  /** Digit nomor telepon bila diketahui. */
+  telepon: string | null;
+  /** LID kontak bila diketahui (`...@lid`). */
+  lid: string | null;
+  /** Nama yang disimpan pemilik di HP. */
+  nama: string | null;
 }
 
 interface Diag {
@@ -158,6 +172,8 @@ interface Keadaan {
   padaAck?: ((sesi: string, id: string, status: number) => void) | null;
   /** Tanda WhatsApp membatasi sebuah nomor (followup.ts menghentikan follow-up nomor itu). */
   padaBahaya?: ((sesi: string, alasan: string) => void) | null;
+  /** Kontak buku telepon HP dari sinkron app-state (kontak.ts menyimpannya bila fiturnya aktif). */
+  padaKontak?: ((sesi: string, daftar: KontakWa[]) => void) | null;
   dimulai: boolean;
   timerJaga?: ReturnType<typeof setInterval> | null;
   timerDiag?: ReturnType<typeof setInterval> | null;
@@ -385,6 +401,11 @@ export function padaBahaya(fn: (sesi: string, alasan: string) => void): void {
   st.padaBahaya = fn;
 }
 
+/** Penerima kontak buku telepon HP (kontak.ts). Dipanggil seketika, tanpa I/O di sini. */
+export function padaKontak(fn: (sesi: string, daftar: KontakWa[]) => void): void {
+  st.padaKontak = fn;
+}
+
 /**
  * WhatsApp memberi tanda membatasi nomor ini: perangkat dicabut (401 device_removed), login ditolak (403), atau pesan
  * ditolak karena akun dibatasi (error 463). Disimpan di memori dan diteruskan ke follow-up (berhenti + pemilik diberi
@@ -526,6 +547,7 @@ function sesiAtauBaru(nama: string): Sesi {
       terhubungPada: 0,
       bahaya: null,
       ditolak: 0,
+      tarikKontak: null,
     };
     st.sesi.set(nama, s);
   }
@@ -1156,7 +1178,51 @@ async function sambung(s: Sesi): Promise<void> {
     }
     for (const jid of chat) antre(s, async () => kabari({ jenis: "dibaca", sesi: s.nama, chat: await kanonik(B, sock, jid) }));
   });
+
+  // Buku telepon HP: WhatsApp mengirimnya sebagai `contactAction` di app-state (koleksi critical_unblock_low) saat
+  // tautan pertama, saat pemilik menambah/mengubah kontak di HP, dan saat ditarik ulang (s.tarikKontak). Nama profil
+  // (pushName) TIDAK lewat sini, jadi isinya memang kontak yang disimpan pemilik.
+  sock.ev.on("contacts.upsert", (daftar) => {
+    if (s.gen !== gen || !st.padaKontak) return;
+    const rapi: KontakWa[] = [];
+    for (const k of daftar) {
+      const jid = jidPolos(k.id);
+      if (!jid || !(B.isPnUser(jid) || B.isLidUser(jid))) continue;
+      const pn = B.isPnUser(jid) ? jid : jidPolos(k.phoneNumber);
+      const lid = B.isLidUser(jid) ? jid : jidPolos(k.lid);
+      rapi.push({ jid, telepon: pn && B.isPnUser(pn) ? digitWa(pn) || null : null, lid: lid && B.isLidUser(lid) ? lid : null, nama: k.name?.trim() || null });
+    }
+    if (!rapi.length) return;
+    try {
+      st.padaKontak(s.nama, rapi);
+    } catch (e) {
+      console.warn(`[wa ${s.nama}] penerima kontak gagal:`, e instanceof Error ? e.message : e);
+    }
+  });
+
+  // Snapshot penuh koleksi kontak: keadaan versi koleksi itu dibuang dulu, sehingga Baileys meminta snapshot dari v0
+  // dan memancarkan SEMUA kontak (keadaan yang masih ada membuat mutasi snapshot dilewati). Sama dengan pemulihan
+  // bawaan Baileys saat LTHash tidak cocok, jadi aman bagi koneksi. Antre di belakang sinkron yang sedang berjalan.
+  s.tarikKontak = async () => {
+    if (s.gen !== gen || typeof sock.resyncAppState !== "function") throw new WaError("Nomor sedang tidak tersambung.", "The number isn't connected.");
+    if (!auth.creds.myAppStateKeyId)
+      throw new WaError("WhatsApp di HP belum mengirim kunci sinkron. Buka WhatsApp di HP sebentar, lalu coba lagi.", "WhatsApp on the phone hasn't sent its sync key yet. Open WhatsApp on the phone for a moment, then try again.");
+    const sebelum = sinkronAktif?.janji;
+    const janji = (async () => {
+      await sebelum;
+      await auth.keys.set({ "app-state-sync-version": { critical_unblock_low: null } });
+      await sock.resyncAppState(["critical_unblock_low"], false);
+    })();
+    const ikut = janji.catch(() => {}).finally(() => {
+      if (sinkronAktif?.janji === ikut) sinkronAktif = null;
+    });
+    sinkronAktif = { janji: ikut, denganKunci: true };
+    await denganBatas(janji, 90_000, "menarik daftar kontak", "fetching the contact list");
+  };
 }
+
+/** JID tanpa nomor perangkat (`628..:5@s.whatsapp.net` -> `628..@s.whatsapp.net`); kosong bila bukan JID. */
+const jidPolos = (jid: string | null | undefined): string | null => (jid && jid.includes("@") ? jid.replace(/:\d+(?=@)/, "") : null);
 
 /** Kelima koleksi app-state WhatsApp (sama dengan ALL_WA_PATCH_NAMES Baileys): yang diminta WA Web saat tautan pertama. */
 const KOLEKSI_APP_STATE = ["critical_block", "critical_unblock_low", "regular_high", "regular_low", "regular"] as const satisfies readonly WAPatchName[];
@@ -1650,6 +1716,19 @@ export async function kirimTemplat(nama: string, alamat: string, t: TemplatKirim
 
 /** Jalur sebuah sesi saat ini (dari memori). */
 export const jalurSesi = (nama: string): "baileys" | "resmi" => (luar(nama) ? "resmi" : "baileys");
+
+/**
+ * Tarik ulang seluruh buku telepon HP nomor ini (lihat s.tarikKontak). Selesai setelah WhatsApp mengirim snapshot-nya;
+ * kontaknya sendiri tiba lewat padaKontak ±100 ms sesudahnya (event Baileys dibuffer). Jalur resmi tidak punya buku
+ * telepon: false.
+ */
+export async function tarikKontak(nama: string): Promise<boolean> {
+  if (luar(nama)) return false;
+  const s = st.sesi.get(nama);
+  if (!s?.sock || s.status !== "WORKING" || !s.tarikKontak) return false;
+  await s.tarikKontak();
+  return true;
+}
 
 export async function cekTerdaftar(nama: string, digit: string[]): Promise<Map<string, string | null>> {
   if (luar(nama)) throw TIDAK_DIDUKUNG("Cek nomor WhatsApp");

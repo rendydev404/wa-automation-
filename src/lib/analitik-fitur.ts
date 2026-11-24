@@ -34,6 +34,11 @@ const DAFTAR_FITUR = {
   "penyaring.prospek_matikan": "Matikan penyaring prospek",
   "penyaring.spam_nyalakan": "Nyalakan penyaring spam",
   "penyaring.spam_matikan": "Matikan penyaring spam",
+  "kontak.nyalakan": "Nyalakan: jangan balas kontak tersimpan",
+  "kontak.matikan": "Matikan: jangan balas kontak tersimpan",
+  "kontak.tetap_balas": "Pilih kontak yang tetap dibalas AI",
+  "kontak.batal_tetap": "Batalkan kontak yang tetap dibalas AI",
+  "kontak.perbarui": "Perbarui daftar kontak dari HP",
   "followup.setelan": "Ubah setelan follow-up nomor",
   "followup.nyalakan": "Nyalakan follow-up prospek nomor",
   "followup.ulang_nyalakan": "Nyalakan pengingat order ulang",
@@ -81,6 +86,7 @@ const DAFTAR_FITUR = {
   // ---------- Tur panduan ----------
   "tur.selesai_dashboard": "Selesaikan tur panduan dashboard",
   "tur.selesai_nomor": "Selesaikan tur panduan halaman nomor",
+  "tur.selesai_kontak": "Selesaikan panduan kontak tersimpan",
 
   // ---------- Langganan & afiliasi ----------
   "langganan.buat_tagihan": "Buat tagihan langganan",
@@ -185,6 +191,7 @@ export const GRUP_FITUR: Record<string, string> = {
   nomor: "Nomor",
   bot: "Balasan AI",
   penyaring: "Penyaring chat",
+  kontak: "Kontak tersimpan di HP",
   followup: "Follow-up pelanggan",
   jalur: "Jalur WhatsApp resmi",
   belajar: "Belajar dari balasan manusia",

@@ -966,6 +966,26 @@ const MIGRASI: string[] = [
   );
   CREATE INDEX kiriman_templat_pada_idx ON kiriman_templat (waba_id, pada);
   `,
+  // v40: AI tidak membalas kontak yang tersimpan di HP pemilik nomor (lihat kontak.ts). Bawaan MATI.
+  //   kontak_wa: buku telepon HP dari sinkron app-state WhatsApp (contactAction), hanya diisi selama fiturnya aktif.
+  //   `jid` = id kontak dari WhatsApp (PN atau LID); `telepon`/`lid` = dua cara pesan masuk dikenali.
+  //   `tetap_balas` = pengecualian yang dipilih pemilik: kontak tersimpan yang tetap dilayani AI.
+  `
+  ALTER TABLE numbers ADD COLUMN abaikan_kontak boolean NOT NULL DEFAULT false;
+
+  CREATE TABLE kontak_wa (
+    number_id    integer NOT NULL REFERENCES numbers(id) ON DELETE CASCADE,
+    jid          text NOT NULL,
+    telepon      text,
+    lid          text,
+    nama         text,
+    tetap_balas  boolean NOT NULL DEFAULT false,
+    diperbarui   bigint NOT NULL,
+    PRIMARY KEY (number_id, jid)
+  );
+  CREATE INDEX kontak_wa_tetap_idx ON kontak_wa (number_id) WHERE tetap_balas;
+  CREATE INDEX kontak_wa_lid_idx ON kontak_wa (number_id, lid) WHERE lid IS NOT NULL;
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;

@@ -356,10 +356,11 @@ export function susunTeksCg(d: DataCg, per: string): string {
         `- Katalog produk berfoto (maks ${angka(BATAS_KATALOG.produk)} produk, paket berbayar): AI mengirim foto, nama, dan harga produk saat diminta.`,
         "- AI hanya membalas chat yang masuk dan tidak pernah mengirim pesan duluan ke nomor lain. Untuk pesanan, bukti bayar, atau keluhan, AI merapikan datanya di chat itu lalu pemilik membalas langsung dari HP.",
         "- AI bisa melihat foto dari pelanggan dan menyaring spam (spam tidak memotong kuota). Ada juga penyaring prospek yang bisa dinyalakan per nomor supaya kuota tidak habis untuk chat iseng.",
+        "- Jangan balas kontak yang tersimpan di HP (bawaan mati, dinyalakan per nomor di tab Pengaturan): chat dari nomor yang disimpan di buku telepon HP (keluarga, teman, supplier) tidak dibalas AI dan dibalas pemilik sendiri, sedangkan nomor baru tetap dilayani AI. Pemilik bisa memilih kontak tersimpan yang tetap dibalas AI. Daftar kontak diambil otomatis dari WhatsApp di HP; hanya untuk nomor yang disambungkan lewat scan QR.",
         `- Histori percakapan tampil di dashboard dan disimpan ${UMUR_HISTORI_HARI} hari. Ada menu Uji bot untuk mencoba jawaban AI sebelum dipakai.`,
         "- Data tiap akun terpisah: nomor, Informasi Usaha, katalog, dan histori tidak bisa dilihat akun lain.",
       ],
-      "fitur, bisa apa, kelebihan, cara kerja, scan qr, sambung nomor, banyak nomor, informasi usaha, knowledge, pdf, upload, katalog, foto produk, pesanan, notifikasi, histori, riwayat chat, uji bot, spam, belajar, 24 jam, keamanan, data aman"
+      "fitur, bisa apa, kelebihan, cara kerja, scan qr, sambung nomor, banyak nomor, informasi usaha, knowledge, pdf, upload, katalog, foto produk, pesanan, notifikasi, histori, riwayat chat, uji bot, spam, belajar, 24 jam, keamanan, data aman, kontak tersimpan, kontak hp, keluarga, teman, chat pribadi, jangan dibalas, tidak dibalas, nomor tersimpan, pengecualian"
     )
   );
 

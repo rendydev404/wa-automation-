@@ -13,7 +13,7 @@ const JALUR = {
   // Alur WhatsApp <-> AI (termasuk follow-up nomor CS): sebagian besar menunggu timer jembatan (dipercepat lewat WA_SKALA_WAKTU).
   alur: { berkas: ["uji/uji-alur.mjs", "uji/uji-followup.mjs", "uji/uji-followup-prospek.mjs", "uji/uji-followup-usaha.mjs", "uji/uji-wa-resmi.mjs"], sekaligus: 2 },
   // CI: uji-alur dibagi 3 mesin per bagian (UJI_BAGIAN, seimbang menurut waktu) + follow-up sendiri. Tidak ikut tanpa --jalur.
-  "alur-1": { berkas: ["uji/uji-alur.mjs"], env: { UJI_BAGIAN: "B,C,D2,D3,D4,D5" }, sekaligus: 1, ci: true },
+  "alur-1": { berkas: ["uji/uji-alur.mjs"], env: { UJI_BAGIAN: "B,C,D2,D3,D4,D5,D7" }, sekaligus: 1, ci: true },
   "alur-2": { berkas: ["uji/uji-alur.mjs"], env: { UJI_BAGIAN: "D,E" }, sekaligus: 1, ci: true },
   "alur-3": { berkas: ["uji/uji-alur.mjs"], env: { UJI_BAGIAN: "D6,F,G" }, sekaligus: 1, ci: true },
   followup: { berkas: ["uji/uji-followup.mjs", "uji/uji-followup-prospek.mjs", "uji/uji-followup-usaha.mjs", "uji/uji-wa-resmi.mjs"], sekaligus: 1, ci: true },

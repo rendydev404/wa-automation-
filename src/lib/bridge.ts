@@ -8,6 +8,7 @@ import { MEREK } from "./merek";
 import { adaKnowledge, susunSistem } from "./knowledge";
 import { type KirimProduk, bahanKirim, captionProduk, daftarProduk, katalogBoleh, perluDaftar, teksKatalog } from "./katalog";
 import { type Nomor, catatStat, catatTerhubung, nomorBySesi } from "./numbers";
+import { kontakDiabaikan, kontakSaatTerhubung } from "./kontak";
 import { catatPesan, chatDipercaya, posisiPercakapan, riwayatUntukAi, tandaiBeli, tandaiMinat, tandaiProspek, tandaiSpam } from "./percakapan";
 import { buangSalamUlang } from "./gaya";
 import { alasanSpam, periksaSpam } from "./spam";
@@ -1041,6 +1042,7 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
 
   if (ev.jenis === "terhubung") {
     await catatTerhubung(nomor.id, ev.waId, ev.nama);
+    if (nomor.abaikan_kontak) kontakSaatTerhubung(nomor.id);
     return;
   }
 
@@ -1135,6 +1137,12 @@ export async function tanganiEvent(ev: EventWa): Promise<void> {
   const cs = st.kaitCs?.nomorCs();
   if (cs && telepon && cs.wa.has(telepon) && !cs.ids.has(nomor.id)) {
     console.info(`[bridge] pesan dari nomor CS ${MEREK} sesi=${sesi}: dicatat tanpa dibalas AI`);
+    return;
+  }
+  // Kontak yang tersimpan di HP pemilik (fitur "Jangan balas kontak tersimpan"): dicatat, tidak dibalas AI, kecuali
+  // kontak yang dipilih pemilik sebagai pengecualian. Cek dari peta di memori (kontak.ts), tanpa query per pesan.
+  if (nomor.abaikan_kontak && nomor.jalur !== "resmi" && (await kontakDiabaikan(nomor.id, telepon, ev.chat))) {
+    console.info(`[bridge] pesan dari kontak tersimpan sesi=${sesi}: dicatat tanpa dibalas AI`);
     return;
   }
 

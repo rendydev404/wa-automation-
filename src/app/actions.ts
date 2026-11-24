@@ -59,9 +59,10 @@ import { tanggal, uang } from "@/lib/format";
 import { GalatCustom, customTampil, periksaCustom, ringkasCustom, simpanPaketCustom } from "@/lib/paket-custom";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
 import { geserProduk, hapusProduk, katalogBoleh, setTersedia } from "@/lib/katalog";
-import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, type Nomor, hapusNomor, mulaiPercobaanTersambung, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringProspek, setSaringSpam, tambahNomor, ubahNomor } from "@/lib/numbers";
+import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, type Nomor, hapusNomor, mulaiPercobaanTersambung, nomorMilik, rapikanNomorWa, semuaNomor, setAbaikanKontak, setBelajar, setBotAktif, setSaringProspek, setSaringSpam, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { cekPassword, verifyPassword } from "@/lib/password";
 import { type ItemPelajaran, daftarPelajaran, hapusPelajaran } from "@/lib/pelajaran";
+import { type Kontak, type RingkasanKontak, daftarKontak, kontakBasi, ringkasanKontak, setTetapBalas, tarikUlangKontak } from "@/lib/kontak";
 import {
   PenggunaError,
   buatAkun,
@@ -831,6 +832,63 @@ export async function setSaringSpamAction(id: number, aktif: boolean): Promise<H
   return { ok: true };
 }
 
+// ---------- Jangan balas kontak yang tersimpan di HP ----------
+
+/** Nyalakan/matikan. Saat dinyalakan, daftar kontak HP ditarik dari WhatsApp di latar (statusnya lewat ringkasanKontakAction). */
+export async function setAbaikanKontakAction(id: number, aktif: boolean): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("bot"); if (kunci) return kunci; }
+  const user = await requireUser();
+  const { t } = await teksPermintaan();
+  const nomor = await nomorUntuk(user, id);
+  if (!nomor) return nomorTidakAda(t);
+  if (nomor.jalur === "resmi") return { ok: false, pesan: t("Fitur ini hanya untuk nomor yang tersambung lewat scan QR.", "This feature is only for numbers connected by scanning a QR code.") };
+  await setAbaikanKontak(id, aktif);
+  kontakBasi(id);
+  if (aktif) void tarikUlangKontak({ ...nomor, abaikan_kontak: true });
+  revalidatePath(`/nomor/${id}`);
+  catatFitur(user.id, aktif ? "kontak.nyalakan" : "kontak.matikan");
+  return { ok: true };
+}
+
+/** Jumlah kontak, pengecualian, dan status tarikan (dipanggil berkala selama tarikan berjalan). */
+export async function ringkasanKontakAction(id: number): Promise<RingkasanKontak | null> {
+  if (!fiturBoleh("bot")) return null;
+  const nomor = await nomorUntuk(await requireUser(), id);
+  return nomor ? ringkasanKontak(id) : null;
+}
+
+/** Cari kontak tersimpan (nama / nomor), atau hanya pengecualian (`tetap`). */
+export async function daftarKontakAction(id: number, cari: string, tetap: boolean, mulai: number): Promise<{ daftar: Kontak[]; adaLagi: boolean }> {
+  if (!fiturBoleh("bot")) return { daftar: [], adaLagi: false };
+  const nomor = await nomorUntuk(await requireUser(), id);
+  if (!nomor || typeof cari !== "string" || !Number.isInteger(mulai) || mulai < 0) return { daftar: [], adaLagi: false };
+  return daftarKontak(id, { cari, tetap: !!tetap, mulai });
+}
+
+/** Jadikan kontak tersimpan pengecualian (tetap dibalas AI), atau batalkan. */
+export async function setTetapBalasAction(id: number, jid: string, tetap: boolean): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("bot"); if (kunci) return kunci; }
+  const user = await requireUser();
+  const { t } = await teksPermintaan();
+  if (!(await nomorUntuk(user, id))) return nomorTidakAda(t);
+  if (typeof jid !== "string" || !jid.includes("@") || jid.length > 120) return { ok: false, pesan: t("Data tidak valid.", "Invalid data.") };
+  if (!(await setTetapBalas(id, jid, !!tetap))) return { ok: false, pesan: t("Kontak tidak ditemukan. Perbarui daftar kontak lalu coba lagi.", "Contact not found. Refresh the contact list and try again.") };
+  catatFitur(user.id, tetap ? "kontak.tetap_balas" : "kontak.batal_tetap");
+  return { ok: true };
+}
+
+/** Tarik ulang daftar kontak dari HP (mis. setelah menambah kontak banyak sekaligus). */
+export async function perbaruiKontakAction(id: number): Promise<Hasil> {
+  { const kunci = await fiturTerkunci("bot"); if (kunci) return kunci; }
+  const user = await requireUser();
+  const { t } = await teksPermintaan();
+  const nomor = await nomorUntuk(user, id);
+  if (!nomor) return nomorTidakAda(t);
+  void tarikUlangKontak(nomor);
+  catatFitur(user.id, "kontak.perbarui");
+  return { ok: true };
+}
+
 // ---------- Belajar dari balasan manusia ----------
 
 export async function setBelajarAction(id: number, aktif: boolean): Promise<Hasil> {
@@ -1126,14 +1184,14 @@ export async function adminAiAction(_lalu: Hasil | null, form: FormData): Promis
 
 // ---------- Tur panduan ----------
 
-const TUR_SAH = new Set(["dashboard", "nomor", "admin"]);
+const TUR_SAH = new Set(["dashboard", "nomor", "admin", "kontak"]);
 
 export async function selesaiTurAction(nama: string): Promise<void> {
   const user = await requireUser();
   if (!TUR_SAH.has(nama)) return;
   await tandaiTurSelesai(user.id, nama);
   // Tur panel admin tidak masuk analitik fitur (analitik mengukur perilaku pengguna, bukan admin).
-  if (nama !== "admin") catatFitur(user.id, nama === "nomor" ? "tur.selesai_nomor" : "tur.selesai_dashboard");
+  if (nama !== "admin") catatFitur(user.id, nama === "nomor" ? "tur.selesai_nomor" : nama === "kontak" ? "tur.selesai_kontak" : "tur.selesai_dashboard");
 }
 
 // ---------- Langganan & pembayaran ----------

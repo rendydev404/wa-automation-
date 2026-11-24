@@ -208,3 +208,97 @@ export const TUR_ADMIN: IsiTur = () => [
     isi: <p>Berapa pelanggan aktif di tiap paket dan berapa yang masih gratis: bahan untuk menentukan promo atau paket baru.</p>,
   },
 ];
+
+/**
+ * Panduan sorotan "Jangan balas kontak yang tersimpan di HP" (panel-kontak.tsx). Langkah yang bagiannya belum tampil
+ * (mis. fitur masih mati: belum ada daftar kontak) dilewati otomatis oleh tur.tsx.
+ */
+export const TUR_KONTAK: IsiTur = (t) => [
+  {
+    sasaran: "kontak-saklar",
+    judul: t("1. Nyalakan di sini", "1. Turn it on here"),
+    isi: (
+      <p>
+        {t(
+          "Sekali tekan, AI berhenti membalas chat dari nomor yang Anda simpan di buku telepon HP: keluarga, teman, supplier. Nomor baru tetap dilayani AI seperti biasa.",
+          "One tap and the AI stops replying to numbers saved in your phone's address book: family, friends, suppliers. New numbers are still served by the AI as usual."
+        )}
+      </p>
+    ),
+  },
+  {
+    sasaran: "kontak-cara",
+    judul: t("2. Siapa yang dibalas AI?", "2. Who does the AI reply to?"),
+    isi: (
+      <p>
+        {t(
+          "Nomor baru dibalas AI. Kontak tersimpan Anda balas sendiri. Kontak tersimpan yang Anda pilih tetap dibalas AI.",
+          "New numbers get AI replies. Saved contacts are yours to answer. Saved contacts you pick still get AI replies."
+        )}
+      </p>
+    ),
+  },
+  {
+    sasaran: "kontak-status",
+    judul: t("3. Daftar kontak terbaca otomatis", "3. Contacts are read automatically"),
+    isi: (
+      <>
+        <p>
+          {t(
+            "Daftar kontak diambil langsung dari WhatsApp di HP Anda, tanpa perlu mengunggah apa pun. Kontak baru yang Anda simpan ikut terbaca dalam beberapa detik.",
+            "The contact list comes straight from WhatsApp on your phone, nothing to upload. New contacts you save are picked up within seconds."
+          )}
+        </p>
+        <p>{t("Belum muncul? Tekan “Perbarui daftar”.", "Not showing yet? Tap “Refresh list”.")}</p>
+      </>
+    ),
+  },
+  {
+    sasaran: "kontak-cari",
+    judul: t("4. Cari kontak", "4. Find a contact"),
+    isi: (
+      <p>
+        {t(
+          "Ketik nama atau nomor HP (boleh diawali 08) untuk menemukan kontak dengan cepat.",
+          "Type a name or phone number (starting with 08 is fine) to find a contact quickly."
+        )}
+      </p>
+    ),
+  },
+  {
+    sasaran: "kontak-tetap-balas",
+    judul: t("5. Pilih yang tetap dibalas AI", "5. Pick who the AI still replies to"),
+    isi: (
+      <p>
+        {t(
+          "Punya pelanggan langganan yang nomornya Anda simpan tapi tetap ingin dilayani AI? Tekan “Tetap balas” di samping namanya.",
+          "Have a regular customer whose number you saved but still want the AI to serve? Tap “Keep replying” next to their name."
+        )}
+      </p>
+    ),
+  },
+  {
+    sasaran: "kontak-tetap",
+    judul: t("6. Daftar pengecualian Anda", "6. Your exceptions"),
+    isi: (
+      <p>
+        {t(
+          "Kontak pilihan Anda terkumpul di sini. Tekan ✕ bila AI tidak perlu membalasnya lagi.",
+          "Contacts you picked are collected here. Tap ✕ when the AI no longer needs to reply to them."
+        )}
+      </p>
+    ),
+  },
+  {
+    sasaran: "kontak-panduan",
+    judul: t("Masih bingung?", "Still unsure?"),
+    isi: (
+      <p>
+        {t(
+          "Buka “Panduan & pertanyaan umum” untuk jawaban lengkap, atau tekan tombol “Panduan” di pojok kartu ini untuk mengulang panduan ini kapan saja.",
+          "Open “Guide & FAQ” for full answers, or tap the “Guide” button in the corner of this card to replay this guide anytime."
+        )}
+      </p>
+    ),
+  },
+];

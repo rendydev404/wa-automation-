@@ -1496,6 +1496,97 @@ await cek("ujian malam berjalan pada pengalaman nomor; tombol 'Layani lagi' memb
 await sql`UPDATE numbers SET saring_prospek = false WHERE id = ${A.id}`;
 cacheNomorBasi();
 
+// =====================================================================================
+bagian("D7. Kontak tersimpan di HP tidak dibalas AI");
+const KT = await lib("src/lib/kontak.ts");
+const { setAbaikanKontak } = await lib("src/lib/numbers.ts");
+const jumlahKontak = async () => (await bridge.tulisTuntas(), (await sql`SELECT COUNT(*)::int AS n FROM kontak_wa WHERE number_id = ${A.id}`)[0].n);
+const KONTAK = [
+  { id: "6281234500001:3@s.whatsapp.net", name: "Budi Keluarga", lid: "555000901@lid" },
+  { id: "555000902@lid", name: "Sari Teman" },
+  { id: "6281234500003@s.whatsapp.net", name: "Andi Supplier" },
+  { id: "120363000000000009@g.us", name: "Grup" }, // bukan kontak pribadi: dibuang
+];
+
+await cek("fitur mati (bawaan): kontak dari HP tidak disimpan dan semua chat tetap dibalas", async () => {
+  assert.equal((await nomorById(A.id)).abaikan_kontak, false);
+  sA.pancar("contacts.upsert", KONTAK);
+  await tidur(200);
+  assert.equal(await jumlahKontak(), 0, "tidak menimbun buku telepon pemilik yang tidak memakai fiturnya");
+});
+
+await cek("fitur nyala: kontak tersimpan (lewat LID maupun nomor) dicatat tanpa dibalas; nomor baru tetap dibalas", async () => {
+  await setAbaikanKontak(A.id, true);
+  KT.kontakBasi(A.id);
+  sA.pancar("contacts.upsert", KONTAK);
+  await tunggu(async () => (await jumlahKontak()) === 3, 3000, "3 kontak tersimpan");
+  const [budi] = await sql`SELECT telepon, lid, nama FROM kontak_wa WHERE number_id = ${A.id} AND jid = '6281234500001@s.whatsapp.net'`;
+  assert.deepEqual({ ...budi }, { telepon: "6281234500001", lid: "555000901@lid", nama: "Budi Keluarga" }, "nomor perangkat dibuang, PN & LID tersimpan");
+  const n0 = hermes.panggilan.length;
+  const m0 = (await stat(A.id)).masuk;
+  tiba(sA, pesan("555000901@lid", "mas nanti pulang jam berapa?"));
+  tiba(sA, pesan("6281234500003@s.whatsapp.net", "stok ayam sudah dikirim ya"));
+  tiba(sA, pesan("555000902@lid", "otw ya"));
+  await tidur(1700);
+  assert.equal(hermes.panggilan.length, n0, "kontak tersimpan tidak memanggil AI");
+  assert.equal((await stat(A.id)).masuk, m0 + 3, "tetap dihitung sebagai pesan masuk");
+  assert.equal((await sql`SELECT COUNT(*)::int AS n FROM pesan_chat WHERE teks = 'stok ayam sudah dikirim ya'`)[0].n, 1, "tetap tercatat di histori");
+  tiba(sA, pesan("555000903@lid", "kak buka jam berapa?"));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000, "nomor yang tidak tersimpan tetap dijawab AI");
+});
+
+await cek("kontak pilihan pemilik (pengecualian) tetap dibalas AI; dibatalkan = diam lagi", async () => {
+  assert.equal(await KT.setTetapBalas(A.id, "6281234500001@s.whatsapp.net", true), true);
+  const r = await KT.ringkasanKontak(A.id);
+  assert.equal(r.total, 3);
+  assert.equal(r.tetap, 1);
+  const n0 = hermes.panggilan.length;
+  tiba(sA, pesan("555000901@lid", "kak mau pesan 2 porsi"));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000, "pengecualian dijawab AI");
+  await KT.setTetapBalas(A.id, "6281234500001@s.whatsapp.net", false);
+  tiba(sA, pesan("6281234500001@s.whatsapp.net", "yang tadi batal ya"));
+  await tidur(1700);
+  assert.equal(hermes.panggilan.length, n0 + 1, "setelah dibatalkan kembali diam (dikenali lewat nomor telepon)");
+});
+
+await cek("cari kontak (nama, 08xx) & daftar pengecualian; orang yang sama tidak tampil dua kali", async () => {
+  sA.pancar("contacts.upsert", [{ id: "555000901@lid", name: "Budi Keluarga" }]); // lidContactAction untuk orang yang sama
+  await tunggu(async () => (await jumlahKontak()) === 4, 3000, "baris LID ganda tersimpan");
+  assert.equal((await KT.daftarKontak(A.id)).daftar.length, 3, "baris LID-saja milik Budi disembunyikan");
+  assert.deepEqual((await KT.daftarKontak(A.id, { cari: "sari" })).daftar.map((k) => k.nama), ["Sari Teman"]);
+  assert.deepEqual((await KT.daftarKontak(A.id, { cari: "0812345000" })).daftar.map((k) => k.nama), ["Andi Supplier", "Budi Keluarga"]);
+  assert.deepEqual((await KT.daftarKontak(A.id, { cari: "100%_" })).daftar, [], "karakter LIKE di-escape");
+  await KT.setTetapBalas(A.id, "6281234500003@s.whatsapp.net", true);
+  assert.deepEqual((await KT.daftarKontak(A.id, { tetap: true })).daftar.map((k) => k.nama), ["Andi Supplier"]);
+});
+
+await cek("perbarui daftar: snapshot penuh dari WhatsApp, kontak yang dihapus di HP ikut terbuang", async () => {
+  sA.config.auth.creds.myAppStateKeyId = sA.config.auth.creds.myAppStateKeyId || "AAAAAQ==";
+  const asli = sA.resyncAppState;
+  sA.resyncAppState = async (k) => {
+    sA.resync = k;
+    sA.pancar("contacts.upsert", [KONTAK[0], KONTAK[1]]); // Andi (pengecualian) sudah dihapus dari HP
+  };
+  await sql`UPDATE kontak_wa SET diperbarui = diperbarui - 60 WHERE number_id = ${A.id}`; // baris lama: sebelum tarikan dimulai
+  const h = await KT.tarikUlangKontak(await nomorById(A.id));
+  sA.resyncAppState = asli;
+  assert.deepEqual(h, { ok: true });
+  assert.deepEqual(sA.resync, ["critical_unblock_low"]);
+  const sisa = (await sql`SELECT jid, tetap_balas FROM kontak_wa WHERE number_id = ${A.id} ORDER BY jid`).map((r) => [r.jid, r.tetap_balas]);
+  assert.deepEqual(sisa, [["555000901@lid", false], ["555000902@lid", false], ["6281234500001@s.whatsapp.net", false]], "kontak bernomor yang dihapus di HP hilang; baris LID-saja dibiarkan");
+  const n0 = hermes.panggilan.length;
+  tiba(sA, pesan("6281234500003@s.whatsapp.net", "halo kak, ada promo?"));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000, "kontak yang sudah dihapus dari HP dibalas lagi seperti nomor baru");
+});
+
+await cek("fitur dimatikan: kontak tersimpan kembali dibalas AI", async () => {
+  await setAbaikanKontak(A.id, false);
+  KT.kontakBasi(A.id);
+  const n0 = hermes.panggilan.length;
+  tiba(sA, pesan("555000901@lid", "test lagi"));
+  await tunggu(() => hermes.panggilan.length === n0 + 1, 4000, "dibalas setelah fitur mati");
+});
+
 bagian("E. Batas dan galat");
 
 // Tidak ada batas jumlah balasan per chat dan tidak ada sesi baru karena pelanggan diam lama:

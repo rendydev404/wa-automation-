@@ -11,6 +11,7 @@ import { KnowledgePanel } from "@/components/knowledge-panel";
 import { IkonKoneksi, LangkahMulai } from "@/components/langkah-mulai";
 import { TabNomor } from "@/components/tab-nomor";
 import { PanelPelajaran } from "@/components/panel-pelajaran";
+import { PanelKontak } from "@/components/panel-kontak";
 import { HapusNomor, LencanaTerhubung, NumberSettings, SaklarBot, SaklarSinkron } from "@/components/number-settings";
 import { KartuStat, Meter, Sparkline } from "@/components/stat";
 import { TestChat } from "@/components/test-chat";
@@ -28,6 +29,7 @@ import { BATAS_UTUH, daftarDokumen } from "@/lib/knowledge";
 import { type Nomor, statHarian, tanggalWib } from "@/lib/numbers";
 import { nomorUntuk } from "@/lib/akses";
 import { daftarPelajaran, jumlahPelajaran } from "@/lib/pelajaran";
+import { daftarKontak, ringkasanKontak } from "@/lib/kontak";
 import { ambilPesanPercakapan, daftarPercakapan, ringkasanPercakapan } from "@/lib/percakapan";
 import { statusMl } from "@/lib/prospek";
 import { requireUser } from "@/lib/session";
@@ -353,6 +355,9 @@ async function Isi({ params }: { params: Promise<{ id: string }> }) {
                     mlBoleh={fiturBoleh("ml")}
                   />
                 </div>
+                <Suspense fallback={<div aria-hidden className="card h-[360px] animate-denyut" />}>
+                  <KartuKontak nomor={nomor} turSudah={tur.includes("kontak")} />
+                </Suspense>
                 <HapusNomor id={nomor.id} />
               </div>
               )
@@ -394,6 +399,28 @@ async function KartuJalur({ nomor, admin }: { nomor: Nomor; admin: boolean }) {
   }
   if (!boleh && nomor.jalur !== "resmi") return null;
   return <PanelJalurResmi numberId={nomor.id} awal={await statusResmi(nomor.id)} boleh={boleh} />;
+}
+
+/**
+ * "Jangan balas kontak yang tersimpan di HP": dimuat terpisah (streaming). Nomor yang fiturnya belum pernah dinyalakan
+ * tidak punya baris kontak, jadi tiga query-nya hanya menyentuh indeks kosong.
+ */
+async function KartuKontak({ nomor, turSudah }: { nomor: Nomor; turSudah: boolean }) {
+  const resmi = nomor.jalur === "resmi";
+  const [ringkasan, tetap, semua] = await Promise.all([ringkasanKontak(nomor.id), daftarKontak(nomor.id, { tetap: true }), daftarKontak(nomor.id)]);
+  return (
+    <PanelKontak
+      key={`${nomor.abaikan_kontak}`}
+      numberId={nomor.id}
+      aktif={nomor.abaikan_kontak}
+      resmi={resmi}
+      ringkasan={ringkasan}
+      tetapAwal={tetap.daftar}
+      daftarAwal={semua.daftar}
+      adaLagiAwal={semua.adaLagi}
+      turSudah={turSudah}
+    />
+  );
 }
 
 /** Template Meta untuk follow-up di luar jendela 24 jam (hanya nomor resmi). */
