@@ -8,6 +8,7 @@ import { angka, uang, UMUR_HISTORI_HARI } from "@/lib/format";
 import { ringkasKanal } from "@/lib/harga";
 import { kursUsd } from "@/lib/kurs";
 import { aturanPercobaan, daftarPaket } from "@/lib/langganan";
+import { teksTrial, trialAktif } from "@/lib/percobaan-def";
 import { kanalAktif, pembayaranAktif } from "@/lib/gateway";
 import { customTampil, paketCustom, tautanCustom } from "@/lib/paket-custom";
 import { KartuCustom } from "../kartu-custom";
@@ -137,7 +138,11 @@ export async function HargaLanding() {
             </div>
             <div aria-hidden className="hidden h-24 w-px bg-white/25 lg:block" />
             <div className="text-[15px] leading-relaxed text-ink-fg sm:text-[16px]">
-              <p className="font-semibold text-white">{t("Coba langsung, tanpa trial.", "Try it right away, no trial needed.")}</p>
+              <p className="font-semibold text-white">
+                {trialAktif(gratis)
+                  ? t("Coba gratis dulu, lalu bayar tanpa risiko.", "Try it free first, then pay risk-free.")
+                  : t("Coba langsung, tanpa trial.", "Try it right away, no trial needed.")}
+              </p>
               <p>
                 {t(
                   `Jika dalam ${MASA_ID} pertama ChatGerCep tidak gercep atau tidak sesuai yang kami janjikan, `,
@@ -163,8 +168,8 @@ export async function HargaLanding() {
       <p className="text-center text-[13px] text-ink-muted md:col-span-2 xl:col-span-3">
         {gratis.balasan > 0 &&
           t(
-            `Coba gratis dulu: setiap akun baru mendapat ${angka(gratis.balasan)} balasan AI ${gratis.ulang === "bulanan" ? "per bulan" : gratis.hari > 0 ? `percobaan selama ${gratis.hari} hari` : "percobaan"} tanpa kartu kredit. `,
-            `Try it free first: every new account gets ${angka(gratis.balasan, b)} AI replies ${gratis.ulang === "bulanan" ? "every month" : gratis.hari > 0 ? `for a ${gratis.hari}-day trial` : "as a free trial"}, no credit card required. `,
+            `Coba gratis dulu: setiap akun baru mendapat ${teksTrial(gratis)}, tanpa kartu kredit. `,
+            `Try it free first: every new account gets ${teksTrial(gratis, "en")}, no credit card required. `,
           )}
         {midtrans && kanal.length > 0 && t(`Bayar lewat ${ringkasKanal(kanal)}.`, `Pay with ${ringkasKanal(kanal, "en")}.`)}
         {b === "en" && kurs ? ` Prices shown in USD; payment is charged in Indonesian rupiah (IDR).` : null}

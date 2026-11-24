@@ -49,6 +49,9 @@ export async function register() {
       // Notifikasi in-app: pengingat paket akan/sudah berakhir & pembersihan notifikasi lama, tiap jam.
       const { mulaiPengingat } = await import("@/lib/notifikasi");
       mulaiPengingat();
+      // Sapaan email untuk pembayaran paket yang tidak selesai, tiap 5 menit (tanpa WhatsApp: lihat sapa-bayar.ts).
+      const { mulaiSapaBayar } = await import("@/lib/sapa-bayar");
+      mulaiSapaBayar();
     }
     // Analitik perilaku pengguna: event di memori ditulis berkelompok tiap ~10 dtk & baris lama dihapus tiap 6 jam.
     const { mulaiAnalitik } = await import("@/lib/analitik");

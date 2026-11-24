@@ -32,8 +32,13 @@ import { KANAL_BAYAR, type KanalBayar } from "@/lib/harga";
 import { MASA_ID } from "@/lib/jaminan-def";
 
 const ULANG_PERCOBAAN = [
-  { nilai: "sekali", judul: "Sekali per akun", isi: "Free trial: dihitung sejak akun dibuat. Kuota habis atau masa percobaan lewat = AI berhenti sampai pengguna memilih paket." },
+  { nilai: "sekali", judul: "Sekali per akun", isi: "Free trial: kuota habis atau masa percobaan lewat = AI berhenti sampai pengguna memilih paket." },
   { nilai: "bulanan", judul: "Diperbarui tiap bulan", isi: "Kuota terisi lagi setiap tanggal 1 (WIB) selama akun belum berlangganan." },
+] as const;
+
+const MULAI_PERCOBAAN = [
+  { nilai: "tersambung", judul: "Saat nomor WhatsApp pertama tersambung", isi: "Disarankan. Hari trial tidak terbuang selama pengguna belum scan QR." },
+  { nilai: "daftar", judul: "Sejak akun dibuat", isi: "Hari trial langsung berjalan begitu akun terdaftar." },
 ] as const;
 
 export function FormPengaturan({
@@ -44,7 +49,7 @@ export function FormPengaturan({
 }: {
   buka: boolean;
   kuota: number;
-  percobaan: { balasan: number; ulang: "sekali" | "bulanan"; hari: number };
+  percobaan: { balasan: number; ulang: "sekali" | "bulanan"; hari: number; mulai: "tersambung" | "daftar"; perNomor: boolean };
   kurs: InfoKurs;
 }) {
   const [hasil, aksi, menyimpan] = useActionState(adminPengaturanAction, null);
@@ -53,6 +58,8 @@ export function FormPengaturan({
   const [balasan, setBalasan] = useState(String(percobaan.balasan));
   const [ulang, setUlang] = useState<"sekali" | "bulanan">(percobaan.ulang);
   const [hari, setHari] = useState(String(percobaan.hari));
+  const [mulaiTrial, setMulaiTrial] = useState<"tersambung" | "daftar">(percobaan.mulai);
+  const [perNomor, setPerNomor] = useState(percobaan.perNomor);
   const n = Number(balasan);
   const h = Number(hari);
   const sahBalasan = balasan.trim() !== "" && Number.isInteger(n) && n >= 0;
@@ -139,13 +146,43 @@ export function FormPengaturan({
                 required
                 className="field w-32"
               />
-              <span className="text-[13px] text-muted">hari sejak akun dibuat (0 = tanpa batas waktu)</span>
+              <span className="text-[13px] text-muted">hari (0 = tanpa batas waktu)</span>
+            </div>
+            <p className="mt-3 text-[12.5px] font-semibold">Masa percobaan mulai dihitung</p>
+            <div role="radiogroup" aria-label="Masa percobaan mulai dihitung" className="mt-1.5 grid gap-2">
+              {MULAI_PERCOBAAN.map((o) => (
+                <label
+                  key={o.nilai}
+                  className={`flex cursor-pointer gap-2.5 rounded-xl border p-3 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent ${
+                    mulaiTrial === o.nilai ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong"
+                  }`}
+                >
+                  <input type="radio" name="kuota_percobaan_mulai" value={o.nilai} checked={mulaiTrial === o.nilai} onChange={() => setMulaiTrial(o.nilai)} className="bulat mt-0.5" />
+                  <span>
+                    <span className="block text-[13px] font-semibold">{o.judul}</span>
+                    <span className="mt-0.5 block text-[12px] leading-snug text-muted">{o.isi}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="mt-3 flex items-start justify-between gap-4 rounded-xl border border-line p-3">
+              <div>
+                <p className="text-[13px] font-semibold">Satu free trial per nomor WhatsApp</p>
+                <p className="mt-0.5 text-[12px] leading-snug text-muted">
+                  Akun baru yang menyambungkan nomor yang sudah pernah dipakai akun lain tidak mendapat trial, supaya trial tidak diulang dengan daftar akun baru.
+                </p>
+              </div>
+              <Saklar aktif={perNomor} onUbah={setPerNomor} label="Satu free trial per nomor WhatsApp" />
             </div>
           </div>
         ) : (
           // Mode bulanan tidak memakai masa percobaan; nilainya tetap disimpan apa adanya.
-          <input type="hidden" name="kuota_percobaan_hari" value={hari} />
+          <>
+            <input type="hidden" name="kuota_percobaan_hari" value={hari} />
+            <input type="hidden" name="kuota_percobaan_mulai" value={mulaiTrial} />
+          </>
         )}
+        <input type="hidden" name="kuota_percobaan_per_nomor" value={perNomor ? "ya" : "tidak"} />
         <p className="hint" aria-live="polite">
           {!sahBalasan
             ? "Isi jumlah balasan dengan angka bulat 0 atau lebih."
@@ -155,7 +192,7 @@ export function FormPengaturan({
                 ? "Tanpa kuota gratis: AI hanya membalas untuk akun yang berlangganan."
                 : ulang === "bulanan"
                   ? `Akun tanpa paket mendapat ${n.toLocaleString("id-ID")} balasan AI setiap bulan. Berlaku langsung untuk semua akun tanpa paket.`
-                  : `Akun tanpa paket mendapat ${n.toLocaleString("id-ID")} balasan AI${h > 0 ? ` yang berlaku ${h} hari sejak akun dibuat` : ", tanpa batas waktu"}; habis atau lewat masanya = harus memilih paket. Berlaku langsung untuk semua akun tanpa paket.`}
+                  : `Akun tanpa paket mendapat ${n.toLocaleString("id-ID")} balasan AI${h > 0 ? ` yang berlaku ${h} hari sejak ${mulaiTrial === "daftar" ? "akun dibuat" : "nomor WhatsApp pertamanya tersambung"}` : ", tanpa batas waktu"}; habis atau lewat masanya = harus memilih paket.${perNomor ? " Satu trial per nomor WhatsApp." : ""} Berlaku langsung untuk semua akun tanpa paket.`}
         </p>
       </fieldset>
       <KursInfo info={kurs} />

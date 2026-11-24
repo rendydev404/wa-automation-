@@ -30,10 +30,15 @@ export async function KartuLangganan({ tautan = false }: { tautan?: boolean }) {
           <p className="text-[12.5px] font-semibold text-muted">{t("Paket sekarang", "Current plan")}</p>
           <p className="mt-1 text-2xl font-bold">{t("Belum ada paket aktif", "No active plan")}</p>
           <p className="mt-1 text-[13px] text-muted">
-            {t(
-              `AI belum membalas pelanggan. Sambungkan nomor, isi Informasi Usaha, lalu pilih paket supaya AI mulai membalas. Pembayaran pertama lewat GoPay, ShopeePay, atau QRIS dilindungi jaminan uang kembali ${MASA_ID}.`,
-              `The AI isn't replying to customers yet. Connect your number, add Business Info, then pick a plan so the AI starts replying. A first payment with GoPay, ShopeePay, or QRIS is covered by a ${MASA_EN_ADJ} money-back guarantee.`,
-            )}
+            {hak.percobaanDitolak
+              ? t(
+                  `Nomor WhatsApp Anda sudah pernah memakai free trial di akun lain, jadi akun ini tanpa trial. Pilih paket supaya AI mulai membalas. Pembayaran pertama lewat GoPay, ShopeePay, atau QRIS dilindungi jaminan uang kembali ${MASA_ID}.`,
+                  `Your WhatsApp number has already used a free trial on another account, so this account has no trial. Pick a plan so the AI starts replying. A first payment with GoPay, ShopeePay, or QRIS is covered by a ${MASA_EN_ADJ} money-back guarantee.`,
+                )
+              : t(
+                  `AI belum membalas pelanggan. Sambungkan nomor, isi Informasi Usaha, lalu pilih paket supaya AI mulai membalas. Pembayaran pertama lewat GoPay, ShopeePay, atau QRIS dilindungi jaminan uang kembali ${MASA_ID}.`,
+                  `The AI isn't replying to customers yet. Connect your number, add Business Info, then pick a plan so the AI starts replying. A first payment with GoPay, ShopeePay, or QRIS is covered by a ${MASA_EN_ADJ} money-back guarantee.`,
+                )}
           </p>
         </div>
         <div className="flex flex-col justify-between gap-4">
@@ -65,7 +70,9 @@ export async function KartuLangganan({ tautan = false }: { tautan?: boolean }) {
         )}
         <p className="mt-1 text-[13px] text-muted">
           {hak.sampai ? t(`Aktif sampai ${tanggal(hak.sampai)}`, `Active until ${tanggal(hak.sampai, b)}`) : hak.paket === "Admin" ? t("Tanpa batas", "Unlimited") : hak.percobaan
-              ? hak.percobaanSampai === null
+              ? hak.percobaanBelumMulai
+                ? t("Free trial dimulai saat nomor WhatsApp pertama tersambung", "Your free trial starts when your first WhatsApp number connects")
+                : hak.percobaanSampai === null
                 ? t("Kuota percobaan gratis, sekali pakai", "Free trial quota, one-time")
                 : berakhir
                   ? t(`Masa percobaan berakhir ${tanggal(hak.percobaanSampai)}`, `Trial ended ${tanggal(hak.percobaanSampai, b)}`)

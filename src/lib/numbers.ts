@@ -1,7 +1,7 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { catatAktivitas } from "./aktivitas";
-import { type Tx, db, sekarang, transaksi } from "./db";
+import { type Tx, db, getSetting, sekarang, transaksi } from "./db";
 
 export interface Nomor {
   id: number;
@@ -162,8 +162,54 @@ export async function catatTerhubung(id: number, waId: string, namaWa: string | 
     // Nomor yang sama pindah jalur: lepaskan dari jalur lama (wa_id unik).
     await tx`UPDATE numbers SET wa_id = NULL WHERE wa_id = ${waId} AND id <> ${id}`;
     await tx`UPDATE numbers SET wa_id = ${waId}, nama_wa = COALESCE(${namaWa}, nama_wa), last_connected_at = ${sekarang()} WHERE id = ${id}`;
+    await catatPercobaan(tx, id, waId);
   });
   basi();
+}
+
+/** Free trial sekali pakai sedang nyala (pengaturan admin, dibaca dari cache setelan tanpa query). Lihat langganan.ts aturanPercobaan. */
+async function trialNyala(): Promise<boolean> {
+  const [n, ulang] = await Promise.all([getSetting("kuota_percobaan"), getSetting("kuota_percobaan_ulang")]);
+  return Number(n) > 0 && ulang !== "bulanan";
+}
+
+/**
+ * Free trial (langganan.ts aturanPercobaan): nomor yang tersambung pertama kali di akun peran user SELAMA trial nyala =
+ * trial akun itu dimulai (users.percobaan_mulai, sekali seumur akun). Nomor yang sudah pernah tersambung ke akun lain
+ * (percobaan_wa, dicatat juga saat trial mati) menandai akun ini percobaan_tolak, yang berlaku bila admin menyalakan
+ * "satu trial per nomor". Dipanggil tiap kali tersambung (termasuk setelah restart): akun yang trialnya sudah dimulai
+ * dan nomornya sudah tercatat = 2 query PK.
+ */
+export async function catatPercobaan(tx: Tx, numberId: number, waId: string): Promise<void> {
+  const [n] = await tx<{ user_id: number; sudah: boolean }[]>`
+    SELECT u.id AS user_id, u.percobaan_mulai IS NOT NULL AS sudah FROM numbers n JOIN users u ON u.id = n.user_id
+     WHERE n.id = ${numberId} AND u.peran = 'user'`;
+  if (!n) return;
+  const kini = sekarang();
+  const [lama] = await tx<{ user_id: number | null }[]>`SELECT user_id FROM percobaan_wa WHERE wa_id = ${waId}`;
+  if (!lama) await tx`INSERT INTO percobaan_wa(wa_id, user_id, mulai) VALUES (${waId}, ${n.user_id}, ${kini}) ON CONFLICT DO NOTHING`;
+  if (n.sudah || !(await trialNyala())) return;
+  // Pernah tersambung ke akun lain (termasuk akun yang sudah dihapus: user_id NULL).
+  const dipakaiLain = !!lama && lama.user_id !== n.user_id;
+  await tx`UPDATE users SET percobaan_mulai = ${kini}, percobaan_tolak = ${dipakaiLain} WHERE id = ${n.user_id} AND percobaan_mulai IS NULL`;
+}
+
+/**
+ * Admin baru menyalakan free trial: akun peran user yang SUDAH tersambung tapi trialnya belum dimulai langsung mulai
+ * sekarang (tanpa menunggu tersambung ulang). Ditolak bila salah satu nomor tersambungnya tercatat milik akun lain.
+ * Satu UPDATE (numbers_user_idx + PK percobaan_wa). Mengembalikan jumlah akun yang dimulai.
+ */
+export async function mulaiPercobaanTersambung(): Promise<number> {
+  if (!(await trialNyala())) return 0;
+  const sql = await db();
+  const r = await sql`
+    UPDATE users u SET percobaan_mulai = ${sekarang()},
+           percobaan_tolak = EXISTS (
+             SELECT 1 FROM numbers n JOIN percobaan_wa p ON p.wa_id = n.wa_id
+              WHERE n.user_id = u.id AND p.user_id IS DISTINCT FROM u.id)
+     WHERE u.peran = 'user' AND u.percobaan_mulai IS NULL
+       AND EXISTS (SELECT 1 FROM numbers n WHERE n.user_id = u.id AND n.wa_id IS NOT NULL)`;
+  return r.count;
 }
 
 export const BATAS_TUNGGU_DETIK = { min: 2, maks: 120 } as const;

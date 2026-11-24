@@ -200,8 +200,14 @@ function teksPercobaan(d: DataCg): string {
   const p = d.percobaan;
   if (p.balasan === 0)
     return `- *Tanpa free trial*: daftar akun gratis, bisa menyambungkan ${angka(d.nomorGratis)} nomor WhatsApp, mengisi Informasi Usaha, dan mencoba bot di menu Uji bot, tetapi AI baru membalas pelanggan sungguhan setelah berlangganan paket berbayar. Sebagai gantinya ada jaminan uang kembali ${MASA_ID}.`;
-  const masa = p.ulang === "bulanan" ? "per bulan, diperbarui tiap awal bulan" : p.hari > 0 ? `sekali pakai, berlaku ${p.hari} hari sejak akun dibuat` : "sekali pakai, tanpa batas waktu";
-  return `- *Gratis (percobaan)*: Rp0, ${angka(d.nomorGratis)} nomor WhatsApp, ${angka(p.balasan)} balasan AI (${masa}). Tanpa kartu kredit; cukup daftar akun.`;
+  const masa =
+    p.ulang === "bulanan"
+      ? "per bulan, diperbarui tiap awal bulan"
+      : p.hari > 0
+        ? `sekali pakai, berlaku ${p.hari} hari sejak ${p.mulai === "daftar" ? "akun dibuat" : "nomor WhatsApp pertama tersambung (scan QR), jadi hari percobaan tidak terbuang selama belum tersambung"}`
+        : "sekali pakai, tanpa batas waktu";
+  const perNomor = p.ulang === "sekali" && p.perNomor ? " Satu free trial per nomor WhatsApp: nomor yang sudah pernah dipakai di akun lain tidak mendapat trial lagi." : "";
+  return `- *Gratis (percobaan)*: Rp0, ${angka(d.nomorGratis)} nomor WhatsApp, ${angka(p.balasan)} balasan AI (${masa}). Tanpa kartu kredit; cukup daftar akun.${perNomor}`;
 }
 
 /** Kartu jaminan uang kembali (aturannya di jaminan-def.ts; VA bank tidak bisa di-refund Midtrans). */

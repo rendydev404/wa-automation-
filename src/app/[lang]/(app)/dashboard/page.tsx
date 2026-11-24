@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { Bot, Users } from "lucide-react";
-import { BannerKuota } from "@/components/banner-akun";
+import { BannerGagalBayar, BannerKuota } from "@/components/banner-akun";
 import { KartuLangganan } from "@/components/kartu-langganan";
 import { GrafikAktivitas } from "@/components/grafik-aktivitas";
 import { NumbersList } from "@/components/numbers-list";
@@ -32,6 +32,9 @@ export default async function Beranda() {
   const { b, t } = await teksHalaman();
   return (
     <div className="space-y-6 lg:space-y-8">
+      <Suspense fallback={null}>
+        <BannerGagalBayar />
+      </Suspense>
       <Suspense fallback={null}>
         <BannerKuota />
       </Suspense>

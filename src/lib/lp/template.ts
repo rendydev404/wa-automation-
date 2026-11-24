@@ -6,6 +6,7 @@
  * Seluruh teks dari JSON di-escape. Skrip runtime (lp/aset/lp.js) hanya memakai textContent / teks ter-escape.
  */
 import { MASA_ID, syaratJaminan } from "@/lib/jaminan-def";
+import { type RingkasPercobaan, teksTrial, trialAktif } from "@/lib/percobaan-def";
 import { tingkatPaket } from "@/lib/tingkat-paket";
 import { UMUR_HISTORI_HARI } from "@/lib/format";
 import { MEREK, NOMOR_WA_DEMO, NOMOR_WA_TAMPIL, PERUSAHAAN } from "@/lib/merek";
@@ -85,6 +86,8 @@ export interface CustomLp {
 
 export interface DataLp {
   paket: PaketLp[];
+  /** Aturan free trial dari admin (null = database tak terjangkau / trial mati). */
+  trial?: RingkasPercobaan | null;
   custom: CustomLp | null;
   metaPixelId: string;
   /** Ada berkas public/lp-assets/og/<slug>.png. */
@@ -219,7 +222,7 @@ export function renderLp(ind: IndustriLp, semua: IndustriLp[], d: DataLp): strin
           <div class="hg-g-atas">
             <div class="hg-g-kiri"><span class="hg-perisai">${IKON.shield}</span><p><span>Garansi uang kembali</span><b>${esc(MASA_ID)}</b></p></div>
             <i aria-hidden="true"></i>
-            <div class="hg-g-teks"><p><strong>Coba langsung, tanpa trial.</strong></p><p>Jika dalam ${esc(MASA_ID)} pertama ChatGerCep tidak gercep atau tidak sesuai yang kami janjikan, <mark>uang kamu kami kembalikan 100%.</mark></p></div>
+            <div class="hg-g-teks"><p><strong>${trialAktif(d.trial) ? `Coba gratis dulu: ${esc(teksTrial(d.trial))}.` : "Coba langsung, tanpa trial."}</strong></p><p>Jika dalam ${esc(MASA_ID)} pertama ChatGerCep tidak gercep atau tidak sesuai yang kami janjikan, <mark>uang kamu kami kembalikan 100%.</mark></p></div>
           </div>
           <div class="hg-g-syarat"><p>Syarat &amp; ketentuan garansi</p><ol>${syarat}</ol></div>
         </div>`;

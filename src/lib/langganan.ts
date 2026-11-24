@@ -128,7 +128,7 @@ const angkaSetting = (nilai: string | null, bawaan: number): number => {
 export const KUOTA_NOMOR_GRATIS_AWAL = 1;
 /** Kuota percobaan akun tanpa paket (free trial) bila admin belum mengaturnya. */
 export const KUOTA_PERCOBAAN_AWAL = 0;
-/** Masa berlaku free trial (hari sejak akun dibuat) bila admin belum mengaturnya. */
+/** Masa berlaku free trial (hari sejak trial dimulai) bila admin belum mengaturnya. */
 export const HARI_PERCOBAAN_AWAL = 7;
 
 /** Kuota nomor akun tanpa paket (pengaturan admin "kuota_bawaan"). */
@@ -143,13 +143,33 @@ export async function kuotaNomorGratis(): Promise<number> {
 export interface AturanPercobaan {
   balasan: number;
   ulang: "sekali" | "bulanan";
-  /** Masa berlaku free trial dalam hari sejak akun dibuat (hanya untuk "sekali"); 0 = tanpa batas waktu. */
+  /** Masa berlaku free trial dalam hari sejak trial dimulai (hanya untuk "sekali"); 0 = tanpa batas waktu. */
   hari: number;
+  /**
+   * Kapan masa free trial mulai dihitung: "tersambung" (bawaan) = saat nomor WhatsApp pertama akun tersambung
+   * (users.percobaan_mulai, dicatat numbers.catatTerhubung), jadi hari trial tidak habis selama pengguna belum scan QR;
+   * "daftar" = sejak akun dibuat.
+   */
+  mulai: "tersambung" | "daftar";
+  /** Satu free trial per nomor WhatsApp: akun yang menyambungkan nomor yang sudah pernah dipakai akun lain tidak mendapat trial. */
+  perNomor: boolean;
 }
 
 export async function aturanPercobaan(): Promise<AturanPercobaan> {
-  const [n, u, h] = await Promise.all([getSetting("kuota_percobaan"), getSetting("kuota_percobaan_ulang"), getSetting("kuota_percobaan_hari")]);
-  return { balasan: angkaSetting(n, KUOTA_PERCOBAAN_AWAL), ulang: u === "bulanan" ? "bulanan" : "sekali", hari: angkaSetting(h, HARI_PERCOBAAN_AWAL) };
+  const [n, u, h, m, pn] = await Promise.all([
+    getSetting("kuota_percobaan"),
+    getSetting("kuota_percobaan_ulang"),
+    getSetting("kuota_percobaan_hari"),
+    getSetting("kuota_percobaan_mulai"),
+    getSetting("kuota_percobaan_per_nomor"),
+  ]);
+  return {
+    balasan: angkaSetting(n, KUOTA_PERCOBAAN_AWAL),
+    ulang: u === "bulanan" ? "bulanan" : "sekali",
+    hari: angkaSetting(h, HARI_PERCOBAAN_AWAL),
+    mulai: m === "daftar" ? "daftar" : "tersambung",
+    perNomor: pn !== "tidak",
+  };
 }
 
 /** Awal bulan kalender WIB (detik epoch): periode kuota akun tanpa langganan. */
@@ -177,9 +197,13 @@ export interface HakAkun {
   percobaanSampai: number | null;
   /** Masa free trial sudah lewat: AI tidak membalas walau kuotanya masih tersisa. */
   percobaanBerakhir: boolean;
+  /** Free trial menunggu nomor WhatsApp pertama tersambung (aturan mulai "tersambung"); kuotanya langsung terpakai begitu tersambung. */
+  percobaanBelumMulai: boolean;
+  /** Tanpa free trial karena nomor WhatsApp pertamanya sudah pernah dipakai akun lain (aturan satu trial per nomor). */
+  percobaanDitolak: boolean;
 }
 
-const BUKAN_PERCOBAAN = { percobaan: false, percobaanSampai: null, percobaanBerakhir: false } as const;
+const BUKAN_PERCOBAAN = { percobaan: false, percobaanSampai: null, percobaanBerakhir: false, percobaanBelumMulai: false, percobaanDitolak: false } as const;
 
 /**
  * hakAkun sekali per permintaan halaman: Ringkasan memanggilnya dari beberapa bagian (banner kuota, kartu langganan,
@@ -193,7 +217,8 @@ export async function hakAkun(user: { id: number; peran: string }): Promise<HakA
   if (modeMesin()) return { nomor: null, balasan: null, periodeMulai: awalBulanWib(), sampai: null, paket: "Self-host", kodePaket: null, bonus: 0, ...BUKAN_PERCOBAAN };
   const sql = await db();
   const [[u], l] = await Promise.all([
-    sql<{ kuota_nomor: number | null; created_at: number }[]>`SELECT kuota_nomor, created_at FROM users WHERE id = ${user.id}`,
+    sql<{ kuota_nomor: number | null; created_at: number; percobaan_mulai: number | null; percobaan_tolak: boolean }[]>`
+      SELECT kuota_nomor, created_at, percobaan_mulai, percobaan_tolak FROM users WHERE id = ${user.id}`,
     langgananAktif(user.id),
   ]);
   if (l) {
@@ -203,17 +228,20 @@ export async function hakAkun(user: { id: number; peran: string }): Promise<HakA
   const [nomorGratis, p] = await Promise.all([kuotaNomorGratis(), aturanPercobaan()]);
   // Free trial: semua balasan AI sejak akun dibuat ikut dihitung, jadi akun yang langganannya berakhir tidak
   // mendapat percobaan baru.
-  // Masa berlaku dihitung dari akun dibuat; setelah lewat AI berhenti walau balasannya belum habis.
+  // Masa berlaku dihitung sejak trial dimulai (nomor pertama tersambung, atau akun dibuat, menurut aturan admin);
+  // setelah lewat AI berhenti walau balasannya belum habis.
   // Trial dimatikan (balasan 0, bawaan sejak jaminan uang kembali): bukan "masa percobaan" yang bisa berakhir, cukup
   // akun tanpa paket (AI tidak membalas pelanggan; bonus admin per bulan tetap bisa dipakai).
   const sekali = p.ulang === "sekali" && p.balasan > 0;
   const dibuat = u?.created_at ?? 0;
-  const percobaanSampai = sekali && p.hari > 0 ? dibuat + p.hari * 86400 : null;
+  const ditolak = sekali && p.perNomor && !!u?.percobaan_tolak;
+  const mulai = !sekali || ditolak ? null : p.mulai === "daftar" ? dibuat : (u?.percobaan_mulai ?? null);
+  const percobaanSampai = mulai !== null && p.hari > 0 ? mulai + p.hari * 86400 : null;
   const periodeMulai = sekali ? dibuat : awalBulanWib();
   const bonus = await bonusKuota(user.id, periodeMulai);
   return {
     nomor: u?.kuota_nomor ?? nomorGratis,
-    balasan: p.balasan + bonus,
+    balasan: (ditolak ? 0 : p.balasan) + bonus,
     periodeMulai,
     sampai: null,
     paket: "Gratis",
@@ -223,6 +251,8 @@ export async function hakAkun(user: { id: number; peran: string }): Promise<HakA
     percobaanSampai,
     // Bonus dari admin tetap bisa dipakai walau masa free trial sudah lewat.
     percobaanBerakhir: percobaanSampai !== null && sekarang() >= percobaanSampai && bonus === 0,
+    percobaanBelumMulai: sekali && !ditolak && mulai === null,
+    percobaanDitolak: ditolak,
   };
 }
 

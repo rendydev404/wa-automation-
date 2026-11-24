@@ -1,9 +1,9 @@
 import "server-only";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { db, getSetting, sekarang, setSetting } from "./db";
+import { db, getSetting, sekarang, setSetting, transaksi } from "./db";
 import { modeMesin } from "./mode";
 import { kirimNotif } from "./notifikasi";
-import { type Nomor, nomorById, semuaNomor, setJalur } from "./numbers";
+import { type Nomor, catatPercobaan, nomorById, semuaNomor, setJalur } from "./numbers";
 import { pancarkan } from "./peristiwa";
 import { dekripsiKredensial, enkripsiKredensial, samarkan } from "./rahasia";
 import { type Foto, MAKS_FOTO_BYTE, MIME_FOTO, type SesiNomor } from "./types";
@@ -655,6 +655,8 @@ export async function pasangResmi(numberId: number, m: MasukanKredensial): Promi
   if (nomorTampil) {
     await sql`UPDATE numbers SET wa_id = NULL WHERE wa_id = ${nomorTampil} AND id <> ${numberId}`;
     await sql`UPDATE numbers SET wa_id = ${nomorTampil}, nama_wa = COALESCE(${info.verified_name ?? null}, nama_wa), last_connected_at = ${t} WHERE id = ${numberId}`;
+    // Free trial dimulai / nomor dicatat sama seperti nomor QR (numbers.catatTerhubung).
+    await transaksi((tx) => catatPercobaan(tx, numberId, nomorTampil));
   }
   const baru = await nomorById(numberId);
   const [b] = await sql<BarisResmi[]>`SELECT * FROM nomor_resmi WHERE number_id = ${numberId}`;

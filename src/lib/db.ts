@@ -1087,6 +1087,44 @@ const KOLOM_PASTI: readonly { tabel: string; kolom: string; sql: string }[] = [
       UPDATE users SET api_fitur = array_append(api_fitur, 'followup') WHERE api_fitur IS NOT NULL AND 'bot' = ANY(api_fitur) AND NOT ('followup' = ANY(api_fitur));
     `,
   },
+  // Sapaan pembayaran paket yang tidak selesai (src/lib/sapa-bayar.ts): satu baris per sapaan terkirim (anti-dobel,
+  // PK order+tahap; indeks per akun untuk batas 1 rangkaian per 7 hari) + tanda akun yang memilih berhenti.
+  {
+    tabel: "sapa_bayar",
+    kolom: "order_id",
+    sql: `
+      CREATE TABLE IF NOT EXISTS sapa_bayar (
+        order_id text NOT NULL,
+        user_id  integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        tahap    smallint NOT NULL CHECK (tahap IN (1, 2)),
+        dikirim  bigint NOT NULL,
+        PRIMARY KEY (order_id, tahap)
+      );
+      CREATE INDEX IF NOT EXISTS sapa_bayar_user_idx ON sapa_bayar (user_id, dikirim DESC);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS sapa_bayar_mati boolean NOT NULL DEFAULT false;
+    `,
+  },
+  // Free trial yang diatur admin (langganan.ts aturanPercobaan): kapan trial akun dimulai (nomor pertama tersambung) dan
+  // apakah ditolak karena nomor WhatsApp-nya sudah pernah dipakai akun lain. percobaan_wa = nomor yang pernah tersambung
+  // ke akun peran user (siapa yang pertama), diisi awal dari nomor yang sudah tersambung. user_id dikosongkan (bukan
+  // dihapus) saat akunnya dihapus, supaya nomor itu tetap tidak bisa dipakai trial lagi lewat akun baru.
+  {
+    tabel: "percobaan_wa",
+    kolom: "wa_id",
+    sql: `
+      CREATE TABLE IF NOT EXISTS percobaan_wa (
+        wa_id   text PRIMARY KEY,
+        user_id integer REFERENCES users(id) ON DELETE SET NULL,
+        mulai   bigint NOT NULL
+      );
+      INSERT INTO percobaan_wa(wa_id, user_id, mulai)
+        SELECT n.wa_id, n.user_id, COALESCE(n.last_connected_at, n.created_at) FROM numbers n JOIN users u ON u.id = n.user_id
+         WHERE n.wa_id IS NOT NULL AND u.peran = 'user'
+        ON CONFLICT DO NOTHING;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS percobaan_mulai bigint,
+                        ADD COLUMN IF NOT EXISTS percobaan_tolak boolean NOT NULL DEFAULT false;
+    `,
+  },
 ];
 
 interface Keadaan {

@@ -337,7 +337,7 @@ await cek("lupa password 3 tahap: email tak terdaftar/diblokir ditolak jelas tan
 
     // App Password salah: Gmail menjawab 535 -> galat yang jelas untuk log.
     smtp.atur.tolakLogin = true;
-    await assert.rejects(EM.kirimEmail({ ke: "x@uji.test", judul: "uji", teks: "uji", html: "<p>uji</p>" }), /Gmail menolak login/);
+    await assert.rejects(EM.kirimEmail({ ke: "x@uji.test", judul: "uji", teks: "uji", html: "<p>uji</p>" }), /menolak login/);
   } finally {
     smtp.atur.tolakLogin = false;
     lepasSmtp();

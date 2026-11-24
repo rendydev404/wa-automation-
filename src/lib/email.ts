@@ -4,21 +4,29 @@ import { type Bahasa, pembuatT } from "./bahasa";
 import { MEREK, PERUSAHAAN } from "./merek";
 
 /**
- * Kirim email transaksional (kode OTP lupa password, pemberitahuan akun) lewat SMTP Gmail dengan App Password:
- * tanpa verifikasi domain, dan email dari akun Gmail itu sendiri lolos SPF/DKIM Google. Env: GMAIL_USER (alamat
- * Gmail pengirim) dan GMAIL_APP_PASSWORD (16 huruf dari myaccount.google.com/apppasswords; spasi boleh ikut).
- * Opsional: EMAIL_NAMA (nama pengirim, bawaan nama merek), SMTP_HOST / SMTP_PORT (bawaan smtp.gmail.com:465,
- * diganti hanya untuk uji atau penyedia SMTP lain). Password tidak pernah keluar dari server.
+ * Kirim email transaksional (kode OTP lupa password, pemberitahuan akun, sapaan pembayaran) lewat SMTP.
+ *   - Disarankan: domain sendiri lewat Resend (SMTP_HOST=smtp.resend.com, SMTP_PORT=465, SMTP_USER=resend,
+ *     SMTP_PASS=<API key Resend>, EMAIL_DARI=cs@chatgercep.com). Domain wajib terverifikasi di Resend (DKIM, SPF, DMARC
+ *     di DNS) supaya lolos filter spam.
+ *   - Cadangan lama: SMTP Gmail dengan App Password (GMAIL_USER + GMAIL_APP_PASSWORD; spasi boleh ikut), pengirim =
+ *     alamat Gmail itu.
+ * Opsional: EMAIL_NAMA (nama pengirim, bawaan nama merek), EMAIL_BALAS_KE (Reply-To: kotak masuk sungguhan yang
+ * menerima balasan, mis. Gmail admin, karena domain belum punya kotak masuk). Password tidak pernah keluar dari server.
  */
 
 function konfig() {
-  const user = process.env.GMAIL_USER?.trim();
-  const pass = process.env.GMAIL_APP_PASSWORD?.replace(/\s+/g, "");
+  const user = (process.env.SMTP_USER || process.env.GMAIL_USER)?.trim();
+  const pass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD)?.replace(/\s+/g, "");
   if (!user || !pass) return null;
   const host = process.env.SMTP_HOST?.trim() || "smtp.gmail.com";
   const port = Number(process.env.SMTP_PORT) || 465;
-  return { user, pass, host, port, nama: process.env.EMAIL_NAMA?.trim() || MEREK };
+  const dari = process.env.EMAIL_DARI?.trim() || (user.includes("@") ? user : "");
+  if (!dari) return null;
+  return { user, pass, host, port, dari, balasKe: process.env.EMAIL_BALAS_KE?.trim() || null, nama: process.env.EMAIL_NAMA?.trim() || MEREK };
 }
+
+/** Email bisa dibalas (EMAIL_BALAS_KE diisi): kaki email mengajak membalas, bukan "mohon tidak dibalas". */
+const bisaDibalas = (): boolean => !!process.env.EMAIL_BALAS_KE?.trim();
 
 export function emailTerkonfigurasi(): boolean {
   return konfig() !== null;
@@ -29,9 +37,13 @@ export class EmailError extends Error {}
 // Satu transporter per konfigurasi (dibuat ulang bila env berubah, mis. di uji).
 const g = globalThis as unknown as { __waSmtp?: { kunci: string; t: Transporter } };
 
-export async function kirimEmail(e: { ke: string; judul: string; teks: string; html: string }): Promise<void> {
+/**
+ * `berhenti` = URL berhenti berlangganan (email pengingat/pemasaran): dikirim sebagai header List-Unsubscribe +
+ * List-Unsubscribe-Post (RFC 8058, tombol "Berhenti berlangganan" bawaan Gmail), yang ikut menjaga reputasi pengirim.
+ */
+export async function kirimEmail(e: { ke: string; judul: string; teks: string; html: string; berhenti?: string }): Promise<void> {
   const k = konfig();
-  if (!k) throw new EmailError("Pengiriman email belum dikonfigurasi (GMAIL_USER / GMAIL_APP_PASSWORD).");
+  if (!k) throw new EmailError("Pengiriman email belum dikonfigurasi (SMTP_USER/SMTP_PASS + EMAIL_DARI, atau GMAIL_USER/GMAIL_APP_PASSWORD).");
   const kunci = `${k.host}:${k.port}:${k.user}:${k.pass}`;
   if (g.__waSmtp?.kunci !== kunci) {
     g.__waSmtp = {
@@ -48,13 +60,13 @@ export async function kirimEmail(e: { ke: string; judul: string; teks: string; h
     };
   }
   try {
-    await g.__waSmtp.t.sendMail({ from: { name: k.nama, address: k.user }, to: e.ke, subject: e.judul, text: `${e.teks}
+    await g.__waSmtp.t.sendMail({ from: { name: k.nama, address: k.dari }, ...(k.balasKe ? { replyTo: k.balasKe } : {}), to: e.ke, subject: e.judul, ...(e.berhenti ? { list: { unsubscribe: { url: e.berhenti, comment: "Berhenti" } }, headers: { "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } } : {}), text: `${e.teks}
 
 --
 ${MEREK} · ${PERUSAHAAN}`, html: e.html });
   } catch (err) {
     const pesan = err instanceof Error ? err.message : String(err);
-    throw new EmailError(/535|Invalid login|Username and Password not accepted/i.test(pesan) ? "Gmail menolak login: periksa GMAIL_USER dan App Password." : `Email gagal dikirim: ${pesan}`);
+    throw new EmailError(/535|Invalid login|Username and Password not accepted/i.test(pesan) ? "Server email menolak login: periksa SMTP_USER/SMTP_PASS (atau GMAIL_USER dan App Password)." : `Email gagal dikirim: ${pesan}`);
   }
 }
 
@@ -103,6 +115,8 @@ export interface IsiEmail {
   tombolKedua?: { teks: string; url: string };
   peringatan?: { nada: "waspada" | "bahaya"; judul: string; teks: string };
   catatan?: string;
+  /** Tautan kecil di paling bawah badan email, mis. "Berhenti menerima pengingat ini". */
+  tautanKecil?: { teks: string; url: string };
 }
 
 /**
@@ -163,8 +177,12 @@ export function htmlEmail(o: IsiEmail): string {
     `<p style="margin:0;font-family:${HURUF};font-size:14.5px;line-height:1.55;color:${W.inkRedup}">${aman(o.subjudul)}</p>`,
     "padding:0 24px 26px"
   )}</table>`;
-  const badan = `${o.sapaan ? p(o.sapaan, "font-weight:600") : ""}${o.paragraf.map((t) => p(t)).join("")}${kode}${rincian}${tombol}${peringatan}${o.catatan ? p(o.catatan, `font-size:13px;color:${W.redup};margin:0`) : ""}`;
-  const kaki = `<p style="margin:0 0 6px;font-family:${HURUF};font-size:12.5px;font-weight:700;color:${W.teks}">Chat<span style="color:${W.aksen}">GerCep</span> <span style="font-weight:400;color:${W.redup}">· ${t("Asisten AI WhatsApp untuk usaha Anda", "AI WhatsApp assistant for your business")}</span></p><p style="margin:0;font-family:${HURUF};font-size:12px;line-height:1.6;color:${W.redup}">${t("Email ini dikirim otomatis, mohon tidak dibalas.", "This email was sent automatically, please don't reply.")}${
+  const badan = `${o.sapaan ? p(o.sapaan, "font-weight:600") : ""}${o.paragraf.map((t) => p(t)).join("")}${kode}${rincian}${tombol}${peringatan}${o.catatan ? p(o.catatan, `font-size:13px;color:${W.redup};margin:0`) : ""}${
+    o.tautanKecil
+      ? `<p style="margin:14px 0 0;font-family:${HURUF};font-size:12px;line-height:1.5;color:${W.redup}"><a href="${aman(o.tautanKecil.url)}" style="color:${W.redup};text-decoration:underline">${aman(o.tautanKecil.teks)}</a></p>`
+      : ""
+  }`;
+  const kaki = `<p style="margin:0 0 6px;font-family:${HURUF};font-size:12.5px;font-weight:700;color:${W.teks}">Chat<span style="color:${W.aksen}">GerCep</span> <span style="font-weight:400;color:${W.redup}">· ${t("Asisten AI WhatsApp untuk usaha Anda", "AI WhatsApp assistant for your business")}</span></p><p style="margin:0;font-family:${HURUF};font-size:12px;line-height:1.6;color:${W.redup}">${bisaDibalas() ? t("Ada pertanyaan? Balas email ini, tim kami akan membantu.", "Questions? Reply to this email and our team will help.") : t("Email ini dikirim otomatis, mohon tidak dibalas.", "This email was sent automatically, please don't reply.")}${
     asal ? ` <a href="${aman(asal)}" style="color:${W.aksen};text-decoration:none;font-weight:600">${aman(asal.replace(/^https?:\/\//, ""))}</a>` : ""
   }<br>&copy; ${new Date().getFullYear()} ${aman(PERUSAHAAN)}. ${aman(MEREK)} ${t("adalah produk", "is a product of")} ${aman(PERUSAHAAN)}.</p>`;
 

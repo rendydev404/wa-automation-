@@ -57,7 +57,7 @@ import { tanggal, uang } from "@/lib/format";
 import { GalatCustom, customTampil, periksaCustom, ringkasCustom, simpanPaketCustom } from "@/lib/paket-custom";
 import { KnowledgeError, hapusDokumen, pratinjauDokumen, tambahDokumen } from "@/lib/knowledge";
 import { geserProduk, hapusProduk, katalogBoleh, setTersedia } from "@/lib/katalog";
-import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, type Nomor, hapusNomor, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringProspek, setSaringSpam, tambahNomor, ubahNomor } from "@/lib/numbers";
+import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, type Nomor, hapusNomor, mulaiPercobaanTersambung, nomorMilik, rapikanNomorWa, semuaNomor, setBelajar, setBotAktif, setSaringProspek, setSaringSpam, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { cekPassword, verifyPassword } from "@/lib/password";
 import { type ItemPelajaran, daftarPelajaran, hapusPelajaran } from "@/lib/pelajaran";
 import {
@@ -1044,6 +1044,8 @@ export async function adminPengaturanAction(_lalu: Hasil | null, form: FormData)
   const ulang = form.get("kuota_percobaan_ulang") === "bulanan" ? "bulanan" : "sekali";
   const hariTeks = String(form.get("kuota_percobaan_hari") ?? "").trim();
   const hari = hariTeks === "" ? NaN : Number(hariTeks);
+  const mulaiTrial = form.get("kuota_percobaan_mulai") === "daftar" ? "daftar" : "tersambung";
+  const perNomor = form.get("kuota_percobaan_per_nomor") !== "tidak";
   if (!(Number.isInteger(kuota) && kuota >= 0 && kuota <= 100)) return { ok: false, pesan: "Kuota bawaan harus 0–100 nomor." };
   if (!(Number.isInteger(balasan) && balasan >= 0 && balasan <= 1_000_000)) return { ok: false, pesan: "Kuota balasan gratis harus angka bulat 0–1.000.000." };
   if (!(Number.isInteger(hari) && hari >= 0 && hari <= 365)) return { ok: false, pesan: "Masa percobaan harus 0–365 hari." };
@@ -1052,13 +1054,17 @@ export async function adminPengaturanAction(_lalu: Hasil | null, form: FormData)
   await setSetting("kuota_percobaan", String(balasan));
   await setSetting("kuota_percobaan_ulang", ulang);
   await setSetting("kuota_percobaan_hari", String(hari));
+  await setSetting("kuota_percobaan_mulai", mulaiTrial);
+  await setSetting("kuota_percobaan_per_nomor", perNomor ? "ya" : "tidak");
+  // Trial baru dinyalakan: akun yang sudah tersambung langsung mulai trialnya (bukan menunggu tersambung ulang).
+  await mulaiPercobaanTersambung();
   segarkanKuota();
   mintaSinkronCg();
   await catatLog(
     admin,
     "ubah pengaturan",
     null,
-    `pendaftaran ${buka ? "dibuka" : "ditutup"}, kuota gratis ${kuota} nomor & ${balasan} balasan ${ulang === "sekali" ? `sekali (free trial${hari > 0 ? ` ${hari} hari` : ", tanpa batas waktu"})` : "per bulan"}`
+    `pendaftaran ${buka ? "dibuka" : "ditutup"}, kuota gratis ${kuota} nomor & ${balasan} balasan ${ulang === "sekali" ? `sekali (free trial${hari > 0 ? ` ${hari} hari sejak ${mulaiTrial === "daftar" ? "daftar" : "nomor tersambung"}` : ", tanpa batas waktu"}${perNomor ? ", satu per nomor WA" : ""})` : "per bulan"}`
   );
   revalidatePath("/admin", "layout");
   catatFitur(admin.id, "admin.pengaturan");

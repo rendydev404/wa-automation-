@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { BannerGagalBayar } from "@/components/banner-akun";
 import type { Metadata } from "next";
 import Link from "@/components/link";
 import { ArrowRight, Check, CreditCard, ShieldCheck, Sparkles } from "lucide-react";
@@ -57,6 +58,9 @@ export default async function HalamanLangganan() {
         <h1 className="text-2xl font-bold tracking-tight sm:text-[28px]">{t("Langganan", "Subscription")}</h1>
         <p className="mt-1 text-muted">{t("Paket aktif, sisa kuota balasan AI, dan pembayaran.", "Your active plan, remaining AI reply quota, and payments.")}</p>
       </div>
+      <Suspense fallback={null}>
+        <BannerGagalBayar />
+      </Suspense>
       <Suspense fallback={<div aria-hidden className="card h-40 animate-denyut" />}>
         <KartuLangganan />
       </Suspense>

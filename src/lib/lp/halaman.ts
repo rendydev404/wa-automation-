@@ -5,7 +5,8 @@ import path from "node:path";
 import { connection } from "next/server";
 import { uang } from "@/lib/format";
 import { syaratJaminan } from "@/lib/jaminan-def";
-import { daftarPaket } from "@/lib/langganan";
+import { aturanPercobaan, daftarPaket } from "@/lib/langganan";
+import type { RingkasPercobaan } from "@/lib/percobaan-def";
 import { konfigMetaPixelPublik } from "@/lib/meta-pixel";
 import { customTampil, hargaAngka, paketCustom, tautanCustom } from "@/lib/paket-custom";
 import type { SlugLp } from "./def";
@@ -45,16 +46,18 @@ interface DataDinamis {
   custom: Omit<CustomLp, "href"> & { wa: boolean; hrefWa: (tambahan: string) => string };
   adaCustom: boolean;
   metaPixelId: string;
+  trial: RingkasPercobaan;
 }
 
 let dinamis: { kapan: number; data: Promise<DataDinamis> } | null = null;
 function bacaDinamis(): Promise<DataDinamis> {
   if (dinamis && Date.now() - dinamis.kapan < UMUR_MS) return dinamis.data;
   const data = (async (): Promise<DataDinamis> => {
-    const [paket, custom, pixel] = await Promise.all([
+    const [paket, custom, pixel, trial] = await Promise.all([
       daftarPaket(),
       paketCustom(),
       konfigMetaPixelPublik().catch(() => ({ aktif: false, pixelId: "" })),
+      aturanPercobaan(),
     ]);
     const kuota = custom.tampil_kuota ? `${custom.kuota_nomor.toLocaleString("id-ID")} nomor · ${custom.kuota_balasan.toLocaleString("id-ID")} balasan AI` : "Jumlah nomor & kuota disesuaikan";
     return {
@@ -82,6 +85,7 @@ function bacaDinamis(): Promise<DataDinamis> {
         hrefWa: (tambahan) => tautanCustom(custom, tambahan),
       },
       metaPixelId: pixel.aktif ? pixel.pixelId : "",
+      trial,
     };
   })();
   dinamis = { kapan: Date.now(), data };
@@ -114,6 +118,7 @@ async function halamanIndustri(slug: SlugLp): Promise<string> {
       ? { ...dd.custom, href: dd.custom.wa ? dd.custom.hrefWa(`Usaha saya: ${ind.industry_short}.`) : "/daftar" }
       : null,
     metaPixelId: dd?.metaPixelId ?? "",
+    trial: dd?.trial ?? null,
     adaOg: existsSync(path.join(process.cwd(), "public", "lp-assets", "og", `${slug}.png`)),
     asal: ASAL,
     css,
