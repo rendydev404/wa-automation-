@@ -6,6 +6,7 @@ import { ArrowRight, BarChart3, ChevronLeft, ChevronRight, ClipboardList, Compas
 import Link from "@/components/link";
 import { useBahasa } from "@/components/bahasa";
 import { type IsiTur, useTurOpsional } from "@/components/tur";
+import { useFiturBaruTampil } from "@/components/kartu-fitur-baru";
 import { useWaStatus } from "@/components/wa-status";
 import type { RingkasAktivitas } from "@/lib/aktivitas";
 import { EfekPose, GambarPose, type Pose, siapkanPose } from "./pose";
@@ -128,6 +129,7 @@ export function Maskot({ data, tur }: { data: DataMaskot; tur?: { nama: string; 
   const { b, t } = useBahasa();
   const { data: status } = useWaStatus();
   const turK = useTurOpsional();
+  const fiturBaru = useFiturBaruTampil();
   const kurangi = useKurangiGerak();
   const terhidrasi = useSyncExternalStore(tanpaLangganan, () => true, () => false);
 
@@ -377,7 +379,7 @@ export function Maskot({ data, tur }: { data: DataMaskot; tur?: { nama: string; 
           ...(tur && turK ? [{ tur: true as const, label: "Ajak keliling", ikon: <Compass className="size-3.5" aria-hidden /> }] : []),
         ];
 
-  if (!terhidrasi || turK?.aktif) return null;
+  if (!terhidrasi || turK?.aktif || fiturBaru) return null;
 
   const membalas = !buka && kini.pose === "membalas" && !reaksi;
 

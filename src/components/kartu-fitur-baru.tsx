@@ -1,11 +1,27 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { ArrowRight, Sparkles, X } from "lucide-react";
 import { tandaiFiturBaruAction } from "@/app/actions";
 import { useBahasa, useRouterBahasa } from "./bahasa";
 import { GambarPose } from "./maskot/pose";
 import { useTurOpsional } from "./tur";
+
+// Kartu sedang tampil: maskot dasbor (maskot/maskot.tsx) menyingkir supaya tidak bertumpuk di pojok kanan bawah.
+let terbuka = false;
+const pendengar = new Set<() => void>();
+const setTerbuka = (v: boolean) => {
+  if (terbuka === v) return;
+  terbuka = v;
+  for (const f of pendengar) f();
+};
+export function useFiturBaruTampil(): boolean {
+  return useSyncExternalStore(
+    (f) => (pendengar.add(f), () => void pendengar.delete(f)),
+    () => terbuka,
+    () => false,
+  );
+}
 
 /**
  * Kartu "Fitur baru" (lib/fitur-baru-def.ts): muncul sekali, sebentar setelah halaman tampil, tidak di atas tur atau
@@ -36,7 +52,12 @@ export function KartuFiturBaru({ kode, judul, isi, tujuan }: { kode: string; jud
     return () => clearTimeout(jeda);
   }, [kunciNanti]);
 
-  if (!tampil || selesai || tur?.aktif) return null;
+  const terlihat = tampil && !selesai && !tur?.aktif;
+  useEffect(() => {
+    setTerbuka(terlihat);
+    return () => setTerbuka(false);
+  }, [terlihat]);
+  if (!terlihat) return null;
 
   const lihat = () =>
     mulai(async () => {
