@@ -151,28 +151,23 @@ try {
     await masuk(a.email);
     await buka("/dashboard");
     await tungguTeks("Mulai tur panduan");
-    await tidur(600);
+    await tidur(700);
     await foto(`01-popup-fitur-baru-saat-masuk-dasbor-${akhiran}`);
-    // Lonceng: pengumuman yang sama tercatat sebagai notifikasi.
-    await evaluasi(`[...document.querySelectorAll("button")].filter((x) => x.offsetParent !== null).find((x) => /notifikasi/i.test(x.getAttribute("aria-label") ?? ""))?.click()`);
-    await tidur(900);
-    await foto(`02-notifikasi-lonceng-${akhiran}`);
-    await evaluasi(`document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`);
-    await tidur(400);
-    await buka("/dashboard");
-    await tungguTeks("Mulai tur panduan");
     await klikTeks("Mulai tur panduan");
     await tungguTeks("Nyalakan di sini");
     await tidur(1000);
-    await foto(`03-lihat-caranya-membuka-panduan-sorotan-${akhiran}`);
+    await foto(`02-tur-langsung-jalan-langkah-1-${akhiran}`);
     await klikTeks("Lanjut", `document.querySelector('[role=dialog]')`);
     await tidur(800);
-    await foto(`04-panduan-langkah-2-${akhiran}`);
-    // Kembali ke dasbor: pengumuman tidak muncul lagi.
+    await foto(`03-tur-langkah-2-${akhiran}`);
     await evaluasi(`document.querySelector('[role=dialog] [aria-label]')?.click()`);
+    // Kembali ke dasbor: pop-up tidak muncul lagi; pengumumannya tetap ada di lonceng.
     await buka("/dashboard");
-    await tidur(2600);
-    await foto(`05-dasbor-setelah-dilihat-tanpa-kartu-${akhiran}`);
+    await tidur(2200);
+    await foto(`04-dasbor-setelah-dilihat-tanpa-popup-${akhiran}`);
+    await evaluasi(`[...document.querySelectorAll("button")].filter((x) => x.offsetParent !== null).find((x) => /notifikasi/i.test(x.getAttribute("aria-label") ?? ""))?.click()`);
+    await tidur(900);
+    await foto(`05-pengumuman-tetap-di-lonceng-${akhiran}`);
   }
 } finally {
   chrome.kill();
