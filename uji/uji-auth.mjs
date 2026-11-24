@@ -37,9 +37,9 @@ const n1 = await tambahNomor("uji-1");
 const n2 = await tambahNomor("uji-2");
 
 await cek("skema dibuat oleh migrasi; app berjalan sebagai role biasa (bukan superuser)", async () => {
-  assert.equal((await sql`SELECT MAX(versi) AS v FROM skema_versi`)[0].v, 40);
+  assert.equal((await sql`SELECT MAX(versi) AS v FROM skema_versi`)[0].v, 41);
   const tabel = (await sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY 1`).map((r) => r.tablename);
-  assert.deepEqual(tabel, ["admin_log", "afiliator", "ai_pakai", "analitik_harian", "api_aplikasi", "api_idempoten", "api_instalasi", "api_kirim_lisensi", "api_kunci", "chat_state", "chunks", "documents", "draf_bot", "followup", "followup_nomor", "followup_prospek", "followup_stop", "followup_ulang", "kiriman_templat", "komisi_afiliasi", "kontak_wa", "kuota_bonus", "langganan", "mesin_lisensi", "ml_contoh", "ml_nomor", "ml_potongan", "nomor_resmi", "notifikasi", "numbers", "paket", "pelajaran", "penarikan_afiliasi", "pengembalian_dana", "percakapan", "percobaan_wa", "pesan_chat", "pesan_keluar", "produk", "push_langganan", "reset_password", "sapa_bayar", "settings", "skema_versi", "stats", "templat_wa", "teruskan", "transaksi", "users", "voucher", "wa_auth", "webhook_antrean", "webhook_tujuan"]);
+  assert.deepEqual(tabel, ["admin_log", "afiliator", "ai_pakai", "analitik_harian", "api_aplikasi", "api_idempoten", "api_instalasi", "api_kirim_lisensi", "api_kunci", "chat_state", "chunks", "documents", "draf_bot", "email_kampanye", "followup", "followup_nomor", "followup_prospek", "followup_stop", "followup_ulang", "kiriman_templat", "komisi_afiliasi", "kontak_wa", "kuota_bonus", "langganan", "mesin_lisensi", "ml_contoh", "ml_nomor", "ml_potongan", "nomor_resmi", "notifikasi", "numbers", "paket", "pelajaran", "penarikan_afiliasi", "pengembalian_dana", "percakapan", "percobaan_wa", "pesan_chat", "pesan_keluar", "produk", "push_langganan", "reset_password", "sapa_bayar", "settings", "skema_versi", "stats", "templat_wa", "teruskan", "transaksi", "users", "voucher", "wa_auth", "webhook_antrean", "webhook_tujuan"]);
   assert.equal((await sql`SELECT rolsuper FROM pg_roles WHERE rolname = current_user`)[0].rolsuper, false);
   assert.match(n1.sesi, new RegExp(`^n${n1.id}x[0-9a-f]{8}$`));
   assert.equal(n2.id, n1.id + 1);

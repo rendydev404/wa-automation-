@@ -986,6 +986,19 @@ const MIGRASI: string[] = [
   CREATE INDEX kontak_wa_tetap_idx ON kontak_wa (number_id) WHERE tetap_balas;
   CREATE INDEX kontak_wa_lid_idx ON kontak_wa (number_id, lid) WHERE lid IS NOT NULL;
   `,
+  // v41: email kabar fitur & promo (email-promo.ts). users.email_promo_mati = berhenti lewat tautan di email (terpisah
+  //   dari pengingat pembayaran). email_kampanye = penerima per kampanye (kirim ulang tanpa dobel; galat dicatat).
+  `
+  ALTER TABLE users ADD COLUMN email_promo_mati boolean NOT NULL DEFAULT false;
+  CREATE TABLE email_kampanye (
+    kode     text NOT NULL,
+    user_id  integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    pada     bigint NOT NULL,
+    galat    text,
+    PRIMARY KEY (kode, user_id)
+  );
+  CREATE INDEX email_kampanye_user_idx ON email_kampanye (user_id);
+  `,
 ];
 
 const KUNCI_MIGRASI = 7272740001;
