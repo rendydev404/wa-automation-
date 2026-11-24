@@ -10,6 +10,7 @@ import Link from "@/components/link";
 import { Logo } from "@/components/logo";
 import { alasanSyarat, judulSyarat, syaratNomor } from "@/components/syarat-nomor";
 import { Kalkulator } from "@/components/landing/kalkulator";
+import { BuatBotLazy } from "@/components/landing/buat-bot-lazy";
 import { PendaftarLoop } from "@/components/landing/pendaftar-loop";
 import { WidgetWaLanding } from "@/components/landing/widget-wa";
 import { type T, bahasaSah, pembuatT } from "@/lib/bahasa";
@@ -226,8 +227,8 @@ export default async function Landing() {
               >
                 <IkonWhatsApp className="size-4" /> {t("Coba Tes Bot WA", "Try the WA Bot")}
               </a>
-              <a href="#cara-kerja" className="inline-flex items-center gap-2 rounded-2xl border border-ink-line px-5 py-3.5 text-[15px] font-semibold text-ink-fg transition-colors hover:bg-white/[0.05]">
-                {t("Lihat cara kerja", "See how it works")}
+              <a href="#buat-bot" data-cta="hero_buat_bot" className="inline-flex items-center gap-2 rounded-2xl border border-ink-line px-5 py-3.5 text-[15px] font-semibold text-ink-fg transition-colors hover:bg-white/[0.05]">
+                {t("Buat bot Anda · 60 detik", "Build your bot · 60 sec")}
               </a>
             </div>
             <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-ink-muted">
@@ -262,6 +263,25 @@ export default async function Landing() {
             </div>
           ))}
         </dl>
+      </section>
+
+      {/* ---------- Bot instan: pengunjung membuat & mencoba botnya sendiri ---------- */}
+      <section id="buat-bot" aria-labelledby="judul-buat-bot" className="mx-auto max-w-[1200px] scroll-mt-8 px-4 pt-20 sm:px-6 lg:pt-28">
+        <div className="max-w-2xl">
+          <p className="text-[12px] font-bold tracking-[0.1em] text-accent uppercase">{t("Coba sekarang, tanpa daftar", "Try it now, no sign-up")}</p>
+          <h2 id="judul-buat-bot" className="mt-2 text-3xl font-extrabold tracking-tight sm:text-[40px]">
+            {t("Buat bot WhatsApp usaha Anda dalam 60 detik.", "Build your business WhatsApp bot in 60 seconds.")}
+          </h2>
+          <p className="mt-3 text-[16px] text-muted">
+            {t(
+              "Isi nama usaha dan daftar harga, lalu tanya bot Anda seperti pelanggan. Kalau cocok, simpan: infonya ikut tersimpan dan tinggal disambungkan ke WhatsApp.",
+              "Enter your business name and price list, then ask your bot like a customer would. Like it? Save it: your info carries over and you just connect WhatsApp.",
+            )}
+          </p>
+        </div>
+        <div className="mt-10">
+          <BuatBotLazy />
+        </div>
       </section>
 
       {/* ---------- Fitur ---------- */}

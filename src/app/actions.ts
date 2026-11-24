@@ -9,6 +9,8 @@ import { MAKS_INSTRUKSI } from "@/lib/templat-ai-def";
 import { penandaTersisa } from "@/lib/templat-ai";
 import { COOKIE_ASAL, bacaAsal } from "@/lib/asal-def";
 import { simpanAsal } from "@/lib/asal";
+import { COOKIE_DRAF } from "@/lib/demo-bot-def";
+import { klaimDrafBot } from "@/lib/demo-bot";
 import {
   AfiliasiError,
   COOKIE_REF,
@@ -204,6 +206,8 @@ export async function daftarAction(_lalu: Hasil | null, form: FormData): Promise
     await simpanAsal(akun.id, asal);
     toples.delete(COOKIE_ASAL);
   }
+  // Bot yang dicoba di landing (demo-bot.ts) menjadi nomor pertama akun beserta Informasi Usaha-nya.
+  if (await klaimDrafBot(akun.id, toples.get(COOKIE_DRAF)?.value)) toples.delete(COOKIE_DRAF);
   toples.set(COOKIE_PIXEL_REG, String(akun.id), { maxAge: 120, path: "/", httpOnly: false, sameSite: "lax" });
   void kirimCapiEvent({
     ...(await konteksMetaPermintaan()),

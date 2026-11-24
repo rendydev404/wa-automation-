@@ -338,6 +338,11 @@ export interface OpsiSistem {
    * sistem. Tidak diisi untuk tugas lain (follow-up, merapikan dokumen) yang punya arahan gaya sendiri.
    */
   posisi?: PosisiPercakapan;
+  /**
+   * Pengetahuan langsung (demo bot di landing, demo-bot.ts): dipakai utuh sebagai isi <pengetahuan_nomor> tanpa membaca
+   * dokumen/pelajaran nomor dari database.
+   */
+  pengetahuan?: string;
 }
 
 /**
@@ -373,9 +378,10 @@ export async function susunSistem(
   kueri: string,
   opsi: OpsiSistem = {}
 ): Promise<{ sistem: string; konteks: Konteks; pelajaran: number }> {
+  const langsung = opsi.pengetahuan?.trim();
   const [konteks, pelajaran, riwayat, global] = await Promise.all([
-    konteksPengetahuan(nomor.id, kueri),
-    nomor.belajar && fiturBoleh("belajar") ? konteksPelajaran(nomor.id, kueriCari(saringKueri(kueri))) : { teks: "", n: 0 },
+    langsung ? ({ teks: langsung, mode: "utuh", karakter: langsung.length, prioritas: false } satisfies Konteks) : konteksPengetahuan(nomor.id, kueri),
+    !langsung && nomor.belajar && fiturBoleh("belajar") ? konteksPelajaran(nomor.id, kueriCari(saringKueri(kueri))) : { teks: "", n: 0 },
     opsi.riwayat ?? [],
     aturanGlobal(),
   ]);

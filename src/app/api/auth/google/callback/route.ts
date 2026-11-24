@@ -11,6 +11,8 @@ import { konteksMetaPermintaan } from "@/lib/meta-pixel-konteks";
 import { notifPendaftarBaru } from "@/lib/notifikasi";
 import { COOKIE_ASAL, bacaAsal } from "@/lib/asal-def";
 import { simpanAsal } from "@/lib/asal";
+import { COOKIE_DRAF } from "@/lib/demo-bot-def";
+import { klaimDrafBot } from "@/lib/demo-bot";
 import { jalurLanjut } from "@/lib/lanjut";
 import { staf } from "@/lib/peran";
 
@@ -60,6 +62,8 @@ export async function GET(req: Request) {
       ...(asal?.industri ? { customData: { content_category: asal.industri } } : {}),
     });
     notifPendaftarBaru(akun.id, identitas.email, "google");
+    // Bot yang dicoba di landing (demo-bot.ts) menjadi nomor pertama akun beserta Informasi Usaha-nya.
+    await klaimDrafBot(akun.id, toples.get(COOKIE_DRAF)?.value);
   }
 
   await catatLoginBerhasil(akun.id);
@@ -69,6 +73,7 @@ export async function GET(req: Request) {
   const res = ke(tujuan);
   res.cookies.delete({ name: COOKIE_REF, path: "/" });
   if (akun.baru) res.cookies.delete({ name: COOKIE_ASAL, path: "/" });
+  if (akun.baru) res.cookies.delete({ name: COOKIE_DRAF, path: "/" });
   if (akun.baru) {
     res.cookies.set(COOKIE_PIXEL_REG, String(akun.id), { maxAge: 120, path: "/", httpOnly: false, sameSite: "lax" });
   }

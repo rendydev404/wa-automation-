@@ -271,6 +271,8 @@ export async function jalankanPengingat(): Promise<void> {
     });
   }
   await sql`DELETE FROM notifikasi WHERE dibuat < ${kini - UMUR_DTK}`;
+  // Draf bot instan landing (demo-bot.ts) yang tidak pernah diklaim: dibuang setelah 30 hari.
+  await sql`DELETE FROM draf_bot WHERE diklaim IS NULL AND diubah < ${kini - 30 * 86400}`;
 }
 
 /** Dipanggil sekali saat server mulai (instrumentation.ts): satu putaran tiap jam, yang pertama 2 menit setelah mulai. */

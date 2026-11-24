@@ -1125,6 +1125,27 @@ const KOLOM_PASTI: readonly { tabel: string; kolom: string; sql: string }[] = [
                         ADD COLUMN IF NOT EXISTS percobaan_tolak boolean NOT NULL DEFAULT false;
     `,
   },
+  // Bot instan di landing (src/lib/demo-bot.ts): draf info usaha pengunjung (kunci = token cookie cg_draf), jumlah
+  // balasan demo, dan akun yang mengklaimnya saat mendaftar (dasar angka konversi demo). Draf yang tidak diklaim
+  // dibuang setelah 30 hari (indeks parsial).
+  {
+    tabel: "draf_bot",
+    kolom: "token",
+    sql: `
+      CREATE TABLE IF NOT EXISTS draf_bot (
+        token   text PRIMARY KEY,
+        jenis   text NOT NULL,
+        nama    text NOT NULL,
+        teks    text NOT NULL,
+        balasan integer NOT NULL DEFAULT 0,
+        dibuat  bigint NOT NULL,
+        diubah  bigint NOT NULL,
+        user_id integer REFERENCES users(id) ON DELETE SET NULL,
+        diklaim bigint
+      );
+      CREATE INDEX IF NOT EXISTS draf_bot_lama_idx ON draf_bot (diubah) WHERE diklaim IS NULL;
+    `,
+  },
 ];
 
 interface Keadaan {
