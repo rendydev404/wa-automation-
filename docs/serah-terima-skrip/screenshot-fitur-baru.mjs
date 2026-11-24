@@ -150,9 +150,9 @@ try {
     await ukuran(lebar, hp);
     await masuk(a.email);
     await buka("/dashboard");
-    await tungguTeks("Lihat caranya");
+    await tungguTeks("Mulai tur panduan");
     await tidur(600);
-    await foto(`01-kartu-fitur-baru-di-dasbor-${akhiran}`);
+    await foto(`01-popup-fitur-baru-saat-masuk-dasbor-${akhiran}`);
     // Lonceng: pengumuman yang sama tercatat sebagai notifikasi.
     await evaluasi(`[...document.querySelectorAll("button")].filter((x) => x.offsetParent !== null).find((x) => /notifikasi/i.test(x.getAttribute("aria-label") ?? ""))?.click()`);
     await tidur(900);
@@ -160,8 +160,8 @@ try {
     await evaluasi(`document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`);
     await tidur(400);
     await buka("/dashboard");
-    await tungguTeks("Lihat caranya");
-    await klikTeks("Lihat caranya");
+    await tungguTeks("Mulai tur panduan");
+    await klikTeks("Mulai tur panduan");
     await tungguTeks("Nyalakan di sini");
     await tidur(1000);
     await foto(`03-lihat-caranya-membuka-panduan-sorotan-${akhiran}`);
