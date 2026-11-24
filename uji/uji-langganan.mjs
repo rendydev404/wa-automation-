@@ -870,17 +870,24 @@ await cek("KPI admin: pendapatan, pelanggan berbayar, balasan, biaya AI, tagihan
   const u = await P.buatAkun({ email: "kpi@uji.test", nama: "KPI", password: "rahasia-kpi-0001" });
   const n = await tambahNomor("Nomor KPI", u.id);
   await sql`UPDATE numbers SET wa_id = '628111000999' WHERE id = ${n.id}`;
-  await sql`INSERT INTO langganan(user_id, paket_id, nama_paket, mulai, sampai, kuota_nomor, kuota_balasan, sumber)
-            VALUES (${u.id}, NULL, 'KPI Uji', ${kini - 10 * HARI}, ${kini + 3 * HARI}, 1, 10, 'admin')`;
+  const [{ id: idL }] = await sql`INSERT INTO langganan(user_id, paket_id, nama_paket, mulai, sampai, kuota_nomor, kuota_balasan, sumber)
+            VALUES (${u.id}, NULL, 'KPI Uji', ${kini - 10 * HARI}, ${kini + 3 * HARI}, 1, 10, 'admin') RETURNING id`;
+  // Akun lain dengan paket GRATIS dari admin (dicatat Rp1): aktif, tetapi bukan pelanggan berbayar dan bukan pendapatan.
+  const g = await P.buatAkun({ email: "kpi-gratis@uji.test", nama: "KPI Gratis", password: "rahasia-kpi-0001" });
+  const [{ id: idG }] = await sql`INSERT INTO langganan(user_id, paket_id, nama_paket, mulai, sampai, kuota_nomor, kuota_balasan, sumber)
+            VALUES (${g.id}, NULL, 'KPI Gratis', ${kini - HARI}, ${kini + 30 * HARI}, 1, 10, 'admin') RETURNING id`;
   // 9 balasan terhitung kuota + 1 spam (biaya tetap tercatat, kuota tidak terpotong); satu panggilan 40 hari lalu = periode pembanding.
   for (let i = 0; i < 10; i++)
     await sql`INSERT INTO ai_pakai(number_id, waktu, penyedia, model, biaya_usd, ms, abaikan) VALUES (${n.id}, ${kini - i * 3600}, 'anthropic', 'uji', 0.01, 100, ${i === 9})`;
   await sql`INSERT INTO ai_pakai(number_id, waktu, penyedia, model, biaya_usd, ms) VALUES (${n.id}, ${kini - 40 * HARI}, 'anthropic', 'uji', 0.5, 100)`;
   await sql`INSERT INTO transaksi(order_id, user_id, nama_paket, jumlah, status, dibuat, dibayar) VALUES
     ('KPI-1', ${u.id}, 'KPI Uji', 150000, 'lunas', ${kini - 2 * HARI}, ${kini - 2 * HARI}),
+    ('KPI-5', ${g.id}, 'KPI Gratis', 1, 'lunas', ${kini - HARI}, ${kini - HARI}),
     ('KPI-2', ${u.id}, 'KPI Uji', 50000, 'lunas', ${kini - 40 * HARI}, ${kini - 40 * HARI}),
     ('KPI-3', ${u.id}, 'KPI Uji', 99000, 'menunggu', ${kini - HARI}, NULL),
     ('KPI-4', ${u.id}, 'KPI Uji', 70000, 'menunggu', ${kini - 9 * HARI}, NULL)`;
+  await sql`UPDATE transaksi SET langganan_id = ${idL} WHERE order_id = 'KPI-1'`;
+  await sql`UPDATE transaksi SET langganan_id = ${idG} WHERE order_id = 'KPI-5'`;
   await sql`INSERT INTO stats(number_id, tanggal, masuk, dibalas) VALUES (${n.id}, ${wib(kini)}, 5, 4), (${n.id}, ${wib(kini - 35 * HARI)}, 3, 2)`;
 
   const b = await K.kpiAdmin();
@@ -890,6 +897,8 @@ await cek("KPI admin: pendapatan, pelanggan berbayar, balasan, biaya AI, tagihan
     [beda((k) => k.pendapatan.kini), beda((k) => k.pendapatan.lalu), beda((k) => k.pendapatan.transaksi)],
     [150000, 50000, 1]
   );
+  assert.equal(beda((k) => k.pendapatan.simbolis), 1, "transaksi Rp1 (paket gratis) dicatat terpisah, tidak masuk pendapatan");
+  assert.equal(beda((k) => k.berbayar.gratis), 1, "paket gratis aktif tidak dihitung pelanggan berbayar");
   assert.equal(b.pendapatan.harian[hariKe(kini - 2 * HARI)].nilai - a.pendapatan.harian[hariKe(kini - 2 * HARI)].nilai, 150000);
   assert.deepEqual([beda((k) => k.berbayar.kini), beda((k) => k.berbayar.lalu)], [1, 0]);
   assert.equal(b.berbayar.harian.at(-1).nilai - a.berbayar.harian.at(-1).nilai, 1, "aktif hari ini");
@@ -899,7 +908,7 @@ await cek("KPI admin: pendapatan, pelanggan berbayar, balasan, biaya AI, tagihan
   assert.equal(b.balasan.harian.at(-1).dibalas - a.balasan.harian.at(-1).dibalas, 4);
   assert.ok(Math.abs(beda((k) => k.biayaAiUsd.kini) - 0.1) < 1e-9 && Math.abs(beda((k) => k.biayaAiUsd.lalu) - 0.5) < 1e-9);
   assert.deepEqual([beda((k) => k.menunggu.jumlah), beda((k) => k.menunggu.nilai)], [1, 99000], "tagihan > 7 hari tidak dihitung");
-  assert.deepEqual([beda((k) => k.akun.total), beda((k) => k.akun.pengguna), beda((k) => k.akun.baruKini)], [1, 1, 1]);
+  assert.deepEqual([beda((k) => k.akun.total), beda((k) => k.akun.pengguna), beda((k) => k.akun.baruKini)], [2, 2, 2]);
   assert.equal(beda((k) => k.nomor.total), 1);
   assert.deepEqual(b.nomor.tertaut.find((x) => x.userId === u.id), { sesi: n.sesi, label: "Nomor KPI", userId: u.id, email: "kpi@uji.test" });
   assert.deepEqual(b.berakhir.find((x) => x.userId === u.id), { userId: u.id, email: "kpi@uji.test", paket: "KPI Uji", sampai: kini + 3 * HARI });

@@ -39,6 +39,14 @@ assert.ok(c1.httpOnly && c1.sameSite === "lax" && c1.maxAge === 30 * 24 * 60 * 6
 assert.ok((await proxy(new NextRequest("http://localhost/login?utm_source=google"))).cookies.get(COOKIE_ASAL), "juga di /login (tombol Google)");
 assert.equal((await proxy(new NextRequest("http://localhost/daftar"))).cookies.get(COOKIE_ASAL), undefined, "tanpa parameter tidak menimpa cookie lama");
 assert.equal((await proxy(new NextRequest("http://localhost/lupa-password?utm_source=x"))).cookies.get(COOKIE_ASAL), undefined);
+// Iklan yang mendarat di beranda / LP industri: UTM & click id disimpan saat itu juga (tombol Daftar tidak membawa parameter).
+const r2 = await proxy(new NextRequest("http://localhost/?utm_source=facebook&utm_campaign=Promo&fbclid=IwAR0_x"));
+const c2 = bacaAsal(r2.cookies.get(COOKIE_ASAL)?.value);
+assert.deepEqual(c2, { industri: null, lp: "/", utm: { utm_source: "facebook", utm_campaign: "Promo", fbclid: "IwAR0_x" } }, "beranda dengan UTM = cookie asal, lp '/'");
+const r3 = bacaAsal((await proxy(new NextRequest("http://localhost/laundry?utm_source=meta"))).cookies.get(COOKIE_ASAL)?.value);
+assert.deepEqual([r3?.industri, r3?.lp], ["laundry", "/laundry"], "LP industri: industri & halaman ikut tercatat");
+assert.equal((await proxy(new NextRequest("http://localhost/"))).cookies.get(COOKIE_ASAL), undefined, "beranda tanpa UTM tidak menimpa atribusi iklan");
+assert.equal((await proxy(new NextRequest("http://localhost/?ref=abc"))).cookies.get(COOKIE_ASAL), undefined, "parameter non-iklan diabaikan");
 
 // --- Database: kolom dibuat otomatis, simpan sekali ---
 const tmp = path.join(os.tmpdir(), "wa-uji-asal");

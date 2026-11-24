@@ -18,9 +18,17 @@ export interface DeretHari {
 export interface KpiAdmin {
   /** Hari-hari periode (YYYY-MM-DD WIB, terlama dulu); hari terakhir = hari ini. */
   hari: string[];
-  pendapatan: { kini: number; lalu: number; transaksi: number; harian: DeretHari[] };
-  /** Akun bukan admin dengan langganan aktif: sekarang, 30 hari lalu, dan per hari. */
-  berbayar: { kini: number; lalu: number; harian: DeretHari[]; perPaket: { nama: string; jumlah: number }[] };
+  /**
+   * Uang masuk = transaksi lunas bernilai >= MIN_TUNAI (Midtrans, iPaymu, voucher berbayar, pembayaran dicatat admin).
+   * `voucher` = bagian dari kini yang berasal dari voucher; `simbolis` = transaksi lunas di bawah MIN_TUNAI (paket gratis
+   * yang dicatat Rp1, voucher gratis, tes) yang TIDAK dihitung.
+   */
+  pendapatan: { kini: number; lalu: number; transaksi: number; voucher: number; transaksiVoucher: number; simbolis: number; harian: DeretHari[] };
+  /**
+   * Akun pengguna dengan langganan aktif HASIL PEMBAYARAN (langganan tertaut transaksi lunas >= MIN_TUNAI): sekarang,
+   * 30 hari lalu, per hari. `gratis` = akun lain yang langganannya aktif tanpa pembayaran (dari admin, voucher gratis, tes).
+   */
+  berbayar: { kini: number; lalu: number; gratis: number; harian: DeretHari[]; perPaket: { nama: string; jumlah: number }[] };
   balasan: { kini: number; lalu: number; masuk: number; harian: { tanggal: string; masuk: number; dibalas: number }[] };
   biayaAiUsd: { kini: number; lalu: number };
   akun: { total: number; pengguna: number; aktif: number; diblokir: number; admin: number; baruKini: number; baruLalu: number };
@@ -44,6 +52,9 @@ const isiDeret = (hari: string[], baris: { tanggal: string; nilai: number }[]): 
   return hari.map((t) => ({ tanggal: t, nilai: per.get(t) ?? 0 }));
 };
 
+/** Batas transaksi yang dihitung sebagai uang masuk: paket gratis dari admin, voucher gratis, dan tes dicatat Rp1. */
+export const MIN_TUNAI = 1000;
+
 export async function kpiAdmin(): Promise<KpiAdmin> {
   const sql = await db();
   const kini = sekarang();
@@ -54,18 +65,26 @@ export async function kpiAdmin(): Promise<KpiAdmin> {
   const tglAwal = hari[0];
 
   const [pend, pendHarian, bayar, bayarHarian, perPaket, stat, statHarian, biaya, akun, tunggu, berakhir, menipis, nomor] = await Promise.all([
-    sql<{ kini: string; lalu: string; n: number }[]>`
-      SELECT COALESCE(SUM(jumlah) FILTER (WHERE dibayar >= ${awal}), 0)::bigint AS kini,
-             COALESCE(SUM(jumlah) FILTER (WHERE dibayar < ${awal}), 0)::bigint AS lalu,
-             COUNT(*) FILTER (WHERE dibayar >= ${awal} AND jumlah > 0)::int AS n
+    sql<{ kini: string; lalu: string; n: number; voucher: string; n_voucher: number; n_simbolis: number }[]>`
+      SELECT COALESCE(SUM(jumlah) FILTER (WHERE dibayar >= ${awal} AND jumlah >= ${MIN_TUNAI}), 0)::bigint AS kini,
+             COALESCE(SUM(jumlah) FILTER (WHERE dibayar < ${awal} AND jumlah >= ${MIN_TUNAI}), 0)::bigint AS lalu,
+             COUNT(*) FILTER (WHERE dibayar >= ${awal} AND jumlah >= ${MIN_TUNAI})::int AS n,
+             COALESCE(SUM(jumlah) FILTER (WHERE dibayar >= ${awal} AND jumlah >= ${MIN_TUNAI} AND metode = 'voucher'), 0)::bigint AS voucher,
+             COUNT(*) FILTER (WHERE dibayar >= ${awal} AND jumlah >= ${MIN_TUNAI} AND metode = 'voucher')::int AS n_voucher,
+             COUNT(*) FILTER (WHERE dibayar >= ${awal} AND jumlah < ${MIN_TUNAI})::int AS n_simbolis
         FROM transaksi WHERE status = 'lunas' AND dibayar >= ${awalLalu}`,
     sql<{ tanggal: string; nilai: number }[]>`
       SELECT to_char(to_timestamp(dibayar) AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD') AS tanggal, SUM(jumlah)::bigint AS nilai
-        FROM transaksi WHERE status = 'lunas' AND dibayar >= ${awal} GROUP BY 1`,
-    sql<{ kini: number; lalu: number }[]>`
-      SELECT COUNT(DISTINCT l.user_id) FILTER (WHERE l.mulai <= ${kini} AND l.sampai > ${kini})::int AS kini,
-             COUNT(DISTINCT l.user_id) FILTER (WHERE l.mulai <= ${awal} AND l.sampai > ${awal})::int AS lalu
+        FROM transaksi WHERE status = 'lunas' AND dibayar >= ${awal} AND jumlah >= ${MIN_TUNAI} GROUP BY 1`,
+    // Langganan "dibayar" = tertaut transaksi lunas >= MIN_TUNAI (transaksi.langganan_id diisi saat paket diaktifkan:
+    // Midtrans/iPaymu, voucher, dan pembayaran yang dicatat admin). Paket gratis dari admin tidak punya transaksi itu.
+    sql<{ kini: number; lalu: number; aktif: number }[]>`
+      SELECT COUNT(DISTINCT l.user_id) FILTER (WHERE l.mulai <= ${kini} AND l.sampai > ${kini} AND b.dibayar)::int AS kini,
+             COUNT(DISTINCT l.user_id) FILTER (WHERE l.mulai <= ${awal} AND l.sampai > ${awal} AND b.dibayar)::int AS lalu,
+             COUNT(DISTINCT l.user_id) FILTER (WHERE l.mulai <= ${kini} AND l.sampai > ${kini})::int AS aktif
         FROM langganan l JOIN users u ON u.id = l.user_id AND u.peran = 'user'
+        CROSS JOIN LATERAL (
+          SELECT EXISTS (SELECT 1 FROM transaksi t WHERE t.langganan_id = l.id AND t.status = 'lunas' AND t.jumlah >= ${MIN_TUNAI}) AS dibayar) b
        WHERE l.sampai > ${awal}`,
     // Satu titik per hari (pada jam yang sama dengan sekarang): jumlah akun berbayar saat itu.
     sql<{ tanggal: string; nilai: number }[]>`
@@ -73,6 +92,7 @@ export async function kpiAdmin(): Promise<KpiAdmin> {
         FROM generate_series(${awal + HARI}::bigint, ${kini}::bigint, ${HARI}::bigint) AS t
         JOIN langganan l ON l.mulai <= t AND l.sampai > t
         JOIN users u ON u.id = l.user_id AND u.peran = 'user'
+       WHERE EXISTS (SELECT 1 FROM transaksi x WHERE x.langganan_id = l.id AND x.status = 'lunas' AND x.jumlah >= ${MIN_TUNAI})
        GROUP BY 1`,
     sql<{ nama: string; jumlah: number }[]>`
       SELECT l.nama_paket AS nama, COUNT(DISTINCT l.user_id)::int AS jumlah
@@ -129,8 +149,16 @@ export async function kpiAdmin(): Promise<KpiAdmin> {
   const statPer = new Map(statHarian.map((s) => [s.tanggal, s]));
   return {
     hari,
-    pendapatan: { kini: Number(pend[0].kini), lalu: Number(pend[0].lalu), transaksi: pend[0].n, harian: isiDeret(hari, pendHarian) },
-    berbayar: { kini: bayar[0].kini, lalu: bayar[0].lalu, harian: isiDeret(hari, bayarHarian), perPaket: [...perPaket] },
+    pendapatan: {
+      kini: Number(pend[0].kini),
+      lalu: Number(pend[0].lalu),
+      transaksi: pend[0].n,
+      voucher: Number(pend[0].voucher),
+      transaksiVoucher: pend[0].n_voucher,
+      simbolis: pend[0].n_simbolis,
+      harian: isiDeret(hari, pendHarian),
+    },
+    berbayar: { kini: bayar[0].kini, lalu: bayar[0].lalu, gratis: bayar[0].aktif - bayar[0].kini, harian: isiDeret(hari, bayarHarian), perPaket: [...perPaket] },
     balasan: {
       kini: stat[0].dibalas,
       lalu: stat[0].dibalas_lalu,

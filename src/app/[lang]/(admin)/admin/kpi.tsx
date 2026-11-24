@@ -17,7 +17,7 @@ import {
 import { Delta, KartuStat, KartuUtama, Meter, Sparkline } from "@/components/stat";
 import { GrafikAktivitas } from "@/components/grafik-aktivitas";
 import { angka, angkaRingkas, rupiahRingkas, tanggal, waktuSingkatWib } from "@/lib/format";
-import { PERIODE_HARI, kpiAdmin, type KpiAdmin } from "@/lib/kpi";
+import { MIN_TUNAI, PERIODE_HARI, kpiAdmin, type KpiAdmin } from "@/lib/kpi";
 import { infoKurs } from "@/lib/kurs";
 import { daftarLog } from "@/lib/pengguna";
 import { requireStaf } from "@/lib/session";
@@ -93,7 +93,13 @@ export async function KpiRingkasan() {
           label={`Pendapatan · ${PERIODE_HARI} hari`}
           nilai={rupiahRingkas(k.pendapatan.kini)}
           delta={<Delta kini={k.pendapatan.kini} lalu={k.pendapatan.lalu} format={rupiahRingkas} pembanding={PEMBANDING} gelap />}
-          keterangan={`Rp${angka(k.pendapatan.kini)} dari ${angka(k.pendapatan.transaksi)} transaksi lunas`}
+          keterangan={[
+            `Rp${angka(k.pendapatan.kini)} dari ${angka(k.pendapatan.transaksi)} pembayaran`,
+            k.pendapatan.transaksiVoucher ? `termasuk ${angka(k.pendapatan.transaksiVoucher)} voucher ${rupiahRingkas(k.pendapatan.voucher)}` : "",
+            k.pendapatan.simbolis ? `${angka(k.pendapatan.simbolis)} transaksi Rp1 (gratis/tes) tidak dihitung` : "",
+          ]
+            .filter(Boolean)
+            .join(" · ")}
           tren={pendapatanKumulatif}
         />
         <KartuStat
@@ -101,7 +107,12 @@ export async function KpiRingkasan() {
           nilai={angka(k.berbayar.kini)}
           ikon={<BadgeCheck className="size-4" aria-hidden />}
           delta={<Delta kini={k.berbayar.kini} lalu={k.berbayar.lalu} mode="selisih" pembanding={`${PERIODE_HARI} hari lalu`} />}
-          keterangan={konversi === null ? "Belum ada akun pengguna" : `${konversi}% dari ${angka(k.akun.pengguna)} akun pengguna`}
+          keterangan={[
+            konversi === null ? "Belum ada akun pengguna" : `${konversi}% dari ${angka(k.akun.pengguna)} akun pengguna`,
+            k.berbayar.gratis ? `+${angka(k.berbayar.gratis)} paket gratis tidak dihitung` : "",
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         >
           <Sparkline nilai={k.berbayar.harian.map((d) => d.nilai)} className="h-9 w-[calc(100%-6px)]" />
         </KartuStat>
@@ -208,8 +219,9 @@ export async function KpiRingkasan() {
       </div>
 
       <p className="text-[11.5px] text-faint">
-        Angka {PERIODE_HARI} hari terakhir dibanding {PERIODE_HARI} hari sebelumnya, tanggal menurut WIB. Pendapatan = transaksi lunas (Midtrans &
-        dicatat admin). Biaya AI dalam Rp memakai kurs Rp{angka(kurs)}/USD, sumber: {kursI.cadangan ? "perkiraan cadangan" : kursI.sumber}.
+        Angka {PERIODE_HARI} hari terakhir dibanding {PERIODE_HARI} hari sebelumnya, tanggal menurut WIB. Pendapatan = pembayaran lunas bernilai
+        minimal Rp{angka(MIN_TUNAI)} (Midtrans, iPaymu, voucher berbayar, dan pembayaran yang dicatat admin); paket gratis dari admin, voucher gratis,
+        dan transaksi tes Rp1 tidak dihitung. Pelanggan berbayar = akun dengan langganan aktif hasil pembayaran. Biaya AI dalam Rp memakai kurs Rp{angka(kurs)}/USD, sumber: {kursI.cadangan ? "perkiraan cadangan" : kursI.sumber}.
       </p>
     </div>
   );

@@ -51,6 +51,19 @@ export function asalDariUrl(q: URLSearchParams): AsalDaftar | null {
   return saring((k) => q.get(k));
 }
 
+/**
+ * Asal dari halaman publik mana pun yang dibuka dengan parameter iklan (beranda "/", LP industri "/laundry", ...):
+ * hanya bila URL membawa UTM / click id / industri, supaya kunjungan biasa tidak menimpa atribusi iklan sebelumnya.
+ * Halaman itu sendiri menjadi `lp` bila tidak disebut, dan slug LP industri menjadi `industri`. Tanpa ini pendaftar dari
+ * iklan yang mendarat di beranda kehilangan UTM-nya, karena tombol "Daftar" mengarah ke /daftar tanpa parameter.
+ */
+export function asalHalaman(pathname: string, q: URLSearchParams): AsalDaftar | null {
+  const a = asalDariUrl(q);
+  if (!a) return null;
+  const slug = pathname.replace(/^\//, "");
+  return { industri: a.industri ?? industriSah(slug), lp: a.lp ?? lpSah(pathname), utm: a.utm };
+}
+
 /** Nilai cookie (JSON pendek). Kunci sama dengan parameter URL supaya bisa disaring ulang saat dibaca. */
 export function kodeAsal(a: AsalDaftar): string {
   return JSON.stringify({ industry: a.industri ?? undefined, landing_page: a.lp ?? undefined, ...a.utm });

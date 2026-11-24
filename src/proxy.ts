@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 import { COOKIE_REF, UMUR_COOKIE_REF, normalkanKodeRef } from "@/lib/afiliasi-def";
-import { COOKIE_ASAL, UMUR_COOKIE_ASAL, asalDariUrl, kodeAsal } from "@/lib/asal-def";
+import { COOKIE_ASAL, UMUR_COOKIE_ASAL, asalDariUrl, asalHalaman, kodeAsal } from "@/lib/asal-def";
 import { type Bahasa, HEADER_BAHASA, bahasaSah, tautan, urai } from "@/lib/bahasa";
 import { jalurLanjut } from "@/lib/lanjut";
 import { modeMesin } from "@/lib/mode";
@@ -127,7 +127,14 @@ export async function proxy(request: NextRequest) {
   }
   if (modeMesin() && !isApi && halamanPusat(pathname)) return NextResponse.redirect(new URL(href("/dashboard"), request.url));
   if (modeMesin() && !isApi && panelPusat(pathname)) return NextResponse.redirect(new URL(href("/admin"), request.url));
-  if (PUBLIK.has(pathname)) return pasangVoucher(pasangRef(lanjut()));
+  if (PUBLIK.has(pathname)) {
+    const res = pasangVoucher(pasangRef(lanjut()));
+    // Iklan yang mendarat di beranda / LP industri: UTM & click id disimpan sekarang (cookie 30 hari), karena tombol
+    // "Daftar" di halaman itu tidak membawa parameternya. Kunjungan tanpa parameter tidak menimpa cookie yang ada.
+    const asalIklan = !isApi && request.method === "GET" ? asalHalaman(pathname, searchParams) : null;
+    if (asalIklan) res.cookies.set(COOKIE_ASAL, kodeAsal(asalIklan), { httpOnly: true, sameSite: "lax", path: "/", maxAge: UMUR_COOKIE_ASAL });
+    return res;
+  }
   // Berkas statis dari public/ (logo, logo bank, maskot, ikon) memang publik: tanpa ini pengunjung yang belum login
   // dialihkan ke /login dan gambarnya rusak di landing page. Hanya ekstensi media/font, dan bukan /api.
   if (!isApi && BERKAS_STATIS.test(pathname)) return lanjut();
