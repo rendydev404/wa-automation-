@@ -29,7 +29,8 @@ export type JenisNotif =
   | "admin_afiliasi"
   | "admin_followup"
   | "developer_api"
-  | "admin_developer_api";
+  | "admin_developer_api"
+  | "fitur_baru";
 
 export interface IsiNotif {
   jenis: JenisNotif;

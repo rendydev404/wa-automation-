@@ -441,6 +441,41 @@ await cek("nomor milik satu pengguna & statistiknya lewat indeks user_id", async
   await ukur("daftarNomor(user) dengan 6 rb nomor di tabel", () => daftarNomor(budi.id, false));
 });
 
+console.log("== pengumuman fitur baru ==");
+await cek("fitur baru: hanya akun lama yang punya nomor QR, sudah lewat tur awal, belum melihat; sekali lalu hilang", async () => {
+  const FB = await lib("src/lib/fitur-baru.ts");
+  const { FITUR_BARU, KUNCI_LIHAT } = await lib("src/lib/fitur-baru-def.ts");
+  const f = FITUR_BARU[0];
+  const kini = f.rilis + 3600;
+  const akun = async (email, o = {}) => {
+    const u = await P.buatAkun({ email, nama: email, password: "rahasia-fb-0001" });
+    await sql`UPDATE users SET created_at = ${o.baru ? f.rilis + 60 : f.rilis - 86400} WHERE id = ${u.id}`;
+    if (!o.turAwal) await P.tandaiTurSelesai(u.id, "dashboard");
+    if (o.nomor !== false) {
+      const n = await tambahNomor(email, u.id);
+      if (o.nomor === "resmi") await sql`UPDATE numbers SET jalur = 'resmi' WHERE id = ${n.id}`;
+      globalThis.__waNomor.janji = null;
+      return { u, n };
+    }
+    return { u };
+  };
+  const lama = await akun("fb-lama@uji.test");
+  const p = await FB.pengumumanFiturBaru(lama.u.id, kini);
+  assert.equal(p?.f.kode, f.kode);
+  assert.equal(p.tujuan, `/nomor/${lama.n.id}?tur=${f.tur}#pengaturan`);
+  assert.equal(await FB.pengumumanFiturBaru(lama.u.id, f.rilis - 1), null, "sebelum rilis");
+  assert.equal(await FB.pengumumanFiturBaru(lama.u.id, f.rilis + f.berlakuHari * 86400), null, "masa berlaku habis");
+  assert.equal(await FB.pengumumanFiturBaru((await akun("fb-baru@uji.test", { baru: true })).u.id, kini), null, "akun baru: fiturnya sudah ada sejak daftar");
+  assert.equal(await FB.pengumumanFiturBaru((await akun("fb-onboarding@uji.test", { turAwal: true })).u.id, kini), null, "masih di tur awal");
+  assert.equal(await FB.pengumumanFiturBaru((await akun("fb-tanpa-nomor@uji.test", { nomor: false })).u.id, kini), null, "tanpa nomor");
+  assert.equal(await FB.pengumumanFiturBaru((await akun("fb-resmi@uji.test", { nomor: "resmi" })).u.id, kini), null, "hanya nomor resmi");
+  await P.tandaiTurSelesai(lama.u.id, KUNCI_LIHAT(f.kode));
+  assert.equal(await FB.pengumumanFiturBaru(lama.u.id, kini), null, "sudah dilihat");
+  const sudahTur = await akun("fb-sudah-tur@uji.test");
+  await P.tandaiTurSelesai(sudahTur.u.id, f.tur);
+  assert.equal(await FB.pengumumanFiturBaru(sudahTur.u.id, kini), null, "turnya sudah diputar sendiri");
+});
+
 await sql.end({ timeout: 2 });
 await pg.berhenti();
 console.log(`\n${lolos} uji lolos.`);

@@ -18,6 +18,9 @@ import { modeMesin } from "@/lib/mode";
 import { cookies } from "next/headers";
 import { COOKIE_VOUCHER } from "@/lib/voucher-def";
 import { ModalVoucher } from "@/components/modal-voucher";
+import { KartuFiturBaru } from "@/components/kartu-fitur-baru";
+import { KUNCI_LIHAT } from "@/lib/fitur-baru-def";
+import { pengumumanFiturBaru } from "@/lib/fitur-baru";
 
 export const viewport: Viewport = { themeColor: "#0b1813" };
 
@@ -44,6 +47,23 @@ async function ModalVoucherOtomatis() {
   const { infoVoucherModal } = await import("@/lib/voucher");
   const info = await infoVoucherModal(kode, user.id);
   return info ? <ModalVoucher info={info} /> : null;
+}
+
+/**
+ * Pengumuman fitur baru untuk pengguna lama (lib/fitur-baru.ts). Yang memenuhi syarat juga dicatat sekali di lonceng
+ * notifikasi (kunci anti-dobel), supaya tetap bisa dibuka setelah kartunya ditutup. Mesin self-host dan staf tidak
+ * diberi pengumuman.
+ */
+async function PengumumanFiturBaru() {
+  if (modeMesin()) return null;
+  const user = await requireUser();
+  if (staf(user.peran)) return null;
+  const p = await pengumumanFiturBaru(user.id);
+  if (!p) return null;
+  const { b } = await teksHalaman();
+  const { kirimNotif } = await import("@/lib/notifikasi");
+  void kirimNotif(user.id, { jenis: "fitur_baru", judul: p.f.judul, isi: p.f.isi, tautan: p.tujuan, kunci: KUNCI_LIHAT(p.f.kode) });
+  return <KartuFiturBaru kode={p.f.kode} judul={p.f.judul[b]} isi={p.f.isi[b]} tujuan={p.tujuan} />;
 }
 
 export default async function AppLayout({ children }: LayoutProps<"/[lang]">) {
@@ -102,6 +122,9 @@ export default async function AppLayout({ children }: LayoutProps<"/[lang]">) {
           {children}
           <Suspense fallback={null}>
             <ModalVoucherOtomatis />
+          </Suspense>
+          <Suspense fallback={null}>
+            <PengumumanFiturBaru />
           </Suspense>
         </main>
       </Rangka>

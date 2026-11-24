@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import { BookOpen, Check, ChevronDown, CircleHelp, Contact, Loader2, MessageCircleOff, RefreshCw, Search, Sparkles, Star, UserRound, X } from "lucide-react";
 import { daftarKontakAction, perbaruiKontakAction, ringkasanKontakAction, setAbaikanKontakAction, setTetapBalasAction } from "@/app/actions";
 import type { Kontak, RingkasanKontak } from "@/lib/kontak";
@@ -49,6 +50,30 @@ export function PanelKontak({
   const permintaan = useRef(0);
   const tur = useTurOpsional();
   const mulaiTur = () => tur?.mulai("kontak", TUR_KONTAK(t));
+
+  // Datang dari pengumuman "Fitur baru" atau notifikasinya (?tur=kontak): putar panduannya, lalu buang parameternya.
+  const turDiminta = useSearchParams().get("tur") === "kontak";
+  useEffect(() => {
+    if (!turDiminta || resmi) return;
+    // Parameter dibuang di akhir: membuangnya mengubah useSearchParams dan menjalankan cleanup efek ini, jadi tur
+    // harus sudah dimulai lebih dulu.
+    let lanjut: ReturnType<typeof setTimeout> | undefined;
+    const id = setTimeout(() => {
+      // Pengguna bisa saja sedang di tab lain halaman nomor ini: buka tab Pengaturan dulu (tab-nomor.tsx).
+      window.dispatchEvent(new CustomEvent("nomor:tab", { detail: "pengaturan" }));
+      lanjut = setTimeout(() => {
+        mulaiTur();
+        const u = new URL(location.href);
+        u.searchParams.delete("tur");
+        history.replaceState(history.state, "", u);
+      }, 450);
+    }, 900);
+    return () => {
+      clearTimeout(id);
+      clearTimeout(lanjut);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turDiminta]);
 
   // Pertama kali fitur dinyalakan: panduan sorotan diputar sekali, setelah daftar kontak tampil (panel dipasang ulang
   // begitu sakelar berubah, jadi tandanya disimpan di modul).

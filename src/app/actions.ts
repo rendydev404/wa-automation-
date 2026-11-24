@@ -62,6 +62,7 @@ import { geserProduk, hapusProduk, katalogBoleh, setTersedia } from "@/lib/katal
 import { BATAS_JEDA_DETIK, BATAS_TUNGGU_BACA_DETIK, BATAS_TUNGGU_DETIK, type Nomor, hapusNomor, mulaiPercobaanTersambung, nomorMilik, rapikanNomorWa, semuaNomor, setAbaikanKontak, setBelajar, setBotAktif, setSaringProspek, setSaringSpam, tambahNomor, ubahNomor } from "@/lib/numbers";
 import { cekPassword, verifyPassword } from "@/lib/password";
 import { type ItemPelajaran, daftarPelajaran, hapusPelajaran } from "@/lib/pelajaran";
+import { FITUR_BARU, KUNCI_LIHAT } from "@/lib/fitur-baru-def";
 import { type Kontak, type RingkasanKontak, daftarKontak, kontakBasi, ringkasanKontak, setTetapBalas, tarikUlangKontak } from "@/lib/kontak";
 import {
   PenggunaError,
@@ -1185,6 +1186,13 @@ export async function adminAiAction(_lalu: Hasil | null, form: FormData): Promis
 // ---------- Tur panduan ----------
 
 const TUR_SAH = new Set(["dashboard", "nomor", "admin", "kontak"]);
+
+/** Pengumuman fitur baru sudah dilihat (dibuka atau ditutup): tidak ditampilkan lagi di perangkat mana pun. */
+export async function tandaiFiturBaruAction(kode: string): Promise<void> {
+  const user = await requireUser();
+  if (!FITUR_BARU.some((f) => f.kode === kode)) return;
+  await tandaiTurSelesai(user.id, KUNCI_LIHAT(kode));
+}
 
 export async function selesaiTurAction(nama: string): Promise<void> {
   const user = await requireUser();
