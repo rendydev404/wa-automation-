@@ -52,7 +52,7 @@ function caraBayar(kanal: KanalBayar, kode?: string, penyedia = "Midtrans"): Car
           langkah: [
             <>Ketuk <B>Buka ShopeePay</B> dari HP yang terpasang aplikasi Shopee.</>,
             <>Periksa nominal, lalu konfirmasi dengan PIN ShopeePay.</>,
-            <>Membuka halaman ini di komputer? Pilih metode <B>QRIS</B>: kodenya juga bisa dibayar dengan ShopeePay.</>,
+            <>Membuka halaman ini di komputer? Scan kode QR di atas dengan kamera HP untuk membuka ShopeePay di HP.</>,
           ],
         },
       ];
@@ -61,7 +61,7 @@ function caraBayar(kanal: KanalBayar, kode?: string, penyedia = "Midtrans"): Car
         {
           judul: "Bayar dengan DANA",
           langkah: [
-            <>Ketuk <B>Buka DANA</B>. Di HP yang terpasang aplikasi DANA, aplikasinya terbuka sendiri; di komputer, masuk dengan nomor DANA kamu.</>,
+            <>Ketuk <B>Buka DANA</B>. Di HP yang terpasang aplikasi DANA, aplikasinya terbuka sendiri. Di komputer, scan kode QR di atas dengan kamera HP (atau ketuk tombolnya lalu masuk dengan nomor DANA kamu).</>,
             <>Periksa nominal, lalu konfirmasi dengan PIN DANA.</>,
             <>Setelah berhasil, kembali ke halaman ini: status diperbarui otomatis.</>,
           ],
@@ -210,7 +210,7 @@ function caraBayarEn(kanal: KanalBayar, kode?: string, penyedia = "Midtrans"): C
           langkah: [
             <>Tap <B>Open ShopeePay</B> on a phone that has the Shopee app installed.</>,
             <>Check the amount, then confirm with your ShopeePay PIN.</>,
-            <>Viewing this page on a computer? Choose the <B>QRIS</B> method instead: its code can also be paid with ShopeePay.</>,
+            <>Viewing this page on a computer? Scan the QR code above with your phone camera to open ShopeePay on your phone.</>,
           ],
         },
       ];
@@ -219,7 +219,7 @@ function caraBayarEn(kanal: KanalBayar, kode?: string, penyedia = "Midtrans"): C
         {
           judul: "Pay with DANA",
           langkah: [
-            <>Tap <B>Open DANA</B>. On a phone with the DANA app it opens automatically; on a computer, sign in with your DANA number.</>,
+            <>Tap <B>Open DANA</B>. On a phone with the DANA app it opens automatically. On a computer, scan the QR code above with your phone camera (or tap the button and sign in with your DANA number).</>,
             <>Check the amount, then confirm with your DANA PIN.</>,
             <>Once paid, come back to this page: the status updates automatically.</>,
           ],

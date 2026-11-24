@@ -390,7 +390,7 @@ export function AlurAfiliasiInteraktif({ domainContoh, kurs = KURS_CADANGAN }: {
             {[
               { email: "tok***@gmail.com", paket: t("Paket Bisnis", "Business plan"), harga: 246_000, komisi: 49_200, waktu: t("Baru saja", "Just now") },
               { email: "kli***@usaha.id", paket: t("Paket Pro", "Pro plan"), harga: 602_000, komisi: 120_400, waktu: t("2 jam lalu", "2 hours ago") },
-              { email: "kop***@mail.com", paket: t("Paket Starter", "Starter plan"), harga: 67_000, komisi: 13_400, waktu: t("Kemarin", "Yesterday") },
+              { email: "kop***@mail.com", paket: t("Paket Starter", "Starter plan"), harga: 79_000, komisi: 15_800, waktu: t("Kemarin", "Yesterday") },
             ].map((item) => (
               <div
                 key={item.email}

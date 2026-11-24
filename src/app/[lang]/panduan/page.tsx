@@ -122,8 +122,8 @@ export default async function HalamanPanduan() {
   const urlWaDemo =
     b === "en" ? `https://wa.me/${NOMOR_WA_DEMO}?text=${encodeURIComponent(`Hi ${MEREK}, I read the guide and have a question.`)}` : URL_WA_DEMO;
   const hargaMulai = (
-    <Suspense fallback={t("Rp67 ribu/30 hari", "Rp67,000/30 days")}>
-      <HargaMulai cadangan={t("Rp67 ribu/30 hari", "Rp67,000/30 days")} />
+    <Suspense fallback={<span aria-hidden className="inline-block h-[1em] w-28 animate-denyut rounded bg-current/15 align-middle" />}>
+      <HargaMulai cadangan={t("harga terjangkau", "an affordable price")} />
     </Suspense>
   );
   const teksBagikan = t(

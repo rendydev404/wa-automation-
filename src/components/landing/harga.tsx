@@ -199,14 +199,14 @@ export async function BandingLanding() {
   return <BandingAdminLanding paket={dijual} kurs={kurs} />;
 }
 
-/** "Rp67 ribu" dari harga Rupiah (ribuan bulat), selain itu format uang biasa. */
+/** "Rp79 ribu" dari harga Rupiah (ribuan bulat), selain itu format uang biasa. */
 function ringkasRp(harga: number, b: Bahasa, kurs?: number): string {
   if (b === "en") return uang(harga, b, kurs);
   return harga % 1000 === 0 ? `Rp${angka(harga / 1000)} ribu` : uang(harga, b);
 }
 
 /**
- * Harga paket termurah untuk kalimat hero ("mulai Rp67 ribu/30 hari"). Dialirkan di dalam Suspense dengan teks
+ * Harga paket termurah untuk kalimat hero ("mulai Rp79 ribu/30 hari"), selalu dari database (harga diubah admin). Dialirkan di dalam Suspense dengan teks
  * cadangan, jadi hero tetap statis dan tidak menunggu database; gagal = teks cadangan tetap tampil.
  */
 export async function HargaMulai({ cadangan }: { cadangan: string }) {

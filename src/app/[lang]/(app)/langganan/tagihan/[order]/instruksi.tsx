@@ -212,6 +212,29 @@ export interface DataBayar {
   qr?: BitQr;
   qrUrl?: string;
   deeplink?: string;
+  /** QR berisi `deeplink` (e-wallet tanpa QR dari provider): hanya tampil di layar lebar, untuk dipindai kamera HP. */
+  qrTautan?: BitQr;
+}
+
+/**
+ * Membuka halaman bayar di komputer untuk e-wallet yang hanya memberi deeplink: QR tautan pembayaran untuk dipindai
+ * kamera HP. Disembunyikan di HP (tombol "Buka ..." di bawahnya yang dipakai).
+ */
+function QrTautan({ qr, namaAplikasi }: { qr: BitQr; namaAplikasi: string }) {
+  const { t } = useBahasa();
+  return (
+    <div className="hidden flex-col items-center gap-2 rounded-xl border border-line bg-subtle px-4 py-4 sm:flex">
+      <svg viewBox={`0 0 ${qr.n} ${qr.n}`} role="img" aria-label={t(`Kode QR untuk membuka ${namaAplikasi} di HP`, `QR code to open ${namaAplikasi} on your phone`)} shapeRendering="crispEdges" className="size-52 rounded-xl border border-line bg-white">
+        <path d={jalurQr(qr)} fill="#000" />
+      </svg>
+      <p className="max-w-sm text-center text-[13px] text-muted">
+        {t(
+          `Membuka dari komputer? Scan kode ini dengan kamera HP, lalu bayar di aplikasi ${namaAplikasi} yang terbuka.`,
+          `On a computer? Scan this code with your phone camera, then pay in the ${namaAplikasi} app that opens.`,
+        )}
+      </p>
+    </div>
+  );
 }
 
 /** Nomor VA dikelompokkan per 4 digit supaya mudah dibaca & dicocokkan. */
@@ -321,6 +344,7 @@ export function InstruksiBayar({
             {bayar.va && (
               <Baris label={bayar.biller ? t("Kode bayar", "Payment code") : t("Nomor virtual account", "Virtual account number")} nilai={kelompok(bayar.va)} salin={bayar.va} />
             )}
+            {bayar.qrTautan && <QrTautan qr={bayar.qrTautan} namaAplikasi={namaAplikasi ?? labelKanal} />}
             {bayar.deeplink && (
               <a href={bayar.deeplink} className="btn btn-primary h-11 w-full text-[14px]" rel="noopener">
                 <ExternalLink className="size-4" aria-hidden /> {t(`Buka ${namaAplikasi ?? "aplikasi"}`, `Open ${namaAplikasi ?? "the app"}`)}

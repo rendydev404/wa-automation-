@@ -206,8 +206,8 @@ export default async function Landing() {
                 `Meet ${MEREK}, an AI WhatsApp assistant that serves your customers automatically, so you don't have to stay on standby. Use the WhatsApp number you already have, from `,
               )}
               <b className="font-bold text-ink-fg">
-                <Suspense fallback={t("Rp67 ribu/30 hari", "Rp67,000/30 days")}>
-                  <HargaMulai cadangan={t("Rp67 ribu/30 hari", "Rp67,000/30 days")} />
+                <Suspense fallback={<span aria-hidden className="inline-block h-[1em] w-28 animate-denyut rounded bg-current/15 align-middle" />}>
+                  <HargaMulai cadangan={t("harga terjangkau", "an affordable price")} />
                 </Suspense>
               </b>
               {t(

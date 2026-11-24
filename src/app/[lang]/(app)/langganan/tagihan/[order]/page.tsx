@@ -95,11 +95,17 @@ async function Isi({ params }: { params: Promise<{ order: string }> }) {
 
 async function dataBayar(b: DataMidtrans): Promise<DataBayar> {
   let qr: BitQr | undefined;
+  let qrTautan: BitQr | undefined;
   if (b.qr) {
     const { encode } = await import("uqr");
     qr = kemasQr(encode(b.qr, { ecc: "M", border: 3 }).data);
+  } else if (b.deeplink && !b.qrUrl) {
+    // E-wallet yang hanya memberi deeplink (DANA & ShopeePay lewat iPaymu): di komputer tombolnya tidak bisa dipakai
+    // membayar, jadi tautannya dijadikan QR untuk dipindai kamera HP (membuka aplikasi/kasir e-wallet di HP).
+    const { encode } = await import("uqr");
+    qrTautan = kemasQr(encode(b.deeplink, { ecc: "L", border: 3 }).data);
   }
-  return { va: b.va, biller: b.biller, qrUrl: b.qrUrl, deeplink: b.deeplink, qr };
+  return { va: b.va, biller: b.biller, qrUrl: b.qrUrl, deeplink: b.deeplink, qr, qrTautan };
 }
 
 async function hrefBaru(t: Transaksi, api?: number | null): Promise<string | null> {
